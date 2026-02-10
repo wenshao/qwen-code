@@ -7,7 +7,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { HttpError } from './retry.js';
-import { getErrorStatus, retryWithBackoff } from './retry.js';
+import {
+  getErrorStatus,
+  isTPMThrottlingError,
+  retryWithBackoff,
+} from './retry.js';
 import { setSimulate429 } from './testUtils.js';
 import { AuthType } from '../core/contentGenerator.js';
 
@@ -530,5 +534,159 @@ describe('getErrorStatus', () => {
     expect(getErrorStatus({})).toBeUndefined();
     expect(getErrorStatus({ response: {} })).toBeUndefined();
     expect(getErrorStatus({ error: {} })).toBeUndefined();
+  });
+});
+
+describe('isTPMThrottlingError', () => {
+  it('should detect TPM throttling error from string', () => {
+    const errorMessage =
+      '{"error":{"message":"Throttling: TPM(10680324/10000000)","type":"Throttling","code":"429"}}';
+    expect(isTPMThrottlingError(errorMessage)).toBe(true);
+  });
+
+  it('should detect TPM throttling error from Error object', () => {
+    const error = new Error('Throttling: TPM(10680324/10000000)');
+    expect(isTPMThrottlingError(error)).toBe(true);
+  });
+
+  it('should detect TPM throttling error from nested error object', () => {
+    const error = {
+      error: {
+        message: 'Throttling: TPM(10680324/10000000)',
+        type: 'Throttling',
+        code: '429',
+      },
+    };
+    expect(isTPMThrottlingError(error)).toBe(true);
+  });
+
+  it('should return false for non-TPM errors', () => {
+    expect(isTPMThrottlingError('Regular error message')).toBe(false);
+    expect(isTPMThrottlingError(new Error('Regular error'))).toBe(false);
+    expect(
+      isTPMThrottlingError({
+        error: { message: 'Rate limit exceeded', code: '429' },
+      }),
+    ).toBe(false);
+  });
+
+  it('should return false for non-string non-object values', () => {
+    expect(isTPMThrottlingError(null)).toBe(false);
+    expect(isTPMThrottlingError(undefined)).toBe(false);
+    expect(isTPMThrottlingError(429)).toBe(false);
+    expect(isTPMThrottlingError(true)).toBe(false);
+  });
+});
+
+describe('TPM throttling retry handling', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    setSimulate429(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('should wait 1 minute for TPM throttling errors before retrying', async () => {
+    const tpmError: HttpError = new Error('Throttling: TPM(10680324/10000000)');
+    tpmError.status = 429;
+
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(tpmError)
+      .mockResolvedValue('success');
+
+    const promise = retryWithBackoff(fn, {
+      maxAttempts: 3,
+      initialDelayMs: 100,
+      maxDelayMs: 1000,
+    });
+
+    // Fast-forward 1 minute for TPM delay
+    await vi.advanceTimersByTimeAsync(60000);
+
+    await expect(promise).resolves.toBe('success');
+
+    // Should be called twice (1 failure + 1 success)
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('should reset exponential backoff delay after TPM throttling error', async () => {
+    const tpmError: HttpError = new Error('Throttling: TPM(10680324/10000000)');
+    tpmError.status = 429;
+    const normalError: HttpError = new Error('Server error');
+    normalError.status = 500;
+
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(tpmError) // First: TPM error (1 minute delay)
+      .mockRejectedValueOnce(normalError) // Second: normal error (should use initialDelay)
+      .mockResolvedValue('success');
+
+    const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
+
+    const promise = retryWithBackoff(fn, {
+      maxAttempts: 5,
+      initialDelayMs: 100,
+      maxDelayMs: 1000,
+    });
+
+    // Fast-forward 1 minute for TPM delay
+    await vi.advanceTimersByTimeAsync(60000);
+
+    // Now handle the second error with exponential backoff
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toBe('success');
+
+    // Should be called 3 times
+    expect(fn).toHaveBeenCalledTimes(3);
+
+    // Check that the second delay (after TPM) uses initialDelayMs, not a doubled value
+    const delays = setTimeoutSpy.mock.calls.map((call) => call[1] as number);
+    // First delay should be 60000ms (1 minute for TPM)
+    // Second delay should be around initialDelayMs (100ms) with jitter
+    expect(delays[0]).toBe(60000);
+    expect(delays[1]).toBeGreaterThanOrEqual(100 * 0.7);
+    expect(delays[1]).toBeLessThanOrEqual(100 * 1.3);
+  });
+
+  it('should respect Retry-After header even for TPM throttling errors', async () => {
+    // Create an error that is both a TPM throttling error AND has a Retry-After header
+    const tpmErrorWithRetryAfter: HttpError & {
+      response?: { headers?: { 'retry-after'?: string } };
+    } = new Error('Throttling: TPM(10680324/10000000)');
+    tpmErrorWithRetryAfter.status = 429;
+    tpmErrorWithRetryAfter.response = {
+      headers: {
+        'retry-after': '30', // Server says wait 30 seconds
+      },
+    };
+
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(tpmErrorWithRetryAfter)
+      .mockResolvedValue('success');
+
+    const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
+
+    const promise = retryWithBackoff(fn, {
+      maxAttempts: 3,
+      initialDelayMs: 100,
+      maxDelayMs: 1000,
+    });
+
+    // Wait for all timers to complete
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toBe('success');
+
+    // Check that the delay used was from Retry-After (30 seconds), not TPM (60 seconds)
+    const delays = setTimeoutSpy.mock.calls.map((call) => call[1] as number);
+
+    // The Retry-After header should take precedence over TPM-specific delay
+    expect(delays[0]).toBe(30000); // Should use Retry-After header value (30 seconds)
   });
 });

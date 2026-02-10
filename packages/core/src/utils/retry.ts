@@ -131,6 +131,17 @@ export async function retryWithBackoff<T>(
         await delay(retryAfterMs);
         // Reset currentDelay for next potential non-429 error, or if Retry-After is not present next time
         currentDelay = initialDelayMs;
+      } else if (isTPMThrottlingError(error)) {
+        // Check for TPM throttling error - use fixed 1 minute delay
+        // This check happens after Retry-After to respect server-specified delays
+        const tpmDelayMs = 60000; // 1 minute
+        debugLogger.warn(
+          `Attempt ${attempt} failed with TPM throttling error. Retrying after ${tpmDelayMs}ms (1 minute)...`,
+          error,
+        );
+        await delay(tpmDelayMs);
+        // Reset currentDelay for next potential non-TPM error
+        currentDelay = initialDelayMs;
       } else {
         // Fallback to exponential backoff with jitter
         logRetryAttempt(attempt, error, errorStatus);
@@ -145,6 +156,46 @@ export async function retryWithBackoff<T>(
   // This line should theoretically be unreachable due to the throw in the catch block.
   // Added for type safety and to satisfy the compiler that a promise is always returned.
   throw new Error('Retry attempts exhausted');
+}
+
+/**
+ * Checks if an error is a TPM (Tokens Per Minute) throttling error.
+ * These errors occur when the API rate limit is exceeded for TPM.
+ * Example: {"error":{"message":"Throttling: TPM(10680324/10000000)","type":"Throttling","code":"429"}}
+ * @param error The error object.
+ * @returns True if the error is a TPM throttling error.
+ */
+export function isTPMThrottlingError(error: unknown): boolean {
+  const checkMessage = (message: string): boolean =>
+    message.includes('Throttling: TPM(');
+
+  if (typeof error === 'string') {
+    return checkMessage(error);
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    // Check error.message
+    if ('message' in error && typeof (error as Error).message === 'string') {
+      if (checkMessage((error as Error).message)) {
+        return true;
+      }
+    }
+
+    // Check error.error.message (nested error)
+    if (
+      'error' in error &&
+      typeof (error as { error?: { message?: string } }).error === 'object' &&
+      (error as { error?: { message?: string } }).error !== null
+    ) {
+      const nestedMessage = (error as { error: { message?: string } }).error
+        .message;
+      if (typeof nestedMessage === 'string' && checkMessage(nestedMessage)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
