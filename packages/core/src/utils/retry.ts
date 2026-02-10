@@ -180,11 +180,65 @@ export function getErrorStatus(error: unknown): number | undefined {
 }
 
 /**
+ * Checks if an error is a TPM (Tokens Per Minute) throttling error.
+ * TPM throttling errors have the format: {"error":{"message":"Throttling: TPM(...)","type":"Throttling","code":"429"}}
+ * @param error The error object.
+ * @returns true if the error is a TPM throttling error, false otherwise.
+ */
+function isTPMThrottlingError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  // Check error message for "Throttling: TPM" pattern
+  const errorMessage =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : '';
+
+  if (errorMessage.includes('Throttling') && errorMessage.includes('TPM')) {
+    return true;
+  }
+
+  // Check for nested error structure: error.error.message
+  const errorWithNestedError = error as {
+    error?: { message?: string; type?: string };
+  };
+
+  if (
+    errorWithNestedError.error &&
+    typeof errorWithNestedError.error.message === 'string'
+  ) {
+    const nestedMessage = errorWithNestedError.error.message;
+    if (
+      nestedMessage.includes('Throttling') &&
+      nestedMessage.includes('TPM') &&
+      errorWithNestedError.error.type === 'Throttling'
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Extracts the Retry-After delay from an error object's headers.
+ * For TPM throttling errors, returns 60 seconds (1 minute) as required.
  * @param error The error object.
  * @returns The delay in milliseconds, or 0 if not found or invalid.
  */
 function getRetryAfterDelayMs(error: unknown): number {
+  // Check for TPM throttling error first - always wait 60 seconds
+  if (isTPMThrottlingError(error)) {
+    debugLogger.warn(
+      'TPM throttling detected, waiting 60 seconds before retry',
+    );
+    return 60000; // 60 seconds in milliseconds
+  }
+
   if (typeof error === 'object' && error !== null) {
     // Check for error.response.headers (common in axios errors)
     if (

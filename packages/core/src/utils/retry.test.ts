@@ -532,3 +532,145 @@ describe('getErrorStatus', () => {
     expect(getErrorStatus({ error: {} })).toBeUndefined();
   });
 });
+
+describe('TPM Throttling Error Handling', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // Disable 429 simulation for tests
+    setSimulate429(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('should retry TPM throttling error with 60-second delay', async () => {
+    // Create a TPM throttling error
+    const tpmError: HttpError = new Error('Throttling: TPM(10680324/10000000)');
+    tpmError.status = 429;
+
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(tpmError)
+      .mockResolvedValue('success');
+
+    const promise = retryWithBackoff(fn, {
+      maxAttempts: 3,
+      initialDelayMs: 1000,
+    });
+
+    // Advance timers by 60 seconds for TPM throttling
+    await vi.advanceTimersByTimeAsync(60000);
+
+    await expect(promise).resolves.toBe('success');
+
+    // Should be called twice (1 failure + 1 success)
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('should detect TPM throttling in nested error structure', async () => {
+    // Create error with nested structure: {"error":{"message":"Throttling: TPM(...)","type":"Throttling","code":"429"}}
+    const nestedTPMError = {
+      error: {
+        message: 'Throttling: TPM(10680324/10000000)',
+        type: 'Throttling',
+        code: '429',
+      },
+      status: 429,
+    };
+
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(nestedTPMError)
+      .mockResolvedValue('success');
+
+    const promise = retryWithBackoff(fn, {
+      maxAttempts: 3,
+      initialDelayMs: 1000,
+    });
+
+    // Advance timers by 60 seconds for TPM throttling
+    await vi.advanceTimersByTimeAsync(60000);
+
+    await expect(promise).resolves.toBe('success');
+
+    // Should be called twice (1 failure + 1 success)
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('should handle multiple TPM throttling errors with 60-second delays', async () => {
+    const tpmError: HttpError = new Error('Throttling: TPM(10680324/10000000)');
+    tpmError.status = 429;
+
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(tpmError)
+      .mockRejectedValueOnce(tpmError)
+      .mockResolvedValue('success');
+
+    const promise = retryWithBackoff(fn, {
+      maxAttempts: 4,
+      initialDelayMs: 1000,
+    });
+
+    // Advance timers by 60 seconds twice (for two retries)
+    await vi.advanceTimersByTimeAsync(120000);
+
+    await expect(promise).resolves.toBe('success');
+
+    // Should be called 3 times (2 failures + 1 success)
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it('should not treat regular 429 errors as TPM throttling', async () => {
+    const regularError: HttpError = new Error('Rate limit exceeded');
+    regularError.status = 429;
+
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(regularError)
+      .mockResolvedValue('success');
+
+    const promise = retryWithBackoff(fn, {
+      maxAttempts: 3,
+      initialDelayMs: 1000,
+      maxDelayMs: 5000,
+    });
+
+    // Regular 429 errors should use exponential backoff, not 60 seconds
+    // Advance by less time (initial delay ~1000ms with jitter)
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await expect(promise).resolves.toBe('success');
+
+    // Should be called twice (1 failure + 1 success)
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('should exhaust retries if TPM throttling persists', async () => {
+    const tpmError: HttpError = new Error('Throttling: TPM(10680324/10000000)');
+    tpmError.status = 429;
+
+    const fn = vi.fn().mockRejectedValue(tpmError);
+
+    const promise = retryWithBackoff(fn, {
+      maxAttempts: 2,
+      initialDelayMs: 1000,
+    });
+
+    // Attach the rejection expectation *before* running timers
+    // eslint-disable-next-line vitest/valid-expect
+    const assertionPromise = expect(promise).rejects.toThrow(
+      'Throttling: TPM(10680324/10000000)',
+    );
+
+    // Advance timers by 60 seconds for the retry
+    await vi.advanceTimersByTimeAsync(60000);
+
+    await assertionPromise;
+
+    // Should be called twice (initial + 1 retry)
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
