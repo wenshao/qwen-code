@@ -190,15 +190,10 @@ function isTPMThrottlingError(error: unknown): boolean {
     return false;
   }
 
-  // Check error message for "Throttling: TPM" pattern
-  const errorMessage =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : '';
+  // Check error message for "Throttling: TPM" pattern (more specific)
+  const errorMessage = error instanceof Error ? error.message : '';
 
-  if (errorMessage.includes('Throttling') && errorMessage.includes('TPM')) {
+  if (errorMessage.includes('Throttling: TPM')) {
     return true;
   }
 
@@ -213,8 +208,7 @@ function isTPMThrottlingError(error: unknown): boolean {
   ) {
     const nestedMessage = errorWithNestedError.error.message;
     if (
-      nestedMessage.includes('Throttling') &&
-      nestedMessage.includes('TPM') &&
+      nestedMessage.includes('Throttling: TPM') &&
       errorWithNestedError.error.type === 'Throttling'
     ) {
       return true;
