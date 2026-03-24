@@ -44,6 +44,8 @@ import {
   getGenerator,
   extractSuggestionContext,
   type FollowupSuggestion,
+  getLoopManager,
+  formatInterval,
   type PermissionMode,
 } from '@qwen-code/qwen-code-core';
 import { buildResumedHistoryItems } from './utils/resumeHistoryUtils.js';
@@ -1025,6 +1027,65 @@ export const AppContainer = (props: AppContainerProps) => {
     }
 
     prevStreamingStateRef.current = streamingState;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on streamingState transitions
+  }, [streamingState]);
+
+  // Loop command integration — register iteration callback and handle completion
+  useEffect(() => {
+    const loopManager = getLoopManager();
+    loopManager.setIterationCallback((prompt, iteration) => {
+      const interval = formatInterval(
+        loopManager.getState()?.config.intervalMs ?? 0,
+      );
+      const maxInfo = loopManager.getState()?.config.maxIterations
+        ? `/${loopManager.getState()!.config.maxIterations}`
+        : '';
+      historyManager.addItem(
+        {
+          type: MessageType.INFO,
+          text: `── Loop iteration ${iteration}${maxInfo} (every ${interval}) ──`,
+        },
+        Date.now(),
+      );
+      addMessage(prompt);
+    });
+    return () => {
+      loopManager.setIterationCallback(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- register once on mount
+  }, []);
+
+  // Notify loop manager when streaming completes
+  useEffect(() => {
+    const loopManager = getLoopManager();
+    if (loopManager.isActive() && streamingState === StreamingState.Idle) {
+      // Check if the last response had errors
+      const history = historyManager.history;
+      const lastItem = history[history.length - 1];
+      const hadError =
+        lastItem && 'type' in lastItem && lastItem.type === MessageType.ERROR;
+      loopManager.onIterationComplete(!hadError);
+
+      // If loop finished or paused, notify user
+      const state = loopManager.getState();
+      if (state && !state.isActive) {
+        historyManager.addItem(
+          {
+            type: MessageType.INFO,
+            text: `Loop completed after ${state.iteration} iteration(s).`,
+          },
+          Date.now(),
+        );
+      } else if (state && state.isPaused) {
+        historyManager.addItem(
+          {
+            type: MessageType.INFO,
+            text: `Loop paused after ${state.consecutiveFailures} consecutive failures. Use /loop stop to cancel.`,
+          },
+          Date.now(),
+        );
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on streamingState transitions
   }, [streamingState]);
 
