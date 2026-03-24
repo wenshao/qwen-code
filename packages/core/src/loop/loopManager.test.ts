@@ -92,6 +92,19 @@ describe('LoopManager', () => {
     expect(manager.isActive()).toBe(true);
     expect(iterationCallback).toHaveBeenCalledWith('check CI', 1);
     expect(manager.getState()?.iteration).toBe(1);
+    expect(manager.getState()?.waitingForResponse).toBe(true);
+  });
+
+  it('skipFirstIteration starts at iteration 1 without callback', () => {
+    manager.start(
+      { prompt: 'check CI', intervalMs: 60_000, maxIterations: 0 },
+      true,
+    );
+
+    expect(manager.isActive()).toBe(true);
+    expect(iterationCallback).not.toHaveBeenCalled();
+    expect(manager.getState()?.iteration).toBe(1);
+    expect(manager.getState()?.waitingForResponse).toBe(true);
   });
 
   it('schedules next iteration after onIterationComplete', () => {
@@ -103,12 +116,27 @@ describe('LoopManager', () => {
 
     iterationCallback.mockClear();
     manager.onIterationComplete(true);
+    expect(manager.getState()?.waitingForResponse).toBe(false);
 
     // Not yet — need to wait for interval
     expect(iterationCallback).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(60_000);
     expect(iterationCallback).toHaveBeenCalledWith('check CI', 2);
+    expect(manager.getState()?.waitingForResponse).toBe(true);
+  });
+
+  it('ignores onIterationComplete when not waiting for response', () => {
+    manager.start({
+      prompt: 'check',
+      intervalMs: 10_000,
+      maxIterations: 0,
+    });
+
+    manager.onIterationComplete(true);
+    // Second call should be ignored — not waiting anymore
+    manager.onIterationComplete(false);
+    expect(manager.getState()?.consecutiveFailures).toBe(0);
   });
 
   it('stops after max iterations', () => {
@@ -136,13 +164,16 @@ describe('LoopManager', () => {
       maxIterations: 0,
     });
 
+    // First iteration: fail
     manager.onIterationComplete(false);
     expect(manager.getState()?.isPaused).toBe(false);
 
+    // Second iteration: fail
     vi.advanceTimersByTime(10_000);
     manager.onIterationComplete(false);
     expect(manager.getState()?.isPaused).toBe(false);
 
+    // Third iteration: fail → pause
     vi.advanceTimersByTime(10_000);
     manager.onIterationComplete(false);
     expect(manager.getState()?.isPaused).toBe(true);
@@ -178,13 +209,12 @@ describe('LoopManager', () => {
       maxIterations: 0,
     });
 
+    // Fail once
     manager.onIterationComplete(false);
-    manager.onIterationComplete(false);
+    expect(manager.getState()?.consecutiveFailures).toBe(1);
 
+    // Next iteration succeeds
     vi.advanceTimersByTime(10_000);
-    vi.advanceTimersByTime(10_000);
-
-    // Now succeed
     manager.onIterationComplete(true);
     expect(manager.getState()?.consecutiveFailures).toBe(0);
   });
@@ -216,6 +246,21 @@ describe('LoopManager', () => {
 
     expect(manager.getState()?.config.prompt).toBe('second');
     expect(iterationCallback).toHaveBeenLastCalledWith('second', 1);
+  });
+
+  it('does not fire callback after stop', () => {
+    manager.start({
+      prompt: 'check',
+      intervalMs: 10_000,
+      maxIterations: 0,
+    });
+
+    manager.onIterationComplete(true);
+    iterationCallback.mockClear();
+
+    manager.stop();
+    vi.advanceTimersByTime(10_000);
+    expect(iterationCallback).not.toHaveBeenCalled();
   });
 });
 

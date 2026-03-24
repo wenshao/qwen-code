@@ -118,10 +118,10 @@ export const loopCommand: SlashCommand = {
           : String(state.iteration);
 
       const status = state.isPaused
-        ? t('⏸ paused ({{failures}} consecutive failures)', {
+        ? t('paused ({{failures}} consecutive failures)', {
             failures: String(state.consecutiveFailures),
           })
-        : t('▶ running');
+        : t('running');
 
       ui.addItem(
         {
@@ -225,14 +225,17 @@ export const loopCommand: SlashCommand = {
       Date.now(),
     );
 
-    // Start the loop — the iteration callback is registered in AppContainer
-    manager.start({
-      prompt: parsed.prompt,
-      intervalMs: parsed.intervalMs,
-      maxIterations: parsed.maxIterations,
-    });
+    // Start the loop — skipFirstIteration because we return submit_prompt below
+    manager.start(
+      {
+        prompt: parsed.prompt,
+        intervalMs: parsed.intervalMs,
+        maxIterations: parsed.maxIterations,
+      },
+      true,
+    );
 
-    // Submit the first iteration immediately
+    // Submit the first iteration via the command system
     return {
       type: 'submit_prompt' as const,
       content: [{ text: parsed.prompt }],

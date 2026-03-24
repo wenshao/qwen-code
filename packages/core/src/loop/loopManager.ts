@@ -50,6 +50,8 @@ export interface LoopState {
   lastIterationAt: number;
   /** Timer ID for the next scheduled iteration */
   timerId: ReturnType<typeof setTimeout> | null;
+  /** Whether the loop is waiting for an AI response to complete */
+  waitingForResponse: boolean;
 }
 
 /**
@@ -111,23 +113,29 @@ export class LoopManager {
 
   /**
    * Start a new loop. Stops any existing loop first.
+   *
+   * @param config Loop configuration
+   * @param skipFirstIteration If true, don't execute immediately
+   *   (caller will handle the first submission, e.g., via submit_prompt)
    */
-  start(config: LoopConfig): void {
+  start(config: LoopConfig, skipFirstIteration = false): void {
     this.stop();
 
     this.state = {
       config,
       isActive: true,
       isPaused: false,
-      iteration: 0,
+      iteration: skipFirstIteration ? 1 : 0,
       consecutiveFailures: 0,
       startedAt: Date.now(),
-      lastIterationAt: 0,
+      lastIterationAt: skipFirstIteration ? Date.now() : 0,
       timerId: null,
+      waitingForResponse: skipFirstIteration,
     };
 
-    // Execute immediately for the first iteration
-    this.executeIteration();
+    if (!skipFirstIteration) {
+      this.executeIteration();
+    }
   }
 
   /**
@@ -150,10 +158,17 @@ export class LoopManager {
   }
 
   /**
-   * Check if a loop is currently active.
+   * Check if a loop is currently active (running or paused).
    */
   isActive(): boolean {
     return this.state !== null && this.state.isActive;
+  }
+
+  /**
+   * Check if a loop is waiting for an AI response.
+   */
+  isWaitingForResponse(): boolean {
+    return this.state !== null && this.state.waitingForResponse;
   }
 
   /**
@@ -161,7 +176,10 @@ export class LoopManager {
    * has completed. Schedules the next iteration after the configured delay.
    */
   onIterationComplete(success: boolean): void {
-    if (!this.state || !this.state.isActive) return;
+    if (!this.state || !this.state.isActive || !this.state.waitingForResponse) {
+      return;
+    }
+    this.state.waitingForResponse = false;
 
     if (success) {
       this.state.consecutiveFailures = 0;
@@ -202,6 +220,7 @@ export class LoopManager {
 
     this.state.iteration++;
     this.state.lastIterationAt = Date.now();
+    this.state.waitingForResponse = true;
     this.onIteration(this.state.config.prompt, this.state.iteration);
   }
 

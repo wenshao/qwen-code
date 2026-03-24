@@ -1030,61 +1030,85 @@ export const AppContainer = (props: AppContainerProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on streamingState transitions
   }, [streamingState]);
 
-  // Loop command integration — register iteration callback and handle completion
+  // Loop command integration — refs to avoid stale closures in the callback
+  const addMessageRef = useRef(addMessage);
+  addMessageRef.current = addMessage;
+  const historyManagerRef = useRef(historyManager);
+  historyManagerRef.current = historyManager;
+
   useEffect(() => {
     const loopManager = getLoopManager();
-    loopManager.setIterationCallback((prompt, iteration) => {
-      const interval = formatInterval(
-        loopManager.getState()?.config.intervalMs ?? 0,
-      );
-      const maxInfo = loopManager.getState()?.config.maxIterations
-        ? `/${loopManager.getState()!.config.maxIterations}`
+    loopManager.setIterationCallback((prompt: string, iteration: number) => {
+      const state = loopManager.getState();
+      const interval = formatInterval(state?.config.intervalMs ?? 0);
+      const maxInfo = state?.config.maxIterations
+        ? `/${state.config.maxIterations}`
         : '';
-      historyManager.addItem(
+      historyManagerRef.current.addItem(
         {
           type: MessageType.INFO,
-          text: `── Loop iteration ${iteration}${maxInfo} (every ${interval}) ──`,
+          text: t(
+            '-- Loop iteration {{iteration}}{{maxInfo}} (every {{interval}}) --',
+            {
+              iteration: String(iteration),
+              maxInfo,
+              interval,
+            },
+          ),
         },
         Date.now(),
       );
-      addMessage(prompt);
+      addMessageRef.current(prompt);
     });
     return () => {
-      loopManager.setIterationCallback(() => {});
+      const lm = getLoopManager();
+      lm.stop();
+      lm.setIterationCallback(() => {});
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- register once on mount
   }, []);
 
   // Notify loop manager when streaming completes
   useEffect(() => {
     const loopManager = getLoopManager();
-    if (loopManager.isActive() && streamingState === StreamingState.Idle) {
-      // Check if the last response had errors
-      const history = historyManager.history;
-      const lastItem = history[history.length - 1];
-      const hadError =
-        lastItem && 'type' in lastItem && lastItem.type === MessageType.ERROR;
-      loopManager.onIterationComplete(!hadError);
+    if (!loopManager.isActive() || streamingState !== StreamingState.Idle) {
+      return;
+    }
 
-      // If loop finished or paused, notify user
-      const state = loopManager.getState();
-      if (state && !state.isActive) {
-        historyManager.addItem(
-          {
-            type: MessageType.INFO,
-            text: `Loop completed after ${state.iteration} iteration(s).`,
-          },
-          Date.now(),
-        );
-      } else if (state && state.isPaused) {
-        historyManager.addItem(
-          {
-            type: MessageType.INFO,
-            text: `Loop paused after ${state.consecutiveFailures} consecutive failures. Use /loop stop to cancel.`,
-          },
-          Date.now(),
-        );
-      }
+    // Only process if the loop is waiting for a response (not a user-initiated prompt)
+    if (!loopManager.isWaitingForResponse()) {
+      return;
+    }
+
+    // Check if the last response had errors
+    const history = historyManager.history;
+    const lastItem = history[history.length - 1];
+    const hadError =
+      lastItem && 'type' in lastItem && lastItem.type === MessageType.ERROR;
+    loopManager.onIterationComplete(!hadError);
+
+    // If loop finished or paused, notify user
+    const updatedState = loopManager.getState();
+    if (updatedState && !updatedState.isActive) {
+      historyManager.addItem(
+        {
+          type: MessageType.INFO,
+          text: t('Loop completed after {{count}} iteration(s).', {
+            count: String(updatedState.iteration),
+          }),
+        },
+        Date.now(),
+      );
+    } else if (updatedState && updatedState.isPaused) {
+      historyManager.addItem(
+        {
+          type: MessageType.INFO,
+          text: t(
+            'Loop paused after {{failures}} consecutive failures. Use /loop stop to cancel.',
+            { failures: String(updatedState.consecutiveFailures) },
+          ),
+        },
+        Date.now(),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only run on streamingState transitions
   }, [streamingState]);
