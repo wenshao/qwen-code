@@ -61,8 +61,13 @@ describe('formatInterval', () => {
     expect(formatInterval(1_000)).toBe('1s');
   });
 
-  it('uses seconds for non-round values', () => {
-    expect(formatInterval(90_000)).toBe('90s');
+  it('uses fractional minutes for non-round values >= 60s', () => {
+    expect(formatInterval(90_000)).toBe('1.5m');
+    expect(formatInterval(150_000)).toBe('2.5m');
+  });
+
+  it('uses seconds for values < 60s', () => {
+    expect(formatInterval(45_000)).toBe('45s');
   });
 });
 

@@ -84,7 +84,8 @@ export function parseInterval(input: string): number | null {
 }
 
 /**
- * Format milliseconds into a human-readable string like "5m" or "30s"
+ * Format milliseconds into a human-readable string like "5m" or "30s".
+ * Prefers the largest unit that gives a clean representation.
  */
 export function formatInterval(ms: number): string {
   if (ms >= 3600_000 && ms % 3600_000 === 0) {
@@ -92,6 +93,15 @@ export function formatInterval(ms: number): string {
   }
   if (ms >= 60_000 && ms % 60_000 === 0) {
     return `${ms / 60_000}m`;
+  }
+  if (ms >= 60_000) {
+    // Non-round minutes (e.g., 90_000 → "1.5m")
+    const minutes = ms / 60_000;
+    const rounded = Math.round(minutes * 10) / 10;
+    if (rounded === Math.floor(rounded)) {
+      return `${Math.floor(rounded)}m`;
+    }
+    return `${rounded}m`;
   }
   return `${ms / 1000}s`;
 }
@@ -197,6 +207,7 @@ export class LoopManager {
       this.state.iteration >= this.state.config.maxIterations
     ) {
       this.state.isActive = false;
+      // Keep state accessible briefly so caller can read final iteration count
       return;
     }
 

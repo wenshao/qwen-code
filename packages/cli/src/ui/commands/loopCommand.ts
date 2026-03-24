@@ -103,7 +103,7 @@ export const loopCommand: SlashCommand = {
     // /loop status
     if (parsed.subcommand === 'status') {
       const state = manager.getState();
-      if (!state) {
+      if (!state || !state.isActive) {
         ui.addItem(
           { type: MessageType.INFO, text: t('No active loop.') },
           Date.now(),
