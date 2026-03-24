@@ -12,6 +12,9 @@
 /** Minimum allowed interval in milliseconds (10 seconds) */
 export const MIN_INTERVAL_MS = 10_000;
 
+/** Maximum allowed interval in milliseconds (24 hours) */
+export const MAX_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
 /** Default interval in milliseconds (10 minutes) */
 export const DEFAULT_INTERVAL_MS = 10 * 60 * 1000;
 
@@ -96,11 +99,7 @@ export function formatInterval(ms: number): string {
   }
   if (ms >= 60_000) {
     // Non-round minutes (e.g., 90_000 → "1.5m")
-    const minutes = ms / 60_000;
-    const rounded = Math.round(minutes * 10) / 10;
-    if (rounded === Math.floor(rounded)) {
-      return `${Math.floor(rounded)}m`;
-    }
+    const rounded = Math.round((ms / 60_000) * 10) / 10;
     return `${rounded}m`;
   }
   return `${ms / 1000}s`;

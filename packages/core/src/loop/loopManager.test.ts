@@ -66,6 +66,11 @@ describe('formatInterval', () => {
     expect(formatInterval(150_000)).toBe('2.5m');
   });
 
+  it('rounds non-round minutes to one decimal', () => {
+    expect(formatInterval(62_000)).toBe('1m'); // 1.0333... rounds to 1.0
+    expect(formatInterval(80_000)).toBe('1.3m'); // 1.333... rounds to 1.3
+  });
+
   it('uses seconds for values < 60s', () => {
     expect(formatInterval(45_000)).toBe('45s');
   });

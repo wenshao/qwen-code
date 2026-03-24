@@ -16,6 +16,7 @@ import {
   parseInterval,
   formatInterval,
   MIN_INTERVAL_MS,
+  MAX_INTERVAL_MS,
   DEFAULT_INTERVAL_MS,
 } from '@qwen-code/qwen-code-core';
 import { MessageType } from '../types.js';
@@ -193,6 +194,19 @@ export const loopCommand: SlashCommand = {
           type: MessageType.ERROR,
           text: t('Minimum interval is {{min}}.', {
             min: formatInterval(MIN_INTERVAL_MS),
+          }),
+        },
+        Date.now(),
+      );
+      return;
+    }
+
+    if (parsed.intervalMs > MAX_INTERVAL_MS) {
+      ui.addItem(
+        {
+          type: MessageType.ERROR,
+          text: t('Maximum interval is {{max}}.', {
+            max: formatInterval(MAX_INTERVAL_MS),
           }),
         },
         Date.now(),
