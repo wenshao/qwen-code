@@ -53,15 +53,20 @@ export function useGitBranchName(cwd: string): string | undefined {
 
     const setupWatcher = async () => {
       try {
+        // Check if .git/logs/HEAD exists, as it might not in a new repo or orphaned head
         await fsPromises.access(gitLogsHeadPath, fs.constants.F_OK);
         if (cancelled) return;
         watcher = fs.watch(gitLogsHeadPath, (eventType: string) => {
+          // Changes to .git/logs/HEAD (appends) indicate HEAD has likely changed
           if (eventType === 'change' || eventType === 'rename') {
+            // Handle rename just in case
             if (!cancelled) fetchWithGuard();
           }
         });
       } catch (_watchError) {
-        // Silently ignore watcher errors
+        // Silently ignore watcher errors (e.g. permissions or file not existing),
+        // similar to how exec errors are handled.
+        // The branch name will simply not update automatically.
       }
     };
 

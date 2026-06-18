@@ -60,15 +60,31 @@ export function useWorktreeSession(config: Config): WorktreeSession | null {
 
     const setupWatcher = async () => {
       try {
+        // Ensure the chats directory exists so fs.watch doesn't ENOENT
+        // when no session has ever been written for this project. The
+        // recursive mkdir is idempotent.
         await fsPromises.mkdir(dirPath, { recursive: true });
         if (cancelled) return;
+        // Watch the parent dir so create/delete/rename events on the
+        // sidecar (which may not exist at mount time) are caught.
+        //
+        // `filename` may come back as a Buffer on Linux when no
+        // encoding is configured at the libuv layer, so the previous
+        // `filename === fileName` (string) comparison silently never
+        // matched and the watcher fired but never reloaded. Normalize
+        // via toString() to cover both shapes. `filename` is also
+        // nullable on some platforms (e.g. recursive watchers without
+        // event payloads) — treat null as "unknown file, reload to be
+        // safe" since the worktree state is small and the load is cheap.
         watcher = fs.watch(dirPath, (_eventType, filename) => {
           if (filename === null || filename.toString() === fileName) {
             void safeLoad();
           }
         });
       } catch {
-        // Watcher setup is best-effort
+        // Watcher setup is best-effort: the hook still returns whatever
+        // safeLoad() resolved with on mount. Without a watcher, the UI just
+        // doesn't react to sidecar changes until the next re-mount.
       }
     };
 
