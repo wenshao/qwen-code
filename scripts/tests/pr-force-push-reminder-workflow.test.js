@@ -111,14 +111,23 @@ describe('pr force-push reminder workflow', () => {
     expect(workflow).toContain(
       'Reminder already posted by the bot on this PR; skipping.',
     );
+    // Listing must paginate: a single-page fetch would miss a marker buried
+    // past comment 100 on a busy PR and post a duplicate reminder.
+    expect(workflow).toContain('github.paginate(');
   });
 
   it('wraps every GitHub write/read in error logging that rethrows', () => {
-    // listComments, compare (via the 404 branch), and createComment must all
-    // surface failures rather than swallowing them.
+    // listComments, compare (non-404 branch), and createComment must all
+    // surface failures with context rather than swallowing them.
     expect(workflow).toContain('Failed to list comments on PR #${pr.number}');
+    expect(workflow).toContain(
+      'Failed to compare ${before}...${after} on PR #${pr.number}',
+    );
     expect(workflow).toContain('Failed to comment on PR #${pr.number}');
-    expect(workflow).toContain('core.error(');
+    // Count the rethrows so deleting one (silently swallowing that call's
+    // failure) fails the test — toContain alone passes on a single match.
+    const throwCount = (workflow.match(/throw err;/g) ?? []).length;
+    expect(throwCount).toBeGreaterThanOrEqual(3);
   });
 
   it('posts a bilingual reminder', () => {
