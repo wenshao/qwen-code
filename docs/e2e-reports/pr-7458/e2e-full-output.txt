@@ -1,0 +1,133 @@
+============================================
+PR #7458 E2E Test: Epoch Token & Resync
+============================================
+
+=== Phase 1: Start daemon on port 14170 ===
+Daemon PID: 26089
+Daemon is ready (attempt 3)
+
+=== Phase 2: Create session ===
+CREATE response:
+{
+    "sessionId": "9865c707-b02d-4f73-832a-ff1ea4d576c3",
+    "workspaceCwd": "/private/tmp/pr7458-e2e-workspace",
+    "attached": false,
+    "clientId": "client_bba48e19-088f-4c91-a5fb-8d10b986210f",
+    "createdAt": "2026-07-23T07:17:54.000Z"
+}
+  sessionId=9865c707-b02d-4f73-832a-ff1ea4d576c3
+
+=== Phase 3: Load session → check eventEpoch ===
+LOAD response (compact):
+{
+  "sessionId": "9865c707-b02d-4f73-832a-ff1ea4d576c3",
+  "workspaceCwd": "/private/tmp/pr7458-e2e-workspace",
+  "attached": true,
+  "clientId": "client_1f85eaa6-95f6-4313-867a-0b94a3bba415",
+  "createdAt": "2026-07-23T07:17:54.000Z",
+  "state": "{...}",
+  "hasActivePrompt": false,
+  "compactedReplay": "[0 items]",
+  "liveJournal": "[1 items]",
+  "lastEventId": 1,
+  "eventEpoch": "3734bcd2-b9ff-4909-b055-697efeec9e41"
+}
+✅ PASS: Load response carries eventEpoch=3734bcd2-b9ff-4909-b055-697efeec9e41
+  lastEventId=1
+
+=== Phase 4: SSE subscribe → check X-Qwen-Event-Epoch header ===
+SSE response headers:
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Content-Type: text/event-stream
+Cache-Control: no-cache, no-transform
+Connection: keep-alive
+X-Accel-Buffering: no
+X-Qwen-Event-Epoch: 3734bcd2-b9ff-4909-b055-697efeec9e41
+Date: Thu, 23 Jul 2026 07:17:54 GMT
+Transfer-Encoding: chunked
+
+✅ PASS: SSE stream carries X-Qwen-Event-Epoch=3734bcd2-b9ff-4909-b055-697efeec9e41
+
+=== Phase 5: SSE with matching epoch → normal resume (no resync) ===
+SSE matching-epoch response (first 300 chars):
+retry: 3000
+
+id: 1
+event: session_update
+data: {"id":1,"v":1,"type":"session_update","data":{"sessionId":"9865c707-b02d-4f73-832a-ff1ea4d576c3","update":{"_meta":{"availableSkills":["batch","extension-creator","loop","new-app","qc-helper","review","simplify","stuck"],"availableSkillDetails":[{"name"
+✅ PASS: Matching epoch does not trigger epoch_mismatch
+
+=== Phase 6: SSE with stale epoch + lastEventId → epoch_mismatch resync ===
+SSE stale-epoch response (first 500 chars):
+retry: 3000
+
+event: state_resync_required
+data: {"v":1,"type":"state_resync_required","data":{"reason":"epoch_reset","detail":"epoch_mismatch","lastDeliveredId":1,"earliestAvailableId":1},"_meta":{"serverTimestamp":1784791080489}}
+
+id: 1
+event: session_update
+data: {"id":1,"v":1,"type":"session_update","data":{"sessionId":"9865c707-b02d-4f73-832a-ff1ea4d576c3","update":{"_meta":{"availableSkills":["batch","extension-creator","loop","new-app","qc-helper","review","simplify","stuck"],"availableSki
+✅ PASS: Stale epoch triggers epoch_mismatch resync
+
+=== Phase 7: Send prompt → check 202 envelope eventEpoch ===
+Prompt response (HTTP 202):
+{
+    "promptId": "d3beeccd-b280-4a7a-ae45-872c16eb6de0",
+    "lastEventId": 1,
+    "eventEpoch": "3734bcd2-b9ff-4909-b055-697efeec9e41"
+}
+✅ PASS: Prompt 202 envelope carries eventEpoch=3734bcd2-b9ff-4909-b055-697efeec9e41
+
+=== Phase 8: Restart daemon → verify epoch changes ===
+Stopping first daemon (PID 26089)...
+Starting second daemon on same port...
+Daemon2 PID: 26252
+Daemon2 is ready (attempt 3)
+LOAD2 response (after restart, compact):
+{
+  "sessionId": "9865c707-b02d-4f73-832a-ff1ea4d576c3",
+  "workspaceCwd": "/private/tmp/pr7458-e2e-workspace",
+  "attached": false,
+  "clientId": "client_e5afab2f-f582-40f3-99eb-89a34511aba1",
+  "createdAt": "2026-07-23T07:18:10.693Z",
+  "state": "{...}",
+  "hasActivePrompt": false,
+  "compactedReplay": "[1 items]",
+  "liveJournal": "[0 items]",
+  "lastEventId": 1,
+  "eventEpoch": "f1c4431e-4825-4239-a06c-c62d05bb8bd1"
+}
+✅ PASS: Load after restart carries NEW eventEpoch=f1c4431e-4825-4239-a06c-c62d05bb8bd1
+✅ PASS: Epoch changed after restart (old=3734bcd2-b9ff-4909-b055-697efeec9e41, new=f1c4431e-4825-4239-a06c-c62d05bb8bd1)
+
+=== Phase 9: Reconnect SSE with OLD epoch → expect epoch_mismatch resync ===
+SSE resync response after restart (first 500 chars):
+retry: 3000
+
+event: state_resync_required
+data: {"v":1,"type":"state_resync_required","data":{"reason":"epoch_reset","detail":"epoch_mismatch","lastDeliveredId":1,"earliestAvailableId":2},"_meta":{"serverTimestamp":1784791090807}}
+
+id: 2
+event: session_update
+data: {"id":2,"v":1,"type":"session_update","data":{"sessionId":"9865c707-b02d-4f73-832a-ff1ea4d576c3","update":{"_meta":{"availableSkills":["batch","extension-creator","loop","new-app","qc-helper","review","simplify","stuck"],"availableSki
+✅ PASS: Old epoch after restart triggers epoch_mismatch resync
+
+=== Phase 10: SSE without epoch header → backward compat (no crash) ===
+SSE no-epoch response (first 300 chars):
+retry: 3000
+
+id: 2
+event: session_update
+data: {"id":2,"v":1,"type":"session_update","data":{"sessionId":"9865c707-b02d-4f73-832a-ff1ea4d576c3","update":{"_meta":{"availableSkills":["batch","extension-creator","loop","new-app","qc-helper","review","simplify","stuck"],"availableSkillDetails":[{"name"
+✅ PASS: SSE without epoch header works (backward compatible)
+
+============================================
+E2E Test Summary
+============================================
+  PASS: 9
+  FAIL: 0
+  INFO: 0
+
+Daemon logs: /Users/wenshao/git/qwen-code/.qwen/e2e-tests/pr-7458-logs/daemon-1.log, /Users/wenshao/git/qwen-code/.qwen/e2e-tests/pr-7458-logs/daemon-2.log
+=== Cleanup ===
