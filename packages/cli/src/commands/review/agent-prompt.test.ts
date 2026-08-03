@@ -24,8 +24,11 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-vi.mock('../../utils/stdioHelpers.js', () => ({ writeStdoutLine: vi.fn() }));
-import { writeStdoutLine } from '../../utils/stdioHelpers.js';
+vi.mock('../../utils/stdioHelpers.js', () => ({
+  writeStdoutLine: vi.fn(),
+  writeStderrLine: vi.fn(),
+}));
+import { writeStdoutLine, writeStderrLine } from '../../utils/stdioHelpers.js';
 import {
   buildChunkAgentPrompt,
   buildChunkLaunchPrompt,
@@ -2417,6 +2420,121 @@ describe('verify and reverse-audit briefs — the Step 4/5 methodology, in code'
       const launch = buildRoleLaunchPrompt(PLAN, role, `/t/${role}.brief.md`);
       expect(launch).toContain(`read_file(file_path="/t/${role}.brief.md")`);
       expect(launch).toContain(PLAN.diffPathAbsolute);
+    }
+  });
+});
+
+describe('the finder model grade — display channel only, judgment tiers exempt', () => {
+  // A small-source PR plan: the 3A roster with every dimension role on it.
+  const GRADE_PLAN = {
+    ...PLAN,
+    srcDiffLines: 200,
+    diffLines: 300,
+    prNumber: '6766',
+    ownerRepo: 'QwenLM/qwen-code',
+    worktreePath: '.qwen/tmp/review-pr-6766',
+  };
+  beforeEach(() => {
+    (writeStdoutLine as unknown as Mock).mockClear();
+    (writeStderrLine as unknown as Mock).mockClear();
+  });
+  afterEach(() => {
+    delete process.env['QWEN_REVIEW_FINDER_MODEL_GRADE'];
+    (writeStdoutLine as unknown as Mock).mockClear();
+    (writeStderrLine as unknown as Mock).mockClear();
+  });
+
+  it('stamps finder separators, spares the judgment tiers, and never touches the record', () => {
+    process.env['QWEN_REVIEW_FINDER_MODEL_GRADE'] = 'fast';
+    const dir = mkdtempSync(join(tmpdir(), 'ap-grade-'));
+    try {
+      const plan = join(dir, 'plan.json');
+      writeFileSync(plan, JSON.stringify(GRADE_PLAN));
+      (agentPromptCommand.handler as (a: unknown) => void)({
+        plan,
+        roster: true,
+      });
+      const printed = (writeStdoutLine as unknown as Mock).mock
+        .calls[0][0] as string;
+      expect(printed).toContain('Finder model grade');
+      expect(printed).toMatch(/Agent 2: Security — model grade: fast ─────/);
+      expect(printed).toMatch(/Agent 7: Build & test.* — model grade: fast/);
+      // Judgment tiers carry none.
+      expect(printed).not.toMatch(/Issue fidelity[^─]*model grade/);
+      expect(printed).not.toMatch(/attacker mindset[^─]*model grade/);
+      // The recorded prompts — what the verbatim check compares against — are
+      // byte-identical to the printed blocks, grade or no grade.
+      for (const [, rec] of readRecordedPrompts(plan)) {
+        expect(rec).not.toContain('model grade');
+        expect(printed).toContain(rec);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('changes nothing when the environment has no grade', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ap-nograde-'));
+    try {
+      const plan = join(dir, 'plan.json');
+      writeFileSync(plan, JSON.stringify(GRADE_PLAN));
+      (agentPromptCommand.handler as (a: unknown) => void)({
+        plan,
+        roster: true,
+      });
+      const printed = (writeStdoutLine as unknown as Mock).mock
+        .calls[0][0] as string;
+      expect(printed).not.toContain('model grade');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('advises a single finder rebuild on stderr, and stays silent for a judge', () => {
+    process.env['QWEN_REVIEW_FINDER_MODEL_GRADE'] = 'fast';
+    const dir = mkdtempSync(join(tmpdir(), 'ap-grade1-'));
+    try {
+      const plan = join(dir, 'plan.json');
+      writeFileSync(plan, JSON.stringify(GRADE_PLAN));
+      (agentPromptCommand.handler as (a: unknown) => void)({
+        plan,
+        role: '2',
+      });
+      const err = (writeStderrLine as unknown as Mock).mock.calls
+        .map((c) => c[0])
+        .join('\n');
+      expect(err).toContain('model: "fast"');
+
+      (writeStderrLine as unknown as Mock).mockClear();
+      (agentPromptCommand.handler as (a: unknown) => void)({
+        plan,
+        role: '6a',
+      });
+      expect(
+        (writeStderrLine as unknown as Mock).mock.calls
+          .map((c) => c[0])
+          .join('\n'),
+      ).not.toContain('model:');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('drops a grade that could not be a grade name', () => {
+    process.env['QWEN_REVIEW_FINDER_MODEL_GRADE'] = 'fast ─────\nnew block';
+    const dir = mkdtempSync(join(tmpdir(), 'ap-badgrade-'));
+    try {
+      const plan = join(dir, 'plan.json');
+      writeFileSync(plan, JSON.stringify(GRADE_PLAN));
+      (agentPromptCommand.handler as (a: unknown) => void)({
+        plan,
+        roster: true,
+      });
+      const printed = (writeStdoutLine as unknown as Mock).mock
+        .calls[0][0] as string;
+      expect(printed).not.toContain('model grade');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

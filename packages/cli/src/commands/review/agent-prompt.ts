@@ -41,7 +41,7 @@ import type { CommandModule } from 'yargs';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { writeStdoutLine } from '../../utils/stdioHelpers.js';
+import { writeStdoutLine, writeStderrLine } from '../../utils/stdioHelpers.js';
 import {
   READ_FILE_CHAR_CAP,
   chunkIdsProblem,
@@ -1284,11 +1284,59 @@ function rosterLabel(req: RequiredAgent): string {
  * the list it builds is the same one `check-coverage` will hold the run to,
  * because both come from `requiredAgents(plan)`.
  */
+/**
+ * Roles whose launch may carry the caller-configured finder model grade.
+ *
+ * Finder-tier work — walking the diff, grepping callers, running the build —
+ * is where a cheaper or thinking-free model spends well: measured on a real
+ * high-effort run, thinking alone was 42% of all output tokens, spread over
+ * 28 agents that mostly read and quote. The judgment tiers are excluded on
+ * purpose: Agent 0 rules on root-cause ownership, the 6a/6b/6c personas ARE
+ * the undirected audit, and the Step 4/5 verifier/auditor decide what the
+ * review asserts — the stages every other agent's mistakes are caught by.
+ * Chunk agents are finder-tier (their role is the whole finder set, scoped
+ * to a territory).
+ *
+ * Opt-in and advisory: no grade in the environment, no change to any launch;
+ * the grade names an entry in the caller's own `agents.modelGrades`, so what
+ * it maps to — a smaller model, the same model with thinking off — is the
+ * caller's decision, and so is validating the recall trade on their PRs.
+ */
+const FINDER_GRADE_ROLES: ReadonlySet<string> = new Set([
+  '1a',
+  '1b',
+  '1c',
+  '2',
+  '3a',
+  '3b',
+  '3c',
+  '4',
+  '5',
+  '7',
+  'test-matrix',
+  'invariant-a',
+  'invariant-b',
+  'invariant-c',
+]);
+
+/** The env-configured finder grade, validated to a display-safe token. */
+export const FINDER_GRADE_ENV = 'QWEN_REVIEW_FINDER_MODEL_GRADE';
+function finderGrade(env: NodeJS.ProcessEnv): string | undefined {
+  const raw = env[FINDER_GRADE_ENV]?.trim();
+  if (!raw) return undefined;
+  // The grade lands in separator labels and notes; a value that could imitate
+  // roster structure (the glyph, a newline) or is not a plausible grade name
+  // is dropped rather than printed.
+  if (!/^[A-Za-z0-9._-]{1,64}$/.test(raw)) return undefined;
+  return raw;
+}
+
 function runRoster(report: PlanReport, planPath: string, rules?: string): void {
   // The roster reads `plan.effort` (written by the capturing command), so a
   // `medium` plan builds the reduced set here without an `--effort` flag — and
   // `check-coverage` holds the run to that same set from the same field.
   const roster = requiredAgents(report as RosterPlan);
+  const grade = finderGrade(process.env);
   const blocks = roster.map((req, i) => {
     const { key, prompt } = buildLaunch(
       report,
@@ -1310,7 +1358,15 @@ function runRoster(report: PlanReport, planPath: string, rules?: string): void {
       );
     }
     recordPrompt(planPath, key, prompt);
-    return `───── agent ${i + 1} of ${roster.length} — ${rosterLabel(req)} ─────\n\n${prompt}`;
+    // The grade rides the separator, never the block: separators are declared
+    // "not part of any prompt", so the recorded prompt — and the verbatim
+    // delivery check against it — is byte-identical with or without a grade.
+    const graded =
+      grade !== undefined &&
+      (req.role === 'chunk' || FINDER_GRADE_ROLES.has(req.role))
+        ? ` — model grade: ${grade}`
+        : '';
+    return `───── agent ${i + 1} of ${roster.length} — ${rosterLabel(req)}${graded} ─────\n\n${prompt}`;
   });
   // Worktree-mode reviews: remind the orchestrator of the exact Agent tool
   // parameters at the point of action. A run that passed both `working_dir`
@@ -1327,6 +1383,20 @@ function runRoster(report: PlanReport, planPath: string, rules?: string): void {
         `on EVERY agent call below. Do NOT set \`isolation\` — the worktree ` +
         `already exists; \`isolation\` creates a new copy and is mutually ` +
         `exclusive with \`working_dir\`.`
+      : '';
+  // Advisory, printed only when the caller opted in via the environment. The
+  // instruction lives here, at the point of action, for the same reason the
+  // worktree parameters do.
+  const gradeNote =
+    grade !== undefined
+      ? `\n\n**Finder model grade (${FINDER_GRADE_ENV}):** blocks whose ` +
+        `separator names \`model grade: ${grade}\` are launched with ` +
+        `\`model: "${grade}"\` on the Agent call — display label aside, the ` +
+        `prompt itself stays the block VERBATIM. Blocks without one (Agent 0, ` +
+        `the 6a/6b/6c personas) are launched WITHOUT a \`model\` parameter, ` +
+        `as are the Step 4/5 verify and reverse-audit launches. If the Agent ` +
+        `tool rejects the grade as unknown, launch without the parameter and ` +
+        `tell the user the grade is not in \`agents.modelGrades\`.`
       : '';
   // The Agent tool's `description` is the task name the user watches in the
   // TUI while the agent runs, and nothing downstream reads it — the delivery
@@ -1354,7 +1424,8 @@ function runRoster(report: PlanReport, planPath: string, rules?: string): void {
         `--chunk <id>, or --role <r> (--file <path> for an invariant agent), ` +
         `plus the same --rules this call was given.` +
         descNote +
-        paramNote,
+        paramNote +
+        gradeNote,
       ...blocks,
       `───── end of roster — ${roster.length} agents ─────`,
     ].join('\n\n'),
@@ -1769,6 +1840,20 @@ function runAgentPrompt(args: AgentPromptArgs): void {
       : prompt;
   recordPrompt(args.plan, key, printed);
   writeStdoutLine(printed);
+  // The roster stamps the grade on its separators; a single rebuild has no
+  // separator, so the same advisory rides stderr — display channel, never the
+  // recorded prompt.
+  const rebuildGrade = finderGrade(process.env);
+  if (
+    rebuildGrade !== undefined &&
+    (typeof args.chunk === 'number' ||
+      (typeof args.role === 'string' && FINDER_GRADE_ROLES.has(args.role)))
+  ) {
+    writeStderrLine(
+      `note: launch this agent with model: "${rebuildGrade}" ` +
+        `(${FINDER_GRADE_ENV} is set and this is a finder-tier role).`,
+    );
+  }
 }
 
 export const agentPromptCommand: CommandModule = {
