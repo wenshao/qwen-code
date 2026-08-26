@@ -18,7 +18,7 @@ colorize() {
 }
 measured() { python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(d.get('code') or 'handshake OK')" "$SP/out/$1.race.json" 2>/dev/null || echo '?'; }
 
-printf "${B}${C}PR #10042 — evidence matrix · real \`qwen serve\` daemon + real channel worker · macOS 15 · node v24.18.1 · OpenSSL 3.6.3${N}\n"
+printf "${B}${C}PR #10042 — evidence matrix · real \`qwen serve\` daemon + real channel worker · macOS 26.6.2 · node v24.18.1 (OpenSSL 3.5.7)${N}\n"
 printf "${D}Both arms are the same tree. The base arm only restores the greedy chain.find(...) at the issuer-selection site.${N}\n"
 printf "${D}EXPIRED / FUTURE / renewed are three self-signed roots that share one subject AND one key — a CA renewal.${N}\n\n"
 printf "${B}%-36s %-5s %-34s %s${N}\n" "serving bundle (order as in the PEM)" "arm" "boot diagnostic reports" "measured worker handshake"

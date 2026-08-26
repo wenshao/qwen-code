@@ -7,7 +7,7 @@ hr() { printf "${D}%s${N}\n" "--------------------------------------------------
 
 printf "${B}${C}PR #10042  real-daemon A/B  -  renewed CA, expired copy first in the bundle${N}\n"
 printf "${D}serving bundle: leaf(SAN=not-the-dial-host.invalid) + root[EXPIRED 2024-06-01] + root[VALID->2036]${N}\n"
-printf "${D}both roots share subject AND key; node v24.18.1 / OpenSSL 3.6.3 / macOS 15${N}\n"
+printf "${D}both roots share subject AND key; macOS 26.6.2, node v24.18.1 (OpenSSL 3.5.7)${N}\n"
 hr
 
 for ARM in base head; do

@@ -1,6 +1,7 @@
 # PR #10042 — local real-environment verification evidence
 
-Verified on macOS 15 (Darwin 25.6.0), node v24.18.1, OpenSSL 3.6.3, against PR
+Verified on macOS 26.6.2 (Darwin 25.6.0), node v24.18.1 (bundled OpenSSL 3.5.7),
+system `openssl` 3.6.3 for the cross-check, against PR
 head `3f956bc` built from source (`npm ci && npm run build && npm run bundle`).
 
 ## What was run
