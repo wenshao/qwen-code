@@ -1,8 +1,15 @@
 # PR #10119 — verification evidence
 
-Local real-stack verification of `qwen review emit-workflow`
-(feat/review-emit-workflow-v2, head 891b6ac3ee), built from source and run
-against a real qwen session with real subagent dispatch.
+## Round 2 — head `6962311` (after the fix commit `d9bd123`)
+
+| file | what it shows |
+| --- | --- |
+| 01-fix-b.png | §B fixed: the whole-fan-out message no longer prescribes a loop |
+| 02-fix-c-nit.png | §C fixed, and a refused plan now creates no directory |
+| 03-mutation.png | mutation matrix 16/16, plus the hermetic-fixture and TS1117 fixes verified |
+| 04-regression.png | full matrix re-run after the merge of main — nothing regressed |
+
+## Round 1 — head `891b6ac`
 
 | file | what it shows |
 | --- | --- |
