@@ -2,7 +2,7 @@
 
 Local verification of `fix(dingtalk): recover status cards after network failures`.
 
-* head: `b7f629a7b5` (PR #10357)
+* head: `f1ce5f317f` (PR #10357)
 * base: `4b5396c69a` (merge base with `main`)
 
 ## Layout

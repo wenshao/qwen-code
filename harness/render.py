@@ -103,8 +103,8 @@ def reconnect_page():
   </div>"""
 
     body = ('<div style="display:grid;gap:18px">'
-            + lane(base, 'Before — main @ 4b5396c69a', 'bad', 'stale')
-            + lane(head, 'After — PR #10357 @ b7f629a7b5', 'good', 'repaired')
+            + lane(base, 'Before — main (4b5396c6)', 'bad', 'stale')
+            + lane(head, 'After — PR #10357 (f1ce5f31)', 'good', 'repaired')
             + '</div>')
     sub = ('Same run, two DingTalk clients on the same status card. Client A drops off the '
            'network at t=2.0s and reconnects at t=5.3s; client B stays connected. '
@@ -214,7 +214,7 @@ def rewind_page():
     sub = ('No faults at all — the only change is a realistic 700 ms round trip for '
            '<code>POST /v1.0/card/instances/createAndDeliver</code>, with output streaming every 300 ms.')
     return page('Card body rewinds after a slow card creation', sub, body,
-                'Reproduced 3/3 on the PR head; 0/3 on main. Unpinned by the suite: all 435 DingTalk tests still pass with the rewind fixed.')
+                'Reproduced 4/4 on the PR head; 0/4 on main. Unpinned by the suite: all 440 DingTalk tests still pass with the rewind fixed.')
 
 
 pages = {
