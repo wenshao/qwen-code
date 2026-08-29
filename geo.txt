@@ -1,0 +1,29 @@
+=== PR #10036 wipe-geometry matrix v2 ===
+    script sha256 = d758a0712818a652294b3cd51fa0b071b0aefbeaf4a9facf434e3c1f1de16eae
+    fixtures built as root; step executed as uid=1500 with no sudo rights
+
+happy-path                     wipe        PASS rc=0  wiped + env redirected
+      git config --global --get credential.helper -> rc=1 out=''
+trailing-slashes               wipe        PASS rc=0  wiped + env redirected
+ws-symlink-inside-rws          heal        PASS rc=0  wiped + env redirected
+      decoy target survived: YES
+ws-symlink-target-outside      heal        PASS rc=0  wiped + env redirected
+      outside decoy survived: YES
+ws-is-a-regular-file           heal        PASS rc=0  wiped + env redirected
+rws-is-a-symlink               refuse      PASS rc=1  ::error::refusing to wipe: runner workspace is a symlink: /tmp/geo-xj8Ruw/link-rws
+rws-symlinked-component        refuse      PASS rc=1  ::error::refusing to wipe: runner workspace resolves through a symlinked component: /tmp/geo-shCnwD/midlink/
+ws-symlinked-component         refuse      PASS rc=1  ::error::refusing to wipe: workspace resolves through a symlinked component: /tmp/geo-QVLSVm/work/repo/subli
+ws-outside-rws                 refuse      PASS rc=1  ::error::refusing to wipe workspace outside the runner workspace: /tmp/geo-QHiiVy/elsewhere (runner workspac
+      outside dir untouched: YES
+ws-equals-rws                  refuse      PASS rc=1  ::error::refusing to wipe workspace outside the runner workspace: /tmp/geo-ATp4IG/work/repo (runner workspac
+ws-is-slash-home               refuse      PASS rc=1  ::error::refusing to wipe suspicious workspace path: /home
+      /home intact: YES
+ws-is-slash                    refuse      PASS rc=1  ::error::refusing to heal workspace outside the runner workspace:  (parent: /root/git/pr10036-harness/geo, r
+ws-contains-dotdot             refuse      PASS rc=1  ::error::refusing to wipe workspace outside the runner workspace: /tmp/geo-nf7N0Y/work/repo (runner workspac
+ws-empty-string                refuse-bare PASS rc=1  refused by ${VAR:?} -- line 44: GITHUB_WORKSPACE: parameter null or not set
+rws-empty-string               refuse-bare PASS rc=1  refused by ${VAR:?} -- line 22: RUNNER_WORKSPACE: parameter null or not set
+realpath-unavailable           refuse      PASS rc=1  ::error::refusing to wipe: realpath unavailable, cannot canonicalize /tmp/geo-f0uAyc/work/repo
+root-owned-leftover-file       wipe        PASS rc=0  wiped + env redirected
+root-owned-leftover-dir        wipe        FAIL rc=1  exit=1  <== FINDING 2: rm: cannot remove '/tmp/geo-VIti9L/work/repo/repo/rootdir': Permission denied
+
+PASS=17 FAIL=1

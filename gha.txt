@@ -1,0 +1,54 @@
+=== probe A — does the GitHub Actions parser accept release.yml's YAML anchor? ===
+run https://github.com/wenshao/qwen-code/actions/runs/33234685506  (conclusion: success)
+job 'alias consumer 1' — the step reached ONLY through '- *shared_probe_step':
+    2026-08-29T04:48:23.4849182Z ##[group]Run echo "anchored step executed in job=alias_consumer_1"
+    echo "anchored step executed in job=alias_consumer_1"
+    echo "runner.environment=github-hosted"
+    anchored step executed in job=alias_consumer_1
+    runner.environment=github-hosted
+
+=== probe B — runs-on expression, copied verbatim from release.yml ===
+run https://github.com/wenshao/qwen-code/actions/runs/33234685581  (conclusion: success)
+    repository       = wenshao/qwen-code
+    runner.environment = github-hosted
+    RUNNER_NAME      = GitHub Actions 1000046762
+    RUNNER_OS        = Linux
+    GITHUB_WORKSPACE = /home/runner/work/qwen-code/qwen-code
+    RUNNER_WORKSPACE = /home/runner/work/qwen-code
+
+=== probe B — the restore step's 'if' gate on a GitHub-hosted runner ===
+    (no log file exists for the step: the runner skipped it)
+    runner.environment=github-hosted
+    GITHUB_ENV contents after the gated step:
+    OK: gated step was skipped on a hosted runner
+
+=== probe B — the wipe executed for real on a hosted runner (gate removed) ===
+    --- before ---
+    total 20
+    drwxr-xr-x 4 runner runner 4096 Aug 29 04:48 .
+    drwxr-xr-x 3 runner runner 4096 Aug 29 04:48 ..
+    drwxr-xr-x 2 runner runner 4096 Aug 29 04:48 .git
+    -rw-r--r-- 1 runner runner    8 Aug 29 04:48 .hidden-leftover
+    drwxr-xr-x 3 runner runner 4096 Aug 29 04:48 nested
+    --- after ---
+    total 8
+    drwxr-xr-x 2 runner runner 4096 Aug 29 04:48 .
+    drwxr-xr-x 3 runner runner 4096 Aug 29 04:48 ..
+    remaining entries: 0
+    GIT_CONFIG_GLOBAL=/home/runner/work/_temp/release-state.4KxTLl/gitconfig
+    GIT_CONFIG_COUNT=0
+    GIT_CONFIG_NOSYSTEM=1
+    NPM_CONFIG_USERCONFIG=/home/runner/work/_temp/release-state.4KxTLl/npmrc
+    DOCKER_CONFIG=/home/runner/work/_temp/release-state.4KxTLl/docker
+    GH_CONFIG_DIR=/home/runner/work/_temp/release-state.4KxTLl/gh
+    git config --global --list (should be empty):
+    OK
+    2026-08-29T04:48:24.0461988Z ##[group]Run git -C "$GITHUB_WORKSPACE" rev-parse HEAD
+    env:
+      GIT_CONFIG_COUNT: 0
+      GIT_CONFIG_NOSYSTEM: 1
+
+=== probe C — what release.yml's notify_failure gate sees when the pool never claims a job ===
+run https://github.com/wenshao/qwen-code/actions/runs/33235469266
+    needs.never_claimed.result = cancelled
+    release.yml gate expression (result == 'failure') -> false
