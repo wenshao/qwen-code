@@ -3,7 +3,7 @@
 `fix(core): disambiguate send_message destinations` (fixes #10073)
 
 - Tree under test: `origin/main` **bfda0822** + PR head **99e47d53**, merged locally (clean, `ort`; effective diff 97+/4-).
-- Host: macOS 15.6 (arm64), Node v24.18.1, npm 11.16.0 — the platform the PR reports as untested.
+- Host: macOS 26.6.2 (arm64), Node v24.18.1, npm 11.16.0 — the platform the PR reports as untested.
 - Everything below runs through the **bundled CLI** (`npm run build && npm run bundle` → `dist/cli.js`),
   an isolated `QWEN_HOME`, `QWEN_CODE_ENABLE_AGENT_TEAM=1`, and a scripted fake OpenAI provider.
 
