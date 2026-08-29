@@ -1,0 +1,38 @@
+Witness build — one-line leader fix (NOT part of the PR)
+=======================================================
+Applied to packages/core/src/tools/send-message.ts at head d5f1106c23:
+
+-import { findMemberByName } from '../agents/team/teamHelpers.js';
++import {
++  findMemberByName,
++  sanitizeName,
++} from '../agents/team/teamHelpers.js';
+@@
+-        const teammate = teamManager
+-          ? findMemberByName(
+-              teamManager.getTeamFile().members,
+-              this.params.task_id,
+-            )
+-          : undefined;
++        const teammate = !teamManager
++          ? undefined
++          : sanitizeName(this.params.task_id) === LEADER_NAME
++            ? { name: LEADER_NAME }
++            : findMemberByName(
++                teamManager.getTeamFile().members,
++                this.params.task_id,
++              );
+
+Results:
+  npx tsc --noEmit -p packages/core                       -> exit 0
+  npx vitest run .../send-message.test.ts                 -> 24 passed (24)
+  bundled CLI, real Agent Team, send_message{task_id:"leader"}:
+
+    Task not found: leader. Did you mean to message teammate "leader"?
+    If so, use `to: "leader"` instead of `task_id`.
+
+  and the same destination via `to` still delivers:
+    Message sent to "leader".
+
+Wording nit: the leader is not a teammate, so a dedicated phrasing for that
+branch would read better than reusing the "teammate" sentence.
