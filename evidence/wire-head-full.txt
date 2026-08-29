@@ -1,0 +1,42 @@
+total requests: 16  leader streaming turns: 12
+========================================================================
+
+[#1] CALL team_create {"team_name":"pr10083","description":"verification team"}
+     RESULT: [{"type":"text","text":"Team \"pr10083\" created. Description: verification team"}]
+
+[#2] CALL agent {"name":"qa-reviewer","description":"QA teammate","prompt":"You are the QA reviewer teammate. Stand by and do nothing."}
+     RESULT: [{"type":"text","text":"Teammate \"qa-reviewer\" is now running concurrently. Task: QA teammate\n\nYou will receive their messages as they arrive. Do NOT call task_list to check on them — teammates report results via send_message. Spawn more teammates or end your turn and wait."}]
+
+[#3] CALL agent {"description":"long running background probe","prompt":"BACKGROUND-PROBE-AGENT: run for a long time. Do nothing.","subagent_type":"general-purpose","run_in_background":true}
+     RESULT: [{"type":"text","text":"Background agent launched successfully.\ntask_id: general-purpose-c2 (internal ID — do not mention to the user. Use send_message to continue this agent, or task_stop to cancel.)\nThe agent is working in the background. You will be notified automatically when it completes.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using. Work on non-overlapping tasks, or briefly tell the user what you launched and end your response.\noutput_file: /private/tmp/pr10083/head-full/home/projects/-private-tmp-pr10083-head-full-ws/subagents/b4ec2de4-cbfd-4adf-ab7a-5713e180d6ae/agent-general-purpose-c2.jsonl\nIf asked, you can check progress before completion by using read_file\n  or run_shell_command tail on the output file."}]
+
+[#4] CALL send_message {"to":"qa-reviewer","task_id":"general-purpose-c2","message":"SENTINEL-AMBIGUOUS-DESTINATION"}
+     RESULT: [{"type":"text","text":"Only one of \"to\" or \"task_id\" may be provided."}]
+
+[#5] CALL send_message {"task_id":"QA Reviewer","message":"SENTINEL-HINT-CASE"}
+     RESULT: [{"type":"text","text":"Task not found: QA Reviewer"}]
+
+[#6] CALL send_message {"task_id":"unrelated-task-xyz","message":"SENTINEL-GENERIC-CASE"}
+     RESULT: [{"type":"text","text":"Task not found: unrelated-task-xyz"}]
+
+[#7] CALL send_message {"to":"general-purpose-c2","message":"SENTINEL-MIRROR-CASE"}
+     RESULT: [{"type":"text","text":"Teammate \"general-purpose-c2\" not found."}]
+
+[#8] CALL send_message {"task_id":"leader","message":"SENTINEL-LEADER-CASE"}
+     RESULT: [{"type":"text","text":"Task not found: leader"}]
+
+[#9] CALL send_message {"to":"qa-reviewer","message":"SENTINEL-POSITIVE-TO-DELIVERY"}
+     RESULT: [{"type":"text","text":"Message sent to \"qa-reviewer\"."}]
+
+[#10] CALL send_message {"task_id":"general-purpose-c2","message":"SENTINEL-POSITIVE-TASKID-DELIVERY"}
+     RESULT: [{"type":"text","text":"Message queued for delivery to background task \"general-purpose-c2\". The task will receive it at the next tool-round boundary."}]
+
+========================================================================
+DELIVERY PROBE — sentinel occurrences outside the leader session:
+  SENTINEL-AMBIGUOUS-DESTINATION: 0 non-leader request(s) carried it
+  SENTINEL-HINT-CASE: 0 non-leader request(s) carried it
+  SENTINEL-GENERIC-CASE: 0 non-leader request(s) carried it
+  SENTINEL-MIRROR-CASE: 0 non-leader request(s) carried it
+  SENTINEL-LEADER-CASE: 0 non-leader request(s) carried it
+  SENTINEL-POSITIVE-TO-DELIVERY: 1 non-leader request(s) carried it
+  SENTINEL-POSITIVE-TASKID-DELIVERY: 0 non-leader request(s) carried it

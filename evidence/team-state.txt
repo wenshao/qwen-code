@@ -1,0 +1,20 @@
+=== dispatch evidence: where each message actually went (fake-provider wire ledger) ===
+
+Leader -> teammate delivery in qwen-code is an in-memory TeamManager.pendingMessages
+queue (TeamManager.ts sendMessage), NOT an inbox file — only leader-bound messages go
+through mailbox.writeMessage. So the decisive evidence is whether the teammate's own
+model session ever received the message text.
+
+Sentinel carried by a NON-leader model request (i.e. actually delivered to a teammate):
+
+  probe                                    base(main)   head(PR)
+  SENTINEL-AMBIGUOUS-DESTINATION  to+task_id     0            0
+  SENTINEL-POSITIVE-TO-DELIVERY   to only        1            1
+
+base: the ambiguous call reported "Message queued for delivery to background task"
+      -> it went to the background task; the named teammate got nothing.
+head: the ambiguous call was rejected before dispatch; neither path received it.
+both: the single-destination to-only call reaches the teammate session (no regression).
+
+team config members (both arms): ['qa-reviewer']
+inbox dir (both arms) holds only leader.json — expected, see note above.
