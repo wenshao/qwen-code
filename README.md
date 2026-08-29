@@ -9,3 +9,4 @@ Screenshots for the review comment on QwenLM/qwen-code#10040
 | `imgs/02-fragility.png` | TDZ fragility experiment — what removing the cycle actually buys |
 | `imgs/03-differential.png` | 43,641-case cross-arm differential + 4-mutant negative control |
 | `imgs/04-wire-and-gates.png` | 554 real HTTP/SSE + WebSocket round trips, gate sweep, artifact deltas |
+| `imgs/05-serve-mcp-bin.png` | qwen-serve-mcp duplicated-hashbang bug: before / after / negative control / gates |
