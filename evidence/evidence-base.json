@@ -1,0 +1,110 @@
+{
+  "label": "base",
+  "doneMarkerSeen": true,
+  "requestCount": 20,
+  "teamCreate": "[{\"type\":\"text\",\"text\":\"Team \\\"pr10090\\\" created.\"}]",
+  "teammateLaunch": "[{\"type\":\"text\",\"text\":\"Teammate \\\"qa-reviewer\\\" is now running concurrently. Task: QA reviewer standby\\n\\nYou will receive their messages as they arrive. Do NOT call task_list to check on them — teammates report results via send_message. Spawn more teammates or end your turn and wait.\"}]",
+  "probes": [
+    {
+      "id": "p1_both_fields",
+      "title": "both \"to\" and \"task_id\"",
+      "args": {
+        "to": "qa-reviewer",
+        "task_id": "agent-1",
+        "message": "ping"
+      },
+      "expectation": "rejected as ambiguous (never routed)",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Task not found: agent-1\"}]"
+    },
+    {
+      "id": "p2_task_id_is_teammate",
+      "title": "task_id = teammate name (the #10073 report)",
+      "args": {
+        "task_id": "qa-reviewer",
+        "message": "ping"
+      },
+      "expectation": "not found + team-destination hint",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Task not found: qa-reviewer\"}]"
+    },
+    {
+      "id": "p3_task_id_is_teammate_unsanitized",
+      "title": "task_id = \"QA Reviewer\" (sanitizes to the teammate)",
+      "args": {
+        "task_id": "QA Reviewer",
+        "message": "ping"
+      },
+      "expectation": "not found + team-destination hint",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Task not found: QA Reviewer\"}]"
+    },
+    {
+      "id": "p4_task_id_is_leader",
+      "title": "task_id = \"leader\"",
+      "args": {
+        "task_id": "leader",
+        "message": "ping"
+      },
+      "expectation": "not found + team-destination hint",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Task not found: leader\"}]"
+    },
+    {
+      "id": "p5_task_id_is_leader_mixed_case",
+      "title": "task_id = \"Leader\" (case-insensitive leader)",
+      "args": {
+        "task_id": "Leader",
+        "message": "ping"
+      },
+      "expectation": "not found + team-destination hint",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Task not found: Leader\"}]"
+    },
+    {
+      "id": "p6_task_id_is_lead_agent_id",
+      "title": "task_id = \"leader@pr10090\" (leadAgentId)",
+      "args": {
+        "task_id": "leader@pr10090",
+        "message": "ping"
+      },
+      "expectation": "not found + team-destination hint",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Task not found: leader@pr10090\"}]"
+    },
+    {
+      "id": "p7_task_id_leader_bang",
+      "title": "task_id = \"Leader!\" (the \"to\" route would NOT accept it)",
+      "args": {
+        "task_id": "Leader!",
+        "message": "ping"
+      },
+      "expectation": "not found, NO hint",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Task not found: Leader!\"}]"
+    },
+    {
+      "id": "p8_task_id_unknown",
+      "title": "task_id = \"no-such-task-anywhere\"",
+      "args": {
+        "task_id": "no-such-task-anywhere",
+        "message": "ping"
+      },
+      "expectation": "not found, NO hint",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Task not found: no-such-task-anywhere\"}]"
+    },
+    {
+      "id": "p9_task_id_star",
+      "title": "task_id = \"*\" (the \"to\" route accepts * as broadcast)",
+      "args": {
+        "task_id": "*",
+        "message": "ping"
+      },
+      "expectation": "not found; hint behaviour is the open question",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Task not found: *\"}]"
+    },
+    {
+      "id": "p10_to_only_control",
+      "title": "CONTROL: to = teammate name only",
+      "args": {
+        "to": "qa-reviewer",
+        "message": "ping from the control probe"
+      },
+      "expectation": "delivered normally (no regression)",
+      "toolResult": "[{\"type\":\"text\",\"text\":\"Message sent to \\\"qa-reviewer\\\".\"}]"
+    }
+  ]
+}
