@@ -1,0 +1,29 @@
+packages/core full suite — Linux (Debian 13, kernel 6.12.63), Node v22.22.2, npm 10.9.7
+=======================================================================================
+$ npx vitest run --project @qwen-code/qwen-code-core --reporter=dot
+
+ FAIL  src/skills/skill-curator.test.ts > auto-skill curator > reports skippedErrors when rename fails transiently
+ FAIL  src/services/session-writer-lease.test.ts > SessionWriterLease > classifies an unreadable owned lock as unavailable
+
+ Test Files  2 failed | 600 passed | 1 skipped (603)
+      Tests  2 failed | 21680 passed | 13 skipped (21695)
+
+Both failures are PRE-EXISTING and unrelated to this PR. Proof — the same two
+files at the PR's merge-base 0756be0ce7 (no PR code in the tree at all):
+
+$ git checkout --detach 0756be0ce7
+$ npx vitest run packages/core/src/skills/skill-curator.test.ts \
+                 packages/core/src/services/session-writer-lease.test.ts
+ FAIL  src/skills/skill-curator.test.ts > ... rename fails transiently
+ FAIL  src/services/session-writer-lease.test.ts > ... unreadable owned lock
+ Test Files  2 failed (2)
+      Tests  2 failed | 123 passed | 1 skipped (126)
+
+Both inject failure via filesystem permissions; this host runs as uid 0, where
+chmod-based unreadability does not bite. Same class as the environment-specific
+failures the PR body reports for its Windows host.
+
+Focused suite: packages/core/src/tools/send-message.test.ts -> 24 passed (24)
+Scoped regression: packages/core/src/tools + packages/core/src/agents/team
+                -> 100 files / 3422 tests passed
+eslint + prettier --check on both changed files -> clean

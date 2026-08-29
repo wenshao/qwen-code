@@ -1,0 +1,35 @@
+Round-2 mutation / non-vacuity matrix — Linux, PR head d5f1106c23
+=================================================================
+Command per row: npx vitest run packages/core/src/tools/send-message.test.ts
+Baseline (unmutated PR head): 24 passed (24)
+
+A/B — production hunk reverted to merge-base 0756be0ce7, tests kept from PR head:
+  2 failed | 22 passed (24)
+  killed:  "rejects ambiguous teammate and background-task destinations"
+           "suggests the teammate destination for a matching task ID"
+  SURVIVING new test: "returns error for non-existent task without an active team"
+      -> expected: it is a negative control, not a fix-proving test. See M1.
+
+Targeted mutants over the fix:
+  M1  drop the `teamManager ?` null-guard (teamManager!.getTeamFile())
+        1 failed | 23 passed  -> killed by "returns error for non-existent task
+        without an active team".  This is the mutant that earns that test.
+  M2  `params.to && params.task_id` -> `params.to || params.task_id`
+        19 failed | 5 passed  -> killed broadly
+  M3  drop name normalisation (members.find(m => m.name === task_id))
+        1 failed | 23 passed  -> killed by "suggests the teammate destination"
+  M4  drop the returnDisplay teammate branch
+        1 failed | 23 passed  -> killed by "suggests the teammate destination"
+  M5  drop the error.message hint append (the d5f1106c23 change)
+        1 failed | 23 passed  -> killed by "suggests the teammate destination"
+
+Result: 5/5 mutants killed; every new test is load-bearing.
+
+Note on assertion targeting (round-1 Finding 2 follow-up):
+  `validateBuildAndExecute` still has no production call site
+  (grep -rn 'validateBuildAndExecute' packages --include='*.ts' | grep -v .test.ts
+   -> only packages/core/src/tools/tools.ts:364, its own definition).
+  The llmContent / returnDisplay assertions therefore still only pin a
+  caller-less method. What changed in d5f1106c23 is that the suite now also
+  asserts on `error.message` — the one field coreToolScheduler actually
+  forwards — so M5 is killed by an assertion on the shipping field.

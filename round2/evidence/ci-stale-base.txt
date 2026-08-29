@@ -1,0 +1,34 @@
+Round-2 diagnosis of the red CI check
+=====================================
+Failing check: "Test (ubuntu-latest, Node 22.x)"
+  https://github.com/QwenLM/qwen-code/actions/runs/33241915521/job/99094223740
+
+Failing step: "Check TUI dependency direction"
+  $ npm run check:tui-dep-direction
+  npm error Missing script: "check:tui-dep-direction"
+  ##[error]Process completed with exit code 1
+
+Cause — stale base, not the diff:
+  git show <PR head d5f1106c23>:package.json | grep -c check:tui-dep-direction  -> 0
+  git show <merge-base 0756be0ce7>:package.json | grep -c check:tui-dep-direction -> 0
+  git show origin/main:package.json        | grep -c check:tui-dep-direction     -> 1
+  .github/workflows/ci.yml on main line 489 runs 'npm run check:tui-dep-direction'
+
+The script was added to main's package.json after this PR's merge-base; the
+workflow invokes it, the PR branch does not define it.
+
+Verified by merging main into the PR branch locally:
+  git merge --no-edit origin/main   -> exit 0, no conflicts
+  grep -c check:tui-dep-direction package.json -> 1
+  npm run check:tui-dep-direction
+    [rule] packages/core/src — framework-neutral business core
+      scanned 1310 files, 9639 import specifiers
+      OK: no violations
+    [rule] packages/cli/src/ui/model — framework-neutral streaming state
+      scanned 4 files, 5 import specifiers
+      OK: no violations
+    PASS — dependency direction holds.
+  npx vitest run packages/core/src/tools/send-message.test.ts -> 24 passed (24)
+
+main is 156 commits ahead of the merge-base. #10081 (broadcast delivery
+failures) touched the same file; the merge is clean and both changes coexist.
