@@ -29,3 +29,5 @@ Environment: Debian 13 (Linux 6.12.63, x86_64), Node v22.22.2, npm 10.9.7, uid 0
 Run any harness with `TREE_ROOT=<worktree> node harness/<file>.mjs`.
 
 `raw/` holds the unedited observation JSON each run produced.
+
+| `harness/r10-1.mjs` | conflict repair vs. an unattributable active copy (the open R10-1 thread) |
