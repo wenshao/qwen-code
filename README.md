@@ -4,7 +4,7 @@ Screenshots produced while verifying
 [QwenLM/qwen-code#10403](https://github.com/QwenLM/qwen-code/pull/10403)
 (`feat(serve): Enable full API access on trusted loopback`) on Linux.
 
-- PR build: `8cacce2d56`
+- PR build: `efea8961f1`
 - Baseline: `413b6d15d3` (merge base of the PR branch and `main`)
 - Host: Linux x86_64, Node v22.22.2, npm 10.9.7
 
