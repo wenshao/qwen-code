@@ -1,0 +1,65 @@
+{
+  "scenario": "boundary-slow-create",
+  "variant": "mutdedup",
+  "boundaryDelivered": true,
+  "checks": [
+    {
+      "name": "the boundary is delivered by the card",
+      "expected": "delivered, no text fallback",
+      "actual": "delivered=true, fallbacks=0",
+      "pass": true
+    },
+    {
+      "name": "no streaming call repeats the content the previous one already sent",
+      "expected": "0 duplicate streaming writes",
+      "actual": "1 of 2 writes are byte-identical to their predecessor",
+      "pass": false
+    },
+    {
+      "name": "the card ends on the full boundary content",
+      "expected": "156 chars",
+      "actual": "156 chars",
+      "pass": true
+    }
+  ],
+  "requestCount": 5,
+  "requestsByPath": {
+    "POST /v1.0/card/instances/createAndDeliver": 1,
+    "PUT /v1.0/card/streaming": 2,
+    "PUT /v1.0/card/instances": 2
+  },
+  "totalRequestBytes": 1603,
+  "streamWrites": [
+    {
+      "t": 727,
+      "len": 156,
+      "dup": false
+    },
+    {
+      "t": 729,
+      "len": 156,
+      "dup": true
+    }
+  ],
+  "redundantStreamWrites": 1,
+  "errors": [],
+  "fallbacks": [],
+  "clientA": {
+    "content": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\n",
+    "statusLine": "Running · qwen3-max · 2s",
+    "flowStatus": "2",
+    "stopAction": "true",
+    "delivered": true,
+    "historyLen": 5,
+    "regressions": []
+  },
+  "clientB": {
+    "content": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\n",
+    "statusLine": "Running · qwen3-max · 2s",
+    "flowStatus": "2",
+    "stopAction": "true",
+    "delivered": true,
+    "historyLen": 5,
+    "regressions": []
+  }
+}

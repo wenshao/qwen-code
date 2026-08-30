@@ -1,0 +1,134 @@
+[
+  {
+    "mutant": "checkpoint: never attach content to the running heartbeat",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > periodically republishes the full content for reconnected clients 10ms",
+      "\u00d7 StatusCardController > retries a failed full-content checkpoint on the next status update 4ms",
+      "\u00d7 StatusCardController > writes terminal state after an in-flight full-content checkpoint 5003ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > periodically republishes the full content for reconnected clients",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > retries a failed full-content checkpoint on the next status update"
+    ]
+  },
+  {
+    "mutant": "checkpoint: interval 5s -> 7s",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > periodically republishes the full content for reconnected clients 8ms",
+      "\u00d7 StatusCardController > retries a failed full-content checkpoint on the next status update 25ms",
+      "\u00d7 StatusCardController > writes terminal state after an in-flight full-content checkpoint 5005ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > periodically republishes the full content for reconnected clients",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > retries a failed full-content checkpoint on the next status update"
+    ]
+  },
+  {
+    "mutant": "checkpoint: drop the lastContentSyncSecond advance",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > periodically republishes the full content for reconnected clients 12ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > periodically republishes the full content for reconnected clients"
+    ]
+  },
+  {
+    "mutant": "classifier: no HTTP status is retryable",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 DingtalkInteractiveCardClient > classifies HTTP 408 as retryable 18ms",
+      "\u00d7 DingtalkInteractiveCardClient > classifies HTTP 425 as retryable 1ms",
+      "\u00d7 DingtalkInteractiveCardClient > classifies HTTP 429 as retryable 1ms",
+      "\u00d7 DingtalkInteractiveCardClient > classifies HTTP 500 as retryable 15ms",
+      "\u00d7 DingtalkInteractiveCardClient > classifies HTTP 503 as retryable 1ms"
+    ]
+  },
+  {
+    "mutant": "stream retry: never schedule a retry after a transient failure",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > retries the latest snapshot after a transient content failure 7ms",
+      "\u00d7 StatusCardController > falls back when the boundary drain write fails and keeps retrying 3ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > retries the latest snapshot after a transient content failure",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > falls back when the boundary drain write fails and keeps retrying"
+    ]
+  },
+  {
+    "mutant": "stream retry: drop the streamRetryAttempt reset on success",
+    "verdict": "SURVIVED",
+    "failures": []
+  },
+  {
+    "mutant": "terminal retry: never retry a failed terminal write",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > finalizes a delivered card when its initial stream fails 20ms",
+      "\u00d7 StatusCardController > recovers terminal state after content and finalization failures 21ms",
+      "\u00d7 StatusCardController > backs off exponentially and caps terminal retries at 30s 9ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > finalizes a delivered card when its initial stream fails",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > recovers terminal state after content and finalization failures"
+    ]
+  },
+  {
+    "mutant": "creation retry: never retry a transient creation failure",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > retries card creation after a transient failure and resumes streaming 6ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > retries card creation after a transient failure and resumes streaming"
+    ]
+  },
+  {
+    "mutant": "dispose: channel disconnect no longer disposes the controller",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 DingtalkChannel status cards > disposes status-card recovery when disconnected 9ms",
+      "FAIL  src/DingtalkAdapter.test.ts > DingtalkChannel status cards > disposes status-card recovery when disconnected"
+    ]
+  },
+  {
+    "mutant": "backoff: cap 30s -> 300s",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > backs off exponentially and caps terminal retries at 30s 5ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > backs off exponentially and caps terminal retries at 30s"
+    ]
+  },
+  {
+    "mutant": "F1 regression: send the snapshot captured before `ready` (revert a2211707e2)",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > does not rewind content after delayed card creation 12ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > does not rewind content after delayed card creation"
+    ]
+  },
+  {
+    "mutant": "dedup: drop the \"already wrote the latest\" clear",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > does not rewind content after delayed card creation 9ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > does not rewind content after delayed card creation"
+    ]
+  },
+  {
+    "mutant": "dedup: re-arm on any pending write (drop the version guard)",
+    "verdict": "SURVIVED",
+    "failures": []
+  },
+  {
+    "mutant": "version: never bump contentVersion when content changes",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > re-arms a flush when content changes during a stream write 10ms",
+      "\u00d7 StatusCardController > drains a snapshot queued while the boundary drain write is in flight 124ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > re-arms a flush when content changes during a stream write",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > drains a snapshot queued while the boundary drain write is in flight"
+    ]
+  },
+  {
+    "mutant": "dedup: capture sentVersion after the write instead of before",
+    "verdict": "CAUGHT",
+    "failures": [
+      "\u00d7 StatusCardController > re-arms a flush when content changes during a stream write 21ms",
+      "\u00d7 StatusCardController > drains a snapshot queued while the boundary drain write is in flight 107ms",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > re-arms a flush when content changes during a stream write",
+      "FAIL  src/status-card-controller.test.ts > StatusCardController > drains a snapshot queued while the boundary drain write is in flight"
+    ]
+  }
+]

@@ -1,0 +1,58 @@
+diff --git a/packages/channels/dingtalk/src/status-card-controller.ts b/packages/channels/dingtalk/src/status-card-controller.ts
+index ae059e7522..945585f583 100644
+--- a/packages/channels/dingtalk/src/status-card-controller.ts
++++ b/packages/channels/dingtalk/src/status-card-controller.ts
+@@ -57,6 +57,8 @@ interface StatusRecord {
+   lastWriteAt: number;
+   contentVersion: number;
+   hasPendingWrite: boolean;
++  /** contentVersion of the last content successfully put on the stream. */
++  lastSentVersion: number;
+   flushTimer?: ReturnType<typeof setTimeout>;
+   createRetryTimer?: ReturnType<typeof setTimeout>;
+   /** Resolves the pending creation backoff early so `ready` settles. */
+@@ -209,6 +211,7 @@ export class StatusCardController {
+       lastWriteAt: Date.now(),
+       contentVersion: 0,
+       hasPendingWrite: false,
++      lastSentVersion: -1,
+       writeChain: Promise.resolve(),
+     };
+     this.recordsBySegment.set(record.segmentId, record);
+@@ -332,12 +335,14 @@ export class StatusCardController {
+     if (this.disposed) return false;
+ 
+     try {
++      const publishedVersion = record.contentVersion;
+       await this.options.client.openOrUpdateStream({
+         outTrackId: record.outTrackId,
+         key: 'content',
+         content: sanitizeStreamingImageMarkers(record.content),
+         finalize: false,
+       });
++      record.lastSentVersion = publishedVersion;
+     } catch (error) {
+       this.handleStreamFailure(record, error);
+     }
+@@ -396,6 +401,13 @@ export class StatusCardController {
+       .then(async () => {
+         const ready = await record.ready;
+         if (!ready || record.terminal || record.streamFailed) return;
++        if (record.contentVersion === record.lastSentVersion) {
++          // `create()` already published this exact content; a second
++          // identical streaming write changes nothing on the card.
++          contentWritten = true;
++          sentVersion = record.lastSentVersion;
++          return;
++        }
+         sentVersion = record.contentVersion;
+         await this.options.client.openOrUpdateStream({
+           outTrackId: record.outTrackId,
+@@ -403,6 +415,7 @@ export class StatusCardController {
+           content: sanitizeStreamingImageMarkers(record.content),
+           finalize: false,
+         });
++        record.lastSentVersion = sentVersion;
+         contentWritten = true;
+         record.streamRetryAttempt = 0;
+         await this.updateRunningStatus(record);

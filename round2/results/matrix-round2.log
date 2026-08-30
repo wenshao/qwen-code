@@ -1,0 +1,85 @@
+--- head/reconnect (m2) ---
+PASS [head/reconnect] reconnected client A is repaired while the task is still running: repaired at t=10008ms, 1316 chars
+PASS [head/reconnect] time from reconnect to the first content repair: 4706 ms
+PASS [head/reconnect] staleness of client A at t=11.8s: 212 chars behind (~1.6s of output)
+PASS [head/reconnect] client A content stays a prefix of the live card (no divergence): prefix
+PASS [head/reconnect] continuously connected client B never regresses: 0 regressions
+PASS [head/reconnect] both clients end on the complete terminal card: A(flow=3, 1581 chars) B(flow=3, 1581 chars)
+--- head/content-outage (m2) ---
+PASS [head/content-outage] card returns to the latest snapshot after the outage: recovered (1263 chars)
+PASS [head/content-outage] recovery latency after connectivity returns: 20 ms
+PASS [head/content-outage] response boundary is delivered by the card, not by a text fallback: delivered=true, fallbacks=0
+PASS [head/content-outage] status line keeps ticking after recovery: Running · qwen3-max · 10s
+--- head/terminal-outage (m2) ---
+PASS [head/terminal-outage] card reaches a terminal state after the outage: flowStatus=3 at 5416ms
+PASS [head/terminal-outage] Stop action is withdrawn: stop_action=false
+PASS [head/terminal-outage] terminal card shows the complete answer: 260 chars
+PASS [head/terminal-outage] terminal status line is not inflated by the outage: Completed · qwen3-max · 2s
+--- head/create-outage (m2) ---
+PASS [head/create-outage] a transiently rejected card creation is retried: delivered=true
+PASS [head/create-outage] the response boundary is not blocked by the creation backoff: delivered=true, fallbacks=1
+FAIL [head/create-outage] the user is not shown the same text twice: duplicate: the 364-char fallback text is also rendered in the card from t=3043ms (6 snapshots)
+PASS [head/create-outage] card ends terminal: flowStatus=3
+--- head/nonretryable (m2) ---
+PASS [head/nonretryable] a permanently rejected stream is not retried in a loop: 1 requests
+PASS [head/nonretryable] the run still reaches a terminal card: closed=true, flowStatus=3
+--- head/dispose (m2) ---
+PASS [head/dispose] no Card OpenAPI traffic after the channel disconnects: 0 requests in the 11.999s after disconnect
+--- head/cost (m2) ---
+PASS [head/cost] card renders the whole answer on the happy path: 2005 chars
+PASS [head/cost] no content regression on a continuously connected client: 0
+--- head/latency-order (m2) ---
+PASS [head/latency-order] slow instance updates never rewind the card content: none
+--- head/slow-create (m2) ---
+PASS [head/slow-create] a slow card creation never rewinds the card content: none
+PASS [head/slow-create] card shows the whole answer at the end: 1422 chars
+--- head/cost-large (m2) ---
+PASS [head/cost-large] long answer still renders (bounded at the 20k cap): 20000 chars of 60000 produced
+PASS [head/cost-large] no content regression beyond the documented 20k front truncation: 0 unexplained (34 are the [Earlier output truncated] rewrite)
+--- head/boundary-slow-create (m2) ---
+PASS [head/boundary-slow-create] the boundary is delivered by the card: delivered=true, fallbacks=0
+FAIL [head/boundary-slow-create] no streaming call repeats the content the previous one already sent: 1 of 2 writes are byte-identical to their predecessor
+PASS [head/boundary-slow-create] the card ends on the full boundary content: 156 chars
+--- base/reconnect (m2) ---
+FAIL [base/reconnect] reconnected client A is repaired while the task is still running: frozen at 208 chars (content from the moment it went offline)
+FAIL [base/reconnect] time from reconnect to the first content repair: never repaired while running
+FAIL [base/reconnect] staleness of client A at t=11.8s: 1320 chars behind (~9.8s of output)
+PASS [base/reconnect] client A content stays a prefix of the live card (no divergence): prefix
+PASS [base/reconnect] continuously connected client B never regresses: 0 regressions
+PASS [base/reconnect] both clients end on the complete terminal card: A(flow=3, 1581 chars) B(flow=3, 1581 chars)
+--- base/content-outage (m2) ---
+FAIL [base/content-outage] card returns to the latest snapshot after the outage: stuck at 208/1263 chars
+FAIL [base/content-outage] recovery latency after connectivity returns: never recovered
+FAIL [base/content-outage] response boundary is delivered by the card, not by a text fallback: delivered=true, fallbacks=1
+FAIL [base/content-outage] status line keeps ticking after recovery: Running · qwen3-max · 1s
+--- base/terminal-outage (m2) ---
+FAIL [base/terminal-outage] card reaches a terminal state after the outage: flowStatus=2
+FAIL [base/terminal-outage] Stop action is withdrawn: stop_action=true
+FAIL [base/terminal-outage] terminal card shows the complete answer: 208 chars
+FAIL [base/terminal-outage] terminal status line is not inflated by the outage: Running · qwen3-max · 1s
+--- base/create-outage (m2) ---
+FAIL [base/create-outage] a transiently rejected card creation is retried: delivered=false
+PASS [base/create-outage] the response boundary is not blocked by the creation backoff: delivered=true, fallbacks=2
+PASS [base/create-outage] the user is not shown the same text twice: no duplicate
+FAIL [base/create-outage] card ends terminal: flowStatus=(no card)
+--- base/nonretryable (m2) ---
+PASS [base/nonretryable] a permanently rejected stream is not retried in a loop: 1 requests
+FAIL [base/nonretryable] the run still reaches a terminal card: closed=true, flowStatus=2
+--- base/dispose (m2) ---
+FAIL [base/dispose] no Card OpenAPI traffic after the channel disconnects: 11 requests in the 11.999s after disconnect
+--- base/cost (m2) ---
+PASS [base/cost] card renders the whole answer on the happy path: 2005 chars
+PASS [base/cost] no content regression on a continuously connected client: 0
+--- base/latency-order (m2) ---
+PASS [base/latency-order] slow instance updates never rewind the card content: none
+--- base/slow-create (m2) ---
+PASS [base/slow-create] a slow card creation never rewinds the card content: none
+PASS [base/slow-create] card shows the whole answer at the end: 1422 chars
+--- base/cost-large (m2) ---
+PASS [base/cost-large] long answer still renders (bounded at the 20k cap): 20000 chars of 60000 produced
+PASS [base/cost-large] no content regression beyond the documented 20k front truncation: 0 unexplained (34 are the [Earlier output truncated] rewrite)
+--- base/boundary-slow-create (m2) ---
+PASS [base/boundary-slow-create] the boundary is delivered by the card: delivered=true, fallbacks=0
+PASS [base/boundary-slow-create] no streaming call repeats the content the previous one already sent: 0 of 3 writes are byte-identical to their predecessor
+PASS [base/boundary-slow-create] the card ends on the full boundary content: 156 chars
+RUN DONE
