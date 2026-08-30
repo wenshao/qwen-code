@@ -1,0 +1,193 @@
+{
+  "scenario": "create-outage",
+  "variant": "head",
+  "outage": {
+    "from": 0,
+    "to": 2500
+  },
+  "boundaryDelivered": true,
+  "duplicateSnapshotCount": 6,
+  "checks": [
+    {
+      "name": "a transiently rejected card creation is retried",
+      "expected": "card delivered after the outage",
+      "actual": "delivered=true",
+      "pass": true
+    },
+    {
+      "name": "the response boundary is not blocked by the creation backoff",
+      "expected": "boundary resolves without waiting out the backoff",
+      "actual": "delivered=true, fallbacks=1",
+      "pass": true
+    },
+    {
+      "name": "the user is not shown the same text twice",
+      "expected": "fallback text is not repeated inside the card",
+      "actual": "duplicate: the 364-char fallback text is also rendered in the card from t=3024ms (6 snapshots)",
+      "pass": false
+    },
+    {
+      "name": "card ends terminal",
+      "expected": "flowStatus=3",
+      "actual": "flowStatus=3",
+      "pass": true
+    }
+  ],
+  "requestCount": 12,
+  "requestsByPath": {
+    "POST /v1.0/card/instances/createAndDeliver": 3,
+    "PUT /v1.0/card/streaming": 4,
+    "PUT /v1.0/card/instances": 5
+  },
+  "totalRequestBytes": 5194,
+  "errors": [
+    {
+      "t": 19,
+      "op": "status card creation",
+      "message": "fetch failed"
+    },
+    {
+      "t": 1021,
+      "op": "status card creation",
+      "message": "fetch failed"
+    }
+  ],
+  "fallbacks": [
+    {
+      "t": 2601,
+      "text": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\nline 04: scanning packages/channels/dingtalk step 4\nline 05: scanning packages/channels/dingtalk step 5\nline 06: scanning packages/channels/dingtalk step 6\nline 07: scanning packages/channels/dingtalk step 7\n"
+    }
+  ],
+  "clientA": {
+    "content": "final: done with the scan\n",
+    "statusLine": "Completed · qwen3-max · 6s",
+    "flowStatus": "3",
+    "stopAction": "false",
+    "delivered": true,
+    "historyLen": 10,
+    "regressions": [
+      {
+        "t": 6005,
+        "from": 364,
+        "to": 26
+      }
+    ]
+  },
+  "clientB": {
+    "content": "final: done with the scan\n",
+    "statusLine": "Completed · qwen3-max · 6s",
+    "flowStatus": "3",
+    "stopAction": "false",
+    "delivered": true,
+    "historyLen": 10,
+    "regressions": [
+      {
+        "t": 6005,
+        "from": 364,
+        "to": 26
+      }
+    ]
+  },
+  "clientBHistory": [
+    {
+      "t": 3024,
+      "via": "create",
+      "len": 364,
+      "content": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\nline 04: scanning packages/channels/dingtalk step 4\nline 05: scanning packages/channels/dingtalk step 5\nline 06: scanning packages/channels/dingtalk step 6\nline 07: scanning packages/channels/dingtalk step 7\n",
+      "statusLine": "Running · qwen3-max · 3s",
+      "flowStatus": "2"
+    },
+    {
+      "t": 3030,
+      "via": "stream",
+      "len": 364,
+      "content": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\nline 04: scanning packages/channels/dingtalk step 4\nline 05: scanning packages/channels/dingtalk step 5\nline 06: scanning packages/channels/dingtalk step 6\nline 07: scanning packages/channels/dingtalk step 7\n",
+      "statusLine": "Running · qwen3-max · 3s",
+      "flowStatus": "2"
+    },
+    {
+      "t": 3033,
+      "via": "stream",
+      "len": 364,
+      "content": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\nline 04: scanning packages/channels/dingtalk step 4\nline 05: scanning packages/channels/dingtalk step 5\nline 06: scanning packages/channels/dingtalk step 6\nline 07: scanning packages/channels/dingtalk step 7\n",
+      "statusLine": "Running · qwen3-max · 3s",
+      "flowStatus": "2"
+    },
+    {
+      "t": 3035,
+      "via": "instance",
+      "len": 364,
+      "content": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\nline 04: scanning packages/channels/dingtalk step 4\nline 05: scanning packages/channels/dingtalk step 5\nline 06: scanning packages/channels/dingtalk step 6\nline 07: scanning packages/channels/dingtalk step 7\n",
+      "statusLine": "Running · qwen3-max · 3s",
+      "flowStatus": "2"
+    },
+    {
+      "t": 4008,
+      "via": "instance",
+      "len": 364,
+      "content": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\nline 04: scanning packages/channels/dingtalk step 4\nline 05: scanning packages/channels/dingtalk step 5\nline 06: scanning packages/channels/dingtalk step 6\nline 07: scanning packages/channels/dingtalk step 7\n",
+      "statusLine": "Running · qwen3-max · 4s",
+      "flowStatus": "2"
+    },
+    {
+      "t": 5007,
+      "via": "instance",
+      "len": 364,
+      "content": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\nline 04: scanning packages/channels/dingtalk step 4\nline 05: scanning packages/channels/dingtalk step 5\nline 06: scanning packages/channels/dingtalk step 6\nline 07: scanning packages/channels/dingtalk step 7\n",
+      "statusLine": "Running · qwen3-max · 5s",
+      "flowStatus": "2"
+    },
+    {
+      "t": 6005,
+      "via": "stream",
+      "len": 26,
+      "content": "final: done with the scan\n",
+      "statusLine": "Running · qwen3-max · 5s",
+      "flowStatus": "2"
+    },
+    {
+      "t": 6007,
+      "via": "instance",
+      "len": 26,
+      "content": "final: done with the scan\n",
+      "statusLine": "Running · qwen3-max · 6s",
+      "flowStatus": "2"
+    },
+    {
+      "t": 6404,
+      "via": "stream",
+      "len": 26,
+      "content": "final: done with the scan\n",
+      "statusLine": "Running · qwen3-max · 6s",
+      "flowStatus": "2"
+    },
+    {
+      "t": 6406,
+      "via": "instance",
+      "len": 26,
+      "content": "final: done with the scan\n",
+      "statusLine": "Completed · qwen3-max · 6s",
+      "flowStatus": "3"
+    }
+  ],
+  "finalCards": {
+    "A": {
+      "content": "final: done with the scan\n",
+      "flowStatus": "3",
+      "statusLine": "Completed · qwen3-max · 6s",
+      "hasAction": "false",
+      "stop_action": "false",
+      "blockList": "[{\"type\":0,\"markdown\":\"final: done with the scan\\n\"}]",
+      "copy_content": "final: done with the scan\n"
+    },
+    "B": {
+      "content": "final: done with the scan\n",
+      "flowStatus": "3",
+      "statusLine": "Completed · qwen3-max · 6s",
+      "hasAction": "false",
+      "stop_action": "false",
+      "blockList": "[{\"type\":0,\"markdown\":\"final: done with the scan\\n\"}]",
+      "copy_content": "final: done with the scan\n"
+    }
+  }
+}

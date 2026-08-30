@@ -1,0 +1,65 @@
+--- head/reconnect (client model m2) ---
+PASS [head/reconnect] reconnected client A is repaired while the task is still running: repaired at t=10008ms, 1316 chars
+PASS [head/reconnect] time from reconnect to the first content repair: 4706 ms
+PASS [head/reconnect] staleness of client A at t=11.8s: 212 chars behind (~1.6s of output)
+PASS [head/reconnect] client A content stays a prefix of the live card (no divergence): prefix
+PASS [head/reconnect] continuously connected client B never regresses: 0 regressions
+PASS [head/reconnect] both clients end on the complete terminal card: A(flow=3, 1581 chars) B(flow=3, 1581 chars)
+--- head/content-outage (client model m2) ---
+PASS [head/content-outage] card returns to the latest snapshot after the outage: recovered (1263 chars)
+PASS [head/content-outage] recovery latency after connectivity returns: 21 ms
+PASS [head/content-outage] response boundary is delivered by the card, not by a text fallback: delivered=true, fallbacks=0
+PASS [head/content-outage] status line keeps ticking after recovery: Running · qwen3-max · 10s
+--- head/terminal-outage (client model m2) ---
+PASS [head/terminal-outage] card reaches a terminal state after the outage: flowStatus=3 at 5412ms
+PASS [head/terminal-outage] Stop action is withdrawn: stop_action=false
+PASS [head/terminal-outage] terminal card shows the complete answer: 260 chars
+PASS [head/terminal-outage] terminal status line is not inflated by the outage: Completed · qwen3-max · 2s
+--- head/create-outage (client model m2) ---
+PASS [head/create-outage] a transiently rejected card creation is retried: delivered=true
+PASS [head/create-outage] the response boundary is not blocked by the creation backoff: delivered=true, fallbacks=1
+FAIL [head/create-outage] the user is not shown the same text twice: duplicate: the 364-char fallback text is also rendered in the card from t=3024ms (6 snapshots)
+PASS [head/create-outage] card ends terminal: flowStatus=3
+--- head/nonretryable (client model m2) ---
+PASS [head/nonretryable] a permanently rejected stream is not retried in a loop: 1 requests
+PASS [head/nonretryable] the run still reaches a terminal card: closed=true, flowStatus=3
+--- head/dispose (client model m2) ---
+PASS [head/dispose] no Card OpenAPI traffic after the channel disconnects: 0 requests in the 11.997s after disconnect
+--- head/cost (client model m2) ---
+PASS [head/cost] card renders the whole answer on the happy path: 2005 chars
+PASS [head/cost] no content regression on a continuously connected client: 0
+--- head/latency-order (client model m2) ---
+PASS [head/latency-order] slow instance updates never rewind the card content: none
+--- base/reconnect (client model m2) ---
+FAIL [base/reconnect] reconnected client A is repaired while the task is still running: frozen at 208 chars (content from the moment it went offline)
+FAIL [base/reconnect] time from reconnect to the first content repair: never repaired while running
+FAIL [base/reconnect] staleness of client A at t=11.8s: 1320 chars behind (~9.9s of output)
+PASS [base/reconnect] client A content stays a prefix of the live card (no divergence): prefix
+PASS [base/reconnect] continuously connected client B never regresses: 0 regressions
+PASS [base/reconnect] both clients end on the complete terminal card: A(flow=3, 1581 chars) B(flow=3, 1581 chars)
+--- base/content-outage (client model m2) ---
+FAIL [base/content-outage] card returns to the latest snapshot after the outage: stuck at 208/1263 chars
+FAIL [base/content-outage] recovery latency after connectivity returns: never recovered
+FAIL [base/content-outage] response boundary is delivered by the card, not by a text fallback: delivered=true, fallbacks=1
+FAIL [base/content-outage] status line keeps ticking after recovery: Running · qwen3-max · 1s
+--- base/terminal-outage (client model m2) ---
+FAIL [base/terminal-outage] card reaches a terminal state after the outage: flowStatus=2
+FAIL [base/terminal-outage] Stop action is withdrawn: stop_action=true
+FAIL [base/terminal-outage] terminal card shows the complete answer: 208 chars
+FAIL [base/terminal-outage] terminal status line is not inflated by the outage: Running · qwen3-max · 1s
+--- base/create-outage (client model m2) ---
+FAIL [base/create-outage] a transiently rejected card creation is retried: delivered=false
+PASS [base/create-outage] the response boundary is not blocked by the creation backoff: delivered=true, fallbacks=2
+PASS [base/create-outage] the user is not shown the same text twice: no duplicate
+FAIL [base/create-outage] card ends terminal: flowStatus=(no card)
+--- base/nonretryable (client model m2) ---
+PASS [base/nonretryable] a permanently rejected stream is not retried in a loop: 1 requests
+FAIL [base/nonretryable] the run still reaches a terminal card: closed=true, flowStatus=2
+--- base/dispose (client model m2) ---
+FAIL [base/dispose] no Card OpenAPI traffic after the channel disconnects: 11 requests in the 11.999s after disconnect
+--- base/cost (client model m2) ---
+PASS [base/cost] card renders the whole answer on the happy path: 2005 chars
+PASS [base/cost] no content regression on a continuously connected client: 0
+--- base/latency-order (client model m2) ---
+PASS [base/latency-order] slow instance updates never rewind the card content: none
+EXIT=0

@@ -1,0 +1,82 @@
+{
+  "scenario": "create-outage",
+  "variant": "base",
+  "outage": {
+    "from": 0,
+    "to": 2500
+  },
+  "boundaryDelivered": true,
+  "duplicateSnapshotCount": 0,
+  "checks": [
+    {
+      "name": "a transiently rejected card creation is retried",
+      "expected": "card delivered after the outage",
+      "actual": "delivered=false",
+      "pass": false
+    },
+    {
+      "name": "the response boundary is not blocked by the creation backoff",
+      "expected": "boundary resolves without waiting out the backoff",
+      "actual": "delivered=true, fallbacks=2",
+      "pass": true
+    },
+    {
+      "name": "the user is not shown the same text twice",
+      "expected": "fallback text is not repeated inside the card",
+      "actual": "no duplicate",
+      "pass": true
+    },
+    {
+      "name": "card ends terminal",
+      "expected": "flowStatus=3",
+      "actual": "flowStatus=(no card)",
+      "pass": false
+    }
+  ],
+  "requestCount": 2,
+  "requestsByPath": {
+    "POST /v1.0/card/instances/createAndDeliver": 1,
+    "PUT /v1.0/card/instances": 1
+  },
+  "totalRequestBytes": 765,
+  "errors": [
+    {
+      "t": 26,
+      "op": "status card creation",
+      "message": "fetch failed"
+    }
+  ],
+  "fallbacks": [
+    {
+      "t": 2603,
+      "text": "line 01: scanning packages/channels/dingtalk step 1\nline 02: scanning packages/channels/dingtalk step 2\nline 03: scanning packages/channels/dingtalk step 3\nline 04: scanning packages/channels/dingtalk step 4\nline 05: scanning packages/channels/dingtalk step 5\nline 06: scanning packages/channels/dingtalk step 6\nline 07: scanning packages/channels/dingtalk step 7\n"
+    },
+    {
+      "t": 6403,
+      "text": "final: done with the scan\n"
+    }
+  ],
+  "clientA": {
+    "content": "",
+    "statusLine": "",
+    "flowStatus": "",
+    "stopAction": "",
+    "delivered": false,
+    "historyLen": 0,
+    "regressions": []
+  },
+  "clientB": {
+    "content": "",
+    "statusLine": "",
+    "flowStatus": "",
+    "stopAction": "",
+    "delivered": false,
+    "historyLen": 0,
+    "regressions": []
+  },
+  "clientBHistory": [],
+  "finalCards": {
+    "A": {},
+    "B": {}
+  }
+}
