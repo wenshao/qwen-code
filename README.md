@@ -16,3 +16,4 @@ whose `getupdates` replies are written as raw JSON text so `message_id` really i
 | `05-error-shape-regression.png` | json-bigint throws a non-`Error`, so the poll-loop log becomes `[object Object]` |
 | `06-test-non-vacuity.png` | `api.test.ts` pins the fix; `monitor.test.ts` passes without it |
 | `07-zero-dep-alternative.png` | a zero-dependency alternative, built and run through the same probes |
+| `08-empty-body-hot-loop.png` | an HTTP 200 with an empty body: a throttled failure becomes a silent ~2,700 req/s loop |
