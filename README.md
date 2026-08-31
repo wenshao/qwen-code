@@ -8,7 +8,8 @@ Host: macOS 26.6.2 (arm64), Zulu JDK 26 / `maven.compiler.release=11`, Maven 3.9
 | --- | --- |
 | `01-real-stack-ab.png` | Bundled qwen CLI 0.22.3 driven through the Java SDK `ProcessTransport`; the real `control_response` error on the wire; base silent vs head WARN |
 | `02-test-discrimination.png` | `mvn clean test` on head (141 pass) and the revert-hunk run (PR tests + base `Session.java` → 3 failures) |
-| `03-mutation-matrix.png` | 9 mutants against the changed hunk: 8 killed, M8 (precedence flip) survived |
+| `03-mutation-matrix.png` | 11 mutants against the changed hunk: 10 killed, M8 (precedence flip) survived |
+| `04-standing-threads.png` | The 9 unresolved review threads re-checked against head `15a5fb53b5` |
 
 ## logs/
 Raw captures — `wire-*.txt` are byte-level SEND/RECV transcripts through the real CLI process.

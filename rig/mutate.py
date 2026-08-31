@@ -49,6 +49,12 @@ elif mut == "M9": # never dispatch onControlResponse consumer (control-arm sanit
     rep("""                    MyConcurrentUtils.runAndWait(() -> sessionEventConsumers.onControlResponse(this, controlResponse),
                             Optional.ofNullable(sessionEventConsumers.onControlResponseTimeout(this, controlResponse)).orElse(defaultEventTimeout));
                     if ("error\"""", """                    if ("error\"""")
+elif mut == "M10": # always stop the read loop on any control_response (thread OPEN#3)
+    rep("""                    return false;
+                } else if ("control_request".equals(messageType)) {""", """                    return true;
+                } else if ("control_request".equals(messageType)) {""")
+elif mut == "M11": # narrow the warn payload away (thread OPEN#9)
+    rep("""log.warn("control_response error: {}", jsonObject.toJSONString());""", """log.warn("control_response error: {}", "");""")
 else:
     raise SystemExit("unknown mutant " + mut)
 SRC.write_text(s)
