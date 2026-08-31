@@ -184,6 +184,8 @@ def p_content():
     fh = [q for q in h['requests'] if str(q['path']).startswith('/v1.0/card')]
     gap_b = max((fb[i+1]['t'] - fb[i]['t']) for i in range(len(fb)-1)) / 1000
     gap_h = max((fh[i+1]['t'] - fh[i]['t']) for i in range(len(fh)-1)) / 1000
+    last_bad = max(q['t'] for q in h['requests'] if q['status'] != 200)
+    recovery = min(q['t'] for q in h['requests'] if q['status'] == 200 and q['t'] > last_bad) - last_bad
     body = (f'<div class="lane"><h2>characters rendered on a continuously connected client</h2>{ch}'
             f'<div class="legend"><span class="sw" style="background:#e0524a"></span>main @ 168a88c02e'
             f'<span class="sw" style="background:#1f9d55"></span>PR #10357</div></div>'
@@ -195,8 +197,8 @@ def p_content():
             f'<b>"{esc(b["clients"][1]["history"][-2]["statusLine"])}"</b> until the terminal write.'
             f'</div></div>'
             f'<div class="lane good"><h2>PR #10357<span class="tag good">recovers</span></h2><div class="meta">'
-            f'Retries through the outage ({len([q for q in h["requests"] if q["status"] != 200])} failed requests), '
-            f'then resumes <b>60 ms</b> after connectivity returns. '
+            f'Retries through the outage ({len([q for q in h["requests"] if q["status"] != 200])} refused requests), '
+            f'then resumes <b>{recovery} ms</b> after the last refused request. '
             f'<b>{len(fh)}</b> Card OpenAPI requests over the run, longest gap <b>{gap_h:.1f}s</b>. The status line '
             f'keeps ticking through 5s…17s.</div></div></div>')
     write('02-content-outage-trace', page(
