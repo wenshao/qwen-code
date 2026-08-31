@@ -16,3 +16,14 @@ configured dir now: ["in-configured.txt"]
 FAIL  P7.3 UPLOAD still succeeds when only the legacy fallback dir is unreadable  [write-arm]
 control upload -> 201  control fallback delete -> 200
 PASS  P7.4 CONTROL: both roots healthy — upload 201 and fallback-only delete succeeds
+
+### phase 11 — blast radius of the P7.3 fault (same uid-1500 daemon)
+=== P11: how wide is the stat-denied legacy root? ===
+healthy: 201 201 201
+ws1/session1 upload -> 500
+ws1/session2 upload -> 500
+ws2/session3 upload -> 201 (different workspace => different legacy root)
+PASS  P11.1 a stat-denied legacy root rejects uploads for EVERY session of that workspace
+PASS  P11.2 ...and only that workspace — a sibling workspace is unaffected
+after chmod 700 -> 201
+PASS  P11.3 the fault is not sticky — restoring the legacy root restores uploads
