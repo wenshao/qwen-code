@@ -1,0 +1,20 @@
+### phase 10 — the two migration directions the fallback does NOT cover
+daemon up on 4665 after 1s (tag=p10a attroot=$ATTROOT)
+=== P10 seed: env = ATTROOT (root A) ===
+upload -> 201 {"type":"resource","attachmentId":"rotate-me.txt","mimeType":"text/plain","size":18}
+root A dir: ["rotate-me.txt"]
+--- restart with the env REMOVED ---
+daemon up on 4665 after 1s (tag=p10b attroot=<unset>)
+=== P10 unset: env REMOVED ===
+resume -> 200
+read root-A attachment -> 404 "{\"error\":\"session attachment not found\"}"
+PASS  P10.1 documented one-way limit reproduced (env REMOVED -> the root-A copy is NOT reachable)
+--- restart with the env ROTATED to a second root B ---
+daemon up on 4665 after 1s (tag=p10c attroot=$H/attroot-b)
+=== P10 rotate: env ROTATED to a second root B ===
+resume -> 200
+read root-A attachment -> 404 "{\"error\":\"session attachment not found\"}"
+PASS  P10.2 documented one-way limit reproduced (env ROTATED to root B -> the root-A copy is NOT reachable)
+   note: the doc's "one-way migration" bullet spells out only the remove-the-env
+         direction; the configured-A -> configured-B rotation behaves the same
+         way but is not stated.

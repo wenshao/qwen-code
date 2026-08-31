@@ -1,0 +1,47 @@
+### phase 1 — daemon WITHOUT QWEN_SERVE_SESSION_ATTACHMENTS_ROOT (baseline)
+daemon up on 4665 after 1s (tag=p1 dist=/root/git/pr10066/dist attroot=<unset>)
+=== P1: baseline, env UNSET ===
+sessionId = 550e8400-e29b-41d4-a716-446655440066
+upload -> 201 {"type":"resource","attachmentId":"legacy.txt","mimeType":"text/plain","size":44}
+default root : /root/git/pr10066-harness/home/.qwen/tmp/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments
+  contents   : ["legacy.txt"]
+configured   : /root/git/pr10066-harness/attroot/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments -> "<ENOENT>"
+PASS  P1.1 upload accepted (201)
+PASS  P1.2 bytes land in the DEFAULT runtime temp dir (/root/git/pr10066-harness/home/.qwen/tmp/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments/session-550e8400-e29b-41d4-a716-446655440066)
+PASS  P1.3 nothing written under the (unset) configured root
+PASS  P1.4 read-back byte-identical
+ws2 sessionId = 550e8400-e29b-41d4-a716-446655440067 upload -> 201 {"type":"resource","attachmentId":"legacy.txt","mimeType":"text/plain","size":11}
+state -> {"sid":"550e8400-e29b-41d4-a716-446655440066","legacyId":"legacy.txt","sid2":"550e8400-e29b-41d4-a716-446655440067","legacyId2":"legacy.txt"}
+
+### phase 2 — daemon restarted WITH QWEN_SERVE_SESSION_ATTACHMENTS_ROOT=/root/git/pr10066-harness/attroot
+daemon up on 4665 after 1s (tag=p2 dist=/root/git/pr10066/dist attroot=/root/git/pr10066-harness/attroot)
+=== P2: env SET to /root/git/pr10066-harness/attroot ===
+default root    : /root/git/pr10066-harness/home/.qwen/tmp/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments
+configured root : /root/git/pr10066-harness/attroot/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments
+re-attach primary  -> 200 {"sessionId":"550e8400-e29b-41d4-a716-446655440066","workspaceCwd":"/root/git/pr10066-harness/ws","attached":false,"clie
+re-attach ws2      -> 200 {"sessionId":"550e8400-e29b-41d4-a716-446655440067","workspaceCwd":"/root/git/pr10066-harness/ws2","attached":false,"cli
+fallback read -> 200 "legacy attachment written before the switch\n"
+PASS  P2.1 attachment uploaded BEFORE the switch is still readable (fallback read)
+new upload -> 201 {"type":"resource","attachmentId":"fresh.txt","mimeType":"text/plain","size":25}
+configured session dir: ["fresh.txt"]
+default   session dir: ["legacy.txt"]
+PASS  P2.2 new upload lands under <root>/<projectHash>/attachments/session-<id>/
+PASS  P2.3 new upload does NOT touch the default root
+PASS  P2.4 new attachment reads back
+same-name upload -> 201 {"type":"resource","attachmentId":"legacy (1).txt","mimeType":"text/plain","size":54}
+PASS  P2.5 same-name upload gets a fresh id (legacy (1).txt) instead of shadowing the fallback copy
+PASS  P2.6 the legacy copy still returns its ORIGINAL bytes after the same-name upload
+PASS  P2.7 the new same-name upload reads back its own bytes
+ws2 configured root: /root/git/pr10066-harness/attroot/5920f860badeac162a6077bb40c2abfb2b605b38bcf1f052c26c312a18d726e6/attachments -> ["session-550e8400-e29b-41d4-a716-446655440067"]
+PASS  P2.8 a second workspace sharing one configured root gets its own <projectHash> subtree
+
+--- tree under the configured root ---
+02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/
+  attachments/
+    session-550e8400-e29b-41d4-a716-446655440066/
+      fresh.txt (25B)
+      legacy (1).txt (54B)
+5920f860badeac162a6077bb40c2abfb2b605b38bcf1f052c26c312a18d726e6/
+  attachments/
+    session-550e8400-e29b-41d4-a716-446655440067/
+      ws2-fresh.txt (17B)

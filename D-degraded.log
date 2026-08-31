@@ -1,0 +1,18 @@
+### phase 7 — degraded-root probes (daemon dropped to uid 1500 so chmod 000 is a real EACCES)
+daemon(uid1500) up on 4665 after 1s (tag=p7 attroot=/root/git/pr10066-harness/attroot)
+=== P7: degraded-root probes (daemon uid 1500) ===
+configured root: /root/git/pr10066-harness/attroot/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments
+default/fallback root: /root/git/pr10066-harness/home/.qwen/tmp/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments
+sid 1ffaee6f-5c5d-42a1-b338-7b5acadf726c
+configured dir: ["in-configured.txt"]
+fallback  dir: ["legacy-only.txt"]
+read fallback-only w/ configured dir chmod 000 -> 200 "fallback-only copy\n"
+PASS  P7.1 READ degrades to the fallback when the configured root is unreadable
+DELETE fallback-only w/ configured dir chmod 000 -> 500 {"error":"EACCES: permission denied, stat '/root/git/pr10066-harness/attroot/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments/session-1ffaee6f-5c5d-42a1-b338-7b5acadf726c/l
+fallback copy still on disk: true
+FAIL  P7.2 REMOVE of a fallback-only copy succeeds while the configured root is unreadable  [R7-2]
+upload w/ fallback dir chmod 000 -> 500 {"error":"EACCES: permission denied, stat '/root/git/pr10066-harness/home/.qwen/tmp/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments/session-1ffaee6f-5c5d-42a1-b338-7b5acad
+configured dir now: ["in-configured.txt"]
+FAIL  P7.3 UPLOAD still succeeds when only the legacy fallback dir is unreadable  [write-arm]
+control upload -> 201  control fallback delete -> 200
+PASS  P7.4 CONTROL: both roots healthy — upload 201 and fallback-only delete succeeds

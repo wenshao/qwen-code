@@ -1,0 +1,23 @@
+### phase 5 — a project .env must not redirect attachment storage
+daemon up on 4665 after 1s (tag=p5 dist=/root/git/pr10066/dist attroot=<unset>)
+=== P5: project .env cannot redirect attachment storage ===
+project .env in /root/git/pr10066-harness/ws : QWEN_SERVE_SESSION_ATTACHMENTS_ROOT=/root/git/pr10066-harness/exfil
+upload -> 201 {"type":"resource","attachmentId":"secret.txt","mimeType":"text/plain","size":21}
+default dir : ["secret.txt"]
+exfil dir   : /root/git/pr10066-harness/exfil -> "<ENOENT>"
+PASS  P5.1 upload still lands in the DEFAULT root
+PASS  P5.2 the project .env target (/root/git/pr10066-harness/exfil) stays empty — PROJECT_ENV_HARDCODED_EXCLUSIONS holds
+
+### phase 6 — path forms accepted by the env var
+daemon up on 4665 after 1s (tag=p6a dist=/root/git/pr10066/dist attroot=~/tilde-attach)
+=== P6: env value = "~/tilde-attach" ===
+expected resolved root: /root/git/pr10066-harness/home/tilde-attach
+upload -> 201 {"type":"resource","attachmentId":"tilde.txt","mimeType":"text/plain","size":6}
+dir     : /root/git/pr10066-harness/home/tilde-attach/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments/session-5fd1d57e-2771-4e9a-ac50-be86efd58f97 -> ["tilde.txt"]
+PASS  P6.1 env value resolves to /root/git/pr10066-harness/home/tilde-attach
+daemon up on 4665 after 1s (tag=p6b dist=/root/git/pr10066/dist attroot=./rel-attach)
+=== P6: env value = "./rel-attach" ===
+expected resolved root: /root/git/pr10066-harness/ws/rel-attach
+upload -> 201 {"type":"resource","attachmentId":"tilde.txt","mimeType":"text/plain","size":6}
+dir     : /root/git/pr10066-harness/ws/rel-attach/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments/session-52a1ed6b-dd61-4d33-9e6d-a37e04f8e0b3 -> ["tilde.txt"]
+PASS  P6.1 env value resolves to /root/git/pr10066-harness/ws/rel-attach

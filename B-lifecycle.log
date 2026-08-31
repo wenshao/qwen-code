@@ -1,0 +1,42 @@
+### phase 3 — removal semantics across both roots
+=== P3: DELETE semantics ===
+before  default: ["legacy.txt"]
+before  config : ["fresh.txt","legacy (1).txt"]
+DELETE legacy.txt (fallback-only) -> 200 {"removed":true}
+PASS  P3.1 DELETE of a fallback-only attachment succeeds
+PASS  P3.2 the fallback copy is unlinked from the DEFAULT root
+PASS  P3.3 the deleted fallback attachment now 404s
+DELETE fresh.txt (configured-only) -> 200
+PASS  P3.4 DELETE of a configured-root attachment unlinks it
+re-seeded default: ["in-fallback.txt"]
+re-seeded config : ["in-configured.txt","legacy (1).txt"]
+PASS  P3.5 pre-condition: one file in each root
+POST /sessions/delete -> 200 {"removed":["550e8400-e29b-41d4-a716-446655440066"],"notFound":[],"errors":[]}
+after default dir: "<ENOENT>"
+after config  dir: "<ENOENT>"
+PASS  P3.5b the persisted session row was actually removed (non-vacuous delete)
+PASS  P3.6 session delete removes the CONFIGURED root session dir
+PASS  P3.7 session delete removes the FALLBACK root session dir
+parent listing (configured): []
+parent listing (default)   : []
+PASS  P3.8 no tombstone left behind in either root
+
+### phase 4 — archive keeps attachments
+=== P4: archive keeps attachments ===
+sid 4a8cfb9c-4483-47a1-a9e6-dca1a14991e2 upload 201 {"type":"resource","attachmentId":"keepme.txt","mimeType":"text/plain","size":17}
+before archive: ["keepme.txt"]
+POST /sessions/archive -> 200 {"archived":["4a8cfb9c-4483-47a1-a9e6-dca1a14991e2"],"alreadyArchived":[],"resolvedConflicts":[],"notFound":[],"errors":[]}
+after archive : ["keepme.txt"]
+PASS  P4.1 archiving a session KEEPS its attachments (matches the doc)
+
+### phase 9 — session branch copies from both roots
+=== P9: branch copies from both roots ===
+source configured: ["from-configured.txt"]
+source fallback  : ["from-fallback.txt"]
+POST branch -> 201 {"sessionId":"4cfa3fed-4763-4627-b116-202b3d10c368","workspaceCwd":"/root/git/pr10066-harness/ws","attached":false,"clientId":"client_84f7266c-9b55-489a-b23e-3f
+branch configured dir: /root/git/pr10066-harness/attroot/02c466c33e8ccab8e84cc801cc119587e86c9ddea82b46a1c16c267df6cc0bd0/attachments/session-4cfa3fed-4763-4627-b116-202b3d10c368 ["from-configured.txt","from-fallback.txt"]
+PASS  P9.1 branch copies the CONFIGURED-root attachment
+PASS  P9.2 branch copies the FALLBACK-root (pre-switch) attachment into the new session
+legacy dir for sid2 exists? false
+PASS  P9.3 upload succeeds when the legacy fallback dir does not exist (ENOENT)
+PASS  P9.4 upload succeeds when the whole legacy fallback ROOT is gone
