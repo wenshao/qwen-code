@@ -1,0 +1,24 @@
+$ fork-latency sweep of the single failed-mint test — before (main) vs after (PR), ×2 per point, this host (16 vCPU, Debian 13 / Docker 26)
+  each of date, mktemp, head, timeout sleeps N s before exec — the loaded-runner fault model; 'wall' = node --test wall-clock
+
+  s/fork   before                 after                 
+  0.10     pass 2/2  2.58s        pass 2/2  3.49s       
+  0.15     pass 2/2  2.58s        pass 2/2  4.09s       
+  0.20     pass 2/2  2.58s        pass 2/2  4.79s       
+  0.22     FAIL 0/2  2.58s        pass 2/2  4.99s       
+  0.24     FAIL 0/2  2.58s        pass 2/2  5.29s       
+  0.26     FAIL 0/2  2.58s        pass 2/2  5.59s       
+  0.28     FAIL 0/2  2.58s        pass 2/2  5.78s       
+  0.30     FAIL 0/2  2.58s        pass 2/2  6.09s       
+  0.35     FAIL 0/2  2.58s        pass 2/2  6.69s       
+  0.40     FAIL 0/2  2.58s        pass 2/2  7.39s       
+  0.45     FAIL 0/2  2.58s        pass 2/2  7.99s       
+  0.50     FAIL 0/2  2.60s        FAIL 0/2  8.09s       
+  0.55     FAIL 0/2  2.62s        FAIL 0/2  8.09s       
+  0.60     FAIL 0/2  2.58s        FAIL 0/2  8.09s       
+  0.70     FAIL 0/2  2.58s        FAIL 0/2  8.09s       
+  0.80     FAIL 0/2  2.58s        FAIL 0/2  8.09s       
+
+  breaking point   before: 0.20 → 0.22 s/fork      after: 0.45 → 0.50 s/fork      ≈ 2.3× more headroom
+  round-1 (2 vCPU macOS Docker) measured 0.20 → 0.50: the breaking points are latency-dominated, not host-dominated
+  after's wall grows with latency (it waits for the SECOND skip line); before's stays 2.58 s (fixed sleep) whether it passes or not

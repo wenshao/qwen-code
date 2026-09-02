@@ -79,3 +79,60 @@ observed log state` test actually pin the enriched message?
 | `logs/round2-gate-timeout-messages.log` | the verbatim messages, real loop |
 | `logs/round2-helper-suite-tail.log` | full HELPER_TESTS run at the new head |
 | `rig/r2.sh`, `rig/mutate-test.py`, `rig/r2-matrix.sh` | the round-2 harness |
+
+---
+
+# Round 2 (b) — head `92609a403f`, second rig, files under `rig/r2`, `logs/r2`, `shots/r2-s*`
+
+Second verification pass, after the author's round-3 commit `d5c154976c` extracted the
+gate into `awaitTwoSkipLines(workdir, timeoutMs)` and added a witness test for the
+enriched failure message. PR diff against `main` at this head: one file, +57/−4.
+
+## Environment
+
+Host: Debian 13, 16 vCPU, Docker 26.1.5. Container: the official `node:22-bookworm`
+image as-is (Node **v22.23.2** — the version the CI runner reports — bash 5.2.15,
+python 3.11), no packages added. The full helper suite mounts the repo's `node_modules`
+and a static `jq` 1.7.1 read-only. Screenshots are real `xterm` windows on `Xvfb`,
+captured with ImageMagick (`rig/r2/xshot.sh`).
+
+## Files
+
+| path | what it holds |
+|---|---|
+| `shots/r2-s1-ab.png` | the CI red reproduced on `before` and closed on `after`, 0.3 s/fork |
+| `shots/r2-s2-shapes.png` | the gate's failure message on the REAL loop: pulse-death, never-skips, fail-open mutants |
+| `shots/r2-s3-matrix.png` | A/B counts and the production-script mutation matrix, incl. `>= 1` vs `>= 2` |
+| `shots/r2-s4-witness.png` | test-side variants: what the new witness pins and what it does not |
+| `shots/r2-s5-sweep.png` | fork-latency sweep, both arms, 16 points |
+| `shots/r2-s6-whole.png` | whole-file runs at 0 / 0.2 / 0.3 s/fork, sequential-execution proof, full suite, lint |
+| `shots/r2-s7-ci.png` | CI ground truth: the slow-runner job at `58d4658011`, and the helper step across every run of the branch |
+| `logs/r2/core-matrix.log` | E1–E3 raw arm results (`rig/r2/core.sh`) |
+| `logs/r2/demo-*.log`, `logs/r2/var-*.log` | spec-reporter output behind s2 and s4 |
+| `logs/r2/test-variants.log` | test-side variant verdicts, whole-file runs under each, witness ×20 |
+| `logs/r2/latency-sweep.log` | 16-point sweep, both arms, ×2 |
+| `logs/r2/whole-file-matrix.log` | whole-file runs; `whole-file-*.tap` two raw TAP outputs |
+| `logs/r2/helper-suite-full-uid1000.tap` | full 23-file HELPER_TESTS run as uid 1000: 509/509 |
+| `logs/r2/helper-suite-full-as-root.tap` | the same run as root: 473/509 (flakiness-gate root-identity gate) |
+| `logs/r2/ci-run-33610891036-job-100185567005.log` | the slow-runner CI job: step timings, heartbeat block, what the 2 h timeout cancelled |
+| `logs/r2/ci-branch-survey.tsv` | Test(ubuntu) job + helper step for every CI run of the branch |
+| `logs/r2/panel-*.txt` | plain-text versions of every screenshot |
+| `rig/r2/*` | round-2 harness: `core.sh`, `demo.sh`, `sweep.sh`, `suite.sh`, `variants.py`, `mutate.py` (+`mintok`), `whole.sh` (comment corrected), `xshot.sh` |
+
+## Reproducing round 2
+
+```bash
+docker pull node:22-bookworm
+# rig/src/: before.test.mjs (main), after.test.mjs (PR), autofix-status-heartbeat.sh (identical on both)
+python3 rig/r2/variants.py rig/src/after.test.mjs rig/src     # gate1, baremsg, noqq, noqqpred, absentlog, emptylog
+docker run --rm -e FORCE_COLOR=1 -v "$PWD/rig:/rig:ro" -v "$PWD/out:/out" node:22-bookworm bash /rig/r2/core.sh
+docker run --rm -v "$PWD/rig:/rig:ro" -v "$PWD/out:/out" node:22-bookworm bash /rig/r2/whole.sh before-0.3 before 0 4 0.3
+```
+
+## Correction to round 1
+
+Round 1 said the loop tests inside the `describe` run concurrently. They do not: node:test
+runs a suite's tests one at a time (sum of the 23 subtest durations equals the suite
+duration, 37.1 s, and CI's own timestamps agree). The whole-file red in round 1 was fork
+latency alone; the breaking points (0.20 → 0.22 s/fork before, 0.45 → 0.50 after) are
+the same on this host as on the 2 vCPU one, so the fault is latency-dominated.

@@ -1,0 +1,22 @@
+$ PR #10527 round-2 matrix — head 92609a403f, same tree, one file apart; Node v22.23.2 (node:22-bookworm)
+  test arm: before = main's test file, after = the PR's, gate1 = after with '>= 2' weakened to '>= 1'
+  script arm: none = pristine autofix-status-heartbeat.sh; every mutant sha256-verified as applied
+
+  E1/E2  the CI red, reproduced and closed
+  test     script      fork lat  pass/fail  median wall  verdict
+  before   none        0 s       3/0 of 3       2.57 s     green
+  after    none        0 s       3/0 of 3       2.18 s     green
+  before   none        0.3 s     0/5 of 5       2.58 s     RED — log holds only "heartbeat started"
+  after    none        0.3 s     5/0 of 5       6.09 s     green
+
+  E3  production-script mutants vs the gate (0.3 s/fork, ×3)
+  test     script      fork lat  pass/fail  median wall  result
+  after    failopen    0.3 s     0/3 of 3       6.99 s     killed by 1 !== 0 (a gh call recorded)
+  after    dieonskip   0.3 s     0/3 of 3       8.09 s     killed: gate timeout, "saw 1; last log line: …skipping this tick"
+  after    bareassign  0.3 s     0/3 of 3       8.10 s     killed: gate timeout, "saw 0; …"
+  after    mintok      0.3 s     0/3 of 3       8.09 s     killed: gate timeout, "saw 0; last log line: …heartbeat started…"
+  gate1    failopen    0.3 s     3/0 of 3       3.28 s     SURVIVES — the >= 2 gate is load-bearing (round-1 finding, re-confirmed)
+  before   failopen    0.3 s     0/3 of 3       2.58 s     killed (fixed sleep saw the gh record)
+  before   dieonskip   0.3 s     0/3 of 3       2.58 s     killed ("must not end the loop")
+
+  wall = node --test wall-clock of the single test; 'pass' counts a green test (for a mutant arm that means the mutant survived)

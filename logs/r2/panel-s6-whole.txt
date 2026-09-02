@@ -1,0 +1,22 @@
+$ whole file, exactly as CI runs it: node --test --test-concurrency=1 autofix-status-heartbeat.test.mjs (30 tests)
+  test     s/fork   runs   green    red    wall      failing subtest
+  before   0        —      —                 —               —         (not re-run; the single test is green at 0 s/fork, see matrix)
+  after    0        3      3        0               37.2 s    —
+  before   0.2      6      6        0               69.4 s    — (this host is below before's 0.22 s breaking point)
+  after    0.2      6      6        0               71.9 s    —
+  before   0.3      4      0                 4      85.3 s    #17 skips the tick on a failed config mint — every run, only this one
+  after    0.3      4      4        0               89.1 s    — 30/30 green every run
+
+  sequential, not concurrent (correction to my round-1 report)
+  after, 0 s/fork, run 1: 23 loop subtests, sum of durations = 37.1 s, suite duration = 37.1 s, file total = 37.2 s
+  node:test runs a describe's tests one at a time; CI's own timestamps agree (each 'ok' lands one duration after the previous). The
+  round-1 whole-file red was fork latency alone, not 'mutual contention' between concurrently spawned loops.
+
+  full HELPER_TESTS suite (23 files, ci.yml's exact command) from the exported tree at 92609a403f, node_modules mounted
+  as root       (uid 0)      473/509 — all 36 failures in 'qwen-triage: flakiness gate … under the production wrapper' (root-identity gate)
+  as uid 1000   (node user)  509/509 pass, 0 fail, 51.3 s
+  CI runs the step as the runner user; the root-only failures are a container artifact, not the PR's
+
+  lint on the PR's test file with the repo config (worktree, node_modules present)
+  npx prettier --check   All matched files use Prettier code style!
+  npx eslint --max-warnings 0   exit 0

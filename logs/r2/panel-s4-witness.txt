@@ -1,0 +1,54 @@
+$ after: the failed-mint test + its new witness
+  test=after.test.mjs  script=none  fork-latency=0s  node=v22.23.2
+▶ autofix-status-heartbeat loop
+  ✔ skips the tick on a failed config mint — never gh against a shared config (2108.029256ms)
+  ✔ the failed-mint gate failure carries the observed log state (302.883082ms)
+✔ autofix-status-heartbeat loop (2412.126021ms)
+  exit=0 wall=2.48s
+
+$ variant baremsg: gate message reverted to the bare sentence
+  test=baremsg.test.mjs  script=none  fork-latency=0s  node=v22.23.2
+▶ autofix-status-heartbeat loop
+  ✔ skips the tick on a failed config mint — never gh against a shared config (2108.598982ms)
+  ✖ the failed-mint gate failure carries the observed log state (301.868443ms)
+✖ autofix-status-heartbeat loop (2411.819852ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /saw 1;/. Input:
+  'a failed mint must log a skipped tick'
+  exit=1 wall=2.48s
+
+$ variant noqq: '?? []' dropped from the post-timeout count (R13 probe)
+  test=noqq.test.mjs  script=none  fork-latency=0s  node=v22.23.2
+▶ autofix-status-heartbeat loop
+  ✔ skips the tick on a failed config mint — never gh against a shared config (2108.06105ms)
+  ✔ the failed-mint gate failure carries the observed log state (301.739152ms)
+✔ autofix-status-heartbeat loop (2410.808513ms)
+  exit=0 wall=2.48s
+
+$ variant noqqpred: '?? []' dropped from the polling predicate
+  test=noqqpred.test.mjs  script=none  fork-latency=0s  node=v22.23.2
+▶ autofix-status-heartbeat loop
+  ✖ skips the tick on a failed config mint — never gh against a shared config (3.39603ms)
+  ✔ the failed-mint gate failure carries the observed log state (303.153254ms)
+✖ autofix-status-heartbeat loop (307.58564ms)
+  TypeError: Cannot read properties of null (reading 'length')
+  exit=1 wall=0.38s
+
+$ variant absentlog: witness plants NO heartbeat.log (D14-1)
+  test=absentlog.test.mjs  script=none  fork-latency=0s  node=v22.23.2
+▶ autofix-status-heartbeat loop
+  ✔ skips the tick on a failed config mint — never gh against a shared config (2107.130869ms)
+  ✖ the failed-mint gate failure carries the observed log state (302.866675ms)
+✖ autofix-status-heartbeat loop (2411.607564ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /saw 1;/. Input:
+  `expected >= 2 'gh config mint failed; skipping this tick' log lines within 300ms, saw 0; last log line: ""`
+  exit=1 wall=2.48s
+
+$ whole file under each test-side variant (node --test --test-concurrency=1, 0 s/fork) + witness determinism
+  variant    what changed in the test file                                  result                 verdict
+  after      (the PR as-is)                                                 30/30 pass             green
+  baremsg    gate message reverted to the bare sentence                     29/30 — witness fails  caught by the new witness
+  noqqpred   '?? []' dropped from the polling predicate                     29/30 — TypeError      caught (by a TypeError, not the gate)
+  noqq       '?? []' dropped from the post-timeout count                    30/30 pass             SURVIVES — zero-skip message shape unpinned (R13 probe)
+  witness    the failed-mint gate failure carries the observed log state, ×20 alone 20/20 pass             deterministic
+
+  absentlog / emptylog: a missing heartbeat.log and an empty one both render as  saw 0; last log line: ""  (D14-1, cosmetic)
