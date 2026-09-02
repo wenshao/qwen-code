@@ -3,8 +3,10 @@
 Rig and raw output behind the verification report posted on
 https://github.com/QwenLM/qwen-code/pull/10527
 
-Target: head `6263226df6f88b745c17be4d5ed9ddb72616b5c8` (`autofix/issue-10523`),
-one file changed, +21/−4, test-only.
+Targets, in order:
+- round 1 — head `6263226df6f88b745c17be4d5ed9ddb72616b5c8`, +21/−4
+- round 2 — head `58d4658011bfbba7a213be5d058282371edf166d`, +57/−4 (after commit
+  `d5c154976c` implemented the round-1 Suggestion)
 
 ## Environment
 
@@ -59,3 +61,21 @@ docker build -t hb-verify:1 rig/
 docker run --rm -v "$PWD/rig:/rig" -v "$PWD/out:/out" hb-verify:1 \
   bash /rig/ab.sh demo after none 0.3 3
 ```
+
+## Round 2 (head `58d4658011`)
+
+Re-ran every round-1 measurement plus a new mutation family aimed at the
+round-3 additions: does the new `the failed-mint gate failure carries the
+observed log state` test actually pin the enriched message?
+
+| path | what it holds |
+|---|---|
+| `shots/r1-messages.png` | the enriched gate-timeout message in three real failure shapes |
+| `shots/r2-mutation.png` | round-2 mutation matrix, script + message mutants |
+| `shots/r3-regression.png` | round-1 vs round-2, side by side |
+| `logs/round2-matrix.log` | the full round-2 A/B and mutation matrix |
+| `logs/round2-whole-file-0.2.log` | 6+6 whole-file runs at 0.2 s/fork (the boundary) |
+| `logs/round2-whole-file-0.3.log` | 4+4 whole-file runs at 0.3 s/fork (deterministic) |
+| `logs/round2-gate-timeout-messages.log` | the verbatim messages, real loop |
+| `logs/round2-helper-suite-tail.log` | full HELPER_TESTS run at the new head |
+| `rig/r2.sh`, `rig/mutate-test.py`, `rig/r2-matrix.sh` | the round-2 harness |
