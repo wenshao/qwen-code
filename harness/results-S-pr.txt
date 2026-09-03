@@ -1,0 +1,50 @@
+PASS  S1 exactly one media upload, type=file  :: {"access_token":"HARNESS_AT_15","type":"file"}
+PASS  S1 uploaded bytes are the fixture (sha256 + size match)  :: 35B c34366bf1e19
+PASS  S1 upload uses the current access token
+PASS  S1 one msgtype=file webhook message carrying the returned mediaId  :: {"msgtype":"file","file":{"mediaId":"@file-c34366bf1e19","fileName":"report.txt","fileType":"txt"}}
+PASS  S1 fileName/fileType = report.txt / txt
+PASS  S1 file message precedes the markdown text  :: file@1788429627988 md@1788429627990
+PASS  S1 markdown keeps the surrounding text, drops the marker line  :: "Here is the report.\n\nDone."
+PASS  S1 no marker / no local path anywhere on the wire
+PASS  S1 no success claim / no failure notice
+PASS  S2 pure-file reply: one upload, one file message, ZERO markdown messages  :: up=1 files=1 md=0
+PASS  S2 binary bytes intact (3000B sha256 match)
+PASS  S2 fileType=bin
+PASS  S3 group session: file message via sessionWebhook, then markdown  :: files=1 md=1
+PASS  S3 group markdown keeps the text, no path  :: "Group report\n"
+PASS  S3 fileType=pdf
+PASS  S4a five markers -> five uploads + five file messages, in order  :: m1.txt,m2.txt,m3.txt,m4.txt,m5.txt
+PASS  S4a markdown has no notice  :: "Five files:\n\n\n\n\n"
+PASS  S4b seven markers -> only five uploaded/delivered (m6/m7 never touched)  :: up=5 files=5
+PASS  S4b limit notice appended, path-free  :: "Seven files:\n[File delivery failed: response file limit exceeded]"
+PASS  S5 zero uploads, zero file messages for the five invalid files  :: up=0 files=0
+PASS  S5 one notice per file, basename only  :: "Bad ones:\n\n\n\n\n\nend\n[File delivery failed: missing.txt]\n[File delivery failed: empty.txt]\n[File delivery failed: big.bin]\n[File delivery failed: escape-link]\n[File delivery failed: h10893-outside.txt]"
+PASS  S5 no path / marker / secret content leaked
+PASS  S5 escape-link target content never uploaded
+PASS  S6 directory + relative path rejected with basename notices  :: "Edge:\n\n\n\n\n\nend\n[File delivery failed: invalid marker]\n[File delivery failed: adir]\n[File delivery failed: report.txt]"
+PASS  S6 path containing "]" -> invalid-marker notice, never uploaded
+PASS  S6 exactly 20 MiB is accepted and uploaded intact  :: 20971520,35
+PASS  S6 symlink INSIDE the workspace is delivered under its real name  :: exact.bin,report.txt
+PASS  S6 no path leaked
+PASS  S7 /tmp file, nested file, space, no-ext, .tar.gz all delivered  :: tmpfile.md:md,nested.md:md,with space.txt:txt,noext:file,archive.tar.gz:gz
+PASS  S7 pure-file multi reply sends no markdown
+PASS  S8 mid-line and trailing-text markers are invalid (no upload), rest of those lines redacted  :: "see \n\n```\n\n```\nend\n[File delivery failed: invalid marker]"
+PASS  S8 marker inside a code fence IS treated as a marker (over-redaction by design): delivered  :: up=1
+PASS  S8 no path leaked
+PASS  S9a marker split into 1-char SSE deltas still delivered exactly once  :: "A\n\nB"
+PASS  S9b single-delta answer delivered exactly once
+PASS  S10a marker seen only before the tool boundary: NOT delivered (fail closed), unavailable notice appended  :: up=0 out=Tool finished.
+[File delivery unavailable]
+PASS  S10a no path leaked
+PASS  S10b marker before the tool call AND in the final text: final one delivered once  :: up=1 files=1
+PASS  S10b OBSERVATION: "[File delivery unavailable]" is ALSO appended although that file was delivered (streamed=2 > final=1)  :: ["Tool finished.\n[File delivery unavailable]"]
+PASS  S11a expired token: second upload retried with a FRESH token and delivered  :: tokens=HARNESS_AT_15,HARNESS_AT_16 gettoken=1
+PASS  S11a exactly one extra gettoken for the retry  :: gettoken calls=1
+PASS  S11a no failure notice after a successful retry
+PASS  S11b permanent auth failure: exactly 2 upload attempts (no loop), no file message, notice  :: up=2 md=["[File delivery failed: report.txt]"]
+PASS  S11c HTTP 500 on upload: single attempt, notice appended to the text  :: "text\n[File delivery failed: report.txt]"
+PASS  S11d upload reply without media_id: notice, no file message
+PASS  S12a webhook errcode!=0 on the file message: failure notice, text still delivered  :: "Report attached.\n[File delivery failed: report.txt]"
+PASS  S12b HTTP 500 on the file message: notice only, exactly one send attempt  :: ["[File delivery failed: report.txt]"]
+
+== 47/47 checks passed ==

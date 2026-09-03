@@ -1,0 +1,18 @@
+PASS  P1 webhook accepted by the daemon  :: 202 {"accepted":true}
+PASS  P1 one upload (type=file) with fixture bytes
+PASS  P1 groupMessages/send msgKey=sampleFile with {mediaId,fileName,fileType}  :: {"robotCode":"harnessClientId","openConversationId":"cidGroup1","msgKey":"sampleFile","msgParam":"{\"mediaId\":\"@file-f3b6582575b7\",\"fileName\":\"report.txt\",\"fileType\":\"txt\"}"}
+PASS  P1 file sent to the configured openConversationId with robotCode
+PASS  P1 sampleMarkdown text follows the file, marker-free  :: {"title":"Proactive group repo","text":"Proactive group report.\n\nend"}
+PASS  P1 no DM API used for a group target
+PASS  P2 oToMessages/batchSend msgKey=sampleFile {mediaId,fileName,fileType}  :: {"robotCode":"harnessClientId","userIds":["owner-1"],"msgKey":"sampleFile","msgParam":"{\"mediaId\":\"@file-3918846abb6d\",\"fileName\":\"report.pdf\",\"fileType\":\"pdf\"}"}
+PASS  P2 DM file addressed to userIds=[owner-1]  :: ["owner-1"]
+PASS  P2 markdown follows the file, marker-free
+PASS  P2 no group API used for a DM target
+PASS  P3 pure-file proactive: sampleFile only, no sampleMarkdown  :: gf=1 gm=0
+PASS  P4a group reply without processQueryKey -> failure notice, no success claim  :: {"title":"Text","text":"Text\n[File delivery failed: report.txt]"}
+PASS  P4a exactly one sampleFile attempt (no retry loop)  :: attempts=1
+PASS  P4b DM reply without processQueryKey -> failure notice as the only message  :: [{"title":"[File delivery faile","text":"[File delivery failed: report.txt]"}]
+PASS  P4c HTTP 400 on the group file send -> failure notice, markdown still attempted  :: gf=1 gm=1 [{"title":"[File delivery faile","text":"[File delivery failed: report.txt]"}]
+PASS  P5 proactive invalid files: zero uploads, basename notices only  :: [{"title":"Oops","text":"Oops\n[File delivery failed: escape-link]\n[File delivery failed: empty.txt]"}]
+
+== 16/16 checks passed ==
