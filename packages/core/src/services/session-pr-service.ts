@@ -217,8 +217,67 @@ export async function writeSessionPrs(
 // the serve bundle closure. This is only the execution gate — it cannot
 // attribute a printed URL to gh's own run, so callers must verify the
 // binding with gh itself before persisting it.
-const GH_PR_CREATE_SEGMENT_PATTERN =
-  /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*(?:(?:sudo|env|nohup|command)\s+(?:-\S+(?:\s+\S+)?\s+|[A-Za-z_][A-Za-z0-9_]*=\S+\s+){0,3})*(?:\S*[/\\])?gh(?:\.exe|\.cmd|\.bat)?\s+pr\s+(?:create|new)\b/;
+//
+// The gate is a single left-to-right pass over whitespace tokens, never a
+// backtracking regex: it runs synchronously before EVERY foreground shell
+// spawn, and the regex it replaced (nested optional groups where a flag's
+// optional value could also parse as an assignment, a flag or a wrapper
+// name) backtracked exponentially on a failing tail — ~20 repetitions of
+// `env -i GH_A=b` cost hundreds of milliseconds and ~26 (a 365-character,
+// model-authored command) froze the agent process with SIGTERM never
+// landing. The pass settles the one ambiguity deterministically: a flag
+// takes the next token as its value only when that token is not itself a
+// flag, an assignment, a wrapper name or the gh binary — the parse the
+// regex would have reached anyway.
+const SHELL_ASSIGNMENT_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*=\S+$/;
+const GH_CREATE_WRAPPER_NAMES = new Set(['sudo', 'env', 'nohup', 'command']);
+const GH_CREATE_WRAPPER_ITEM_LIMIT = 3;
+const GH_BINARY_PATTERN = /(?:^|[/\\])gh(?:\.exe|\.cmd|\.bat)?$/;
+const GH_PR_CREATE_SUBCOMMAND_PATTERN = /^(?:create|new)(?![A-Za-z0-9_])/;
+
+function segmentTokens(segment: string): string[] {
+  return segment
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length > 0);
+}
+
+function segmentRunsGhPrCreate(tokens: readonly string[]): boolean {
+  let i = 0;
+  while (i < tokens.length && SHELL_ASSIGNMENT_PATTERN.test(tokens[i]!)) {
+    i += 1;
+  }
+  while (i < tokens.length && GH_CREATE_WRAPPER_NAMES.has(tokens[i]!)) {
+    i += 1;
+    let items = 0;
+    while (items < GH_CREATE_WRAPPER_ITEM_LIMIT && i < tokens.length) {
+      const token = tokens[i]!;
+      if (SHELL_ASSIGNMENT_PATTERN.test(token)) {
+        i += 1;
+        items += 1;
+        continue;
+      }
+      if (!token.startsWith('-')) break;
+      i += 1;
+      items += 1;
+      const value = tokens[i];
+      if (
+        value !== undefined &&
+        !value.startsWith('-') &&
+        !SHELL_ASSIGNMENT_PATTERN.test(value) &&
+        !GH_CREATE_WRAPPER_NAMES.has(value) &&
+        !GH_BINARY_PATTERN.test(value)
+      ) {
+        i += 1;
+      }
+    }
+  }
+  if (i >= tokens.length || !GH_BINARY_PATTERN.test(tokens[i]!)) return false;
+  i += 1;
+  if (tokens[i] !== 'pr') return false;
+  i += 1;
+  return i < tokens.length && GH_PR_CREATE_SUBCOMMAND_PATTERN.test(tokens[i]!);
+}
 
 export function commandRunsGhPrCreate(command: string): boolean {
   return (
@@ -226,15 +285,13 @@ export function commandRunsGhPrCreate(command: string): boolean {
       // \n is a standard shell separator: model-authored commands routinely
       // span lines, and the gate must see a `gh pr create` on a later line.
       .split(/&&|\|\||[;|\n]/)
-      .some((segment) => GH_PR_CREATE_SEGMENT_PATTERN.test(segment))
+      .some((segment) => segmentRunsGhPrCreate(segmentTokens(segment)))
   );
 }
 
 const GH_INLINE_ENV_ASSIGNMENT_PATTERN =
   /^(GH_[A-Za-z0-9_]*|GITHUB_[A-Za-z0-9_]*)=(\S+)$/;
 const GH_ENV_NAME_PATTERN = /^(?:GH_|GITHUB_)[A-Za-z0-9_]*$/;
-const GH_CREATE_WRAPPER_NAMES = new Set(['sudo', 'env', 'nohup', 'command']);
-const GH_BINARY_PATTERN = /(?:^|[/\\])gh(?:\.exe|\.cmd|\.bat)?$/;
 
 /**
  * Approximates the shell's own expansion so the verification legs
@@ -297,7 +354,7 @@ export function ghPrCreateInlineEnv(
     }
   };
   for (const segment of command.split(/&&|\|\||[;|\n]/)) {
-    const tokens = segment.trim().split(/\s+/);
+    const tokens = segmentTokens(segment);
     // `export GH_TOKEN=…` / `unset GH_TOKEN` in ANY segment binds or
     // removes the variable for every later segment of the command.
     if (tokens[0] === 'export') {
@@ -319,7 +376,7 @@ export function ghPrCreateInlineEnv(
       }
       continue;
     }
-    if (!GH_PR_CREATE_SEGMENT_PATTERN.test(segment)) continue;
+    if (!segmentRunsGhPrCreate(tokens)) continue;
     const env: Record<string, string | undefined> = { ...exported };
     let pendingFlag: string | undefined;
     for (const token of tokens) {
@@ -329,7 +386,7 @@ export function ghPrCreateInlineEnv(
         pendingFlag = undefined;
         continue;
       }
-      if (/^[A-Za-z_][A-Za-z0-9_]*=\S+$/.test(token)) {
+      if (SHELL_ASSIGNMENT_PATTERN.test(token)) {
         // A non-GH assignment (`FOO=bar GH_TOKEN=x gh pr create`) — the
         // gate grammar admits it, so it must not end the scan.
         pendingFlag = undefined;

@@ -1183,6 +1183,53 @@ describe('commandRunsGhPrCreate', () => {
     expect(commandRunsGhPrCreate('command env gh pr create --fill')).toBe(true);
   });
 
+  it('settles a flag value deterministically, matching the regex it replaced', () => {
+    // A flag takes the next token as its value only when that token is not
+    // a flag, an assignment, a wrapper name or the gh binary — the parse
+    // the backtracking regex ended up on.
+    expect(commandRunsGhPrCreate('env -u gh pr create --fill')).toBe(true);
+    expect(commandRunsGhPrCreate('sudo -u env gh pr create --fill')).toBe(true);
+    expect(commandRunsGhPrCreate('env -u GH_A=b gh pr create --fill')).toBe(
+      true,
+    );
+    expect(commandRunsGhPrCreate('sudo -u -weird gh pr create --fill')).toBe(
+      true,
+    );
+    expect(commandRunsGhPrCreate('env -a x -b y -c z gh pr create')).toBe(true);
+    // More than three items on one wrapper is outside the grammar.
+    expect(commandRunsGhPrCreate('env -a -b -c -d gh pr create')).toBe(false);
+    expect(commandRunsGhPrCreate('env -x pr create')).toBe(false);
+  });
+
+  it('completes in linear time on adversarial wrapper chains', () => {
+    // The gate runs synchronously before every foreground spawn. The regex
+    // it replaced backtracked exponentially on a failing tail (~20
+    // repetitions of `env -i GH_A=b` cost hundreds of milliseconds, ~26
+    // froze the process); each shape below exercised one of its ambiguous
+    // parses. 400 repetitions must be effectively free.
+    const shapes = [
+      'env -a -b ',
+      'env -a -b -c ',
+      'env -i GH_A=b ',
+      'env -u env ',
+      'sudo -a env -b ',
+      'sudo -u x ',
+      'A=b ',
+      'env ',
+    ];
+    for (const shape of shapes) {
+      const started = performance.now();
+      expect(commandRunsGhPrCreate(`${shape.repeat(400)}X`)).toBe(false);
+      expect(performance.now() - started).toBeLessThan(200);
+    }
+    // A long but well-formed chain still matches, just as cheaply.
+    const started = performance.now();
+    expect(
+      commandRunsGhPrCreate(`${'env -i GH_A=b '.repeat(1400)}gh pr create`),
+    ).toBe(true);
+    expect(performance.now() - started).toBeLessThan(200);
+  });
+
   it('fails closed on shapes outside the grammar', () => {
     // Documented limitation: the gate's grammar is a closed set. These
     // creates still run; only the binding is skipped.
