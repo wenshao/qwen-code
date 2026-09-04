@@ -1,0 +1,33 @@
+diff --git a/packages/core/src/permissions/rule-parser.ts b/packages/core/src/permissions/rule-parser.ts
+index 6b6081bbab..2bd97d1ff5 100644
+--- a/packages/core/src/permissions/rule-parser.ts
++++ b/packages/core/src/permissions/rule-parser.ts
+@@ -1209,14 +1209,22 @@ function materializeEnvReference(name: string): string {
+   return `$\0${name}\0`;
+ }
+ 
++// INVERTED ARM (verification control): allowlist of variables whose value
++// cannot change which code the target program loads or runs.
++const INERT_ENV_VARS = new Set([
++  'NODE_ENV', 'ENVIRONMENT', 'CI', 'DEBUG', 'FORCE_COLOR', 'NO_COLOR', 'TERM',
++  'TZ', 'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_NUMERIC', 'LC_TIME', 'LC_COLLATE',
++  'LC_MONETARY', 'LC_MESSAGES', 'GOOS', 'GOARCH', 'GOMAXPROCS',
++  'DOCKER_BUILDKIT', 'RUST_BACKTRACE', 'RUST_LOG', 'PYTHONUNBUFFERED',
++  'PYTHONDONTWRITEBYTECODE', 'NPM_CONFIG_LOGLEVEL', 'COLUMNS', 'LINES',
++  'GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE', 'GIT_AUTHOR_NAME',
++  'GIT_COMMITTER_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL',
++  'SOURCE_DATE_EPOCH', 'MAKEFLAGS', 'VERBOSE', 'LOG_LEVEL',
++]);
++
+ function isUnstrippableEnvVar(name: string): boolean {
+-  // Uppercase-normalized: Windows resolves environment variables
+-  // case-insensitively, so `node_options=` must be treated as NODE_OPTIONS.
+   const upper = name.toUpperCase();
+-  return (
+-    UNSTRIPPABLE_ENV_VARS.has(upper) ||
+-    UNSTRIPPABLE_ENV_VAR_PREFIXES.some((prefix) => upper.startsWith(prefix))
+-  );
++  return !INERT_ENV_VARS.has(upper);
+ }
+ 
+ /**

@@ -1,0 +1,68 @@
+diff --git a/packages/core/src/permissions/rule-parser.ts b/packages/core/src/permissions/rule-parser.ts
+index 6b6081bbab..551dbd3eda 100644
+--- a/packages/core/src/permissions/rule-parser.ts
++++ b/packages/core/src/permissions/rule-parser.ts
+@@ -972,10 +972,24 @@ export function splitCompoundCommand(command: string): string[] {
+ export function matchesCommandPattern(
+   pattern: string,
+   command: string,
++  // EXPERIMENT (verification arm): deny/ask rules match the union of the raw
++  // and the unconditionally-stripped form, so an unverifiable env prefix can
++  // never be used to duck a deny rule.
++  unverifiedPrefixMode: 'block-match' | 'match-both' = 'block-match',
+ ): boolean {
+   // This function matches a single pattern against a single simple command.
+   // Compound command splitting is handled by the caller (PermissionManager).
+   const normalizedCommand = stripLeadingVariableAssignments(command);
++  if (
++    unverifiedPrefixMode === 'match-both' &&
++    normalizedCommand === command.trim() &&
++    ENV_ASSIGNMENT_REGEX.test(command.trim())
++  ) {
++    const forced = stripLeadingVariableAssignmentsUnconditionally(command);
++    if (forced !== normalizedCommand && matchesCommandPattern(pattern, forced)) {
++      return true;
++    }
++  }
+ 
+   // Special case: lone `*` matches any single command
+   if (pattern === '*') {
+@@ -1283,6 +1297,25 @@ function checkLeadingAssignments(command: string): LeadingAssignmentCheck {
+   return sawAssignment ? 'static' : 'none';
+ }
+ 
++function stripLeadingVariableAssignmentsUnconditionally(
++  command: string,
++): string {
++  const trimmed = command.trim();
++  if (!trimmed) return trimmed;
++  try {
++    const tokens: string[] = [];
++    for (const token of parse(trimmed)) {
++      if (typeof token === 'string') tokens.push(token);
++      else if (token && typeof token === 'object' && 'op' in token && typeof token.op === 'string') tokens.push(token.op);
++    }
++    let i = 0;
++    while (i < tokens.length && ENV_ASSIGNMENT_REGEX.test(tokens[i]!)) i++;
++    return tokens.slice(i).join(' ');
++  } catch {
++    return trimmed;
++  }
++}
++
+ function stripLeadingVariableAssignments(command: string): string {
+   const trimmed = command.trim();
+   if (!trimmed) {
+@@ -1719,7 +1752,11 @@ export function matchesRule(
+         if (command === undefined) {
+           return false;
+         }
+-        specifierMatched = matchesCommandPattern(rule.specifier, command);
++        specifierMatched = matchesCommandPattern(
++          rule.specifier,
++          command,
++          pathMatchMode === 'canonical' ? 'match-both' : 'block-match',
++        );
+         break;
+       }
+ 

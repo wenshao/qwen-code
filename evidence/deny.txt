@@ -1,13 +1,19 @@
-case                     base       pr         delta
-------------------------------------------------------------
-deny/plain               deny       deny       
-deny/static-prefix       deny       deny       
-deny/backtick-IFS        deny       ask        <<< DENY WEAKENED
-deny/NODE_OPTIONS        deny       ask        <<< DENY WEAKENED
-deny/PATH                deny       deny       
-yolo/plain               deny       deny       
-yolo/static-prefix       deny       deny       
-yolo/backtick-IFS        deny       ask        <<< DENY WEAKENED
-yolo/NODE_OPTIONS        deny       ask        <<< DENY WEAKENED
-yolo/GIT_CONFIG          deny       ask        <<< DENY WEAKENED
-yolo/glob-value          ask        ask        
+case                     main     PR       PR+union  delta
+----------------------------------------------------------------------
+deny/plain               deny     deny     deny      
+deny/static-prefix       deny     deny     deny      
+deny/backtick-IFS        deny     ask      deny      <<< PR WEAKENS deny; union restores it
+deny/NODE_OPTIONS        deny     ask      deny      <<< PR WEAKENS deny; union restores it
+deny/PATH                deny     deny     deny      
+yolo/plain               deny     deny     deny      
+yolo/static-prefix       deny     deny     deny      
+yolo/backtick-IFS        deny     ask      deny      <<< PR WEAKENS deny; union restores it
+yolo/NODE_OPTIONS        deny     ask      deny      <<< PR WEAKENS deny; union restores it
+yolo/GIT_CONFIG          deny     ask      deny      <<< PR WEAKENS deny; union restores it
+yolo/glob-value          ask      ask      ask       
+
+allow-side control (allow: Bash(npm --version), default mode) — the union must NOT reopen it:
+   "npm --version"                                main= allow  PR= allow  PR+union= allow
+   "X=`pwned${IFS}s` npm --version"               main= allow  PR= ask    PR+union= ask
+   "NODE_OPTIONS=--require=/tmp/p.cjs npm --versi main= allow  PR= ask    PR+union= ask
+   "FOO=bar npm --version"                        main= allow  PR= allow  PR+union= allow

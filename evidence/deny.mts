@@ -1,5 +1,5 @@
 const SB = process.env.SB!;
-const ARMS = { base: '/root/git/pr10983-base', pr: '/root/git/pr10983-pr' } as const;
+const ARMS = { base: '/root/git/pr10983-base', pr: '/root/git/pr10983-pr', fix: '/root/git/pr10983-fix' } as const;
 const PM: any = {};
 for (const [n, wt] of Object.entries(ARMS)) PM[n] = (await import(`${wt}/packages/core/src/permissions/permission-manager.js`)).PermissionManager;
 const cfg = (allow: string[], deny: string[], mode: string) => ({
@@ -26,10 +26,16 @@ const cases: Array<[string, string, string[], string[], string]> = [
   ['yolo/glob-value',       'X=* pwned x',                          [], ['Bash(pwned *)'], 'yolo'],
 ];
 const pad = (s: string, n: number) => (s + ' '.repeat(n)).slice(0, n);
-console.log(pad('case', 24), pad('base', 10), pad('pr', 10), 'delta');
-console.log('-'.repeat(60));
+console.log(pad('case', 24), pad('main', 8), pad('PR', 8), pad('PR+union', 9), 'delta');
+console.log('-'.repeat(70));
 for (const [id, cmd, allow, deny, mode] of cases) {
-  const b = await v('base', cmd, allow, deny, mode), p = await v('pr', cmd, allow, deny, mode);
+  const b = await v('base', cmd, allow, deny, mode), p = await v('pr', cmd, allow, deny, mode), f = await v('fix', cmd, allow, deny, mode);
   const weaker = b === 'deny' && p !== 'deny';
-  console.log(pad(id, 24), pad(b, 10), pad(p, 10), weaker ? '<<< DENY WEAKENED' : (b === p ? '' : 'changed'));
+  console.log(pad(id, 24), pad(b, 8), pad(p, 8), pad(f, 9), weaker ? (f === 'deny' ? '<<< PR WEAKENS deny; union restores it' : '<<< DENY WEAKENED') : '');
+}
+// the union must NOT reopen the allow-side hole
+console.log('\nallow-side control (allow: Bash(npm --version), default mode) — the union must NOT reopen it:');
+for (const c of ['npm --version', 'X=`pwned${IFS}s` npm --version', 'NODE_OPTIONS=--require=/tmp/p.cjs npm --version', 'FOO=bar npm --version']) {
+  console.log('  ', pad(JSON.stringify(c), 46), 'main=', pad(await v('base', c, ['Bash(npm --version)'], [], 'default'), 6),
+    'PR=', pad(await v('pr', c, ['Bash(npm --version)'], [], 'default'), 6), 'PR+union=', await v('fix', c, ['Bash(npm --version)'], [], 'default'));
 }
