@@ -14,3 +14,4 @@ headless Chromium page that mounts the PR's own `DaemonSessionProvider` and publ
 | `fig3-failure-paths.png` | real 409 / 413 / rewind / capability-off arms |
 | `fig4-findings.png` | the two issues found |
 | `fig5-budgets.png` | eviction and memory budgets under real traffic |
+| `fig6-r1-1-confirmed.png` | independent real-daemon confirmation of the review bot's CRITICAL R1-1 |
