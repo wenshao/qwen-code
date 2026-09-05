@@ -2,3 +2,4 @@
 
 Isolated orphan branch: reproduces release.yml's `timeout-minutes` expression on
 real GitHub Actions. Nothing here is product code.
+arm B: STATIC=33 BUILD=47 PROBE=3
