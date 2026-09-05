@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
+import { parseDocument } from 'yaml';
 import {
   parse as parseYaml,
   stringify as stringifyYaml,
@@ -33,6 +34,7 @@ import {
 } from './types.js';
 import { SubagentValidator } from './validation.js';
 import { AgentHeadless } from '../agents/runtime/agent-headless.js';
+import type { SubagentExecutor } from '../agents/runtime/subagent-executor.js';
 import type {
   AgentEventEmitter,
   AgentHooks,
@@ -58,6 +60,7 @@ import {
   COLOR_VALUES,
   isColor,
   isPermissionMode,
+  parseAgentExecutor,
   parseAgentHooks,
   parseAgentMcpServers,
   parseMaxTurns,
@@ -786,6 +789,18 @@ export class SubagentManager {
       frontmatter['hooks'] = config.hooks;
     }
 
+    if (config.executor !== undefined) {
+      const executor = parseAgentExecutor(config.executor);
+      if (!executor) {
+        throw new SubagentError(
+          `Subagent "${config.name}" executor block failed validation. Refusing to save it without its executor.`,
+          SubagentErrorCode.INVALID_CONFIG,
+          config.name,
+        );
+      }
+      frontmatter['executor'] = executor;
+    }
+
     // Serialize to YAML
     const yamlContent = stringifyYaml(frontmatter, {
       lineWidth: 0, // Disable line wrapping
@@ -837,7 +852,7 @@ export class SubagentManager {
       /** Stable id used to keep one invocation grouped across resume. */
       subagentId?: string;
     },
-  ): Promise<{ subagent: AgentHeadless; dispose: () => Promise<void> }> {
+  ): Promise<{ subagent: SubagentExecutor; dispose: () => Promise<void> }> {
     // Track per-spawn cleanup callbacks declared outside the inner
     // `try/catch` so the catch can fire them on a constructor failure
     // before the caller ever receives the return value. The successful
@@ -870,6 +885,110 @@ export class SubagentManager {
     };
 
     try {
+      if (config.executor !== undefined) {
+        const spec = parseAgentExecutor(config.executor);
+        if (!spec) {
+          throw new SubagentError(
+            `Subagent "${config.name}" executor block failed validation. Refusing to run it in-process.`,
+            SubagentErrorCode.INVALID_CONFIG,
+            config.name,
+          );
+        }
+        if (config.level === 'project' && !runtimeContext.isTrustedFolder()) {
+          throw new SubagentError(
+            `Cannot start external agent "${config.name}" from an untrusted project.`,
+            SubagentErrorCode.INVALID_CONFIG,
+            config.name,
+          );
+        }
+        const unsupported = [
+          ['tools', config.tools],
+          ['disallowedTools', config.disallowedTools],
+          ['mcpServers', config.mcpServers],
+          ['hooks', config.hooks],
+          ['maxTurns', config.maxTurns],
+          ['runConfig.max_turns', config.runConfig?.max_turns],
+          [
+            'runConfigOverrides.max_turns',
+            options?.runConfigOverrides?.max_turns,
+          ],
+          [
+            'model',
+            config.model && config.model !== 'inherit'
+              ? config.model
+              : undefined,
+          ],
+          [
+            'modelConfigOverrides',
+            Object.keys(options?.modelConfigOverrides ?? {}).length > 0
+              ? options?.modelConfigOverrides
+              : undefined,
+          ],
+          ['runtimeAuthOverrides', options?.runtimeAuthOverrides],
+          ['toolConfigOverride', options?.toolConfigOverride],
+          [
+            'promptConfigOverrides.renderedSystemPrompt',
+            options?.promptConfigOverrides?.renderedSystemPrompt,
+          ],
+          [
+            'promptConfigOverrides.initialMessages',
+            options?.promptConfigOverrides?.initialMessages,
+          ],
+          ['hooks callbacks', options?.hooks],
+        ].filter(([, value]) => value !== undefined);
+        if (unsupported.length > 0) {
+          throw new SubagentError(
+            `External agent "${config.name}" does not support ${unsupported.map(([key]) => key).join(', ')}.`,
+            SubagentErrorCode.INVALID_CONFIG,
+            config.name,
+          );
+        }
+        const externalExecutor = runtimeContext.getExternalAgentExecutor();
+        if (!externalExecutor) {
+          throw new SubagentError(
+            `Subagent "${config.name}" declares an executor but this host registered no external agent executor. Refusing to run it in-process.`,
+            SubagentErrorCode.INVALID_CONFIG,
+            config.name,
+          );
+        }
+        const subagent = await externalExecutor.create({
+          spec,
+          name: config.name,
+          // The peer permission mode must be the host's effective, already
+          // clamped approval policy — not the definition's raw request. The
+          // Agent tool resolves the definition's approvalMode against the
+          // parent session's mode and folder trust (resolveSubagentApprovalMode)
+          // and stamps the result onto this runtimeContext, so reading it back
+          // here is what stops a definition from escalating the external agent
+          // past the parent session's limit. config.permissionMode is already
+          // bridged into that resolved value at parse time.
+          approvalMode: runtimeContext.getApprovalMode(),
+          permissionMode: config.permissionMode,
+          promptConfig: {
+            systemPrompt: config.systemPrompt,
+            ...options?.promptConfigOverrides,
+          },
+          modelConfig: {},
+          runConfig: {
+            ...config.runConfig,
+            ...options?.runConfigOverrides,
+          },
+          toolConfig: {
+            tools: ['*'],
+            disallowedTools: [ToolNames.ASK_USER_QUESTION],
+          },
+          eventEmitter: options?.eventEmitter,
+          taskName: options?.taskName,
+          subagentId: options?.subagentId,
+          runtimeContext: deriveConfig(runtimeContext),
+        });
+        return {
+          subagent,
+          dispose: async () => {
+            await subagent.dispose?.();
+          },
+        };
+      }
       const runtimeConfig = await this.convertToRuntimeConfig(
         config,
         runtimeContext,
@@ -978,6 +1097,12 @@ export class SubagentManager {
         throw innerError;
       }
     } catch (error) {
+      // Already-classified errors carry an accurate message; re-wrapping them
+      // under "Failed to create AgentHeadless" would misreport the executor
+      // path, which never constructs an AgentHeadless at all.
+      if (error instanceof SubagentError || config.executor !== undefined) {
+        throw error;
+      }
       if (error instanceof Error) {
         throw new SubagentError(
           `Failed to create AgentHeadless: ${error.message}`,
@@ -1261,6 +1386,13 @@ export class SubagentManager {
     config: SubagentConfig,
     runtimeContext?: Config,
   ): Promise<SubagentRuntimeConfig> {
+    if (config.executor !== undefined) {
+      throw new SubagentError(
+        `Subagent "${config.name}" declares an external executor and cannot be converted to an in-process agent.`,
+        SubagentErrorCode.INVALID_CONFIG,
+        config.name,
+      );
+    }
     const promptConfig: PromptConfig = {
       systemPrompt: config.systemPrompt,
     };
@@ -1734,6 +1866,55 @@ function parseSubagentContent(
       );
     }
 
+    // executor: qwen-code extension (not part of the mirrored CC schema).
+    // Strictly validated because it names an external process to run; see
+    // `parseAgentExecutor`. Availability of the named command is NOT checked
+    // here — that is the injected executor's job at spawn time.
+    //
+    // A malformed block is a hard error, NOT a lenient drop. Dropping it would
+    // leave `config.executor` undefined, so the definition would run
+    // in-process: the task completes under Qwen's model, billed to the Qwen
+    // provider, with nothing on stdout or stderr — precisely the silent
+    // substitution this feature exists to prevent, and the consumption-point
+    // re-validation can never catch it because the field is already gone. The
+    // warn-only path was invisible in practice too, since `debugLogger.warn`
+    // is a no-op unless QWEN_DEBUG_LOG_FILE is set. This deliberately diverges
+    // from the lenient posture used for `mcpServers` / `hooks`: losing those
+    // degrades a capability, whereas losing this one substitutes a different
+    // agent for the one the definition asked for.
+    // The shared parser strips nulls, including null arguments. Validate the
+    // original YAML node so sanitization cannot change the executable request.
+    const document = parseDocument(frontmatterYaml);
+    // parseDocument repairs a syntactically invalid document instead of
+    // throwing, and `document.errors` is the only signal that it did so. A
+    // repaired executor node can dispatch a different command/args than the
+    // file declares — or drop the executor key entirely and silently run
+    // in-process — so refuse the definition and surface the real YAML error
+    // (with its line and column) rather than trusting the repaired node or
+    // blaming the block's shape.
+    if (document.errors.length > 0) {
+      throw new SubagentError(
+        `Agent file ${filePath} has invalid YAML frontmatter: ${document.errors[0].message}. Refusing to load the definition.`,
+        SubagentErrorCode.INVALID_CONFIG,
+        name,
+      );
+    }
+    const hasExecutor = document.has('executor');
+    const executorRaw = hasExecutor
+      ? (document.toJS() as Record<string, unknown>)['executor']
+      : frontmatter['executor'];
+    const executor = parseAgentExecutor(executorRaw);
+    if ((hasExecutor || executorRaw !== undefined) && executor === undefined) {
+      throw new SubagentError(
+        `Agent file ${filePath} has an invalid executor block (expected ` +
+          `{ kind: 'acp', command: string, args?: string[] }). Refusing to load ` +
+          `the definition: dropping the block would silently run it in-process ` +
+          `instead of in the external agent it asked for.`,
+        SubagentErrorCode.INVALID_CONFIG,
+        name,
+      );
+    }
+
     const config: SubagentConfig = {
       name,
       description,
@@ -1751,6 +1932,7 @@ function parseSubagentContent(
       ...(maxTurns !== undefined ? { maxTurns } : {}),
       ...(mcpServers !== undefined ? { mcpServers } : {}),
       ...(hooks !== undefined ? { hooks } : {}),
+      ...(executor !== undefined ? { executor } : {}),
     };
 
     // Validate the parsed configuration
@@ -1776,5 +1958,13 @@ function parseSubagentContent(
  */
 function warnInvalidSubagentFile(filePath: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
+  if (
+    error instanceof SubagentError &&
+    message.includes('invalid executor block')
+  ) {
+    // eslint-disable-next-line no-console -- executor rejection must be visible without debug logging
+    console.warn(`Skipped invalid file ${filePath}: ${message}`);
+    return;
+  }
   debugLogger.debug(`Skipped invalid file ${filePath}: ${message}`);
 }
