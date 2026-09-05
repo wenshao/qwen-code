@@ -1,0 +1,41 @@
+name: 'PR11110 what does the aggregate see when a lane is dropped'
+on:
+  push:
+    branches: ['probe/pr11110-dropped']
+jobs:
+  prepare:
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 5
+    steps:
+      - run: 'echo prepared'
+
+  quality_static:
+    name: 'quality_static (knob mistyped -> job never created)'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: "${{ fromJSON(vars.QWEN_PROBE_BAD || '5') }}"
+    steps:
+      - run: 'echo lane ran'
+
+  # release.yml's aggregate, verbatim gate + verbatim fail-closed loop.
+  quality:
+    name: 'Quality Checks (aggregate)'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 5
+    needs:
+      - 'prepare'
+      - 'quality_static'
+    if: |-
+      ${{ !cancelled() && needs.prepare.result == 'success' }}
+    steps:
+      - name: 'Verify quality results'
+        env:
+          STATIC_RESULT: '${{ needs.quality_static.result }}'
+        run: |
+          echo "needs.quality_static.result = <${STATIC_RESULT}>"
+          for result in "${STATIC_RESULT}"; do
+            if [[ "${result}" != 'success' ]]; then
+              echo "::error::A release quality check did not succeed."
+              exit 1
+            fi
+          done
+          echo "AGGREGATE PASSED - the dropped lane was treated as success"
