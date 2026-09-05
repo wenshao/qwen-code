@@ -1,0 +1,73 @@
+name: 'PR11127 static-lane ceiling probe'
+
+on:
+  push:
+    branches:
+      - 'probe/pr11127-unset'
+      - 'probe/pr11127-tuned'
+
+jobs:
+  # Stand-in for release.yml's `prepare`, whose result the aggregate gates on.
+  prepare:
+    name: 'Prepare (stand-in)'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 5
+    steps:
+      - name: 'Prepared'
+        run: 'echo prepared'
+
+  # The EXACT string PR #11127 puts on quality_static, used as a real
+  # job-level `timeout-minutes`. If GitHub cannot evaluate it to a number at
+  # job level, this job never starts.
+  verbatim_expr:
+    name: 'PR11127 line, verbatim'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: "${{ fromJSON(vars.QWEN_RELEASE_STATIC_TIMEOUT_MINUTES || '60') }}"
+    steps:
+      - name: 'Evaluate the shipped expression'
+        run: |
+          echo "raw     vars.QWEN_RELEASE_STATIC_TIMEOUT_MINUTES = <${{ vars.QWEN_RELEASE_STATIC_TIMEOUT_MINUTES }}>"
+          echo "value   fromJSON(... || '60')                    = ${{ fromJSON(vars.QWEN_RELEASE_STATIC_TIMEOUT_MINUTES || '60') }}"
+          echo "toJSON  fromJSON(... || '60')                    = ${{ toJSON(fromJSON(vars.QWEN_RELEASE_STATIC_TIMEOUT_MINUTES || '60')) }}   (bare digits => Number, quoted => String)"
+          echo "PR11110 would have shipped                        = ${{ fromJSON(vars.QWEN_RELEASE_STATIC_TIMEOUT_MINUTES || '30') }}"
+
+  # Same expression SHAPE and the same production variable name, with the
+  # fallback scaled down so the bound is actually reachable inside a probe.
+  # Run A leaves the variable unset; run B sets it to 3.
+  scaled_bound:
+    name: 'Scaled bound (sleeps past it)'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: "${{ fromJSON(vars.QWEN_RELEASE_STATIC_TIMEOUT_MINUTES || '1') }}"
+    steps:
+      - name: 'Sleep well past the bound'
+        run: |
+          echo "job started at $(date -u +%H:%M:%S)Z"
+          sleep 420
+          echo "REACHED THE END - the bound did NOT fire"
+
+  # release.yml's own aggregate gate and fail-closed loop, copied verbatim in
+  # shape: a lane killed by its ceiling reports `cancelled`, not `failure`.
+  quality:
+    name: 'Quality Checks (aggregate)'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 5
+    needs:
+      - 'prepare'
+      - 'verbatim_expr'
+      - 'scaled_bound'
+    if: |-
+      ${{ !cancelled() && needs.prepare.result == 'success' }}
+    steps:
+      - name: 'Verify quality results'
+        env:
+          EXPR_RESULT: '${{ needs.verbatim_expr.result }}'
+          SCALED_RESULT: '${{ needs.scaled_bound.result }}'
+        run: |
+          echo "verbatim_expr = ${EXPR_RESULT}"
+          echo "scaled_bound  = ${SCALED_RESULT}"
+          for result in "${EXPR_RESULT}" "${SCALED_RESULT}"; do
+            if [[ "${result}" != 'success' ]]; then
+              echo "::error::A release quality check did not succeed."
+              exit 1
+            fi
+          done
