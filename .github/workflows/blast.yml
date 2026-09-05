@@ -1,0 +1,33 @@
+name: 'PR11110 blast radius of a mistyped knob'
+on:
+  push:
+    branches: ['probe/pr11110-blast']
+jobs:
+  # The only job that touches the bad variable.
+  lane_with_knob:
+    name: 'Lane whose timeout reads the mistyped knob'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: "${{ fromJSON(vars.QWEN_PROBE_BAD || '5') }}"
+    steps:
+      - run: 'echo lane ran'
+
+  # Completely independent: no needs, no reference to the variable.
+  unrelated_lane:
+    name: 'Unrelated lane (no knob reference at all)'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 5
+    steps:
+      - run: 'echo unrelated lane ran'
+
+  # Stand-in for notify_failure: hosted, runs on failure of the others.
+  notify_failure:
+    name: 'Notify (stand-in for release notify_failure)'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 5
+    needs:
+      - 'lane_with_knob'
+      - 'unrelated_lane'
+    if: |-
+      ${{ always() && !cancelled() }}
+    steps:
+      - run: 'echo "NOTIFIER RAN - a Release Failed issue would be filed here"'
