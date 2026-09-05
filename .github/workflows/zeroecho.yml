@@ -1,0 +1,15 @@
+name: 'PR11110 footgun: does the || treat "0" as falsy?'
+on:
+  push:
+    branches: ['probe/pr11110-zeroecho']
+jobs:
+  probe:
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 5
+    steps:
+      - name: 'Evaluate the knob set to 0'
+        run: |
+          echo "raw QWEN_PROBE_ZERO      = <${{ vars.QWEN_PROBE_ZERO }}>"
+          echo "fromJSON(var || '5')     = ${{ fromJSON(vars.QWEN_PROBE_ZERO || '5') }}"
+          echo "toJSON of that           = ${{ toJSON(fromJSON(vars.QWEN_PROBE_ZERO || '5')) }}"
+          echo "is the raw string truthy = ${{ vars.QWEN_PROBE_ZERO && 'TRUTHY' || 'FALSY' }}"
