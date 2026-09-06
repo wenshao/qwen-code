@@ -1,0 +1,51 @@
+name: 'timeout-expression probe — hosted routing'
+
+# Ground-truth oracle for QwenLM/qwen-code PR #11212.
+#
+# The consumer job's timeout-minutes line below is copied BYTE-FOR-BYTE out of
+# the PR's ci.yml. The only thing this workflow changes is what the upstream
+# job named classify_pr emits, so GitHub's own expression engine decides the
+# ceiling for each routing.
+on:
+  push:
+    branches:
+      - 'ci-timeout-expr-probe'
+
+jobs:
+  classify_pr:
+    name: 'classify_pr stand-in (hosted routing)'
+    runs-on: 'ubuntu-latest'
+    outputs:
+      ubuntu_runner: '["ubuntu-latest"]'
+    steps:
+      - run: 'echo "classify_pr stand-in: emitting the routing value under test"'
+
+  web_shell_e2e_smoke:
+    name: 'web-shell E2E Smoke (hosted routing)'
+    needs:
+      - 'classify_pr'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: '${{ fromJSON(contains(needs.classify_pr.outputs.ubuntu_runner || ''["ubuntu-latest"]'', ''ecs-qwen'') && ''40'' || ''20'') }}'
+    steps:
+      - name: 'Report the ceiling GitHub resolved'
+        run: |-
+          echo "ARM=hosted routing"
+          echo "ubuntu_runner=[${{ needs.classify_pr.outputs.ubuntu_runner }}]"
+          echo "RESOLVED_TIMEOUT_MINUTES=${{ fromJSON(contains(needs.classify_pr.outputs.ubuntu_runner || '["ubuntu-latest"]', 'ecs-qwen') && '40' || '20') }}"
+
+  enforcement_probe:
+    name: 'enforcement probe (hosted routing) — same shape, scaled to 2/1 minutes'
+    needs:
+      - 'classify_pr'
+    runs-on: 'ubuntu-latest'
+    # Identical shape to the line above, only the two numeric literals differ,
+    # so a 100-second step survives on the ECS branch (2) and is killed on the
+    # hosted branch (1). That is the ceiling actually taking effect, not just
+    # evaluating.
+    timeout-minutes: '${{ fromJSON(contains(needs.classify_pr.outputs.ubuntu_runner || ''["ubuntu-latest"]'', ''ecs-qwen'') && ''2'' || ''1'') }}'
+    steps:
+      - name: 'Sleep 100 seconds'
+        run: |-
+          date -u +'start %H:%M:%S'
+          sleep 100
+          date -u +'survived %H:%M:%S'
