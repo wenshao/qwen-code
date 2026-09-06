@@ -250,10 +250,12 @@ function SkillsSection({
 export function ContextUsageMessage({
   status,
   onShowDetail,
+  compact = false,
 }: {
   status: DaemonSessionContextUsageStatus;
   /** Run /context detail, exactly like typing it. */
   onShowDetail?: () => void;
+  compact?: boolean;
 }) {
   const { t } = useI18n();
   const { usage } = status;
@@ -268,8 +270,10 @@ export function ContextUsageMessage({
       : 0;
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.title}>{t('contextUsage.title')}</div>
+    <div className={`${styles.panel}${compact ? ` ${styles.compact}` : ''}`}>
+      {!compact && (
+        <div className={styles.title}>{t('contextUsage.title')}</div>
+      )}
 
       {!hasTokenCount ? (
         <>

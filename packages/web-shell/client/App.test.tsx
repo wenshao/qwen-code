@@ -333,6 +333,7 @@ const {
       limits: { maxArtifacts: 100 },
     }),
     sessionStats: vi.fn().mockResolvedValue({}),
+    sessionContextUsage: vi.fn().mockResolvedValue({}),
     sessionTaskCancel: vi.fn().mockResolvedValue({ cancelled: true }),
     renameStandaloneSession: vi.fn().mockResolvedValue(undefined),
     unarchiveStandaloneSessions: vi.fn().mockResolvedValue({
@@ -3964,6 +3965,48 @@ describe('task activity key', () => {
     expect(mockWorkspace.client.sessionStats).toHaveBeenCalledWith(
       'pane-session',
     );
+  });
+
+  it('restores secondary context usage lazily with the saved owner binding', async () => {
+    mockWorkspace.client.sessionContextUsage.mockClear();
+    window.localStorage.setItem(
+      'qwen-code-web-shell-right-panel-state',
+      JSON.stringify({
+        '/tmp/project\0session-1': {
+          open: true,
+          activeTabId: 'file:README.md',
+          tabs: [
+            {
+              id: 'file:README.md',
+              kind: 'file',
+              title: 'README.md',
+              workspacePath: 'README.md',
+            },
+            {
+              id: 'context-usage:pane-session',
+              kind: 'context_usage',
+              title: 'Pane context usage',
+              sessionId: 'pane-session',
+              closeWithPane: true,
+            },
+          ],
+        },
+      }),
+    );
+    const { container } = renderApp();
+    await flush();
+    expect(mockWorkspace.client.sessionContextUsage).not.toHaveBeenCalled();
+    expect(mockSessionActions.getContextUsage).not.toHaveBeenCalled();
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[title="Pane context usage"]')!
+        .click();
+    });
+    expect(mockWorkspace.client.sessionContextUsage).toHaveBeenCalledWith(
+      'pane-session',
+      { detail: true },
+    );
+    expect(mockSessionActions.getContextUsage).not.toHaveBeenCalled();
   });
 
   it('drops malformed persisted tabs without leaving the skeleton visible', async () => {
@@ -8483,6 +8526,8 @@ beforeEach(() => {
   });
   mockWorkspace.client.sessionStats.mockReset();
   mockWorkspace.client.sessionStats.mockResolvedValue({});
+  mockWorkspace.client.sessionContextUsage.mockReset();
+  mockWorkspace.client.sessionContextUsage.mockResolvedValue({});
   mockWorkspace.client.sessionTaskCancel.mockReset();
   mockWorkspace.client.sessionTaskCancel.mockResolvedValue({ cancelled: true });
   mockWorkspace.client.renameStandaloneSession.mockReset();
@@ -12561,6 +12606,90 @@ describe('App session callbacks', () => {
     });
     expect(mockSessionActions.getStats).toHaveBeenCalledOnce();
     expect(container.textContent).toContain('Token Usage');
+  });
+
+  it('exposes context usage to a custom chat header only when opted in', async () => {
+    const renderChatHeader = vi.fn(
+      ({ onOpenContextUsage }: ChatHeaderRenderInfo) => (
+        <button type="button" onClick={onOpenContextUsage}>
+          Custom context usage
+        </button>
+      ),
+    );
+    const { container, rerender } = renderApp({ renderChatHeader });
+    await flush();
+    expect(
+      renderChatHeader.mock.lastCall?.[0].onOpenContextUsage,
+    ).toBeUndefined();
+    rerender({ header: { items: ['contextUsage'] }, renderChatHeader });
+    await flush();
+    expect(renderChatHeader.mock.lastCall?.[0].onOpenContextUsage).toEqual(
+      expect.any(Function),
+    );
+    await act(async () => {
+      Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Custom context usage')!
+        .click();
+    });
+    expect(mockSessionActions.getContextUsage).toHaveBeenCalledWith({
+      detail: true,
+    });
+    expect(
+      container.querySelector('button[title="Context Usage"]'),
+    ).not.toBeNull();
+  });
+
+  it('opens, deduplicates and persists context usage independently of token usage and deletes both', async () => {
+    mockSessionActions.getStats.mockReturnValue(new Promise(() => {}));
+    const { container } = renderApp({
+      header: { items: ['contextUsage', 'tokenUsage'] },
+    });
+    await flush();
+    for (const label of [
+      'Context Usage',
+      'Session token usage',
+      'Context Usage',
+    ]) {
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(
+            `[data-testid="chat-context-header"] [aria-label="${label}"]`,
+          )!
+          .click();
+      });
+      await flush();
+    }
+    expect(
+      container.querySelectorAll('button[title="Context Usage"]'),
+    ).toHaveLength(2);
+    const tabs = JSON.parse(
+      window.localStorage.getItem('qwen-code-web-shell-right-panel-state') ??
+        '{}',
+    )['/tmp/project\0session-1'].tabs;
+    expect(
+      tabs.filter((tab: { kind: string }) => tab.kind === 'context_usage'),
+    ).toEqual([
+      {
+        id: 'context-usage:session-1',
+        kind: 'context_usage',
+        title: 'Context Usage',
+        sessionId: 'session-1',
+      },
+    ]);
+    expect(
+      tabs.some((tab: { kind: string }) => tab.kind === 'token_usage'),
+    ).toBe(true);
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="delete-session"]')!
+        .click();
+    });
+    expect(
+      container.querySelector('button[aria-label="Close Context Usage"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('button[aria-label="Close Token Usage"]'),
+    ).toBeNull();
   });
 
   it('exposes the Local Control settings deep link to a custom chat header', async () => {
@@ -25459,6 +25588,37 @@ describe('App session callbacks', () => {
     expect(document.body.textContent).not.toContain('qwen-plus::hybrid');
   });
 
+  it('opens context usage from a split pane and closes it when the pane is removed', async () => {
+    const { container } = renderApp({
+      sidebar: false,
+      splitSessionIds: ['s1'],
+      header: { items: ['contextUsage'] },
+    });
+    await flush();
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="split-header-actions"] [aria-label="Context Usage"]',
+        )!
+        .click();
+    });
+    await flush();
+    expect(mockSessionActions.getContextUsage).toHaveBeenCalledWith({
+      detail: true,
+    });
+    expect(
+      document.body.querySelector('button[aria-label="Close Context Usage"]'),
+    ).not.toBeNull();
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="split-remove-panes"]')!
+        .click();
+    });
+    expect(
+      document.body.querySelector('button[aria-label="Close Context Usage"]'),
+    ).toBeNull();
+  });
+
   it('does not add a token usage pane action unless it is enabled', async () => {
     const { container } = renderApp({
       sidebar: false,
@@ -25478,6 +25638,7 @@ describe('App session callbacks', () => {
     expect(
       actions!.querySelector('[aria-label="Session token usage"]'),
     ).toBeNull();
+    expect(actions!.querySelector('[aria-label="Context Usage"]')).toBeNull();
   });
 
   it('deep-links Settings to Daemon from the QR entry and clears the link on any panel close', async () => {

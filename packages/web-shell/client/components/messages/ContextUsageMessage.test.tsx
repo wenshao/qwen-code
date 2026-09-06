@@ -49,14 +49,17 @@ function makeStatus(
   };
 }
 
-function render(status: DaemonSessionContextUsageStatus): HTMLElement {
+function render(
+  status: DaemonSessionContextUsageStatus,
+  compact = false,
+): HTMLElement {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
     root.render(
       <I18nProvider language="en">
-        <ContextUsageMessage status={status} />
+        <ContextUsageMessage status={status} compact={compact} />
       </I18nProvider>,
     );
   });
@@ -91,6 +94,15 @@ describe('ContextUsageMessage', () => {
     expect(filledClass(render(makeStatus(61, false)))).toContain('warning');
     expect(filledClass(render(makeStatus(80, false)))).toContain('warning');
     expect(filledClass(render(makeStatus(81, false)))).toContain('error');
+  });
+
+  it('suppresses its own title in compact mode so the panel toolbar is the only heading', () => {
+    const compactContainer = render(makeStatus(60, false), true);
+    expect(compactContainer.querySelector('[class*="title"]')).toBeNull();
+    expect(compactContainer.querySelector('[class*="compact"]')).not.toBeNull();
+
+    const normalContainer = render(makeStatus(60, false));
+    expect(normalContainer.querySelector('[class*="title"]')).not.toBeNull();
   });
 
   it('uses the pre-conversation view before any token count is available', () => {
