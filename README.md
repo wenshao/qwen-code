@@ -38,3 +38,19 @@ Everything below was produced on one Linux machine with the bundled CLI
 ## Reports
 
 - `report-zh.md` — the full Chinese version of the PR comment.
+
+---
+
+## Round 2 — re-verification, 2026-09-06 evening
+
+PR head `46208f5117` vs main `1a86cd6c59`. The PR's content diff is byte-identical to
+round 1 (only a main merge was added), but [#11175](https://github.com/QwenLM/qwen-code/pull/11175)
+landed on main and rewrote the same suite to use a fake OpenAI server.
+
+| File | What it shows |
+| --- | --- |
+| `figR1-superseded-by-11175.png` | The suite on today's main: three runs at 8200 / 8195 / 8200 ms against the live-model 84 s and 123 s legs. |
+| `figR2-request-index-ordering.png` | Ordered telemetry proving the memory extractor's request sits between the seed and the `/compress` side-query, so the side-query is `requestIndex` 2 rather than 1. |
+| `figR3-item-by-item.png` | Item-by-item verdict on what #11094 still adds on top of today's main. |
+| `evidence/local-run-MAIN.txt` | The three consecutive runs of main's suite. |
+| `report-r2-zh.md` | Chinese version of the round-2 comment. |
