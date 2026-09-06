@@ -1,0 +1,13 @@
+============ the superseded session after a transfer ============
+transfer: e0824980-e6cc-42c4-b154-70dd8aa82ddf -> b6090c1a-205e-4e60-83ce-9e4490b122c1   (worktree /root/git/qwen-code-v11015-harness/run/workspace/.qwen/worktrees/quick-ray-ce3b52)
+  POST /session/e0824980-e6cc-42c4-b154-70dd8aa82ddf/prompt -> HTTP 404
+PASS X1 — the superseded session refuses prompts (HTTP 404, not 202)
+  POST /session/b6090c1a-205e-4e60-83ce-9e4490b122c1/prompt -> HTTP 202
+PASS X2 — the replacement accepts prompts normally
+  POST /session/e0824980-e6cc-42c4-b154-70dd8aa82ddf/load -> {"error":"Session e0824980-e6cc-42c4-b154-70dd8aa82ddf was superseded by a worktree reset; restore the replacement session instead","code":"worktree_session_superseded","sessionId":"e0824980-e6cc-42c4-b154-70dd8aa82ddf","replacementSessionId":"b6090c1a-205e-4e
+PASS X3 — restore of the superseded session returns the typed 409 worktree_session_superseded
+PASS X3b — the 409 body carries the replacement id, which is what lets the registry self-heal
+  after restart, POST /session/e0824980-e6cc-42c4-b154-70dd8aa82ddf/load -> {"error":"Session e0824980-e6cc-42c4-b154-70dd8aa82ddf was superseded by a worktree reset; restore the replacement session instead","code":"worktree_session_superseded","sessionId":"e0824980-e6cc-42c4
+PASS X4 — the on-disk superseded sidecar still fences the old session after a daemon restart
+PASS X5 — the checkout marker names exactly the replacement (b6090c1a-205e-4e60-83ce-9e4490b122c1)
+============ 6 passed, 0 failed ============
