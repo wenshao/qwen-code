@@ -83,6 +83,9 @@ describe('StandaloneApp', () => {
     expect(testState.props?.webShellProps.environmentPanel?.items).toContain(
       'attachments',
     );
+    expect(testState.props?.webShellProps.header?.items).toContain(
+      'contextUsage',
+    );
   });
 
   it('round-trips standalone context without a workspace selector', () => {

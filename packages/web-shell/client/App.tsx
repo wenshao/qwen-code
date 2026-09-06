@@ -5933,24 +5933,7 @@ export function App({
                   return webTerminalAvailable
                     ? { ...tab, initialized: false }
                     : undefined;
-                case 'context_usage': {
-                  if (!tab.sessionId) return undefined;
-                  const sessionId = tab.sessionId;
-                  return {
-                    ...tab,
-                    sessionActions:
-                      sessionId === connection.sessionId
-                        ? sessionActions
-                        : {
-                            ...sessionActions,
-                            getContextUsage: (opts) =>
-                              workspace.client.sessionContextUsage(
-                                sessionId,
-                                opts,
-                              ),
-                          },
-                  };
-                }
+                case 'context_usage':
                 case 'token_usage': {
                   if (!tab.sessionId) return undefined;
                   const sessionId = tab.sessionId;
@@ -5959,11 +5942,20 @@ export function App({
                     sessionActions:
                       sessionId === connection.sessionId
                         ? sessionActions
-                        : {
-                            ...sessionActions,
-                            getStats: () =>
-                              workspace.client.sessionStats(sessionId),
-                          },
+                        : tab.kind === 'token_usage'
+                          ? {
+                              ...sessionActions,
+                              getStats: () =>
+                                workspace.client.sessionStats(sessionId),
+                            }
+                          : {
+                              ...sessionActions,
+                              getContextUsage: (opts) =>
+                                workspace.client.sessionContextUsage(
+                                  sessionId,
+                                  opts,
+                                ),
+                            },
                   };
                 }
                 case 'workflow':
@@ -5995,7 +5987,18 @@ export function App({
       const mergedTabs = [
         ...mergedRestoredTabs.filter((tab) => !newlyOpenedIds.has(tab.id)),
         ...tabsOpenedDuringRestore,
-      ];
+      ].filter(
+        (tab) =>
+          // Pane-bound usage tabs die with their pane; the mount-time pane
+          // cleanup ran before restoration landed, so reclaim them here.
+          !(
+            (tab.kind === 'token_usage' || tab.kind === 'context_usage') &&
+            tab.closeWithPane &&
+            (mainViewRef.current !== 'split' ||
+              tab.sessionId === undefined ||
+              !splitSessionIdsRef.current.includes(tab.sessionId))
+          ),
+      );
       const activeTabId = mergedTabs.some(
         (tab) => tab.id === activeArtifactPanelTabIdRef.current,
       )

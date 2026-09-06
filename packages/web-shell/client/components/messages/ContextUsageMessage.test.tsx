@@ -51,7 +51,8 @@ function makeStatus(
 
 function render(
   status: DaemonSessionContextUsageStatus,
-  compact = false,
+  compact?: boolean,
+  detailNameMaxLen?: number,
 ): HTMLElement {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -59,7 +60,11 @@ function render(
   act(() => {
     root.render(
       <I18nProvider language="en">
-        <ContextUsageMessage status={status} compact={compact} />
+        <ContextUsageMessage
+          status={status}
+          {...(compact === undefined ? {} : { compact })}
+          {...(detailNameMaxLen === undefined ? {} : { detailNameMaxLen })}
+        />
       </I18nProvider>,
     );
   });
@@ -103,6 +108,24 @@ describe('ContextUsageMessage', () => {
 
     const normalContainer = render(makeStatus(60, false));
     expect(normalContainer.querySelector('[class*="title"]')).not.toBeNull();
+  });
+
+  it('keeps full detail names only when the caller opts out of the cap', () => {
+    const status = makeStatus(60, false);
+    const longName = 'mcp__github__create_repository_issue';
+    status.usage.showDetails = true;
+    status.usage.builtinTools = [{ name: longName, tokens: 10 }];
+
+    const uncappedContainer = render(status, true, Infinity);
+    expect(uncappedContainer.textContent).toContain(longName);
+    expect(uncappedContainer.textContent).not.toContain('…');
+
+    // Both the transcript default and an unpinned compact caller keep the
+    // cap; ContextUsagePanel.test.tsx pins that the panel passes the opt-out.
+    for (const container of [render(status, true), render(status)]) {
+      expect(container.textContent).not.toContain(longName);
+      expect(container.textContent).toContain('mcp__github__create_repositor…');
+    }
   });
 
   it('uses the pre-conversation view before any token count is available', () => {

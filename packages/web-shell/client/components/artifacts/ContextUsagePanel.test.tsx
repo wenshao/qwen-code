@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { StrictMode, act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -88,6 +88,32 @@ function refresh(container: HTMLElement) {
 }
 
 describe('ContextUsagePanel', () => {
+  it('reuses the in-flight request across a StrictMode-replayed mount', async () => {
+    const request = deferred();
+    const get = vi.fn().mockReturnValue(request.promise);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mounted.push({ root, container });
+    act(() =>
+      root.render(
+        <StrictMode>
+          <I18nProvider language="en">
+            <ContextUsagePanel
+              sessionActions={
+                { getContextUsage: get } as unknown as DaemonSessionActions
+              }
+              sessionId="s-1"
+            />
+          </I18nProvider>
+        </StrictMode>,
+      ),
+    );
+    expect(get).toHaveBeenCalledTimes(1);
+    await act(async () => request.resolve(fixture()));
+    expect(container.textContent).toContain('context-model');
+  });
+
   it('loads detailed data once and refreshes manually without overlapping requests', async () => {
     vi.useFakeTimers();
     const initial = deferred();
@@ -147,10 +173,20 @@ describe('ContextUsagePanel', () => {
     expect(container.textContent).toContain('context-model');
   });
 
-  it('suppresses the alert for a disconnected session (transient, surfaced via notice)', async () => {
+  it.each([
+    'Daemon session is not connected',
+    'fetch failed',
+    'DaemonTransportClosedError',
+  ])('suppresses the alert for transient failures: %s', async (message) => {
+    const transient =
+      message === 'DaemonTransportClosedError'
+        ? Object.assign(new Error('transport closed'), {
+            name: 'DaemonTransportClosedError',
+          })
+        : new TypeError(message);
     const get = vi
       .fn()
-      .mockRejectedValueOnce(new Error('Daemon session is not connected'))
+      .mockRejectedValueOnce(transient)
       .mockResolvedValueOnce(fixture());
     const { container } = renderPanel(get);
     await act(async () => {});
@@ -165,11 +201,61 @@ describe('ContextUsagePanel', () => {
     expect(container.textContent).toContain('context-model');
   });
 
+  it('keeps the last good reading while a refresh is in flight', async () => {
+    const initial = deferred();
+    const second = deferred();
+    const get = vi
+      .fn()
+      .mockReturnValueOnce(initial.promise)
+      .mockReturnValueOnce(second.promise);
+    const { container } = renderPanel(get);
+    await act(async () => initial.resolve(fixture()));
+    expect(container.textContent).toContain('context-model');
+    act(() => refresh(container).click());
+    await act(async () => {});
+    expect(container.textContent).toContain('context-model');
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    await act(async () => second.resolve(fixture()));
+    expect(container.textContent).toContain('context-model');
+  });
+
+  it('keeps the last good reading when a refresh fails transiently', async () => {
+    const initial = deferred();
+    const second = deferred();
+    const get = vi
+      .fn()
+      .mockReturnValueOnce(initial.promise)
+      .mockReturnValueOnce(second.promise);
+    const { container } = renderPanel(get);
+    await act(async () => initial.resolve(fixture()));
+    act(() => refresh(container).click());
+    await act(async () =>
+      second.reject(new Error('Daemon session is not connected')),
+    );
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.textContent).toContain('context-model');
+  });
+
+  it('renders full detail names because the panel opts out of the cap', async () => {
+    const snapshot = fixture();
+    snapshot.usage.showDetails = true;
+    const longName = 'mcp__github__create_repository_issue';
+    snapshot.usage.builtinTools = [{ name: longName, tokens: 10 }];
+    const { container } = renderPanel(vi.fn().mockResolvedValue(snapshot));
+    await act(async () => {});
+    expect(container.textContent).toContain(longName);
+    expect(container.textContent).not.toContain('…');
+  });
+
   it('does not load without actions', () => {
     const { container } = renderPanel();
     expect(refresh(container).disabled).toBe(true);
     expect(container.querySelector('[aria-busy="false"]')).not.toBeNull();
     expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.textContent).toContain(
+      'Context usage is unavailable for this session.',
+    );
   });
 
   it.each(['mismatch', 'zero window'])(
@@ -241,8 +327,10 @@ describe('ContextUsagePanel', () => {
     expect(container.textContent).toContain('context-model');
   });
 
+  // Smoke check only: React no-ops setState after unmount, so the stale-state
+  // guard's unmount half is pinned by the ownership-change cases above.
   it.each(['resolve', 'reject'] as const)(
-    'ignores a request that %ss after unmount',
+    'does not throw when a request %ss after unmount',
     async (outcome) => {
       const request = deferred();
       const { root, container } = renderPanel(

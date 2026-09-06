@@ -5,10 +5,16 @@ import type {
   DaemonSessionContextUsageStatus,
 } from '@qwen-code/web-shell/daemon-react-sdk';
 import { useI18n } from '../../i18n';
-import { isSessionDisconnectedError } from '../../utils/sessionErrors';
+import { isTransientSessionReadError } from '../../utils/sessionErrors';
 import { ContextUsageMessage } from '../messages/ContextUsageMessage';
 import { Button } from '../ui/button';
 import styles from './ContextUsagePanel.module.css';
+
+interface InFlightRead {
+  actions: DaemonSessionActions;
+  sessionId: string;
+  promise: Promise<DaemonSessionContextUsageStatus>;
+}
 
 export function ContextUsagePanel({
   sessionActions,
@@ -24,6 +30,9 @@ export function ContextUsagePanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const refreshRef = useRef<() => void>(() => {});
+  // Outlives the effect closure so a StrictMode-replayed mount reuses the
+  // in-flight request instead of issuing a second identical collection.
+  const inFlightRef = useRef<InFlightRead | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -37,8 +46,20 @@ export function ContextUsagePanel({
       pending = true;
       setLoading(true);
       setError(false);
+      const inFlight = inFlightRef.current;
+      const entry =
+        inFlight &&
+        inFlight.actions === sessionActions &&
+        inFlight.sessionId === sessionId
+          ? inFlight
+          : {
+              actions: sessionActions,
+              sessionId,
+              promise: sessionActions.getContextUsage({ detail: true }),
+            };
+      inFlightRef.current = entry;
       try {
-        const snapshot = await sessionActions.getContextUsage({ detail: true });
+        const snapshot = await entry.promise;
         if (!active) return;
         setStatus(
           snapshot.sessionId === sessionId &&
@@ -48,12 +69,13 @@ export function ContextUsagePanel({
         );
       } catch (err) {
         if (!active) return;
-        setStatus(null);
-        // Mirror TokenUsagePanel: a disconnected session is transient and its
-        // error already surfaces through the action's notice channel.
-        setError(!isSessionDisconnectedError(err));
+        // A failed refresh keeps the last good reading; transient failures
+        // (disconnect, transport close, network blip) stay silent here
+        // because the action's notice channel already reports them.
+        setError(!isTransientSessionReadError(err));
       } finally {
         pending = false;
+        if (inFlightRef.current === entry) inFlightRef.current = null;
         if (active) setLoading(false);
       }
     };
@@ -94,12 +116,16 @@ export function ContextUsagePanel({
         </div>
       ) : !sessionActions ? (
         <div className={styles.state}>{t('contextUsage.unavailable')}</div>
-      ) : loading ? (
+      ) : loading && !status ? (
         <div className={styles.state} role="status">
           {t('common.loading')}
         </div>
       ) : status ? (
-        <ContextUsageMessage status={status} compact />
+        <ContextUsageMessage
+          status={status}
+          compact
+          detailNameMaxLen={Infinity}
+        />
       ) : (
         <div className={styles.state}>{t('contextUsage.unavailable')}</div>
       )}

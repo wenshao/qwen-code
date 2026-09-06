@@ -217,7 +217,10 @@ function sessionWorkflowSetting(): DaemonSettingDescriptor {
 const {
   mockCollectSystemInfo,
   mockConnection,
+  mockPaneSessionActions,
   mockSessionActions,
+  paneContextFixture,
+  paneStatsFixture,
   mockWorkspace,
   mockWorkspaceActions,
   mockMcp,
@@ -349,9 +352,60 @@ const {
   };
   const settingsSetValue = vi.fn().mockResolvedValue(undefined);
   const mockCollectSystemInfo = vi.fn();
+  const paneStatsFixture = {
+    v: 1,
+    sessionId: 's1',
+    workspaceCwd: '/tmp/project',
+    sessionStartTimeMs: 1,
+    durationMs: 1,
+    promptCount: 0,
+    models: {},
+    tools: {
+      totalCalls: 0,
+      totalSuccess: 0,
+      totalFail: 0,
+      totalDurationMs: 0,
+      byName: {},
+    },
+    files: { totalLinesAdded: 0, totalLinesRemoved: 0 },
+    sources: [],
+  };
+  const paneContextFixture = {
+    v: 1,
+    sessionId: 's1',
+    workspaceCwd: '/tmp/project',
+    formattedText: '',
+    usage: {
+      modelName: 'pane-only-model',
+      totalTokens: 60,
+      contextWindowSize: 100,
+      breakdown: {
+        systemPrompt: 10,
+        builtinTools: 10,
+        mcpTools: 0,
+        memoryFiles: 0,
+        skills: 0,
+        messages: 40,
+        freeSpace: 30,
+        autocompactBuffer: 10,
+      },
+      builtinTools: [],
+      mcpTools: [],
+      memoryFiles: [],
+      skills: [],
+      isEstimated: false,
+    },
+  };
+  const mockPaneSessionActions = {
+    getStats: vi.fn().mockResolvedValue(paneStatsFixture),
+    getContextUsage: vi.fn().mockResolvedValue(paneContextFixture),
+  };
   return {
     mockCollectSystemInfo,
     mockConnection: connection,
+    mockPaneSessionActions,
+    paneContextFixture,
+    paneStatsFixture,
     mockSessionActions: {
       sendPrompt: vi.fn().mockResolvedValue(undefined),
       btwSession: vi.fn().mockResolvedValue({ answer: 'side answer' }),
@@ -1941,7 +1995,7 @@ vi.doMock('./components/SplitView', async () => {
               props.renderPaneHeaderActions({
                 sessionId: 's1',
                 workspaceCwd: '/tmp/project',
-                sessionActions: mockSessionActions,
+                sessionActions: mockPaneSessionActions,
               }),
             )
           : null,
@@ -3944,7 +3998,6 @@ describe('task activity key', () => {
               kind: 'token_usage',
               title: 'Pane token usage',
               sessionId: 'pane-session',
-              closeWithPane: true,
             },
           ],
         },
@@ -3987,7 +4040,6 @@ describe('task activity key', () => {
               kind: 'context_usage',
               title: 'Pane context usage',
               sessionId: 'pane-session',
-              closeWithPane: true,
             },
           ],
         },
@@ -4007,6 +4059,83 @@ describe('task activity key', () => {
       { detail: true },
     );
     expect(mockSessionActions.getContextUsage).not.toHaveBeenCalled();
+  });
+
+  it('restores a primary-session context tab through the live session actions', async () => {
+    mockWorkspace.client.sessionContextUsage.mockClear();
+    mockSessionActions.getContextUsage.mockClear();
+    window.localStorage.setItem(
+      'qwen-code-web-shell-right-panel-state',
+      JSON.stringify({
+        '/tmp/project\0session-1': {
+          open: true,
+          activeTabId: 'file:README.md',
+          tabs: [
+            {
+              id: 'file:README.md',
+              kind: 'file',
+              title: 'README.md',
+              workspacePath: 'README.md',
+            },
+            {
+              id: 'context-usage:session-1',
+              kind: 'context_usage',
+              title: 'Context Usage',
+              sessionId: 'session-1',
+            },
+          ],
+        },
+      }),
+    );
+    const { container } = renderApp();
+    await flush();
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[title="Context Usage"]')!
+        .click();
+    });
+    expect(mockSessionActions.getContextUsage).toHaveBeenCalledWith({
+      detail: true,
+    });
+    expect(mockWorkspace.client.sessionContextUsage).not.toHaveBeenCalled();
+  });
+
+  it('reclaims pane-bound usage tabs restored outside a split view', async () => {
+    window.localStorage.setItem(
+      'qwen-code-web-shell-right-panel-state',
+      JSON.stringify({
+        '/tmp/project\0session-1': {
+          open: true,
+          activeTabId: 'file:README.md',
+          tabs: [
+            {
+              id: 'file:README.md',
+              kind: 'file',
+              title: 'README.md',
+              workspacePath: 'README.md',
+            },
+            {
+              id: 'context-usage:pane-session',
+              kind: 'context_usage',
+              title: 'Pane context usage',
+              sessionId: 'pane-session',
+              closeWithPane: true,
+            },
+          ],
+        },
+      }),
+    );
+    const { container } = renderApp();
+    await flush();
+    expect(
+      container.querySelector('button[title="Pane context usage"]'),
+    ).toBeNull();
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('button[title="README.md"]')!
+        .click();
+    });
+    expect(mockWorkspace.client.sessionContextUsage).not.toHaveBeenCalled();
   });
 
   it('drops malformed persisted tabs without leaving the skeleton visible', async () => {
@@ -8528,6 +8657,10 @@ beforeEach(() => {
   mockWorkspace.client.sessionStats.mockResolvedValue({});
   mockWorkspace.client.sessionContextUsage.mockReset();
   mockWorkspace.client.sessionContextUsage.mockResolvedValue({});
+  mockPaneSessionActions.getStats.mockReset();
+  mockPaneSessionActions.getStats.mockResolvedValue(paneStatsFixture);
+  mockPaneSessionActions.getContextUsage.mockReset();
+  mockPaneSessionActions.getContextUsage.mockResolvedValue(paneContextFixture);
   mockWorkspace.client.sessionTaskCancel.mockReset();
   mockWorkspace.client.sessionTaskCancel.mockResolvedValue({ cancelled: true });
   mockWorkspace.client.renameStandaloneSession.mockReset();
@@ -12637,6 +12770,14 @@ describe('App session callbacks', () => {
     expect(
       container.querySelector('button[title="Context Usage"]'),
     ).not.toBeNull();
+    // Opening the panel must not route through the transcript /context path.
+    expect(mockStore.appendLocalUserMessage).not.toHaveBeenCalled();
+    expect(mockStore.dispatch).not.toHaveBeenCalledWith([
+      expect.objectContaining({
+        type: 'status',
+        text: expect.stringContaining('web-shell:context-usage:v1:'),
+      }),
+    ]);
   });
 
   it('opens, deduplicates and persists context usage independently of token usage and deletes both', async () => {
@@ -25555,7 +25696,7 @@ describe('App session callbacks', () => {
       files: { totalLinesAdded: 12, totalLinesRemoved: 4 },
       sources: [],
     };
-    mockSessionActions.getStats.mockResolvedValue(statsFixture);
+    mockPaneSessionActions.getStats.mockResolvedValue(statsFixture);
     const { container } = renderApp({
       sidebar: false,
       splitSessionIds: ['s1'],
@@ -25573,7 +25714,7 @@ describe('App session callbacks', () => {
     });
     await flush();
 
-    expect(mockSessionActions.getStats).toHaveBeenCalled();
+    expect(mockPaneSessionActions.getStats).toHaveBeenCalled();
     // The right panel (floating drawer on split view) opened with the token
     // usage tab and its live data, portaled into document.body.
     expect(document.body.textContent).toContain('Token Usage');
@@ -25589,6 +25730,7 @@ describe('App session callbacks', () => {
   });
 
   it('opens context usage from a split pane and closes it when the pane is removed', async () => {
+    mockPaneSessionActions.getContextUsage.mockClear();
     const { container } = renderApp({
       sidebar: false,
       splitSessionIds: ['s1'],
@@ -25603,9 +25745,20 @@ describe('App session callbacks', () => {
         .click();
     });
     await flush();
-    expect(mockSessionActions.getContextUsage).toHaveBeenCalledWith({
+    // The pane opener must bind the pane's own session actions, not the
+    // main session's: only the pane mock resolves a renderable payload.
+    expect(mockPaneSessionActions.getContextUsage).toHaveBeenCalledWith({
       detail: true,
     });
+    expect(mockSessionActions.getContextUsage).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain('pane-only-model');
+    expect(mockStore.appendLocalUserMessage).not.toHaveBeenCalled();
+    expect(mockStore.dispatch).not.toHaveBeenCalledWith([
+      expect.objectContaining({
+        type: 'status',
+        text: expect.stringContaining('web-shell:context-usage:v1:'),
+      }),
+    ]);
     expect(
       document.body.querySelector('button[aria-label="Close Context Usage"]'),
     ).not.toBeNull();
