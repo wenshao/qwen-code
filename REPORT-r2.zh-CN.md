@@ -1,96 +1,101 @@
-# PR #10841 本地真实环境验证报告 · 第 2 轮（增量）
+# PR #10841 复验报告（`941d876d4f` → `5b2cfa0a9e`）
 
-- 验证提交：`708f8f2318`（PR head）
-- 对照基线：`c39e83e01c`（`origin/main`，本 PR 的 merge-base）
-- 第 1 轮见 PR 评论（验证于 `941d876d4f`）
-- 平台：Linux 6.12.63 / Node 22 / `npm ci` + `npm run bundle` 双臂真实构建
-- 结论：**可以合并**
+- 复验提交：`5b2cfa0a9e`；上一轮验证：`941d876d4f`
+- 作者在此期间推了 4 个提交，`a63ba7f118` / `443320cd23` / `708f8f2318` / `5b2cfa0a9e`，正好对应我上一轮报告里的 R3-3 与两条残留
+- 结论：**上一轮提出的问题全部修复且经真实环境复核；新逻辑本身带来 2 条新的建议级问题**
 
-## 0. 本轮范围
+---
 
-第 1 轮之后新增 3 个功能提交：
+## 1. 上一轮问题的处理情况
 
-| 提交 | 内容 | 对应第 1 轮记录 |
+| 上轮结论 | 提交 | 复验结果 |
 | --- | --- | --- |
-| `a63ba7f118` | entry-scoped grant warnings + authored-name resume restore | 残留 2、第 3 轮延后项 |
-| `443320cd23` | lock label 按真实合并优先级取最高作用域 | R3-3（第 1 轮唯一的合并前建议） |
-| `708f8f2318` | 修正 R3-3 见证用例的断言 | — |
+| R3-3 锁定标签作用域反转（建议合并前修） | `443320cd23` + `708f8f2318` | ✅ 已修 |
+| 残留 2：resume 恢复无 `authoredName` 回退 | `a63ba7f118` | ✅ 已修 |
+| 残留 3(a)：同一裸条目对每个技能各发一条警告，改其一即静默其余 | `a63ba7f118` | ✅ 已改为按条目分组 |
+| 残留：`Replace it with X` 未提示同时存在的 hard 阻止 | `a63ba7f118` | ✅ 新增 hardNote |
+| 残留：hard 解除建议未说明会顺带放开兄弟技能 | `a63ba7f118` + `5b2cfa0a9e` | ✅ 已补，且拒绝给出会自我循环的建议 |
+| 残留 1：所有者标签未做换行清理 | — | 未处理（仍为非阻断） |
+| 残留 4：CJK 徽章按 UTF-16 计宽 | — | 未处理（仍为观感） |
 
-本轮只验证增量，并对第 1 轮仍开放的残留在新 head 上逐条复核。
+### R3-3
 
-## 1. R3-3 已修复（含判别性见证）
+`SkillsManagerDialog.tsx` 的作用域循环已改为真实合并优先级 SystemDefaults < User < Workspace < System。实测双向正确：
 
-装置：可信 workspace，System 与 Workspace 同时写 `skills.defaultDisabled: ["pdf"]`。
+- System 与 Workspace 同时持有 `skills.defaultDisabled: ["pdf"]` → 标签给出 `(System)`，即真正需要编辑的那个文件；
+- 仅 Workspace 持有 → 标签仍给出 `(Workspace)`，没有矫枉过正。
 
-- 真实 TUI `/skills`：锁定行读作 `[locked: skills.defaultDisabled 'pdf' (Syst…]`。
-- 精确字符串由探针给出（真实 settings 文件 → 真实 `loadSettings` → 真实 `buildHigherDisabled`）：
-  `lockedIn(rust:pdf) = "skills.defaultDisabled 'pdf' (System)"`。
-- 第 1 轮同装置下这里给的是 `(Workspace)`：用户按标签删掉 workspace 条目后技能仍然锁定，被点名的恰是改了也没用的那个文件。
+变异探针：把顺序改回修复前，新用例 `names System over Workspace when both hold the same defaultDisabled entry` 单独变红（20 passed / 1 failed），其余全绿——是真见证。
 
-负对照（证明见证用例真的钉住了这次修复）：把 4 行顺序改回修复前，`SkillsManagerDialog.test.tsx` 出现**且仅出现**新增用例 1 条失败（1 failed | 20 passed），恢复后 21/21 全绿。第 1 轮记录的“当前顺序完全没有被测试固定”已经不成立。
+### resume 恢复
 
-## 2. 残留 2（resume 按注册身份建索引）已修复
+`restoreLoadedSkillsFromHistory` 增加了 authored 名回退，且以 `!skillByName.has(authored)` 保证同名本地技能优先。移除该回退后新用例 `restores loaded Skill state requested under a pre-rename authored name` 单独变红（107 passed / 1 failed）。
 
-真实升级路径，不是构造的历史记录：
+顺带查了一个我担心的点：两个扩展同 authored 名时回退只会绑定其中一个。但恢复分支还有一道 `output === skill.output` 的相等判定，绑错时直接 `continue`，退化为修复前行为，不会把没加载过的技能误标为已加载。**属于 fail-safe，不构成问题。**
 
-1. 在 `origin/main` 构建上跑一个会话，模型调用 `skill('functions')`（升级前的裸名），技能正文注入，会话落盘。
-2. 用 PR 构建 `--resume` 同一个 session id，再调用 `rust:functions`：**首次**调用即返回
-   `Skill "rust:functions" is already loaded in context.` —— 没有重复注入。
-3. 负对照：同一构建、同一会话，把 bundle 里 authored-name 回退循环禁用，同样的首次调用重新注入了完整正文，第二次才提示 already loaded。
+### 三条新警告子句的见证
 
-歧义性检查：两个扩展共享同一 authored 名且没有本地同名技能时，回退把裸名映射到缓存中先出现的那一个；但 restore 同时逐字节比对记录的 output，因此映射错了只会**失配**（退化为重新注入），不会把错误的技能标记为已加载。实测：resume 一个升级前的 `pdf` 记录，`python:pdf`（当时真正加载的那个）被正确恢复，`rust:pdf` **没有**被误标记，首次调用仍然注入自己的正文。
+分别注入三个变异体（去掉 hardNote / 去掉 default-off 分支 / 去掉 notAlone 从句），core config 套件恰好三条对应用例变红（636 passed / 3 failed），全部是真见证。
 
-## 3. 新的 entry-scoped 警告与 default-off 警告
+## 2. 新警告的端到端行为
 
-- 一条裸 `skills.enabled: ["pdf"]` + 两个冲突的扩展技能 → **一条**警告同时点名 `'python:pdf'`、`'rust:pdf'`。第 1 轮是两条、各点一个，照其中一条改会让另一条静默。
-- 再加 `skills.disabled: ["pdf"]` → 警告追加硬阻断说明（“替换授权本身不会启用任何东西，那条也要删”）。
-- default-off 分支用真实默认关闭的扩展技能验证：新增第三个扩展，清单声明 `skillStates: { "report": false }`。
-  - `enabled: ["report"] + defaultDisabled: ["report"]` → 新警告出现，指出这一对取消了禁用但不再启用 `'go:report'`，因为它默认关闭。
-  - 照建议改成 `enabled: ["go:report"]` → 出现第二条警告（裸 `report` 仍在 `defaultDisabled` 中阻断）。
-  - 再按第二条改成两侧都写 `go:report` → 无警告，`go:report` 在面板中为启用态。
+按建议逐字操作，检查是否真的到达目标状态：
 
-迁移建议链条会终止，每一步都诚实。
+- **分组的失效授权警告**：`enabled:["pdf"]` → 一条警告同时点名 `'python:pdf', 'rust:pdf'`。
+- **hardNote**：`enabled:["pdf"] + disabled:["pdf"]` → 追加“裸 `pdf` 在 skills.disabled 里也会挡住它们，只换授权不会启用任何东西：那条也要删”。
+- **hard 解除的副作用说明**：`enabled:["rust:pdf"] + disabled:["pdf"]` → “删除也会重新启用 `'python:pdf'`。把 `'python:pdf'` 加进 skills.disabled 以继续阻止它。” 照做后实测：无警告、`rust:pdf` 可用、`python:pdf` 被挡。**一步收敛。**
+- **不动点情形**：存在用户级 `pdf` 时，追加“`'pdf'` 在 `'rust:pdf'` 保持启用的情况下无法单独阻止，因为任何匹配 `'pdf'` 的条目也匹配 `'rust:pdf'`”。该论断可证且实测成立：写 `disabled:["pdf","python:pdf"]` 会把 `rust:pdf` 一起挡掉。**建议正确地拒绝了会循环的写法。**
 
-## 4. 本轮新发现（非阻断）：硬阻断的“连带影响”建议存在自指循环
+## 3. 新发现（建议级，均为本次新增逻辑引入）
 
-位置：`packages/core/src/config/config.ts` 的 `bareDisablementBlocksQualifiedGrantWarnings`。
+### N-1：default-off 警告把同 authored 名的兄弟技能一并说成“默认关闭”
 
-装置：`skills.disabled: ["pdf"]` + `skills.enabled: ["rust:pdf"]`，同时存在一个**非扩展**的同名技能 `pdf`（用户级）。
+`bareEnabledGrantWarnings` 按 authored 名分组，而 `defaultOffAuthored` 也以 authored 名为键，因此组内只要有一个技能默认关闭，警告就把**整组**都描述为默认关闭。
 
-新增的连带影响句会把 `'pdf'` 自己算进兄弟清单：
+实测（`rust` 清单声明 `skillStates: {"pdf": false}`，`python` 未声明；配置 `defaultDisabled:["pdf"] + enabled:["pdf"]`）：
 
-> Remove 'pdf' from skills.disabled to enable the skill. The removal also re-enables 'pdf', 'python:pdf'; add 'pdf', 'python:pdf' to skills.disabled to keep them blocked.
+```
+Warning: skills.enabled and skills.defaultDisabled both list 'pdf' by bare name. The pair cancels
+the disablement but no longer enables the extension skills 'python:pdf', 'rust:pdf', which default
+off. Write the registered name in skills.enabled to enable them.
+```
 
-逐字照做（`skills.disabled: ["pdf","python:pdf"]`）之后：`rust:pdf` 依然锁定，并且**重新打印完全相同的一条警告**——用户落在不动点上。根因是被建议“加回去”的 `'pdf'` 正是按双拼写匹配阻断 `rust:pdf` 的那条裸条目；而该建议承诺的状态在当前语义下不可表达：没有任何 `skills.disabled` 写法能只挡住本地 `pdf` 而放行 `rust:pdf`。
+同一时刻 `/pdf` 只列出 `python:pdf` —— 它是**启用的**，且并不默认关闭。用户若照建议把裸条目替换成两个限定名，`python:pdf` 反而会被 `defaultDisabled:['pdf']` 挡掉（实测确认），下一次启动才由另一条警告把人引回来。
 
-建议：把“注册身份等于裸名”的兄弟从“加回去”那半句里剔除（它们没有限定拼写），或直接说明本地同名技能无法单独重新阻断。属建议级——是建议质量问题，不是能力缺陷。
+建议：`defaultOffAuthored` 改为按注册名收集，警告只点名该组中真正默认关闭的成员。
 
-## 5. 门禁（新 head）
+### N-2：照建议修好之后，警告仍每次启动重复
 
-- `npm -w packages/core run typecheck`、`npm -w packages/cli run typecheck`：退出码 0。
-- core：`src/skills src/config/config.test.ts src/tools/skill.test.ts` → 1199 通过、1 失败。失败项为 `skill-curator.test.ts > reports skippedErrors when rename fails transiently`，在 `origin/main` 上当天复跑同样失败（36 passed | 1 failed）——以 root 运行使其基于权限的故障注入失效，与本 PR 无关。
-- cli：本 PR 触及的 16 个套件 → 724/724 通过。
-- CI：该 head 无失败检查；唯一的阻塞来自第 3 轮那条已过期的 `CHANGES_REQUESTED` bot review。
+用单一属主的夹具隔离（扩展 `go` 独占 `report` 并声明其默认关闭）：
 
-## 6. 关于“workspace 的 skills.enabled 取消 system 的 skills.defaultDisabled”的裁定
+| 配置 | `go:report` | 警告 |
+| --- | --- | --- |
+| `defaultDisabled:["report"] + enabled:["report"]` | 关闭 | default-off 配对警告 |
+| 追加 `"go:report"`（照建议“写入注册名”） | **启用** | **同一条警告仍然打印** |
+| `defaultDisabled:["report"] + enabled:["go:report"]` | 关闭 | 另一条“被裸条目挡住”的警告 |
+| `defaultDisabled:["go:report"] + enabled:["go:report"]` | 启用 | 无 |
+| 仅 `enabled:["go:report"]` | 启用 | 无 |
 
-**维持现状，本 PR 不做改动。**
+也就是说，“写入注册名”这句话有两种读法：**追加**会到达“技能已启用但警告永远不消失”的死胡同；**替换**会先把技能关掉、触发第二条警告，再按其“两个列表都写 `go:report`”才收敛。看起来成功的那条路径恰恰是不收敛的那条。
 
-- 该行为是既有行为：在 merge-base `origin/main` 上，用一个与扩展无关的普通用户技能实测，workspace 的 `skills.enabled: ["pdf"]` 同样取消 system 作用域的 `skills.defaultDisabled: ["pdf"]`。本 PR 未触及 `resolveSkillSettings`，`skill-settings.ts` 的改动只是新增两个查找辅助函数。
-- `docs/users/configuration/settings.md` 在 merge-base 上就逐字写着这条语义：“a user can put a skill in `defaultDisabled` and a project can add the same name to `enabled`”。
-- deny-by-default 并未因此失效，因为 `defaultDisabled` 本来就不是拒绝原语：
-  - `skills.disabled` 才是。实测 System 写 `skills.disabled: ["rust:pdf"]` 且 workspace 写 `skills.enabled: ["rust:pdf"]` 时，`rust:pdf` 仍然 `[locked: System]`——任何作用域的 `enabled` 都取消不了硬条目。
-  - 各作用域的列表是并集而非覆盖（System `disabled:["rust:pdf"]` + Workspace `disabled:["python:pdf"]` 合并为两者），仓库文件无法删除管理员的条目，只能追加。
-  - workspace settings 只有在文件夹被信任时才参与合并。
-- 如果确实需要“默认关闭且仓库不得自行 opt-in”，那是另一个特性；仓库里已有现成形状：`packages/cli/src/config/settingsUtils.ts` 的 `WORKSPACE_NON_OVERRIDING_SETTINGS` / `WORKSPACE_TIGHTEN_ONLY_SETTINGS` 同时驱动合并期剥离与相应告警。把 `skills.enabled` 加进去即可，但那是针对 main 的独立改动，不应塞进本 PR。
+建议把措辞改成明确的动作，例如：把 `skills.enabled` 与 `skills.defaultDisabled` 里的裸 `'report'` 一并替换为 `'go:report'`（或直接删掉 `defaultDisabled` 条目）。
 
-## 7. 仍开放的残留（非阻断，均已在第 1 轮记录）
+### N-3（旧残留，此轮更有杀伤力）
 
-1. 所有者标签未做单行化。新 head 上复核仍然成立：清单 `displayName` 含换行会在 Skills 面板注入一整行伪造内容。作者已明确延后，同意作为后续。
-2. （已关闭，见第 2 节。）
-3. 同名本地技能仍会吞掉迁移警告（`if (registry.has(authored)) continue;`）。当天实测：存在用户级 `pdf` 时，`skills.enabled: ["pdf"]` 完全不给任何提示。
-4. CJK 所有者名按 UTF-16 计宽导致截断偏早，纯观感，未变。
+`registry.has(authored)` 豁免依旧存在。存在同名本地技能时，一个**确实默认关闭**的扩展技能会静默保持关闭且没有任何警告：实测 `defaultDisabled:["pdf"] + enabled:["pdf"]` 且存在用户级 `pdf` 时，`rust:pdf`（默认关闭）不可见、零提示。上一轮记为窄条件残留，现在 default-off 路径落地后，它正好落在新警告本该覆盖的区域。
 
-## 8. 结论
+## 4. 回归清单（全部复跑）
 
-**可以合并。** R3-3 已修复且带判别性见证；残留 2 已修复且有真实升级路径与负对照；新增的三类警告在真实链路上成立且建议链条终止；仅新增一条建议级的自指循环问题，与其余三条残留一样不阻断合并。
+- `/pdf` 三行、各带属主标签；`/rust:pdf` 与 `/pdf` 分别命中正确技能（按落盘请求体字节判定）
+- 裸 `skills.disabled:["pdf"]` 仍挡住两个扩展技能
+- `--disabled-slash-commands` 双拼写双向成立
+- `@ext:rust` 注入模型的文本仍为 `- Skills: rust:functions, rust:pdf`
+- `/skills` 面板切换写入限定名并在重启后生效
+- 无 default-off 技能时，旧的裸 opt-in 配对保持静默且两技能可用（无误报回归）
+- typecheck 退出码 0；core `src/skills src/config src/tools/skill.test.ts` 1394 通过；PR 触及的 15 个 cli 套件 671/671 通过
+- core `skill-curator` 那条失败依旧是 root 环境导致的既有问题，与本 PR 无关
+- GitHub CI 在新 head 上全绿
+
+## 5. 建议
+
+上一轮的阻断项已清空，新增逻辑测试质量很高（五个新用例逐一变异验证均为真见证）。N-1 与 N-2 都只涉及新警告的措辞与取值范围，不影响任何技能的最终可达状态，可以合并后再修，也可以顺手在本 PR 里改掉——**倾向于顺手改掉 N-2**，因为“照做之后警告不消失”会直接消耗用户对这套迁移提示的信任。
