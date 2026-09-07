@@ -1,0 +1,18 @@
+diff --git a/packages/web-shell/client/e2e/utils/mockDaemon.ts b/packages/web-shell/client/e2e/utils/mockDaemon.ts
+index 1017e55e98..a342ea98ab 100644
+--- a/packages/web-shell/client/e2e/utils/mockDaemon.ts
++++ b/packages/web-shell/client/e2e/utils/mockDaemon.ts
+@@ -1247,6 +1247,13 @@ async function handleDaemonRoute(
+           sessionId: session.sessionId,
+           clientCount: session.clientCount ?? 0,
+           hasActivePrompt: session.hasActivePrompt ?? false,
++          // Faithful to GET /workspaces/:workspace/sessions/live-state in
++          // packages/cli/src/serve/routes/session.ts: the real route forwards
++          // activeWorkState when the bridge exposes it, and omits the key
++          // entirely on daemons that do not.
++          ...(session.activeWorkState !== undefined
++            ? { activeWorkState: session.activeWorkState }
++            : {}),
+           isWaitingForPermission: session.isWaitingForPermission ?? false,
+           isWaitingForUserQuestion: session.isWaitingForUserQuestion ?? false,
+         })),
