@@ -1,0 +1,48 @@
+============ round-5 delta probes ============
+  inotify on the checkout during the hatch reset:
+      CREATE .qwen-session.93603131b72c.tmp
+      MODIFY .qwen-session.93603131b72c.tmp
+      CREATE .qwen-session
+      DELETE .qwen-session.93603131b72c.tmp
+      CLOSE_WRITE,CLOSE .qwen-session.93603131b72c.tmp
+PASS D1 — marker published by link: a staged .qwen-session.<hex>.tmp is written+fsync'd first, the marker name itself is only ever CREATEd (0 MODIFY events on it) and already holds d86161f3-a9c0-4db4-a5ac-ee6c3a0e83e1
+PASS D2 — the staged name is dropped by the commit (nlink back to 1, 0 leftovers) and '.qwen-session.*.tmp' is excluded (/root/git/qwen-code-v11015-harness/run/workspace/.git/info/exclude:8:.qwen-session.*.tmp	.qwen-session.abc123.tmp); git status clean
+  > /clear with an nlink=2 marker -> Could not reset task "delta".
+PASS D3 — a marker left at nlink=2 by a crash between link() and unlink() is refused, not transferred (owner still d86161f3-a9c0-4db4-a5ac-ee6c3a0e83e1, checkout intact)
+  recovery: removing the stray sibling restores a VALID marker (content was already fsync'd)
+PASS D3b — after dropping the stray link the task resets normally (d86161f3-a9c0-4db4-a5ac-ee6c3a0e83e1 -> 73f9bd9a-62ae-4664-8d01-1c960953532a) — the nlink=2 wedge is repairable, unlike a 0-byte marker
+============ 5 passed, 0 failed ============
+============ the two crash residues, side by side ============
+  0-byte marker, /clear -> Could not reset task "resid".
+PASS E1 — a 0-byte marker — the residue a crash between CREATE and MODIFY leaves on the pre-round-5 order — is refused and destroys nothing
+PASS E1b — and it stays wedged on retry — the owner id was never written, so there is nothing to recover from (Could not reset task "resid".)
+  operator recovery for the 0-byte shape: delete the marker, then /clear takes the missing-marker hatch
+PASS E1c — after deleting the empty marker the task resets (81d21d51-124c-4fa3-b6f1-9218b39441f4 -> c7b47933-f5b3-428e-ad39-d5f82f7bd3ca) — but the operator had to guess which file to delete
+  nlink=2 marker, /clear -> Could not reset task "resid".
+PASS E2 — the round-5 residue is refused too — but the marker still holds the full, fsync'd owner id (c7b47933-f5b3-428e-ad39-d5f82f7bd3ca), so the checkout's ownership is never in doubt
+PASS E2b — dropping the stray sibling alone restores it (c7b47933-f5b3-428e-ad39-d5f82f7bd3ca -> 75735c7c-6b9b-44b6-bb5d-4de1d0fc116a): the marker was already correct, only its link count was wrong
+PASS E3 — every refusal above left the checkout and its uncommitted file intact
+============ 7 passed, 0 failed ============
+============ the barrier's two new admission points ============
+  control — pollers started 5ms after /clear, before the barrier arms:
+    goal create started a turn -> the route refused the reset itself: Task is busy. Wait for the running prompt to finish (or cancel it), then try again.
+PASS B0 — non-vacuity control: when the goal call wins the race it makes the session busy and the RESET is refused — so a 409 below is the barrier, not a blanket rejection
+  probe — pollers started 25ms after /clear, inside the transfer:
+      {"error":"Session 9bd7e724-a0ab-4323-a04b-43bd858bd830 is mid worktree reset; prompt admission is closed until the reset completes","code":"worktree_reset_active","sessionId":"9bd7e724-a0ab-4323-a04b-
+      goal refusals=64   workflow-action refusals=64
+PASS B1 — both admission points round 5 added are fenced: POST /session/:id/goal (64 refusals) and POST /session/:id/tasks/:taskId/workflow-action (64) return 409 worktree_reset_active while the transfer is in flight. Neither passes sendPrompt, so sendPrompt's barrier alone would miss them.
+PASS B2 — and the reset still completed under that load: Task "bprobe" reset with a fresh conversation; its worktree and files were kept.
+PASS B3 — the barrier is released on the replacement — the same call now answers {"changed":false}
+============ 4 passed, 0 failed ============
+======== client aborts the reset at increasing delays (route takes ~55ms) ========
+
+    abort@2ms  PRE-FLIP  marker unmoved (9c82c3dc)  fwdSidecars=0  daemon:<no response written>  files=kept
+    abort@10ms  PRE-FLIP  marker unmoved (e2fb1bff)  fwdSidecars=0  daemon:<no response written>  files=kept
+    abort@20ms  PRE-FLIP  marker unmoved (79a2ec8b)  fwdSidecars=0  daemon:<no response written>  files=kept
+    abort@30ms  PRE-FLIP  marker unmoved (a8fabd64)  fwdSidecars=0  daemon:<no response written>  files=kept
+    abort@45ms  PRE-FLIP  marker unmoved (dabf0004)  fwdSidecars=0  daemon:<no response written>  files=kept
+    abort@70ms  POST-FLIP marker 607d7fcd -> c70f5998  daemon:status=200  files=kept
+    abort@200ms  POST-FLIP marker 7db34d62 -> 3a72101b  daemon:status=200  files=kept
+PASS S1 — the sweep straddles the flip — 5 aborts landed pre-flip and were refused with the marker unmoved and no forward-linked sidecar left behind, 2 landed post-flip and committed; no delay lost a file. A sweep that only ever produced one side would prove nothing, so both are required.
+======== 1 passed, 0 failed ========
+DELTADONE

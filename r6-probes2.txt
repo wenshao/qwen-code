@@ -1,0 +1,17 @@
+============ fault-injection probes ============
+current: task=alpha sid=4dceb41b-fad3-4c46-8ac4-3a6b8d93984e wt=/root/git/qwen-code-v11015-harness/run/workspace/.qwen/worktrees/eager-leaf-046295 marker=4dceb41b-fad3-4c46-8ac4-3a6b8d93984e
+  > /clear while a prompt is running -> Task "alpha" is busy. Wait for the running prompt to finish (or cancel it), then try again.
+PASS F1 — busy task refuses the reset with the actionable message
+PASS F1b — refused reset left the task on its original session (4dceb41b-fad3-4c46-8ac4-3a6b8d93984e)
+  > re-select alpha with the marker deleted (session still LIVE) -> Selected task "alpha" (worktree workspace).
+PASS F2 — a live session short-circuits the load, so marker deletion is only detected on reload (documented Part 4A property, not a regression)
+PASS F2b — checkout still on disk after the refusal (nothing deleted)
+  > /clear to recover -> Task "alpha" reset with a fresh conversation; its worktree and files were kept.
+PASS F3 — reset recreated the marker through the O_EXCL hatch (marker=e50d3eb1-0f76-4a23-914d-56d08a1113a2 == task session)
+  registry rolled back to the superseded id 4dceb41b-fad3-4c46-8ac4-3a6b8d93984e (task now claims a session the daemon supersedes)
+  > re-select alpha -> Selected task "alpha" (worktree workspace).
+PASS F4 — registry self-healed 4dceb41b-fad3-4c46-8ac4-3a6b8d93984e -> e50d3eb1-0f76-4a23-914d-56d08a1113a2 via the 409 superseded redirect
+  /root/git/qwen-code-v11015-harness/run/workspace                                    b0d14c2 [main]
+  /root/git/qwen-code-v11015-harness/run/workspace/.qwen/worktrees/eager-leaf-046295  b0d14c2 [worktree-eager-leaf-046295]
+PASS F5 — the uncommitted file seeded before the first reset is STILL present
+============ 7 passed, 0 failed ============

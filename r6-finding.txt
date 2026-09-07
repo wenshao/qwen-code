@@ -1,0 +1,21 @@
+======== SDK-driven reset of a Channel task (DaemonSessionClient.resetWorktree) ========
+  route committed 5f134c8a -> a442352b; marker=a442352b
+  replacement on disk: a442352b-8a92-4315-b4bc-632ee53af708.worktree.json 
+  (a channel-driven /clear writes a .jsonl system record here; this path writes only the sidecar)
+PASS Z1 — the replacement the route spawns has no persisted transcript record — only its worktree sidecar
+--- while the daemon is still up ---
+  > /session use sdk -> Selected task "sdk" (worktree workspace).
+  > a plain message   -> ''
+  registry: 5f134c8a (transfer went to a442352b)
+PASS Z2 — the Channel reports the task selected, keeps the superseded id, and then answers NOTHING — the registry never heals because the superseded session is still live, so the load short-circuits and the 409 redirect is never asked for
+--- after a daemon restart (the superseded session goes dormant) ---
+  > /session use sdk -> Could not load task "sdk". The current task was not changed.
+PASS Z3 — now the redirect does fire, but following it fails: the replacement has no record to resume, so selection reports a generic 'Could not load task' that names no recovery
+--- what recovery is left ---
+  > /clear -> Task "sdk" reset with a fresh conversation; its worktree and files were kept.   registry now a442352b, marker a442352b
+  > a message after that -> Could not load task "sdk". No replacement session was created.
+PASS Z4 — /clear REPORTS SUCCESS and commits the registry to the replacement, but the next message still fails — the replacement has no record to resume, so the reported recovery does not actually recover
+  > /session close sdk -> Closed task "sdk". No task is selected.
+PASS Z4b — the only exit is closing the task, which leaves the checkout on disk (Part 4B never deletes one)
+PASS Z5 — the checkout and its uncommitted file survived every step — nothing is ever destroyed
+======== 6 passed, 0 failed ========

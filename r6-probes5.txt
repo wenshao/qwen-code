@@ -1,0 +1,13 @@
+============ the superseded session after a transfer ============
+transfer: e50d3eb1-0f76-4a23-914d-56d08a1113a2 -> e93eaf6d-03ca-4770-bf8d-cdb286880d5f   (worktree /root/git/qwen-code-v11015-harness/run/workspace/.qwen/worktrees/eager-leaf-046295)
+  POST /session/e50d3eb1-0f76-4a23-914d-56d08a1113a2/prompt -> HTTP 404
+PASS X1 — the superseded session refuses prompts (HTTP 404, not 202)
+  POST /session/e93eaf6d-03ca-4770-bf8d-cdb286880d5f/prompt -> HTTP 202
+PASS X2 — the replacement accepts prompts normally
+  POST /session/e50d3eb1-0f76-4a23-914d-56d08a1113a2/load -> {"error":"Session e50d3eb1-0f76-4a23-914d-56d08a1113a2 was superseded by a worktree reset; restore the replacement session instead","code":"worktree_session_superseded","sessionId":"e50d3eb1-0f76-4a23-914d-56d08a1113a2","replacementSessionId":"e93eaf6d-03ca-47
+PASS X3 — restore of the superseded session returns the typed 409 worktree_session_superseded
+PASS X3b — the 409 body carries the replacement id, which is what lets the registry self-heal
+  after restart, POST /session/e50d3eb1-0f76-4a23-914d-56d08a1113a2/load -> {"error":"Session e50d3eb1-0f76-4a23-914d-56d08a1113a2 was superseded by a worktree reset; restore the replacement session instead","code":"worktree_session_superseded","sessionId":"e50d3eb1-0f76-4a23
+PASS X4 — the on-disk superseded sidecar still fences the old session after a daemon restart
+PASS X5 — the checkout marker names exactly the replacement (e93eaf6d-03ca-4770-bf8d-cdb286880d5f)
+============ 6 passed, 0 failed ============
