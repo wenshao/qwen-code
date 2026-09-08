@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qwen Code 功能演进报告 · 2026-04 → 2026-07</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --bg-2: #ffffff;
+    --panel: #ffffff;
+    --ink: #101c28;
+    --line: rgba(16,34,51,0.14);
+    --line-soft: rgba(16,34,51,0.075);
+    --text: #1a2836;
+    --text-dim: #4c5e70;
+    --text-faint: #7e8fa1;
+    --accent: #0d9488;
+    --display: 'Space Grotesk', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    --body: 'IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --shadow: 0 1px 2px rgba(16,34,51,0.05), 0 10px 30px rgba(16,34,51,0.07);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+  /* ---------- layered background ---------- */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: -3;
+    background-image:
+      linear-gradient(rgba(16,34,51,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16,34,51,0.04) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 130% 95% at 50% 0%, #000 25%, transparent 88%);
+  }
+  .glow { position: fixed; z-index: -2; border-radius: 50%; filter: blur(110px); pointer-events: none; }
+  .glow-a { width: 620px; height: 620px; top: -220px; left: -180px; background: rgba(13,148,136,0.14); animation: drift 26s ease-in-out infinite alternate; }
+  .glow-b { width: 560px; height: 560px; top: 12%; right: -240px; background: rgba(234,88,12,0.10); animation: drift 32s ease-in-out infinite alternate-reverse; }
+  .glow-c { width: 700px; height: 700px; bottom: -300px; left: 22%; background: rgba(37,99,235,0.10); animation: drift 38s ease-in-out infinite alternate; }
+  @keyframes drift {
+    from { transform: translate(0, 0) scale(1); }
+    to   { transform: translate(60px, 40px) scale(1.12); }
+  }
+
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 0 28px; }
+
+  /* ---------- masthead ---------- */
+  .masthead { padding: 72px 0 44px; }
+  .term-bar {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: #0f1b26; border: 1px solid rgba(16,34,51,0.6);
+    border-radius: 8px; padding: 10px 16px;
+    font-family: var(--mono); font-size: 12.5px; color: #93a4b8;
+    box-shadow: var(--shadow);
+  }
+  .term-bar .d { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .d.r { background: #ff5f57; } .d.y { background: #febc2e; } .d.g { background: #28c840; }
+  .term-bar code { color: #5eead4; }
+  .cursor { display: inline-block; width: 7px; height: 14px; background: #5eead4; margin-left: 2px; animation: blink 1.1s steps(1) infinite; vertical-align: -2px; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .overline {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--text-faint); margin: 34px 0 10px;
+  }
+  h1 {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(2.6rem, 6.4vw, 4.6rem); line-height: 1.06; letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  h1 .hl { color: var(--accent); }
+  .lede { max-width: 660px; color: var(--text-dim); font-size: 16.5px; margin-top: 18px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  .stats-strip {
+    display: flex; flex-wrap: wrap; margin-top: 40px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .stat {
+    flex: 1 1 150px; padding: 20px 24px; border-right: 1px solid var(--line-soft);
+    transition: background .25s;
+  }
+  .stat:last-child { border-right: none; }
+  .stat:hover { background: #f8fafb; }
+  .stat b { display: block; font-family: var(--display); font-size: 30px; font-weight: 700; }
+  .stat span { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--text-faint); text-transform: uppercase; }
+  .stat:nth-child(1) b { color: #0d9488; } .stat:nth-child(2) b { color: #2563eb; }
+  .stat:nth-child(3) b { color: #ea580c; } .stat:nth-child(4) b { color: #db2777; }
+  .stat:nth-child(5) b { color: #7e22ce; }
+
+  /* ---------- section headers ---------- */
+  section { padding: 58px 0 8px; }
+  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  .sec-no { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 0.2em; font-weight: 700; }
+  h2 { font-family: var(--display); font-size: clamp(1.6rem, 3.2vw, 2.3rem); font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+  .sec-note { color: var(--text-faint); font-size: 13.5px; margin-bottom: 28px; max-width: 740px; }
+
+  /* ---------- release train ---------- */
+  .train {
+    display: flex; gap: 0; overflow-x: auto; padding: 26px 4px 18px;
+    position: relative; scrollbar-width: thin;
+  }
+  .train::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 52px; height: 2px;
+    background: linear-gradient(90deg, #0d9488, #2563eb 55%, #ea580c);
+    opacity: 0.55;
+  }
+  .train + .train { margin-top: 4px; }
+  .train.r2::before { background: linear-gradient(90deg, #ea580c, #db2777 45%, #d97706 78%, #7c3aed); }
+  .stop { flex: 1 0 138px; position: relative; padding-top: 34px; transition: transform .2s; }
+  .stop::before {
+    content: ''; position: absolute; top: 20px; left: 0; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--bg); border: 3px solid var(--sc, #0d9488);
+    transition: transform .2s, background .2s; z-index: 1;
+  }
+  .stop:hover { transform: translateY(-4px); }
+  .stop:hover::before { transform: scale(1.35); background: var(--sc); }
+  .stop .v { font-family: var(--mono); font-weight: 700; font-size: 15px; color: var(--sc); }
+  .stop .dt { font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin: 2px 0 6px; }
+  .stop .cap { font-size: 12px; color: var(--text-dim); line-height: 1.5; padding-right: 14px; }
+
+  /* ---------- maturity chart ---------- */
+  .chart-scroll { overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+  .chart {
+    min-width: 1240px; position: relative;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 22px 22px 18px; box-shadow: var(--shadow);
+  }
+  .months { display: grid; grid-template-columns: 190px 1fr; margin-bottom: 6px; }
+  .month-cells { display: grid; grid-template-columns: 30fr 31fr 30fr 31fr 31fr 8fr; }
+  .month-cells span {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; color: var(--text-faint);
+    text-align: center; border-left: 1px solid var(--line); padding: 4px 0;
+    text-transform: uppercase; font-weight: 500;
+  }
+  .month-cells span:last-child { border-right: 1px solid var(--line); writing-mode: vertical-rl; text-orientation: upright; letter-spacing: 0; padding: 6px 0; margin: 0 auto; }
+  .lanes { position: relative; }
+  .gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line-soft); pointer-events: none; }
+  .today {
+    position: absolute; top: -4px; bottom: 0; width: 0; border-left: 1.5px dashed rgba(234,88,12,0.6);
+    pointer-events: none; z-index: 2;
+  }
+  .today i {
+    position: absolute; top: -20px; right: 2px; font-style: normal;
+    font-family: var(--mono); font-size: 10px; color: #ea580c; letter-spacing: 0.1em; font-weight: 700;
+  }
+  .group-row { display: flex; align-items: center; gap: 12px; margin: 16px 0 4px; }
+  .group-row b {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--gc, #0d9488); white-space: nowrap;
+  }
+  .group-row::after { content: ''; flex: 1; height: 1px; background: var(--line-soft); }
+  .track {
+    display: grid; grid-template-columns: 190px 1fr; align-items: center;
+    height: 56px; border-radius: 6px; transition: background .18s;
+  }
+  .track:hover { background: rgba(16,34,51,0.035); }
+  .t-name {
+    font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); font-weight: 500;
+    display: flex; align-items: center; gap: 9px; padding-left: 8px;
+    transition: color .18s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .track:hover .t-name { color: var(--ink); }
+  .t-name i { width: 8px; height: 8px; border-radius: 2px; background: var(--tc); flex: none; transform: rotate(45deg); }
+  .t-lane { position: relative; height: 100%; }
+  .t-bar {
+    position: absolute; top: 50%; height: 3px; border-radius: 3px;
+    transform: translateY(-50%) scaleX(0); transform-origin: left center;
+    background: linear-gradient(90deg, var(--tc) 0%, var(--tc) 78%, transparent 100%);
+    opacity: 0.55; transition: transform 1s cubic-bezier(.22,.8,.3,1);
+  }
+  .in .t-bar { transform: translateY(-50%) scaleX(1); }
+  .ms { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .5s .15s; z-index: 3; }
+  .in .ms { opacity: 1; }
+  .ms i {
+    position: absolute; top: 50%; left: var(--p); width: 10px; height: 10px;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    background: var(--bg-2); border: 2px solid var(--tc);
+    pointer-events: auto; cursor: crosshair; transition: transform .15s, background .15s;
+  }
+  .ms:hover i { transform: translate(-50%, -50%) scale(1.45); background: var(--tc); }
+  .ms.origin i { width: 11px; height: 11px; border: none; border-radius: 2.5px; background: var(--tc); transform: translate(-50%, -50%) rotate(45deg); }
+  .ms.origin:hover i { transform: translate(-50%, -50%) rotate(45deg) scale(1.3); }
+  .ms em {
+    position: absolute; font-style: normal; font-family: var(--mono); font-size: 10px;
+    line-height: 1.4; white-space: nowrap; color: var(--text-dim);
+    pointer-events: auto; cursor: crosshair; transition: color .15s;
+  }
+  .ms em.above { top: 3px; }
+  .ms em.below { bottom: 3px; }
+  .ms em b { color: var(--tc); font-weight: 700; margin-right: 4px; }
+  .ms:hover em { color: var(--ink); }
+  .legend { display: flex; gap: 26px; margin: 18px 0 0 8px; font-family: var(--mono); font-size: 11px; color: var(--text-faint); flex-wrap: wrap; }
+  .legend em { font-style: normal; display: inline-flex; align-items: center; gap: 8px; }
+  .legend .sw { width: 10px; height: 10px; display: inline-block; }
+  .sw.diamond { background: #2563eb; border-radius: 3px; transform: rotate(45deg); }
+  .sw.dot { border: 2px solid #2563eb; border-radius: 50%; background: var(--bg-2); }
+  .sw.bar { height: 3px; width: 22px; border-radius: 2px; background: #2563eb; align-self: center; opacity: .6; }
+
+  #tip {
+    position: fixed; z-index: 50; pointer-events: none; opacity: 0;
+    background: #101c28; border: 1px solid var(--tipc, #0d9488); border-radius: 7px;
+    padding: 8px 12px; font-family: var(--mono); font-size: 11.5px; line-height: 1.55;
+    color: #e7eef6; max-width: 300px; box-shadow: 0 10px 34px rgba(16,34,51,0.35);
+    transition: opacity .12s;
+  }
+  #tip .td { color: var(--tipc); font-weight: 700; display: block; font-size: 10.5px; letter-spacing: 0.08em; }
+
+  /* ---------- highlight strip ---------- */
+  .highlights {
+    display: flex; flex-wrap: wrap; gap: 0; margin: 34px 0 0;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .hl-item { flex: 1 1 240px; padding: 18px 22px; border-right: 1px solid var(--line-soft); transition: background .25s; }
+  .hl-item:last-child { border-right: none; }
+  .hl-item:hover { background: #f8fafb; }
+  .hl-item .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; display: block; margin-bottom: 6px; font-weight: 700; }
+  .hl-item p { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+  .hl-item p b { color: var(--ink); }
+  .hl-item.wide { flex: 1 1 100%; border-top: 1px solid var(--line-soft); border-right: none; }
+  .aug { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 36px; margin-top: 4px; }
+  .aug-row { display: flex; gap: 10px; align-items: baseline; font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+  .aug-row .wd { font-family: var(--mono); font-weight: 700; color: #d97706; flex: 0 0 84px; font-size: 11px; }
+  @media (max-width: 980px) { .aug { grid-template-columns: 1fr; } }
+
+  /* ---------- stories ---------- */
+  .story {
+    display: grid; grid-template-columns: 270px 1fr; gap: 36px;
+    padding: 38px 0; border-top: 1px solid var(--line);
+  }
+  .story:first-of-type { border-top: none; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;
+    color: var(--sc); border: 1px solid var(--sc); border-radius: 99px; padding: 4px 13px;
+  }
+  .chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--sc); }
+  .story h3 { font-family: var(--display); font-size: 21px; font-weight: 700; margin: 14px 0 8px; letter-spacing: -0.01em; color: var(--ink); }
+  .arc { color: var(--text-dim); font-size: 13.5px; line-height: 1.65; }
+  .span-badge {
+    display: inline-block; margin-top: 14px; font-family: var(--mono); font-size: 11px;
+    color: var(--text-faint); border: 1px dashed var(--line); border-radius: 6px; padding: 4px 10px;
+  }
+  .phases { position: relative; padding-left: 26px; }
+  .phases::before { content: ''; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 1px; background: var(--line); }
+  .phase { position: relative; padding: 0 0 22px; }
+  .phase:last-child { padding-bottom: 4px; }
+  .phase::before {
+    content: ''; position: absolute; left: -26px; top: 7px; width: 11px; height: 11px;
+    border-radius: 50%; background: var(--bg); border: 2.5px solid var(--sc);
+    transition: background .2s, transform .2s;
+  }
+  .phase:hover::before { background: var(--sc); transform: scale(1.25); }
+  .phase .meta { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+  .phase .dt { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--sc); }
+  .phase .tag {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--text-dim); background: rgba(16,34,51,0.055); border-radius: 4px; padding: 2.5px 8px;
+  }
+  .phase p { color: var(--text-dim); font-size: 14px; }
+  .phase p b { color: var(--ink); font-weight: 600; }
+  .phase p code { font-family: var(--mono); font-size: 12px; color: #0f766e; background: rgba(13,148,136,0.09); border-radius: 4px; padding: 1px 6px; }
+
+  /* ---------- investment bars ---------- */
+  .bars { display: flex; flex-direction: column; gap: 11px; margin-top: 8px; }
+  .bar-row { display: grid; grid-template-columns: 128px 1fr 108px; align-items: center; gap: 16px; }
+  .bar-row .dl { font-family: var(--mono); font-size: 10px; color: #d97706; margin-left: 6px; font-weight: 500; }
+  .bar-row .lb { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); text-align: right; white-space: nowrap; }
+  .bar-track { height: 12px; background: rgba(16,34,51,0.06); border-radius: 4px; overflow: hidden; }
+  .bar-fill {
+    height: 100%; border-radius: 4px; width: 0;
+    transition: width 1.1s cubic-bezier(.22,.8,.3,1);
+  }
+  .in .bar-fill { width: var(--w); }
+  .bar-row:hover .bar-fill { filter: brightness(1.15) saturate(1.1); }
+  .bar-row .vl { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--ink); }
+
+  /* ---------- PR cadence ---------- */
+  .cadence { display: grid; grid-template-columns: 280px 1fr; gap: 28px; align-items: stretch; }
+  .month-strip { display: flex; flex-direction: column; gap: 10px; }
+  .mrow {
+    border: 1px solid var(--line); border-left: 4px solid var(--mc); border-radius: 8px;
+    background: var(--panel); padding: 12px 18px; box-shadow: var(--shadow);
+    transition: transform .2s;
+  }
+  .mrow:hover { transform: translateX(5px); }
+  .mrow .mn { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; color: var(--text-faint); text-transform: uppercase; }
+  .mrow b { font-family: var(--display); font-size: 31px; font-weight: 700; color: var(--mc); display: block; line-height: 1.15; }
+  .mrow .delta { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); }
+  .mrow .delta.up::before { content: '▲ '; color: #16a34a; font-size: 9px; }
+  .week-chart {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 26px 22px 14px; display: flex; flex-direction: column;
+  }
+  .wk-bars { display: flex; align-items: flex-end; gap: 6px; height: 238px; border-bottom: 2px solid var(--line); }
+  .wk {
+    flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+    height: 100%; cursor: crosshair;
+  }
+  .wk .vv { font-family: var(--mono); font-size: 9.5px; color: var(--text-faint); margin-bottom: 4px; opacity: 0; transition: opacity .5s .7s, color .15s; }
+  .in .wk .vv { opacity: 1; }
+  .wk:hover .vv { color: var(--ink); }
+  .wk.peak .vv { color: #ea580c; font-weight: 700; }
+  .wk .bar {
+    width: 100%; max-width: 36px; border-radius: 4px 4px 0 0; background: var(--wc);
+    height: 0; transition: height 1s cubic-bezier(.22,.8,.3,1), filter .15s;
+  }
+  .in .wk .bar { height: var(--h); }
+  .wk:hover .bar { filter: brightness(1.15) saturate(1.15); }
+  .wk.part .bar { opacity: .55; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.4) 0 4px, transparent 4px 8px); }
+  .wk-labels { display: flex; gap: 6px; padding-top: 8px; }
+  .wk-labels span { flex: 1; text-align: center; font-family: var(--mono); font-size: 9px; color: var(--text-faint); }
+
+  /* ---------- automation pipeline ---------- */
+  .runbar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: #0f1b26; color: #93a4b8; border-radius: 8px; padding: 12px 18px;
+    font-family: var(--mono); font-size: 12px; box-shadow: var(--shadow); margin-bottom: 22px;
+  }
+  .runbar .live { width: 9px; height: 9px; border-radius: 50%; background: #28c840; flex: none; animation: pulse 2s infinite; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(40,200,64,.55); }
+    50% { box-shadow: 0 0 0 7px rgba(40,200,64,0); }
+  }
+  .runbar b { color: #5eead4; }
+  .cmd-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 30px; }
+  .cmd {
+    font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); background: var(--panel);
+    border-radius: 7px; padding: 8px 14px; color: var(--text-dim); cursor: default;
+    transition: transform .2s, border-color .2s, box-shadow .2s;
+  }
+  .cmd b { color: var(--cc); font-weight: 700; }
+  .cmd:hover { border-color: var(--cc); transform: translateY(-3px); box-shadow: var(--shadow); }
+  .cmd .cd { font-size: 10px; color: var(--text-faint); margin-left: 8px; }
+  .pipe { position: relative; padding-left: 34px; }
+  .pipe::before {
+    content: ''; position: absolute; left: 11px; top: 12px; bottom: 12px; width: 2px;
+    background: linear-gradient(180deg, #0d9488, #2563eb 22%, #ea580c 45%, #7e22ce 64%, #16a34a 82%, #db2777);
+    opacity: .5;
+  }
+  .stage { position: relative; margin-bottom: 20px; }
+  .stage:last-child { margin-bottom: 0; }
+  .stage::before {
+    content: ''; position: absolute; left: -29px; top: 18px; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--bg); border: 3px solid var(--sc); z-index: 1;
+    transition: background .2s, transform .2s;
+  }
+  .stage:hover::before { background: var(--sc); transform: scale(1.25); }
+  .stage-card {
+    background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--sc);
+    border-radius: 10px; box-shadow: var(--shadow); padding: 16px 22px 14px;
+    transition: transform .2s;
+  }
+  .stage:hover .stage-card { transform: translateX(5px); }
+  .stage-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .stage-head .no { font-family: var(--mono); font-size: 12px; color: var(--sc); font-weight: 700; }
+  .stage-head h3 { font-family: var(--display); font-size: 17px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+  .stage-head .cmdchip {
+    font-family: var(--mono); font-size: 10.5px; color: var(--sc);
+    background: color-mix(in srgb, var(--sc) 10%, transparent); border-radius: 4px; padding: 2px 8px;
+  }
+  .stage-head .span { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
+  .caps { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 2px 28px; }
+  .cap { display: flex; gap: 10px; font-size: 12.5px; color: var(--text-dim); padding: 5px 0; border-bottom: 1px dashed var(--line-soft); align-items: baseline; }
+  .cap:last-child { border-bottom: none; }
+  .cap .d { font-family: var(--mono); font-size: 11px; color: var(--sc); font-weight: 700; flex: none; }
+  .cap code { font-family: var(--mono); font-size: 11px; color: #0f766e; background: rgba(13,148,136,.08); border-radius: 3px; padding: 0 5px; }
+  .ms.dotonly i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--tc) 20%, transparent); }
+
+  /* ---------- collaboration diagram ---------- */
+  .collab {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 20px 22px 16px; margin-bottom: 26px;
+    isolation: isolate; transform: translateZ(0);
+  }
+  .collab-h { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .collab-h h3 { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--ink); }
+  .collab-h span { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+  .pipe-svg { width: 100%; height: auto; display: block; margin: 6px 0 4px; }
+  .pipe-svg text { font-family: var(--mono); }
+  .pipe-svg .node rect { transition: filter .2s; }
+  .pipe-svg .node:hover rect { filter: drop-shadow(0 5px 10px rgba(16,34,51,.14)); }
+  .flow { stroke-dasharray: 7 6; animation: flowdash 1.1s linear infinite; }
+  @keyframes flowdash { to { stroke-dashoffset: -26; } }
+  .collab-stats { display: flex; gap: 0; flex-wrap: wrap; border-top: 1px dashed var(--line); margin-top: 14px; padding-top: 14px; }
+  .cstat { flex: 1 1 150px; text-align: center; border-right: 1px solid var(--line-soft); padding: 2px 8px; }
+  .cstat:last-child { border-right: none; }
+  .cstat b { font-family: var(--display); font-size: 25px; font-weight: 700; display: block; line-height: 1.1; }
+  .cstat span { font-family: var(--mono); font-size: 10px; color: var(--text-faint); letter-spacing: .08em; }
+
+  /* ---------- CLI spotlight ---------- */
+  .cli-spotlight { display: grid; grid-template-columns: 1.12fr 1fr; gap: 30px; align-items: start; }
+  .term { background: #0d1117; border: 1px solid #21262d; border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; isolation: isolate; transform: translateZ(0); }
+  .term-title { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #161b22; border-bottom: 1px solid #21262d; }
+  .term-title .tt { font-family: var(--mono); font-size: 11px; color: #8b949e; margin-left: 8px; }
+  .term-body { position: relative; padding: 16px 18px; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; color: #c9d1d9; min-height: 300px; }
+  .term-body .dim { color: #6e7681; }
+  .term-body .hl2 { color: #79c0ff; }
+  .term-body .ok { color: #3fb950; }
+  .term-body .cmd2 { color: #d29922; }
+  .term-body [data-cli] { border-radius: 5px; transition: background .15s; margin: 0 -6px; padding: 1px 6px; }
+  .term-body [data-cli].hot { background: rgba(251,191,36,.13); }
+  .t-fold { color: #8b949e; font-size: 11px; margin-bottom: 10px; }
+  .t-status { margin-bottom: 12px; line-height: 1.7; }
+  .t-status .badge { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 4px; margin-right: 6px; }
+  .t-status .badge.auto { background: rgba(210,153,34,.2); color: #e3b341; border: 1px solid rgba(210,153,34,.5); }
+  .t-think { color: #bc8cff; margin-bottom: 8px; }
+  .t-think .tri { color: #6e7681; }
+  .t-tool { margin-bottom: 12px; }
+  .t-agents { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+  .t-agents .pill { font-size: 11px; padding: 3px 10px; border-radius: 99px; border: 1px solid #30363d; }
+  .t-agents .pill.run { color: #d29922; border-color: rgba(210,153,34,.4); }
+  .t-agents .pill.done { color: #3fb950; border-color: rgba(63,185,80,.4); }
+  .t-assist { margin-bottom: 14px; }
+  .t-ghost { color: #484f58; font-style: italic; margin-bottom: 10px; }
+  .t-sys { color: #8b949e; font-size: 10.5px; margin: -6px 0 10px; }
+  .t-input { display: flex; align-items: center; gap: 8px; border-top: 1px solid #21262d; padding-top: 12px; }
+  .t-input .prompt { color: #3fb950; font-weight: 700; }
+  .t-input .cur { display: inline-block; width: 8px; height: 15px; background: #c9d1d9; animation: blink 1.1s steps(1) infinite; vertical-align: -2px; }
+  .t-input .voice { margin-left: auto; font-style: normal; }
+  .mk { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: rgba(251,191,36,.22); color: #e3b341; font: 700 9px/1 var(--mono); margin-right: 7px; vertical-align: 1px; transition: background .15s, color .15s; }
+  [data-cli].hot .mk, [data-ws].hot .mk, [data-ed].hot .mk, [data-proto].hot .mk, .cli-row.hot .n { background: #fbbf24; color: #1a1205; }
+  .cli-list { display: flex; flex-direction: column; gap: 2px; }
+  .cli-row { display: grid; grid-template-columns: 26px 1fr; gap: 11px; padding: 8px 10px; border-radius: 8px; transition: background .15s; cursor: default; align-items: start; }
+  .cli-row:hover, .cli-row.hot { background: rgba(251,191,36,.10); }
+  .cli-row .n { width: 20px; height: 20px; border-radius: 50%; background: rgba(180,83,9,.12); color: #b45309; font: 700 11px/1 var(--mono); display: grid; place-items: center; margin-top: 2px; transition: background .15s, color .15s; }
+  .cli-row b { color: var(--ink); font-weight: 600; }
+  .cli-row > div { font-size: 13px; color: var(--text-dim); line-height: 1.55; }
+  .cli-row .ct { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-faint); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+  .cli-row .dd { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--accent); margin-top: 3px; }
+  .cli-more { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+  .cli-more .more-h { width: 100%; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 2px; }
+  .cli-more .kc { font-family: var(--mono); font-size: 11px; color: var(--text-dim); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; transition: border-color .15s, transform .15s; }
+  .cli-more .kc:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .cli-more .kc i { font-style: normal; color: var(--text-faint); margin-left: 5px; }
+
+  /* ---------- spotlight tracks (CLI / Web Shell) ---------- */
+  .story.spotlight { display: block; }
+  .sp-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+  .sp-head h3 { margin: 0; }
+  .spotlight .arc { max-width: 920px; margin-bottom: 18px; }
+
+  /* ---------- web-shell mock ---------- */
+  .ws-spotlight { display: grid; grid-template-columns: 1.28fr 1fr; gap: 28px; align-items: start; }
+  .ws-mock { background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; isolation: isolate; transform: translateZ(0); }
+  .ws-chrome { display: flex; align-items: center; gap: 8px; padding: 9px 14px; background: #eef1f4; border-bottom: 1px solid var(--line); }
+  .ws-url { font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); margin-left: 8px; background: #fff; border: 1px solid var(--line); border-radius: 5px; padding: 2px 10px; }
+  .ws-body { display: grid; grid-template-columns: 134px 1fr 92px; min-height: 322px; }
+  .ws-side { background: #f7f9fb; border-right: 1px solid var(--line-soft); padding: 10px 8px; font-size: 11px; }
+  .ws-new { font-family: var(--mono); font-size: 10.5px; color: #1d4ed8; border: 1px dashed #bcd0f5; border-radius: 6px; padding: 5px 8px; text-align: center; margin-bottom: 8px; }
+  .ws-ws { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-bottom: 8px; }
+  .ws-search { font-size: 10px; color: var(--text-faint); border: 1px solid var(--line-soft); background: #fff; border-radius: 6px; padding: 4px 8px; margin-bottom: 8px; }
+  .ws-grp { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-faint); margin: 8px 2px 4px; }
+  .ws-sess { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 6px; color: var(--text-dim); line-height: 1.3; }
+  .ws-sess.active { background: #fff; box-shadow: 0 1px 3px rgba(16,34,51,.08); color: var(--ink); font-weight: 600; }
+  .ws-sess .dotc { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .ws-wt { margin-left: auto; font-family: var(--mono); font-size: 8.5px; color: #7e22ce; }
+  .ws-main { padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; font-family: var(--mono); font-size: 11px; }
+  .ws-topbar { display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line-soft); }
+  .ws-mode { font-size: 9px; font-weight: 700; color: #b45309; background: rgba(217,119,6,.12); border: 1px solid rgba(217,119,6,.4); border-radius: 4px; padding: 1px 6px; }
+  .ws-ctx, .ws-br { color: var(--text-faint); }
+  .ws-user { background: #eef4ff; color: #1e3a8a; border-radius: 8px; padding: 6px 9px; align-self: flex-end; max-width: 85%; font-family: var(--body); font-size: 11.5px; }
+  .ws-think { color: #7c3aed; }
+  .ws-tool { color: var(--text-dim); }
+  .ws-tool .ok { color: #16a34a; }
+  .ws-path { color: #0e7490; }
+  .ws-dim { color: var(--text-faint); }
+  .ws-agents { display: flex; gap: 6px; align-items: center; }
+  .ws-pill { font-size: 9.5px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); }
+  .ws-pill.run { color: #b45309; border-color: rgba(217,119,6,.4); }
+  .ws-pill.done { color: #16a34a; border-color: rgba(22,163,74,.4); }
+  .ws-art { display: flex; align-items: center; gap: 6px; background: #f5f3ff; border: 1px solid #e3defc; border-radius: 7px; padding: 5px 9px; color: #6d28d9; }
+  .ws-composer { display: flex; align-items: center; gap: 7px; border-top: 1px solid var(--line-soft); padding-top: 8px; margin-top: auto; }
+  .ws-model { font-size: 9.5px; color: #1d4ed8; border: 1px solid #bcd0f5; border-radius: 5px; padding: 2px 7px; }
+  .ws-ghost { color: #9aa6b2; font-style: italic; flex: 1; border-radius: 4px; padding: 1px 4px; }
+  .ws-voice { font-style: normal; }
+  .ws-right { background: #fafbfc; border-left: 1px solid var(--line-soft); padding: 10px 8px; }
+  .ws-rh { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 8px; }
+  .ws-rbox { height: 46px; border-radius: 6px; background: linear-gradient(135deg,#e0e7ff,#ede9fe); border: 1px solid #e3defc; margin-bottom: 8px; }
+  .ws-rbox.s { height: 30px; background: #eef2f6; border-color: var(--line-soft); }
+  .ws-mock [data-ws] { border-radius: 5px; transition: background .15s, box-shadow .15s; }
+  .ws-mock [data-ws].hot { background: rgba(29,78,216,.12); box-shadow: inset 0 0 0 1px rgba(29,78,216,.4); }
+
+  /* ---------- automation trend ---------- */
+  .trend { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 26px; isolation: isolate; transform: translateZ(0); }
+  .trend-h { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .trend-h h3 { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--ink); }
+  .trend-h span { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+  .trend-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 26px; align-items: center; margin-top: 12px; }
+  .trend-svg { width: 100%; height: auto; }
+  .trend-svg text { font-family: var(--mono); }
+  .trend-leg { display: flex; flex-direction: column; gap: 11px; }
+  .trend-leg .lg { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
+  .trend-leg .sw2 { width: 22px; height: 3px; border-radius: 2px; flex: none; }
+  .trend-leg .sw2.dot { width: 10px; height: 10px; border-radius: 50%; }
+  .trend-leg b { color: var(--ink); }
+  .trend-bars { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; margin-top: 18px; }
+  .tb .tl { font-family: var(--mono); font-size: 10px; color: var(--text-faint); text-align: center; margin-bottom: 5px; }
+  .tb .stack { height: 116px; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 6px; overflow: hidden; border: 1px solid var(--line-soft); }
+  .tb .seg { width: 100%; }
+  .tb .seg.human { background: #cbd5e1; }
+  .tb .seg.bot { background: #2563eb; }
+  .tb .pct { text-align: center; font-family: var(--mono); font-size: 11px; font-weight: 700; color: #2563eb; margin-top: 5px; }
+  .trend-note { font-family: var(--mono); font-size: 10px; color: var(--text-faint); margin-top: 14px; line-height: 1.6; }
+
+  /* ---------- ci-bot comment stats ---------- */
+  .comment-stats { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 26px; }
+  .comment-stats h3 { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+  .comment-stats .sub { font-family: var(--mono); font-size: 11px; color: var(--text-faint); margin-bottom: 16px; }
+  .cgrid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+  .cbox { border: 1px solid var(--line-soft); border-radius: 9px; padding: 12px 13px; background: #fbfcfd; }
+  .cbox b { display: block; font-family: var(--display); font-size: 24px; line-height: 1; margin-bottom: 7px; }
+  .cbox span { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); line-height: 1.45; }
+  .cbox .m { margin-top: 8px; color: var(--text-faint); font-size: 9.5px; }
+  .ccharts { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; margin-bottom: 16px; }
+  .cchart { border: 1px solid var(--line-soft); border-radius: 10px; background: linear-gradient(180deg,#fbfcfd,#f7f9fb); padding: 13px 14px 10px; }
+  .cchart h4 { font-family: var(--display); font-size: 13px; color: var(--ink); margin-bottom: 2px; }
+  .cchart .ct { font-family: var(--mono); font-size: 9.5px; color: var(--text-faint); margin-bottom: 8px; }
+  .csvg { width: 100%; height: auto; display: block; }
+  .cbar { transition: opacity .15s, transform .15s; transform-origin: bottom; cursor: default; }
+  .cbar:hover { opacity: .82; }
+  .cline-dot { transition: r .15s; }
+  .cline-dot:hover { r: 5; }
+  @media (max-width: 860px) { .cgrid { grid-template-columns: repeat(2,1fr); } .ccharts { grid-template-columns: 1fr; } }
+
+  /* ---------- core + daemon architecture stack ---------- */
+  .arch { display: flex; flex-direction: column; gap: 8px; }
+  .arch-layer { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-left: 4px solid #64748b; border-radius: 9px; background: var(--panel); padding: 11px 14px; box-shadow: 0 1px 2px rgba(16,34,51,.04); transition: transform .18s, box-shadow .18s, border-color .18s; }
+  .arch-layer.core { border-left-color: #0e7490; background: linear-gradient(90deg, rgba(14,116,144,.07), var(--panel) 62%); }
+  .arch-layer:hover, .arch-layer.hot { transform: translateX(4px); box-shadow: var(--shadow); border-left-color: #fbbf24; }
+  .arch-layer .al-name { font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--ink); white-space: nowrap; min-width: 102px; }
+  .arch-layer.core .al-name { color: #0e7490; }
+  .arch-layer .al-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .arch-layer .al-chips i { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); background: #f1f4f7; border: 1px solid var(--line-soft); border-radius: 5px; padding: 2px 8px; transition: border-color .15s, color .15s; }
+  .arch-layer.hot .al-chips i { border-color: rgba(251,191,36,.5); }
+
+  /* ---------- daemon topology comparison ---------- */
+  .daemon-board {
+    margin: 26px 0 40px; padding: 24px; border: 1px solid var(--line); border-radius: 14px;
+    background: linear-gradient(145deg, #ffffff 0%, #f8fbfc 62%, #f4f7fb 100%);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .daemon-board-h { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
+  .daemon-board-h h4 { font-family: var(--display); font-size: 18px; color: var(--ink); }
+  .daemon-board-h span { font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); }
+  .daemon-map { display: grid; grid-template-columns: 1.05fr 54px 1.45fr 54px 1.22fr; align-items: stretch; gap: 10px; }
+  .dm-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .dm-title { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-faint); margin: 0 0 2px 2px; }
+  .dm-node { border: 1px solid var(--line); border-radius: 9px; background: #fff; padding: 10px 12px; min-height: 54px; transition: transform .18s, border-color .18s, box-shadow .18s; }
+  .dm-node:hover { transform: translateY(-2px); border-color: var(--nc, #0e7490); box-shadow: 0 8px 18px rgba(16,34,51,.08); }
+  .dm-node b { display: block; font-family: var(--mono); font-size: 11px; color: var(--nc, var(--ink)); margin-bottom: 2px; }
+  .dm-node span { display: block; font-size: 11.5px; color: var(--text-dim); line-height: 1.45; }
+  .dm-node.control { --nc:#0e7490; border-left: 4px solid #0e7490; background: linear-gradient(90deg,rgba(14,116,144,.08),#fff 48%); }
+  .dm-node.runtime { --nc:#7c3aed; border-left: 4px solid #7c3aed; background: linear-gradient(90deg,rgba(124,58,237,.07),#fff 48%); }
+  .dm-node.session { --nc:#2563eb; }
+  .dm-node.external { --nc:#d97706; }
+  .dm-arrow { display: grid; place-items: center; position: relative; color: #0e7490; font-family: var(--mono); font-size: 9px; text-align: center; line-height: 1.35; }
+  .dm-arrow::before { content: ''; position: absolute; left: 2px; right: 8px; top: 50%; height: 1.5px; background: #8bbbc2; }
+  .dm-arrow::after { content: ''; position: absolute; right: 2px; top: calc(50% - 4px); border-left: 7px solid #0e7490; border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
+  .dm-arrow span { position: relative; z-index: 1; background: #f8fbfc; padding: 2px 4px; }
+  .dm-runtime { border: 1px dashed rgba(124,58,237,.35); border-radius: 11px; padding: 9px; background: rgba(124,58,237,.025); }
+  .dm-runtime + .dm-runtime { margin-top: 2px; }
+  .dm-runtime-h { display: flex; justify-content: space-between; gap: 8px; font: 700 10px/1.4 var(--mono); color: #7c3aed; margin: 0 2px 7px; }
+  .dm-runtime-h i { font-style: normal; color: var(--text-faint); font-weight: 400; }
+  .dm-sessions { display: grid; grid-template-columns: repeat(2,1fr); gap: 6px; margin-top: 6px; }
+  .dm-session { border: 1px solid #cbdaf5; border-radius: 6px; background: #f8faff; padding: 5px 7px; font: 10px/1.35 var(--mono); color: #2563eb; }
+  .dm-foot { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 14px; }
+  .dm-fact { border-top: 2px solid var(--fc); background: rgba(255,255,255,.68); border-radius: 0 0 7px 7px; padding: 9px 10px; font-size: 11.5px; color: var(--text-dim); }
+  .dm-fact b { color: var(--fc); font-family: var(--mono); font-size: 10.5px; }
+  .arch-compare { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--line); }
+  .ac-card { border: 1px solid var(--line); border-radius: 11px; background: #fff; padding: 16px; }
+  .ac-card.qwen { border-top: 4px solid #0e7490; }
+  .ac-card.cli { border-top: 4px solid #64748b; }
+  .ac-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .ac-head b { font-family: var(--display); font-size: 15px; color: var(--ink); }
+  .ac-head span { font-family: var(--mono); font-size: 9.5px; color: var(--text-faint); }
+  .ac-flow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .ac-box { border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; background: #f8fafb; font: 10.5px/1.35 var(--mono); color: var(--text-dim); }
+  .ac-box.strong { color: #0e7490; border-color: rgba(14,116,144,.45); background: rgba(14,116,144,.06); font-weight: 700; }
+  .ac-arr { color: #94a3b8; font: 700 13px/1 var(--mono); }
+  .ac-note { margin-top: 11px; font-size: 11.5px; line-height: 1.55; color: var(--text-dim); }
+  .ac-note b { color: var(--ink); }
+  .ac-side { margin-top: 8px; padding: 7px 9px; border-left: 3px solid #d97706; background: rgba(217,119,6,.055); font-size: 10.5px; color: var(--text-dim); }
+  .arch-sources { margin-top: 14px; font: 9.5px/1.6 var(--mono); color: var(--text-faint); }
+  .arch-sources a { color: #0e7490; text-decoration: none; border-bottom: 1px dotted #0e7490; }
+
+  footer {
+    margin-top: 70px; border-top: 1px solid var(--line); padding: 30px 0 46px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--text-faint);
+    display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  }
+
+  .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  @media (max-width: 900px) {
+    .story { grid-template-columns: 1fr; gap: 20px; }
+    .cli-spotlight { grid-template-columns: 1fr; }
+    .months, .track { grid-template-columns: 130px 1fr; }
+    .bar-row { grid-template-columns: 92px 1fr 96px; }
+    .cadence { grid-template-columns: 1fr; }
+    .month-strip { flex-direction: row; flex-wrap: wrap; }
+    .mrow { flex: 1 1 160px; }
+    .pipe { padding-left: 26px; }
+    .stage::before { left: -21px; }
+    .daemon-map { grid-template-columns: 1fr; }
+    .dm-arrow { min-height: 30px; }
+    .dm-arrow::before { left: 50%; right: auto; top: 2px; bottom: 8px; width: 1.5px; height: auto; }
+    .dm-arrow::after { right: auto; left: calc(50% - 4px); top: auto; bottom: 2px; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 7px solid #0e7490; border-bottom: none; }
+    .arch-compare { grid-template-columns: 1fr; }
+    .dm-foot { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1; transform: none; }
+    .t-bar { transform: translateY(-50%) scaleX(1); }
+    .ms { opacity: 1; }
+    .bar-fill { width: var(--w); }
+  }
+</style>
+</head>
+<body>
+<div class="glow glow-a"></div><div class="glow glow-b"></div><div class="glow glow-c"></div>
+
+<!-- ============ MASTHEAD ============ -->
+<header class="masthead wrap">
+  <div class="term-bar">
+    <span class="d r"></span><span class="d y"></span><span class="d g"></span>
+    <code>qwen report --from 2026-04-01 --to 2026-09-08 --granularity feature --theme light</code><span class="cursor"></span>
+  </div>
+  <p class="overline">Qwen Code · Feature Evolution Report</p>
+  <h1>五个月，从 CLI 工具<br>到<span class="hl">多端 Agent 平台</span></h1>
+  <p class="lede">2026 年 4 月 1 日至 9 月 8 日，Qwen Code 经历了 <b>10 个 minor 版本</b>的迭代。本报告不以 commit 为粒度，而是追踪 <b>23 条功能线</b>的引入时刻与成熟轨迹——每一条线何时诞生、何时成型、何时成为平台的一根支柱；八月已升为完整月，9 月 1–8 日作为今日切片单独计入。</p>
+  <div class="stats-strip reveal">
+    <div class="stat"><b>10</b><span>Minor 版本</span></div>
+    <div class="stat"><b>65</b><span>Stable Releases</span></div>
+    <div class="stat"><b>1,220</b><span>Feat Commits</span></div>
+    <div class="stat"><b>23</b><span>功能线</span></div>
+    <div class="stat"><b>4,359</b><span>合入提交数</span></div>
+  </div>
+</header>
+
+<!-- ============ 01 RELEASE TRAIN ============ -->
+<section class="wrap">
+  <div class="sec-head reveal"><span class="sec-no">01</span><h2>版本列车</h2></div>
+  <p class="sec-note reveal">每个 minor 版本都是一个能力台阶。四月筑底、五月架梁、六月封顶、七月装修、八月开业、九月接棒——节奏清晰可循。</p>
+  <div class="train reveal r1">
+    <div class="stop" style="--sc:#0d9488"><div class="v">v0.14</div><div class="dt">04-03</div><div class="cap">Channels 平台 · Cron 调度 · Qwen3.6-Plus</div></div>
+    <div class="stop" style="--sc:#0d9488"><div class="v">v0.15</div><div class="dt">04-22</div><div class="cap">后台代理 · Auto-memory · Session 管理</div></div>
+    <div class="stop" style="--sc:#2563eb"><div class="v">v0.16</div><div class="dt">05-23</div><div class="cap">qwen serve daemon · ToolSearch · Worktree</div></div>
+    <div class="stop" style="--sc:#2563eb"><div class="v">v0.17</div><div class="dt">05-29</div><div class="cap">Computer Use · Desktop 多品牌</div></div>
+    <div class="stop" style="--sc:#ea580c"><div class="v">v0.18</div><div class="dt">06-12</div><div class="cap">Daemon 合入 main · Plan Mode · Workflow</div></div>
+  </div>
+  <div class="train reveal r2">
+    <div class="stop" style="--sc:#ea580c"><div class="v">v0.19</div><div class="dt">06-23</div><div class="cap">Voice · Browser Extension · Artifact</div></div>
+    <div class="stop" style="--sc:#db2777"><div class="v">v0.20</div><div class="dt">07-19</div><div class="cap">Multi-workspace · Worktree 隔离会话</div></div>
+    <div class="stop" style="--sc:#db2777"><div class="v">v0.21</div><div class="dt">07-24</div><div class="cap">Goal v3 · Channel 生态完善</div></div>
+    <div class="stop" style="--sc:#d97706"><div class="v">v0.22</div><div class="dt">08-22</div><div class="cap">Review 收敛账本 · 会话 PR 绑定 · MCP 2026 core</div></div>
+    <div class="stop" style="--sc:#7c3aed"><div class="v">v0.23</div><div class="dt">09-03</div><div class="cap">qwen-live 语音包 · Workspaces 总览 · 会话内容搜索</div></div>
+  </div>
+</section>
+
+<!-- ============ 02 MATURITY TIMELINE ============ -->
+<section class="wrap">
+  <div class="sec-head reveal"><span class="sec-no">02</span><h2>功能成熟时间线</h2></div>
+  <p class="sec-note reveal">菱形为功能引入点，圆点为关键里程碑，<b style="color:var(--text-dim)">日期与事件直接标注在轨道上下方</b>；悬停任一标注可查看完整描述。</p>
+  <div class="chart-scroll reveal">
+    <div class="chart">
+      <div class="months">
+        <div></div>
+        <div class="month-cells"><span>4月</span><span>5月</span><span>6月</span><span>7月</span><span>8月</span><span>9月</span></div>
+      </div>
+      <div class="lanes" id="lanes">
+        <div class="gridline" style="left:calc(190px + (100% - 190px) * 0.195)"></div>
+        <div class="gridline" style="left:calc(190px + (100% - 190px) * 0.396)"></div>
+        <div class="gridline" style="left:calc(190px + (100% - 190px) * 0.591)"></div>
+        <div class="gridline" style="left:calc(190px + (100% - 190px) * 0.792)"></div>
+        <div class="today" style="left:calc(190px + (100% - 190px) * 1)"><i>09-08</i></div>
+      </div>
+      <div class="legend">
+        <em><span class="sw diamond"></span>功能引入</em>
+        <em><span class="sw dot"></span>里程碑（日期 + 事件）</em>
+        <em><span class="sw bar"></span>活跃演进期</em>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlights reveal">
+    <div class="hl-item">
+      <span class="k" style="color:#9333ea">⚡ 成熟最快</span>
+      <p><b>Workflow 引擎</b> — 从 P1 沙箱到完整动态工作流（恢复、保存、触发、通知），仅用 <b>12 天</b>。</p>
+    </div>
+    <div class="hl-item">
+      <span class="k" style="color:#e11d48">🔊 覆盖最广</span>
+      <p><b>Voice 语音</b> — 从 CLI 听写到 daemon、Web Shell、桌面端全端覆盖，仅用 <b>6 天</b>。</p>
+    </div>
+    <div class="hl-item">
+      <span class="k" style="color:#0e7490">🏗 跨度最长</span>
+      <p><b>Daemon/Serve</b> — 从 HTTP 脚手架到多工作区会话中枢，贯穿 <b>11 周</b>持续演进。</p>
+    </div>
+    <div class="hl-item wide">
+      <span class="k" style="color:#d97706">● 08-01 → 09-08 · 近期增量（八月完整月 + 九月切片）· 1,348 commits · 377 feat · 1,345 合入 PR</span>
+      <div class="aug">
+        <div class="aug-row"><span class="wd">08-01 → 06</span><span>/review 成本账本与反向依赖闭包验证、Web Shell 原生 Live Voice、session workflow 驾驶舱、tmux 终端子代理、CUA 驱动默认化、daemon 内存压力观测</span></div>
+        <div class="aug-row"><span class="wd">08-07 → 09</span><span>跨厂商压缩缓存共享、workflow 协作暂停/恢复、飞书 ask-user 卡片、Mem0 记忆写入、Desktop Local Control 配对</span></div>
+        <div class="aug-row"><span class="wd">08-10 → 13</span><span>Web Shell 图片拖拽与上下文迷你进度条、桌面端默认工作区、原生多代理协调、Goal v3 进 ACP 会话、OTel 会话生命周期对齐、Agent Plugins v1</span></div>
+        <div class="aug-row"><span class="wd">08-14 → 22</span><span>/review Aone 第二评审平台与收敛判定系列、autofix footprint 门禁与维护者交接、Web Shell 文件附件与 PR 会话绑定、live-state 活动水位与 live-session 注册表（<code>qwen sessions ps</code>）、/advisor 第二意见、Local Control 归并 daemon、qwen3.8-max Token Plan</span></div>
+        <div class="aug-row"><span class="wd">08-23 → 25</span><span>MCP 2026 core、钉钉 Workspace 第七通道、Kimi 内置供应商、workflow 显式 opt-in 与执行预览授权、Goal 停滞自动停止、Computer Use skill 化、review --topology 单遍 A/B 臂与容器内跑仓库自有命令、桌面端 OpenWork fork 收口</span></div>
+        <div class="aug-row"><span class="wd">08-26 → 31</span><span>Goal 不可行早停与交接轮、standalone 无项目会话、ACP 托管 auto-memory、会话 token 用量面板、session PR 绑定（Aone 一等平台）、Web Shell opt-in 浏览器终端与 OpenTUI 迁移基建批；08-29 起再落 OpenTUI 基础批（#10146）、workspace runtime 所有权（#10593）、serve 外露 Workflow 任务与控制（#10411）、Web Shell 工作区总览（#10407）、Mem0 管理员 dialect（#10634）、Goal 预算运营可配（#10543）、通道命名任务并发控制（#10574）</span></div>
+        <div class="aug-row"><span class="wd">09-01 → 03</span><span>qwen-live 独立语音 daemon 包（#10367）、Goal 模型提案 + 对话框审批（#10171）、Web Shell standalone 聊天（#10514）与 Workspaces 总览面板（#10589）、会话内容搜索（#10612）、session workflow 驾驶舱实验（#8583）、OpenTUI batch 4/5（#10383/#10696）、Mem0 Extension 包发布（#10653）、review worktree 预建（#10423）、输出风格配置（#10283）与 modelProviders 热重载（#10582）；09-03 再落会话 artifact 快照（#10747）、钉钉文件外发（#10893）、OpenTUI 提交路径对齐（#10883 / #10831）与通道权限投票按会话路由（#10793）</span></div>
+        <div class="aug-row"><span class="wd">09-04 → 06</span><span>会话写者强制 lease 围栏（#10924）、workspace 级 Skills runtime（#10697）、worktree 隔离命名任务（#10643）、transcript HTML 导出（#10076）、自定义输出风格目录（#10761）、review 散文执行审计 + 低 effort 召回下限（#10221 / #9912）、workflow run handles（#11089）、Web Shell 浏览器本地目录桥接（#10962）与子代理 live 状态（#10939）</span></div>
+        <div class="aug-row"><span class="wd">09-07 → 08</span><span>并发 standalone daemon + 会话围栏（#11207）、Web Shell 连续历史与紧凑轮导航（#11208）+ 上下文用量 tab（#11177）、daemon 记忆写入（#11311）+ Mem0 管理员自动召回（#11246）、Goal 窗口花费可视（#11248 / #11254）、命名会话 worktree 重置（#11015）、autofix 轮报告外露模型与版本（#11124）</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 EVOLUTION STORIES ============ -->
+<section class="wrap">
+  <div class="sec-head reveal"><span class="sec-no">03</span><h2>关键功能成熟轨迹</h2></div>
+  <p class="sec-note reveal">下面以四个<b style="color:var(--text-dim)">实况专章</b>还原平台承重墙、开放协议骨架与用户表面——<b style="color:var(--text-dim)">Core + Daemon</b> 引擎、<b style="color:var(--text-dim)">开放协议</b>、<b style="color:var(--text-dim)">CLI / TUI</b>、<b style="color:var(--text-dim)">Web Shell</b>（Core+Daemon / CLI / Web Shell 截至 9 月 8 日分别 286 / 200 / 199 个合入 feat 提交）；其间穿插八条功能线成熟路径。每个专章左为结构/界面实况，右为能力清单，悬停联动高亮。</p>
+
+  <div class="story spotlight reveal" style="--sc:#0e7490">
+    <div class="sp-head"><span class="chip">Core + Daemon</span><h3>引擎与守护：从单进程到多客户端会话中枢</h3><span class="span-badge" style="margin:0">core 165 + serve/daemon 121 feat</span></div>
+    <p class="arc">core 与 daemon 是整个平台的承重墙。本季度把单进程 CLI 重构成「多客户端接入 → 守护路由 → ACP 隔离 → 引擎循环 → 全链路观测」的五层结构：daemon 从 05-07 的 HTTP 脚手架长成 07 月的多工作区会话中枢，core 则补齐工具并行、分层压缩、model fallback 与 hooks 全生命周期。</p>
+    <div class="cli-spotlight">
+      <div class="arch">
+        <div class="arch-layer" data-ed="1"><span class="mk">1</span><span class="al-name">接入 · Clients</span><span class="al-chips"><i>CLI / TUI</i><i>Web Shell</i><i>VS Code</i><i>Desktop</i><i>Channels</i><i>SDK ×3</i></span></div>
+        <div class="arch-layer" data-ed="2"><span class="mk">2</span><span class="al-name">serve · 守护</span><span class="al-chips"><i>HTTP / ACP 路由</i><i>auth + 分级限流</i><i>session 生命周期</i><i>SSE 重放</i><i>多工作区注册表</i></span></div>
+        <div class="arch-layer" data-ed="3"><span class="mk">3</span><span class="al-name">bridge · 隔离</span><span class="al-chips"><i>ACP 子进程池</i><i>worktree 隔离</i><i>多客户端权限协调</i><i>MCP 传输池</i></span></div>
+        <div class="arch-layer core" data-ed="4"><span class="mk">4</span><span class="al-name">core · 引擎</span><span class="al-chips"><i>agent loop</i><i>工具并行</i><i>分层压缩</i><i>memory / hooks</i><i>model fallback</i></span></div>
+        <div class="arch-layer" data-ed="5"><span class="mk">5</span><span class="al-name">可靠性 · 观测</span><span class="al-chips"><i>retry / 超时</i><i>loop 检测</i><i>OTel 全链路</i><i>runtime 采样</i></span></div>
+      </div>
+      <div class="cli-list">
+        <div class="cli-row" data-ed="2"><span class="n">2</span><div><span class="ct">接入/协议</span><b>serve Stage 1</b> — SSE + session/prompt/permission 路由 + DaemonClient SDK。<span class="dd">05-07 · #3803</span></div></div>
+        <div class="cli-row" data-ed="2"><span class="n">2</span><div><span class="ct">接入/协议</span><b>协议加固</b> — typed event schema v1 · heartbeat · --require-auth · ACP Streamable HTTP · WebSocket + REST parity（29 方法）。<span class="dd">05-17 → 06-11</span></div></div>
+        <div class="cli-row" data-ed="1"><span class="n">1</span><div><span class="ct">接入/协议</span><b>多端接入</b> — serve 托管 Web Shell；TS / Python / Java 三端 SDK；Channels 接入。<span class="dd">06-14 → 06-19</span></div></div>
+        <div class="cli-row" data-ed="3"><span class="n">3</span><div><span class="ct">会话/隔离</span><b>多工作区 + worktree</b> — runtime 注册表 + 会话路由 + worktree 隔离会话 + DaemonTransport 抽象。<span class="dd">06-12 → 07-24</span></div></div>
+        <div class="cli-row" data-ed="4"><span class="n">4</span><div><span class="ct">引擎核心</span><b>工具并行 + 按需加载</b> — Kind 分批 + shell 只读检测 + ToolSearch + 低频工具延迟。<span class="dd">04-13 / 05-10</span></div></div>
+        <div class="cli-row" data-ed="4"><span class="n">4</span><div><span class="ct">引擎核心</span><b>截断 + fallback</b> — 分层 tool-output 截断 + 每消息预算 + model fallback chain 过载切换。<span class="dd">06-12 / 07-05</span></div></div>
+        <div class="cli-row" data-ed="4"><span class="n">4</span><div><span class="ct">上下文/记忆</span><b>压缩 + memory + hooks</b> — 三层自动压缩阈值 + 用户级记忆 + hooks 全生命周期 + 超大结果落盘。<span class="dd">04-16 → 07-11</span></div></div>
+        <div class="cli-row" data-ed="5"><span class="n">5</span><div><span class="ct">可靠性/观测</span><b>护栏 + 全链路</b> — loop/停滞检测 + 每工具超时 + OTel 全链路 + TTFT + runtime 采样 + 流空闲超时 + 静默心跳。<span class="dd">04-19 → 07-15</span></div></div>
+        <div class="cli-row" data-ed="2"><span class="n">2</span><div><span class="ct">会话/观测</span><b>live-state 活动水位</b> — 会话活动水位 + 可轮询轮次状态 + live-session 注册表（<code>qwen sessions ps</code>）。<span class="dd">08-17 → 08-19</span></div></div>
+        <div class="cli-row" data-ed="2"><span class="n">2</span><div><span class="ct">会话/治理</span><b>并发 daemon + 会话围栏</b> — 多 standalone daemon 并发运行，Conversations 写者强制 session lease 围栏（#11207 / #10924）；workspace 级 Skills runtime（#10697）。<span class="dd">09-04 → 09-07</span></div></div>
+      </div>
+    </div>
+
+    <div class="daemon-board">
+      <div class="daemon-board-h">
+        <h4>Daemon 架构：控制面常驻，执行面按 workspace 隔离</h4>
+        <span>默认本地路径 · 进程边界按当前实现绘制</span>
+      </div>
+      <div class="daemon-map">
+        <div class="dm-col">
+          <div class="dm-title">多端客户端</div>
+          <div class="dm-node"><b>CLI / TUI</b><span>既可直跑，也可作为 daemon 的交互客户端</span></div>
+          <div class="dm-node"><b>Web Shell · Desktop · VS Code</b><span>共享会话 API、事件流与权限控制</span></div>
+          <div class="dm-node"><b>Channels · SDK</b><span>常驻消息入口与程序化驱动</span></div>
+        </div>
+        <div class="dm-arrow"><span>HTTP · WS<br>SSE · ACP</span></div>
+        <div class="dm-col">
+          <div class="dm-title">Daemon 主进程 · 控制面</div>
+          <div class="dm-node control"><b>Serve API + 鉴权</b><span>统一接入、路由、限流、事件订阅与重放</span></div>
+          <div class="dm-node control"><b>WorkspaceRegistry</b><span>按 workspace / cwd / live-session owner 选择 runtime</span></div>
+          <div class="dm-node control"><b>生命周期与恢复协调</b><span>注册信息、transcript 与部分元数据可恢复；活队列和进程状态不持久化</span></div>
+          <div class="dm-node control"><b>横切服务</b><span>Artifacts · Channels · Voice · Git/PR · Telemetry</span></div>
+        </div>
+        <div class="dm-arrow"><span>每 workspace<br>一条执行通道</span></div>
+        <div class="dm-col">
+          <div class="dm-title">执行面 · Workspace Runtimes</div>
+          <div class="dm-runtime">
+            <div class="dm-runtime-h">Workspace A <i>daemon 内 runtime 对象</i></div>
+            <div class="dm-node runtime"><b>ACP Bridge → qwen --acp 子进程</b><span>agent loop · 模型调用 · 内置工具 · MCP client · hooks / memory</span></div>
+            <div class="dm-sessions"><div class="dm-session">Session A1<br>EventBus · FIFO</div><div class="dm-session">Session A2<br>共享 ACP 进程</div></div>
+          </div>
+          <div class="dm-runtime">
+            <div class="dm-runtime-h">Workspace B <i>独立环境 / FS / bridge</i></div>
+            <div class="dm-node runtime"><b>另一 ACP 子进程</b><span>独立 workspace 执行边界，可绑定 worktree</span></div>
+          </div>
+          <div class="dm-node external"><b>外部依赖</b><span>Model APIs · MCP servers · Shell / Filesystem · Browser / CUA</span></div>
+        </div>
+      </div>
+      <div class="dm-foot">
+        <div class="dm-fact" style="--fc:#0e7490"><b>一处接入，多端共享</b><br>客户端不各自拥有一套后端；它们经 daemon 访问统一 workspace 与 session。</div>
+        <div class="dm-fact" style="--fc:#7c3aed"><b>隔离单位是 workspace</b><br>每个活跃 workspace 通常一个 ACP 子进程；同 workspace 的多个 session 复用该进程。</div>
+        <div class="dm-fact" style="--fc:#d97706"><b>可脱离单个客户端存活</b><br>存在 agent / notification 活动时，客户端断开不等于任务立即终止；空闲 runtime 仍会被回收。</div>
+      </div>
+
+      <div class="arch-compare">
+        <div class="ac-card qwen">
+          <div class="ac-head"><b>Qwen Code · Daemon 中心</b><span>control plane / execution plane 分离</span></div>
+          <div class="ac-flow">
+            <span class="ac-box">多客户端</span><span class="ac-arr">→</span><span class="ac-box strong">常驻 Daemon</span><span class="ac-arr">→</span><span class="ac-box">Workspace Runtime</span><span class="ac-arr">→</span><span class="ac-box">ACP 子进程</span><span class="ac-arr">→</span><span class="ac-box">模型 / 工具</span>
+          </div>
+          <p class="ac-note"><b>关键差异：</b>CLI 只是多个入口之一。会话路由、workspace 选择、事件流、恢复协调和横切服务由独立控制面承接，因此 Web、桌面、IDE、Channel 与 SDK 可以围绕同一后端协作。</p>
+        </div>
+        <div class="ac-card cli">
+          <div class="ac-head"><b>Claude Code / Codex · 默认本地 CLI 路径</b><span>process-centered</span></div>
+          <div class="ac-flow">
+            <span class="ac-box">Terminal / IDE</span><span class="ac-arr">→</span><span class="ac-box strong" style="color:#475569;border-color:#94a3b8;background:#f1f5f9">当前 CLI 进程</span><span class="ac-arr">→</span><span class="ac-box">本地仓库 / 命令</span><span class="ac-arr">↔</span><span class="ac-box">模型服务</span>
+          </div>
+          <p class="ac-note"><b>默认交互中心是当前启动的 CLI：</b>它读取和修改本地仓库、运行命令，并保存/恢复自己的会话。官方公开页面没有把常驻本地 daemon 描述为默认的多客户端会话中枢。</p>
+          <div class="ac-side"><b>不要混为一谈：</b>Claude Code IDE 扩展会启动其私有 CLI，并以本地 MCP 连接外部 CLI；Codex Cloud 则在隔离云环境后台运行任务。两者都是扩展路径，不等价于本图中的本地 Daemon 控制面。</div>
+        </div>
+      </div>
+      <div class="arch-sources">公开资料口径：<a href="https://code.claude.com/docs/en/overview">Claude Code Overview</a> · <a href="https://code.claude.com/docs/en/ide-integrations">Claude Code IDE Integrations</a> · <a href="https://learn.chatgpt.com/docs/codex/cli">Codex CLI</a> · <a href="https://learn.chatgpt.com/docs/cloud">Codex Cloud</a>。竞品架构仅描述官方文档明确支持的默认路径，不排除未公开实现或后续演进。</div>
+    </div>
+  </div>
+
+  <div class="story spotlight reveal" style="--sc:#d97706">
+    <div class="sp-head"><span class="chip">开放协议 · Open Protocols</span><h3>开放协议骨架：ACP / MCP / CDP 把多端与生态连成一体</h3><span class="span-badge" style="margin:0">协议相关合入提交 · ACP 140 / MCP 117 / CDP 2</span></div>
+    <p class="arc">若 core+daemon 是引擎，开放协议就是把它接到外部世界的神经束。本季度 ACP 从 daemon 内部协议长成多客户端开放标准（stdio → SSE → Streamable HTTP → WS+REST，29 方法 + 控制请求 + 权限协调），MCP 从"能连工具服务器"长成带 OAuth、热重载、传输池与运行时增删的工具 / 资源生态，CDP 与 A2A 则把浏览器与 agent 间互联也纳入版图。季度末（08-24 起）继续向治理与韧性加深：ACP 通道传输存活性、托管记忆生命周期接入与子进程树回收，MCP 重启 server 会话内恢复、工具参数送入 AUTO 分类器，hooks 信任边界收口。左为协议栈实况，编号对应右侧能力清单；悬停联动高亮。</p>
+    <div class="cli-spotlight">
+      <div class="arch">
+        <div class="arch-layer" data-proto="1"><span class="mk">1</span><span class="al-name">客户端 · ACP</span><span class="al-chips"><i>CLI / TUI</i><i>VS Code</i><i>Web Shell</i><i>Desktop</i><i>Channels</i><i>SDK ×3</i></span></div>
+        <div class="arch-layer" data-proto="2"><span class="mk">2</span><span class="al-name">传输 · 开放</span><span class="al-chips"><i>stdio</i><i>SSE</i><i>Streamable HTTP /acp</i><i>WebSocket</i><i>REST parity · 29 方法</i><i>控制请求</i><i>传输存活性</i></span></div>
+        <div class="arch-layer" data-proto="3"><span class="mk">3</span><span class="al-name">工具 · MCP</span><span class="al-chips"><i>工具 servers</i><i>资源 read</i><i>文件系统</i><i>浏览器</i><i>计算机操作</i><i>OAuth · 热重载 · 传输池 · 运行时增删 · 会话内恢复</i></span></div>
+        <div class="arch-layer" data-proto="4"><span class="mk">4</span><span class="al-name">外延 · 桥接</span><span class="al-chips"><i>CDP tunnel</i><i>acp-bridge 权限协调</i><i>mobile-mcp</i><i>A2A 触达</i></span></div>
+      </div>
+      <div class="cli-list">
+        <div class="cli-row" data-proto="1"><span class="n">1</span><div><span class="ct">客户端/ACP</span><b>多端 ACP 接入</b> — VS Code / CLI / Web Shell / Desktop / Channels + TS/Py/Java SDK；hooks 与 message-rewrite 中间件进 ACP。<span class="dd">04-05 → 04-16</span></div></div>
+        <div class="cli-row" data-proto="2"><span class="n">2</span><div><span class="ct">传输</span><b>Streamable HTTP + parity</b> — ACP Streamable HTTP @ /acp（RFD #721）+ WebSocket / REST parity 29 方法 + DaemonTransport 标准合规。<span class="dd">05-25 → 06-14</span></div></div>
+        <div class="cli-row" data-proto="2"><span class="n">2</span><div><span class="ct">传输/合规</span><b>事件 schema + 控制请求</b> — typed event schema v1 · heartbeat · --require-auth · 控制请求（effort / models / usage / context）。<span class="dd">05-17 → 07-11</span></div></div>
+        <div class="cli-row" data-proto="3"><span class="n">3</span><div><span class="ct">工具/MCP</span><b>渐进可用 + 传输池</b> — MCP 不再阻塞首输入 + 健康 pill + 共享传输池 + 守护栏 / 滞回 / 重启预算。<span class="dd">05-02 → 05-21</span></div></div>
+        <div class="cli-row" data-proto="3"><span class="n">3</span><div><span class="ct">工具/MCP</span><b>运行时增删 + OAuth</b> — SDK + serve + acp-bridge 运行时增删 server + 资源读取 read_mcp_resource + OAuth 授权流 / 回调加固。<span class="dd">04-18 → 07-25</span></div></div>
+        <div class="cli-row" data-proto="1"><span class="n">1</span><div><span class="ct">客户端/ACP</span><b>acp-bridge 自给 + 权限协调</b> — acp-bridge 包自给 F1 + 多客户端权限协调 F3 + preflight cells + 权限 relay。<span class="dd">05-18 → 07-11</span></div></div>
+        <div class="cli-row" data-proto="4"><span class="n">4</span><div><span class="ct">外延</span><b>CDP 反向隧道</b> — 浏览器扩展 CDP tunnel + 桥接注册表；mobile-mcp / cua 0.7.0 同步。<span class="dd">06-24 → 07-03</span></div></div>
+        <div class="cli-row" data-proto="4"><span class="n">4</span><div><span class="ct">外延/互通</span><b>A2A + 协议互通</b> — A2A 初步触达（07-07）；SSE / HTTP MCP server 在 ACP 模式可用，跨协议打通。<span class="dd">04-24 → 07-07</span></div></div>
+        <div class="cli-row" data-proto="1"><span class="n">1</span><div><span class="ct">ACP/daemon</span><b>传输存活性与进程治理</b> — 通道传输存活性 #9976、托管记忆生命周期经 ACP #9992、子进程树回收 #10142、权限超时默认关闭 #9933、路由表循环解除 #10040。<span class="dd">08-24 → 09-01</span></div></div>
+        <div class="cli-row" data-proto="3"><span class="n">3</span><div><span class="ct">工具/MCP</span><b>恢复与治理</b> — 重启的 HTTP server 会话内恢复 #9962、工具参数送入 AUTO 分类器 #10352、server 配置独立模块 #9496、serve-mcp hashbang 修复 #10485。<span class="dd">08-26 → 09-01</span></div></div>
+        <div class="cli-row" data-proto="1"><span class="n">1</span><div><span class="ct">hooks</span><b>信任边界加固</b> — 四处信任边界收口 #10427、fire-and-forget hooks 退出后保留 #10288、PreToolUse ask 展示 edit diff #9441。<span class="dd">08-29 → 09-01</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="story reveal" style="--sc:#16a34a">
+    <div>
+      <span class="chip">Channels</span>
+      <h3>从三通道插件平台到企业消息生态</h3>
+      <p class="arc">把代理接入 Telegram、微信、钉钉、飞书、企业微信、QQ 与钉钉 Workspace 七个消息平台：不止能收能发，还有通道记忆、webhook 触发与 GitHub 主动轮询——代理在消息世界里的常驻入口。</p>
+      <span class="span-badge">七通道 · 常驻入口</span>
+    </div>
+    <div class="phases">
+      <div class="phase"><div class="meta"><span class="dt">04-01</span><span class="tag">引入</span></div><p>Channels 平台合入：插件体系 + Telegram / 微信 / 钉钉三通道；同日完成 telegraf → grammy 迁移。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">05-28 ~ 06-29</span><span class="tag">通道扩张</span></div><p>飞书/Lark 适配器、QQ 机器人适配器先后接入；ChannelAgentBridge 抽象层落地，通道与代理生命周期解耦。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">07-01 ~ 07-07</span><span class="tag">自治化</span></div><p>Channel loop + daemon-managed worker 让通道成为常驻代理入口；企业微信智能机器人通道上线，六通道格局成型。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">07-15 ~ 07-29</span><span class="tag">生态完善</span></div><p>结构化通道记忆、webhook 触发任务、GitHub 轮询适配器、钉钉交互卡片与图片外发——从"能收能发"到"有记忆、有主动性"。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-07 ~ 08-08</span><span class="tag">群协作</span></div><p>group pairing 群聊配对门禁（#8440）、飞书 ask-user 问题卡片（#8578）——渠道从"能收能发"走向"可治理、可交互"。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-25</span><span class="tag">第七通道</span></div><p>钉钉 Workspace 通道上线（#9394）——企业办公场景直达 agent。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-27</span><span class="tag">会话治理</span></div><p>owner-scoped 命名会话（#10198）——渠道会话按主人命名、互不串扰。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-30 ~ 09-01</span><span class="tag">任务协作</span></div><p>命名任务输出归属（#10420）、并发命名任务控制（#10574）、DWS 任务 reactions（#10610）——渠道任务可归属、可并发控制。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">09-04 ~ 09-07</span><span class="tag">任务隔离</span></div><p>worktree 隔离命名任务（#10643）、消息前缀过滤（#10817）、命名会话 worktree 重置（#11015）、钉钉后台聚合 opt-in（#10899）——渠道任务可隔离、可过滤。</p></div>
+    </div>
+  </div>
+
+  <div class="story reveal" style="--sc:#ea580c">
+    <div>
+      <span class="chip">Subagents</span>
+      <h3>可并行、可嵌套、可监督的子代理编排</h3>
+      <p class="arc">主代理把检索、复现、审查等任务并行分派给多个子代理；支持上下文共享、嵌套、后台运行、worktree 隔离、按模型并发上限与监督层——复杂任务拆得开、收得拢。</p>
+      <span class="span-badge">并行 · 嵌套 · 监督</span>
+    </div>
+    <div class="phases">
+      <div class="phase"><div class="meta"><span class="dt">04-14 ~ 04-17</span><span class="tag">引入</span></div><p>fork 子代理实现上下文共享；后台子代理支持 headless 与 SDK 调用。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">04-27 ~ 05-11</span><span class="tag">可控性</span></div><p>模型侧代理控制（<code>task_stop</code> / <code>send_message</code>）、pill UI 与 <code>/tasks</code> 对话框、前台→后台提升（Ctrl+B）。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-11 ~ 06-22</span><span class="tag">规模化</span></div><p>Agent Team 实验特性 + 声明式代理 frontmatter；可复活后台代理与 transcript TTL；权限请求向父会话冒泡。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">07-03 ~ 07-18</span><span class="tag">精细化</span></div><p><b>嵌套子代理</b>（可配置深度）、<code>working_dir</code> worktree 固定、按模型并发上限——编排粒度补全。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-01 ~ 08-25</span><span class="tag">监督与协调</span></div><p>agent view supervisor 监督层（#7799）、<b>原生多代理协调</b>（#8804）、agent view 会话生命周期管理（#9986）——子代理有监督、有协作协议、有生命周期。</p></div>
+    </div>
+  </div>
+
+  <div class="story reveal" style="--sc:#be185d">
+    <div>
+      <span class="chip">Memory</span>
+      <h3>从会话内提取到用户级 + 团队级分层记忆</h3>
+      <p class="arc">让代理跨会话记住你：项目级 → 用户级 → 团队级三层记忆，自动提取与召回，七月延伸进 Channel 场景，成为跨会话的长期上下文底座。</p>
+      <span class="span-badge">项目 / 用户 / 团队 三层</span>
+    </div>
+    <div class="phases">
+      <div class="phase"><div class="meta"><span class="dt">04-16</span><span class="tag">引入</span></div><p>托管式 auto-memory + auto-dream 系统：提取、召回、存储、索引与后台梦境整理一次成型。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">05-09 ~ 05-27</span><span class="tag">自动化</span></div><p>autoSkill 后台技能提取、<code>QWEN.local.md</code> 项目级上下文；auto-dream/auto-skill 默认开启并配 <code>/memory</code> 开关。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-04 ~ 06-27</span><span class="tag">分层</span></div><p>用户级 <code>~/.qwen/memories/</code> 落地；<code>/remember</code> 与自动提取解耦；git 共享的<b>团队记忆层</b>加入。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">07-15 ~ 07-29</span><span class="tag">场景化</span></div><p>Channel 结构化记忆管理、提交提示词自动召回——记忆从 CLI 走向多端多场景。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-01 ~ 08-07</span><span class="tag">外延与保护</span></div><p>Dream pinned 文件保护（#7714）、后台代理轮次上限（#8171）、可选 Mem0 写入（#8507）——记忆可外接、可保护、开销可调。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-26 ~ 08-28</span><span class="tag">托管生命周期</span></div><p>ACP 托管 auto-memory 生命周期（#9992）、可配置 Mem0 扩展骨架（#10149）——记忆生命周期经协议托管、可扩展。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-31 ~ 09-01</span><span class="tag">Mem0 生态</span></div><p>管理员自有 Mem0 dialect 加载（#10634）、Mem0 Extension 包发布（#10653）——记忆外延生态成型。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">09-07</span><span class="tag">daemon 写入</span></div><p>daemon 记忆写入（#11311）、管理员 Mem0 dialect opt-in 自动召回（#11246）——记忆闭环延伸到 daemon 侧。</p></div>
+    </div>
+  </div>
+
+  <div class="story reveal" style="--sc:#9333ea">
+    <div>
+      <span class="chip">Workflow</span>
+      <h3>可编程的多代理工作流</h3>
+      <p class="arc">用脚本编排多个代理：并发扇出、worktree 隔离、token 预算；跑通后可保存为斜杠命令复用、关键词触发，支持后台运行与协作式暂停/恢复——把多代理协作变成可组合、可审查的工作流。</p>
+      <span class="span-badge">多代理编排 · 可保存复用</span>
+    </div>
+    <div class="phases">
+      <div class="phase"><div class="meta"><span class="dt">06-10</span><span class="tag">引入</span></div><p>最小 <code>node:vm</code> 沙箱 + 顺序 <code>agent()</code> 调度，功能门控上线。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-12 ~ 06-14</span><span class="tag">并发编排</span></div><p><code>parallel()</code> / <code>pipeline()</code> 并发扇出；代理支持 schema、模型与 worktree 隔离。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-15 ~ 06-18</span><span class="tag">命令与界面</span></div><p><code>/workflows</code> 命令 + 阶段树 UI + 运行注册表；token 预算与单次运行用量展示。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-22</span><span class="tag">完整移植</span></div><p>同会话恢复（JSONL 日志）、保存的工作流化作斜杠命令、关键词触发、完成通知与停滞看门狗。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-01 ~ 08-20</span><span class="tag">协作与可视</span></div><p>后台运行 opt-in + 审批冒泡（#8303 / #8240）、session workflow 驾驶舱（#8391）、协作式 pause/resume（#8320）、执行状态外露（#9034）——workflow 进入人机协作阶段。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-24</span><span class="tag">安全授权</span></div><p>workflow 显式用户 opt-in + 执行预览授权（#9806 / #9837）——先看它将做什么，再授权放行。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-31</span><span class="tag">协议化</span></div><p>serve 外露 Workflow 任务与控制（#10411）——工作流编排经 daemon 协议可访问、可控制。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">09-06</span><span class="tag">可编程</span></div><p>run handles 返回 + inline 脚本持久化（#11089）——workflow 运行可被程序引用、脚本可留存复用。</p></div>
+    </div>
+  </div>
+
+  <div class="story reveal" style="--sc:#e11d48">
+    <div>
+      <span class="chip">Voice</span>
+      <h3>原生语音听写与实时语音对话</h3>
+      <p class="arc">CLI 内置原生听写（流式转写 + 热词偏置），Web Shell 支持 Live Voice 实时对话——边说边响应；daemon 与桌面端同步接通，语音输入与对话四端可用。</p>
+      <span class="span-badge">CLI / daemon / Web Shell / 桌面</span>
+    </div>
+    <div class="phases">
+      <div class="phase"><div class="meta"><span class="dt">06-22</span><span class="tag">引入</span></div><p>原生采集、流式转写与热词偏置一次到位。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-24 ~ 06-25</span><span class="tag">精修 + 上云</span></div><p>fast model 转写精修；daemon 语音通道与工作区语音 API 接通，Web Shell 可用。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-28</span><span class="tag">桌面端</span></div><p>桌面应用语音听写上线，四端齐备。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">07-27 ~ 07-28</span><span class="tag">精细化</span></div><p>Web Shell hold 模式、语音作用域限定到 composer 工作区。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-05</span><span class="tag">实时化</span></div><p>Web Shell 原生 Live Voice 上线——网页端实时语音对话，边说边响应。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">09-01</span><span class="tag">独立化</span></div><p>qwen-live 独立语音 daemon 包（#10367）——语音能力以独立包分发。</p></div>
+    </div>
+  </div>
+
+  <div class="story reveal" style="--sc:#65a30d">
+    <div>
+      <span class="chip">Computer Use</span>
+      <h3>让代理直接操作桌面与手机</h3>
+      <p class="arc">代理通过截图感知屏幕，像人一样点击、输入完成桌面任务；从第三方 MCP 集成起步，换成自有跨平台驱动并默认启用，再延伸到移动端与高分辨率视觉。</p>
+      <span class="span-badge">桌面 + 移动 · 默认启用</span>
+    </div>
+    <div class="phases">
+      <div class="phase"><div class="meta"><span class="dt">05-29</span><span class="tag">引入</span></div><p>零配置内置：通过 open-computer-use MCP 直接获得计算机操作能力。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-03 ~ 06-14</span><span class="tag">自有化</span></div><p>切换为签名公证的 <code>@qwen-code</code> fork；迁移到跨平台 cua-driver。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-26 ~ 07-03</span><span class="tag">自托管</span></div><p>vendored qwen-cua-driver（可选 0–1000 归一化坐标）；同步 0.7.0 并引入 mobile-mcp。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">07-28</span><span class="tag">视觉增强</span></div><p>全分辨率图像缩放工具，提升细粒度界面感知。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-05</span><span class="tag">默认启用</span></div><p>Qwen CUA 驱动默认启用——桌面操控开箱即用，无需手动装驱动。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-23 ~ 08-24</span><span class="tag">SDK 与 skill 化</span></div><p>版本化 Computer Use SDK + 发布管线（#9587）、内置工具替换为 bundled skill（#9856）——CU 能力以 skill 形态分发。</p></div>
+    </div>
+  </div>
+
+  <div class="story reveal" style="--sc:#7c3aed">
+    <div>
+      <span class="chip">模型接入 · Providers</span>
+      <h3>从内置少数模型到 12 家模型注册表</h3>
+      <p class="arc">季度初只有少数内置内容生成器；五个月里先解决"第三方模型能不能用工具、能不能看图"，再一次性铺开 BYOK 与多家预设，最后逐家抹平推理 / 工具格式 / 缓存的差异，并以 OpenAI Responses API 与模型回退链收口——把"能连"变成"连得稳、用得对"。</p>
+      <span class="span-badge">12 家预设 + BYOK 自带密钥</span>
+    </div>
+    <div class="phases">
+      <div class="phase"><div class="meta"><span class="dt">04-02 ~ 04-06</span><span class="tag">兼容先行</span></div><p>在内置生成器之外，先补齐第三方模型的可用性问题：无函数调用模型的 function-calling 兜底、视觉上下文接入，配合 per-session 模型注册与 <code>/model</code> 切换。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">05-11 ~ 05-20</span><span class="tag">注册表成型</span></div><p>5-11 同日落地 BYOK <code>custom-provider</code> 与 deepseek / minimax / z.ai / idealab / openrouter 预设，5-20 追加 modelscope 与 <b>model fallback 回退链</b>——从"写死几家"到"12 家 + 自带密钥"。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-19 ~ 07-14</span><span class="tag">逐家打磨</span></div><p>kimi / requesty / grok 陆续接入；required-thinking 自动重试、reasoning effort 保留、Anthropic cache / prefill / 工具 id sanitize、文本模型桥接工具结果图像——逐家抹平"怪癖"。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">07-23 ~ 07-31</span><span class="tag">协议收口</span></div><p>OpenAI Responses API 内容生成器、XML 工具调用兜底收口、按子代理模型分级与 1h 扩展缓存——第三方模型接入从广度走向深度与稳定性。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-07 ~ 08-26</span><span class="tag">跨厂商与新一代</span></div><p>OpenAI / Gemini / Vertex 共享压缩缓存（#8418 / #8425）、Web Shell Qwen 3.8 推理配置（#8974）、qwen3.8-max 进 Token Plan（#9383）、Kimi（Moonshot）内置供应商（#9814）、编辑前加载模型推荐（#9980）——省钱与新一代模型同步推进。</p></div>
+    </div>
+  </div>
+
+  <div class="story reveal" style="--sc:#d97706">
+    <div>
+      <span class="chip">开放协议 · Open Protocols</span>
+      <h3>从内部协议到开放互联骨架</h3>
+      <p class="arc">ACP 与 MCP 季度初已存在，但本季度才真正"开放"起来：ACP 从 daemon 内部通道长成多客户端标准，MCP 从能连工具服务器长成带运行时治理的工具 / 资源生态，CDP / A2A 进一步把浏览器与 agent 互联纳入版图。</p>
+      <span class="span-badge">ACP · MCP · CDP · A2A</span>
+    </div>
+    <div class="phases">
+      <div class="phase"><div class="meta"><span class="dt">04-05 ~ 04-24</span><span class="tag">协议可用化</span></div><p>ACP 接入 IDE / CLI（hooks 支持 #3248、message-rewrite 中间件 #3191、并发工具调用 #2516）；MCP OAuth 授权流（OSC 52 / 可点击 URL #3337、<code>mcp add</code> OAuth #3442）、SSE / HTTP MCP server 在 ACP 模式可用 #3574、web_search 改为 MCP 实现 #3502。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">05-02 ~ 05-30</span><span class="tag">运行时与传输升级</span></div><p>MCP 渐进可用（不再阻塞首输入 #3994）、健康 pill #3741、合并重发现 #3818；<b>ACP Streamable HTTP</b> transport @ /acp #4472；acp-bridge 包自给 F1 + 多客户端权限协调 F3 #4319/#4335；MCP 守护栏 + 滞回 + 重启预算 + 共享传输池 #4247/#4336；运行时增删 server #4514。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">06-11 ~ 06-24</span><span class="tag">标准合规与多端</span></div><p>ACP WebSocket + REST parity 29 方法 #4827、DaemonTransport ACP 合规 #5040；CDP tunnel 反向链路（浏览器扩展）#5777；MCP 热重载 #6347、资源读取 read_mcp_resource #5781。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">07-03 ~ 07-25</span><span class="tag">生态外延</span></div><p>mobile-mcp / cua 0.7.0 同步 #6212；MCP OAuth 回调加固 #7510；ACP 权限 relay / 控制请求；A2A 初步触达 07-07——协议从"能连"走向"开放、可组合、跨端"。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-11 ~ 08-23</span><span class="tag">协议深水区</span></div><p>ACP 外露 reasoning effort（#8526）、会话取消与 HITL 恢复经 ACP 承接（#8954 / #9665）、daemon HTTP span 关联 W3C traceparent（#9391）、MCP 2026 core + WebShell Apps host（#8992）——协议承载更深的控制与观测语义。</p></div>
+      <div class="phase"><div class="meta"><span class="dt">08-24 ~ 09-02</span><span class="tag">治理与韧性</span></div><p>acp-bridge 权限超时默认关闭（#9933）与子进程树回收（#10142）；ACP 通道传输存活性（#9976）、托管记忆生命周期经 ACP 接入（#9992）；MCP 重启的 HTTP server 会话内恢复（#9962）、工具参数送入 AUTO 模式分类器（#10352）；hooks 信任边界四处收口（#10427）与 fire-and-forget 保留（#10288）——开放骨架向治理与韧性继续加深。</p></div>
+    </div>
+  </div>
+  <div class="story spotlight reveal" style="--sc:#0891b2">
+    <div class="sp-head"><span class="chip">CLI / TUI</span><h3>终端：从线性对话到可驾驶的工作台</h3><span class="span-badge" style="margin:0">200 个 feat(cli) 提交</span></div>
+    <p class="arc">CLI 的改动散布在每条功能线里，却是用户每天真正触摸的表面。截至 9 月 8 日，<b>200 个合入 feat(cli)</b> 提交把终端从线性对话长成可折叠、可驾驶、可语音、可显示图像、可被外部消费的工作台；季度末再落输出风格选择与 provider 热重载，并启动 OpenTUI 迁移批；本周再补 transcript HTML 导出与工具参数内联。左为当前 TUI 实况，编号对应右侧能力清单；悬停联动高亮。</p>
+    <div class="cli-spotlight">
+      <div class="term">
+        <div class="term-title"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="tt">qwen — ~/project — main — 96×32</span></div>
+        <div class="term-body">
+          <div class="t-fold" data-cli="1"><span class="mk">1</span>▾ 折叠更早 12 轮</div>
+          <div class="t-status" data-cli="7"><span class="mk">7</span><span class="badge auto">AUTO</span> qwen3.7-max · <span class="dim">ctx</span> 38% · <span class="dim">⏰</span>2 · <span class="dim">⎇</span> main · <span class="mk">9</span><span class="dim">✍ concise</span><br><span style="margin-left:23px" class="dim">已用 12m · 后台 1 · 记忆 6 条 · 09:41</span></div>
+          <div class="t-sys" data-cli="10"><span class="mk">10</span>⇄ modelProviders 已热重载 · 2 个供应商生效，无需重启</div>
+          <div class="t-sys" data-cli="11"><span class="mk">11</span>✓ 转录已导出 transcript.html · <span class="cmd2">OSC 8</span> 链接单击即开</div>
+          <div class="t-think" data-cli="2"><span class="mk">2</span><span class="tri">▸</span> 思考 · 2.3s <span class="dim">— 选 read_file 而非 grep，需完整上下文</span></div>
+          <div class="t-tool" data-cli="3"><span class="mk">3</span><span class="ok">✓</span> 读取 3 文件 · 运行 <span class="cmd2">npm test</span> <span class="dim">· 12 passed · 折叠 2 个搜索</span></div>
+          <div class="t-agents" data-cli="4"><span class="mk">4</span><span class="pill run">◐ Explore · 检索鉴权逻辑</span><span class="pill done">✓ test-engineer · 复现 #3186</span></div>
+          <div class="t-assist">好的，已定位到 <span class="hl2">packages/cli/src/auth</span>，并补上回归测试。</div>
+          <div class="t-ghost" data-cli="5"><span class="mk">5</span>▸ 接下来：为 /config 增加 schema 校验单测</div>
+          <div class="t-input" data-cli="6"><span class="mk">6</span><span class="prompt">›</span> 帮我把这个修复<span class="cur"></span><span class="voice" data-cli="8"><span class="mk">8</span>🎙</span></div>
+        </div>
+      </div>
+      <div class="cli-list">
+        <div class="cli-row" data-cli="1"><span class="n">1</span><div><span class="ct">视图</span><b>VP 虚拟视口</b> — ink 7 重写长会话渲染，07-14 默认开启；07-15 鼠标文本选择 / 07-17 语义复制。<span class="dd">05-08 / 06-02</span></div></div>
+        <div class="cli-row" data-cli="2"><span class="n">2</span><div><span class="ct">视图</span><b>思考块折叠</b> — Alt+T 展开 + 耗时计时 + 加载期意图提示。<span class="dd">06-16 / 06-22 / 06-25</span></div></div>
+        <div class="cli-row" data-cli="3"><span class="n">3</span><div><span class="ct">视图</span><b>工具分组</b> — 读/搜折叠、写操作单列、完成自动收起 + LLM 摘要标签。<span class="dd">04-27 / 06-22 / 06-25</span></div></div>
+        <div class="cli-row" data-cli="4"><span class="n">4</span><div><span class="ct">代理</span><b>子代理面板</b> — pill + LiveAgentPanel + 嵌套树 + 并行扇出面板。<span class="dd">04-28 / 05-07 / 05-26 / 07-03</span></div></div>
+        <div class="cli-row" data-cli="5"><span class="n">5</span><div><span class="ct">辅助</span><b>跟随建议</b> — 输入框 ghost 文本，Tab / → 接受，dismiss 中止。<span class="dd">04-03 / 06-19</span></div></div>
+        <div class="cli-row" data-cli="6"><span class="n">6</span><div><span class="ct">输入</span><b>输入队列</b> — ↑/ESC 编辑排队消息 + 启动期按键预捕获 + CJK 分词。<span class="dd">04-11 / 04-16</span></div></div>
+        <div class="cli-row" data-cli="7"><span class="n">7</span><div><span class="ct">状态</span><b>可定制 status line</b> — 多行 / 周期刷新 / 模式徽标 / 定时任务数 / git 分支 / 上下文用量。<span class="dd">04-09 / 04-16 / 07-08</span></div></div>
+        <div class="cli-row" data-cli="8"><span class="n">8</span><div><span class="ct">输入</span><b>语音听写</b> — 原生采集 + 流式 + 热词偏置，🎙 触发，fast-model 精修。<span class="dd">06-22 / 06-25</span></div></div>
+        <div class="cli-row" data-cli="9"><span class="n">9</span><div><span class="ct">风格</span><b>输出风格</b> — <code>general.outputStyle</code> / <code>--output-style</code> 选风格，状态行可见，模型每轮被提醒当前风格。<span class="dd">08-31 / 09-01</span></div></div>
+        <div class="cli-row" data-cli="10"><span class="n">10</span><div><span class="ct">模型</span><b>provider 热重载</b> — modelProviders 配置改动即时生效，会话不重启。<span class="dd">09-01</span></div></div>
+        <div class="cli-row" data-cli="11"><span class="n">11</span><div><span class="ct">导出</span><b>transcript HTML 导出</b> — 会话转录一键导出 HTML；VP 模式 OSC 8 链接单击即开（#10979）、工具参数内联可见（#10565）。<span class="dd">09-04 / 09-05</span></div></div>
+        <div class="cli-more">
+          <span class="more-h">以及 30+ 项终端能力</span>
+          <span class="kc">Vim 模式 <i>06-01</i></span>
+          <span class="kc">/recap <i>04-19</i></span>
+          <span class="kc">/rewind <i>04-19</i></span>
+          <span class="kc">/branch <i>05-08</i></span>
+          <span class="kc">/model --fast <i>04-02</i></span>
+          <span class="kc">/model --vision <i>06-27</i></span>
+          <span class="kc">/config k=v <i>07-01</i></span>
+          <span class="kc">/effort <i>07-02</i></span>
+          <span class="kc">/doctor <i>04-19</i></span>
+          <span class="kc">/learn <i>07-15</i></span>
+          <span class="kc">/copy N <i>06-08</i></span>
+          <span class="kc">/tasks <i>04-28</i></span>
+          <span class="kc">/memory <i>05-27</i></span>
+          <span class="kc">斜杠 Phase2 <i>04-16</i></span>
+          <span class="kc">argument-hint <i>04-24</i></span>
+          <span class="kc">Markdown 流式高亮 <i>06-27</i></span>
+          <span class="kc">实时 token 速率 <i>04-21</i></span>
+          <span class="kc">工具进度条 <i>04-20</i></span>
+          <span class="kc">OSC 通知 <i>04-27</i></span>
+          <span class="kc">OSC8 链接 <i>05-13</i></span>
+          <span class="kc">双输出 sidecar <i>04-18</i></span>
+          <span class="kc">sticky todo <i>04-26</i></span>
+          <span class="kc">自动主题 <i>04-22</i></span>
+          <span class="kc">终端铃 <i>06-22</i></span>
+          <span class="kc">流式状态标题 <i>08-12</i></span>
+          <span class="kc">/advisor <i>08-17</i></span>
+          <span class="kc">会话模型恢复 <i>08-22</i></span>
+          <span class="kc">动态 workflows <i>08-23</i></span>
+          <span class="kc">standalone 会话 <i>08-26</i></span>
+          <span class="kc">OpenTUI 基础批 <i>08-31</i></span>
+          <span class="kc">OpenTUI batch 4 <i>09-01</i></span>
+          <span class="kc">会话 picker 显 Goal <i>09-01</i></span>
+          <span class="kc">transcript HTML 导出 <i>09-04</i></span>
+          <span class="kc">showToolCallArgs <i>09-05</i></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="story spotlight reveal" style="--sc:#1d4ed8">
+    <div class="sp-head"><span class="chip">Web Shell</span><h3>从嵌入式组件到浏览器工作台</h3><span class="span-badge" style="margin:0">199 feat · 浏览器端工作台</span></div>
+    <p class="arc">Web Shell 起初只是 daemon 背后的一个聊天组件，五个月里长成带分屏多工作区、Artifact 预览、git/PR 流程与 Channel 管理的完整浏览器工作台，并在 06-19 起由 <code>qwen serve</code> 直接托管；季度末再落工作区总览、standalone 聊天与会话内容搜索——侧栏成为会话与工作的总入口。左为季度末界面实况，编号对应右侧能力清单；悬停联动高亮。</p>
+    <div class="ws-spotlight">
+      <div class="ws-mock">
+        <div class="ws-chrome"><span class="d r"></span><span class="d y"></span><span class="d g"></span><span class="ws-url">localhost:4173 · session/8a3f</span></div>
+        <div class="ws-body">
+          <aside class="ws-side">
+            <div class="ws-ws" data-ws="11"><span class="mk">11</span>⌘ 工作区 ▾ · 总览</div>
+            <div class="ws-search" data-ws="9"><span class="mk">9</span>🔍 搜索会话内容</div>
+            <div class="ws-new">＋ 新会话</div>
+            <div class="ws-grp">今天</div>
+            <div class="ws-sess active" data-ws="2"><span class="mk">2</span><span class="dotc" style="background:#1d4ed8"></span>修复 auth 回归<span class="ws-wt">⎇wt</span></div>
+            <div class="ws-sess"><span class="dotc" style="background:#16a34a"></span>channels 记忆</div>
+            <div class="ws-grp">昨天</div>
+            <div class="ws-sess"><span class="dotc" style="background:#ea580c"></span>daemon 多工作区</div>
+            <div class="ws-sess"><span class="dotc" style="background:#7e22ce"></span>表格列冻结</div>
+            <div class="ws-grp">standalone</div>
+            <div class="ws-sess" data-ws="10"><span class="mk">10</span><span class="dotc" style="background:#0891b2"></span>语音 daemon 调试</div>
+          </aside>
+          <main class="ws-main">
+            <div class="ws-topbar" data-ws="1"><span class="mk">1</span><span class="ws-mode">AUTO</span> qwen3.7-max <span class="ws-ctx">ctx 41%</span> <span class="ws-br">⎇ main</span></div>
+            <div class="ws-user">给 markdown 表格加列冻结</div>
+            <div class="ws-think" data-ws="6"><span class="mk">6</span>▸ 思考 1.4s</div>
+            <div class="ws-tool" data-ws="3"><span class="mk">3</span><span class="ok">✓</span> edit <span class="ws-path">Table.tsx</span> <span class="ws-dim">+38 −4</span></div>
+            <div class="ws-agents" data-ws="4"><span class="mk">4</span><span class="ws-pill run">◐ Explore</span><span class="ws-pill done">✓ test-eng</span></div>
+            <div class="ws-art" data-ws="5"><span class="mk">5</span>🖼 预览 · table-freeze.html</div>
+            <div class="ws-composer"><span class="mk">7</span><span class="ws-model" data-ws="7">qwen3.7-max ▾</span><span class="mk">8</span><span class="ws-ghost" data-ws="8">▸ 补一个 e2e 用例</span><span class="ws-voice">🎙</span></div>
+          </main>
+          <aside class="ws-right" data-ws="5"><div class="ws-rh" data-ws="12"><span class="mk">12</span>预览 / 上下文用量</div><div class="ws-rbox"></div><div class="ws-rbox s"></div></aside>
+        </div>
+      </div>
+      <div class="cli-list">
+        <div class="cli-row" data-ws="1"><span class="n">1</span><div><span class="ct">状态</span><b>顶部状态条</b> — 模式徽标 / 模型 / 上下文用量 / git 分支 / 定时任务数。<span class="dd">06-27 / 07-08</span></div></div>
+        <div class="cli-row" data-ws="2"><span class="n">2</span><div><span class="ct">视图</span><b>多工作区侧栏</b> — 会话分组 + 颜色 + worktree 徽标 + 移动端抽屉。<span class="dd">06-27 / 06-30 / 07-12</span></div></div>
+        <div class="cli-row" data-ws="3"><span class="n">3</span><div><span class="ct">视图</span><b>工具卡 + 表格</b> — diff 统计 + 完成折叠 + Excel 风格表格交互。<span class="dd">06-13 / 06-22 / 06-25</span></div></div>
+        <div class="cli-row" data-ws="4"><span class="n">4</span><div><span class="ct">代理</span><b>子代理时间线</b> — 并行面板 + 嵌套树 + chronological transcript。<span class="dd">05-07 / 07-03 / 07-12</span></div></div>
+        <div class="cli-row" data-ws="5"><span class="n">5</span><div><span class="ct">视图</span><b>Artifact 面板</b> — 内嵌预览卡 + 右侧预览面板 + 自动打开。<span class="dd">07-11 / 07-17</span></div></div>
+        <div class="cli-row" data-ws="6"><span class="n">6</span><div><span class="ct">视图</span><b>思考摘要</b> — 折叠 + 耗时计时 + 流式代码高亮。<span class="dd">06-16 / 06-27</span></div></div>
+        <div class="cli-row" data-ws="7"><span class="n">7</span><div><span class="ct">输入</span><b>composer</b> — 模型选择器 + 语音听写 + imperative composer API。<span class="dd">06-11 / 06-28</span></div></div>
+        <div class="cli-row" data-ws="8"><span class="n">8</span><div><span class="ct">辅助</span><b>跟随建议</b> — 输入框 ghost 文本 + 自定义 @ 提及面板。<span class="dd">06-19 / 07-05</span></div></div>
+        <div class="cli-row" data-ws="9"><span class="n">9</span><div><span class="ct">侧栏</span><b>会话内容搜索</b> — 侧栏搜索框直达对话内容，pinned 会话保持在分组。<span class="dd">08-29 / 09-01</span></div></div>
+        <div class="cli-row" data-ws="10"><span class="n">10</span><div><span class="ct">会话</span><b>standalone 聊天</b> — 无项目独立聊天进侧栏，单独分组不串扰。<span class="dd">09-01</span></div></div>
+        <div class="cli-row" data-ws="11"><span class="n">11</span><div><span class="ct">工作区</span><b>工作区总览</b> — 侧栏总览 + 工作区菜单 + Workspaces 总览面板。<span class="dd">08-31 / 09-01</span></div></div>
+        <div class="cli-row" data-ws="12"><span class="n">12</span><div><span class="ct">侧栏</span><b>上下文用量 tab + 连续历史</b> — 右栏新增上下文用量 tab（#11177）；transcript 连续历史 + 紧凑轮导航（#11208 / #11054）。<span class="dd">09-06 / 09-08</span></div></div>
+        <div class="cli-more">
+          <span class="more-h">以及工作台化能力</span>
+          <span class="kc">shadcn 基座 <i>07-12</i></span>
+          <span class="kc">git/提交/PR 流程 <i>07-28</i></span>
+          <span class="kc">Channel 管理 <i>07-28</i></span>
+          <span class="kc">配对审批 <i>07-28</i></span>
+          <span class="kc">定时任务页 <i>07-05</i></span>
+          <span class="kc">daemon 状态仪表盘 <i>07-03</i></span>
+          <span class="kc">token 用量分析 <i>07-06</i></span>
+          <span class="kc">扩展管理页 <i>07-14</i></span>
+          <span class="kc">自定义 footer <i>06-15</i></span>
+          <span class="kc">error boundary <i>06-28</i></span>
+          <span class="kc">会话侧栏导航 <i>06-27</i></span>
+          <span class="kc">流式图表 <i>07-29</i></span>
+          <span class="kc">上下文 pill <i>08-10</i></span>
+          <span class="kc">文件附件 <i>08-15</i></span>
+          <span class="kc">PR 会话绑定 <i>08-22</i></span>
+          <span class="kc">agent 任务外露 <i>08-24</i></span>
+          <span class="kc">token 用量面板 <i>08-26</i></span>
+          <span class="kc">浏览器终端 <i>08-28</i></span>
+          <span class="kc">issue 绑定自动派生 <i>09-01</i></span>
+          <span class="kc">终端错误可复制 <i>08-31</i></span>
+          <span class="kc">session workflow 驾驶舱 <i>09-01</i></span>
+          <span class="kc">浏览器本地目录桥接 <i>09-06</i></span>
+          <span class="kc">连续历史 + 轮导航 <i>09-07</i></span>
+          <span class="kc">上下文用量 tab <i>09-08</i></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 PR CADENCE ============ -->
+<section class="wrap">
+  <div class="sec-head reveal"><span class="sec-no">04</span><h2>合入节奏</h2></div>
+  <p class="sec-note reveal">按 PR 编号去重、以合入 main 的提交日期计（仅已合入，不含进行中分支）。4 月 1 日至 9 月 8 日共 <b style="color:var(--text-dim)">4,025 个 PR</b> 合入代码库——07-27 周达到单周 345 个的历史峰值，八月完整月 1,065 个合入 PR，09-01 → 09-08 切片再新增 280 个（GitHub merge-date 口径见第 05 章）。</p>
+  <div class="cadence reveal">
+    <div class="month-strip">
+      <div class="mrow" style="--mc:#0d9488"><span class="mn">四月 · v0.14–0.15</span><b>274</b><span class="delta">筑底期 · Channels / Cron / 后台代理</span></div>
+      <div class="mrow" style="--mc:#2563eb"><span class="mn">五月 · v0.16–0.17</span><b>350</b><span class="delta up">环比 +28% · daemon 协议密集建设</span></div>
+      <div class="mrow" style="--mc:#ea580c"><span class="mn">六月 · v0.18–0.19</span><b>747</b><span class="delta up">环比 +113% · daemon 合入 main 后放量</span></div>
+      <div class="mrow" style="--mc:#db2777"><span class="mn">七月 · v0.20–0.21</span><b>1,309</b><span class="delta up">环比 +75% · 多工作区全面铺开</span></div>
+      <div class="mrow" style="--mc:#d97706"><span class="mn">八月 · v0.22</span><b>1,065</b><span class="delta">完整月 · 环比 -19% · /review 账本 / Live Voice / workflow 驾驶舱</span></div>
+      <div class="mrow" style="--mc:#b45309"><span class="mn">九月 · 09-01 → 09-08 今日</span><b>280</b><span class="delta">八日切片 · 并发 daemon / 连续历史 / 上下文用量 tab</span></div>
+    </div>
+    <div class="week-chart">
+      <div class="wk-bars" id="wkbars"></div>
+      <div class="wk-labels" id="wklabels"></div>
+      <div class="legend" style="margin-top:14px">
+        <em><span class="sw" style="background:repeating-linear-gradient(45deg,#94a3b8 0 3px,transparent 3px 6px)"></span>不完整周（首周 5 天）</em>
+        <em style="color:#ea580c">▲ 07-27 周 345 个，为历史峰值</em>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 AUTOMATION PIPELINE ============ -->
+<section class="wrap">
+  <div class="sec-head reveal"><span class="sec-no">05</span><h2>自动化工作流演进</h2></div>
+  <p class="sec-note reveal">四月初只有零散的发布脚本；到七月末，一条 <b style="color:var(--text-dim)">门禁 → 审查 → 修复 → 验证 → 自愈 → 发布</b> 的流水线在 GitHub 上成型，五个斜杠指令成为人与流水线之间的命令界面。</p>
+
+  <div class="runbar reveal">
+    <span class="live"></span>
+    <span><b>qwen-automation</b> · 44 个 workflow 文件 · 本季度净增 24 个 · review → fix → verify 闭环已成型</span>
+  </div>
+
+  <div class="cmd-row reveal">
+    <span class="cmd" style="--cc:#16a34a"><b>/triage</b> 自动分诊<span class="cd">06-04 上线</span></span>
+    <span class="cmd" style="--cc:#2563eb"><b>/review</b> PR 自动触发<span class="cd">06-08 接入</span></span>
+    <span class="cmd" style="--cc:#ea580c"><b>/autofix</b> 自动修复<span class="cd">06-15 上线</span></span>
+    <span class="cmd" style="--cc:#ea580c"><b>/takeover</b> 人工接管<span class="cd">07-19 上线</span></span>
+    <span class="cmd" style="--cc:#7e22ce"><b>/verify</b> 沙箱深验证<span class="cd">07-26 上线</span></span>
+  </div>
+
+  <div class="collab reveal">
+    <div class="collab-h">
+      <h3>人机协作闭环</h3>
+      <span>ci-bot 评审 · dev-bot 修复 · 维护者随时接管</span>
+    </div>
+    <svg class="pipe-svg" viewBox="0 0 940 232" role="img" aria-label="qwen-code-ci-bot 与 qwen-code-dev-bot 的评审修复循环，维护者经 /takeover 接入">
+      <defs>
+        <marker id="arr-slate" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"/></marker>
+        <marker id="arr-orange" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/></marker>
+        <marker id="arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/></marker>
+      </defs>
+      <!-- loop arcs -->
+      <path d="M652 52 C 560 4, 380 4, 290 52" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arr-slate)"/>
+      <path class="flow" d="M290 84 C 380 132, 560 132, 650 84" fill="none" stroke="#ea580c" stroke-width="2.2" marker-end="url(#arr-orange)"/>
+      <text x="470" y="20" text-anchor="middle" font-size="11" fill="#64748b">推送 PR · 触发自动评审</text>
+      <text x="470" y="146" text-anchor="middle" font-size="11" fill="#ea580c">评审意见 ⇄ 自动修复（循环）</text>
+      <!-- human edges -->
+      <path class="flow" d="M540 156 C 600 138, 662 120, 702 102" fill="none" stroke="#ea580c" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#arr-orange)"/>
+      <path class="flow" d="M400 156 C 340 138, 278 120, 238 102" fill="none" stroke="#2563eb" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#arr-blue)"/>
+      <text x="636" y="128" text-anchor="middle" font-size="11" fill="#ea580c" font-weight="700">/takeover 接管</text>
+      <text x="304" y="128" text-anchor="middle" font-size="11" fill="#2563eb" font-weight="700">人工评审</text>
+      <!-- ci-bot node -->
+      <g class="node">
+        <rect x="36" y="34" width="252" height="66" rx="12" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+        <text x="162" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="#2563eb">qwen-code-ci-bot</text>
+        <text x="162" y="82" text-anchor="middle" font-size="11" fill="#4c5e70">评审 · /review</text>
+      </g>
+      <!-- dev-bot node -->
+      <g class="node">
+        <rect x="652" y="34" width="252" height="66" rx="12" fill="#ffffff" stroke="#ea580c" stroke-width="2"/>
+        <text x="778" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="#ea580c">qwen-code-dev-bot</text>
+        <text x="778" y="82" text-anchor="middle" font-size="11" fill="#4c5e70">修复 · /autofix</text>
+      </g>
+      <!-- human node -->
+      <g class="node">
+        <rect x="392" y="150" width="156" height="58" rx="12" fill="#f8fafb" stroke="#475569" stroke-width="2"/>
+        <text x="470" y="176" text-anchor="middle" font-size="13" font-weight="700" fill="#1a2836">👤 维护者</text>
+        <text x="470" y="194" text-anchor="middle" font-size="10.5" fill="#4c5e70">人工接入 / 接管</text>
+      </g>
+    </svg>
+    <div class="collab-stats">
+      <div class="cstat"><b style="color:#2563eb">3,256</b><span>ci-bot 正式 review PR（截至 9/8）</span></div>
+      <div class="cstat"><b style="color:#0891b2">3,409</b><span>被 ci-bot 评论过的 merged PR（截至 9/8）</span></div>
+      <div class="cstat"><b style="color:#ea580c">662</b><span>含 /takeover 文本的 merged PR（截至 9/8）</span></div>
+      <div class="cstat"><b style="color:#7e22ce">124</b><span>dev-bot 自动产出 PR（截至 9/8）</span></div>
+    </div>
+  </div>
+
+  <div class="comment-stats reveal">
+    <h3>qwen-code-ci-bot 评论统计</h3>
+    <div class="sub">GitHub Search / GraphQL 口径 · 4 月 1 日至 9 月 8 日 · 区分“被评论 PR 数”与“实际评论条数”</div>
+    <div class="ccharts">
+      <div class="cchart">
+        <h4>实际评论条数 · 按月</h4>
+        <div class="ct">issue comment + review + review comment · 作者过滤</div>
+        <svg class="csvg" viewBox="0 0 360 176" role="img" aria-label="qwen-code-ci-bot 实际评论条数按月柱状图">
+          <line x1="34" y1="18" x2="346" y2="18" stroke="#eef1f4"/>
+          <line x1="34" y1="74" x2="346" y2="74" stroke="#eef1f4"/>
+          <line x1="34" y1="130" x2="346" y2="130" stroke="#dfe4ea"/>
+          <text x="30" y="21" text-anchor="end" font-size="9" fill="#94a3b8">36k</text>
+          <text x="30" y="77" text-anchor="end" font-size="9" fill="#94a3b8">18k</text>
+          <text x="30" y="133" text-anchor="end" font-size="9" fill="#94a3b8">0</text>
+          <g>
+            <rect class="cbar" x="40" y="129.6" width="38" height="0.4" rx="2" fill="#7c3aed"><title>4月 · 0 条</title></rect>
+            <rect class="cbar" x="92" y="129.6" width="38" height="0.4" rx="2" fill="#7c3aed"><title>5月 · 44 条</title></rect>
+            <rect class="cbar" x="144" y="105.4" width="38" height="24.6" rx="2" fill="#7c3aed"><title>6月 · 7,909 条</title></rect>
+            <rect class="cbar" x="196" y="89.5" width="38" height="40.5" rx="2" fill="#7c3aed"><title>7月 · 13,012 条</title></rect>
+            <rect class="cbar" x="248" y="21.9" width="38" height="108.1" rx="2" fill="#7c3aed"><title>8月 · 34,757 条</title></rect>
+            <rect class="cbar" x="300" y="106.2" width="38" height="23.8" rx="2" fill="#d97706"><title>09-01→08 · 7,647 条</title></rect>
+          </g>
+          <text x="59" y="124" text-anchor="middle" font-size="8.5" fill="#7c3aed">0</text>
+          <text x="111" y="124" text-anchor="middle" font-size="8.5" fill="#7c3aed">44</text>
+          <text x="163" y="100" text-anchor="middle" font-size="8.5" font-weight="700" fill="#7c3aed">7,909</text>
+          <text x="215" y="85" text-anchor="middle" font-size="8.5" font-weight="700" fill="#7c3aed">13,012</text>
+          <text x="267" y="17" text-anchor="middle" font-size="8.5" font-weight="700" fill="#7c3aed">34,757</text>
+          <text x="319" y="101" text-anchor="middle" font-size="8.5" font-weight="700" fill="#d97706">7,647</text>
+          <text x="59" y="150" text-anchor="middle" font-size="9" fill="#64748b">4月</text>
+          <text x="111" y="150" text-anchor="middle" font-size="9" fill="#64748b">5月</text>
+          <text x="163" y="150" text-anchor="middle" font-size="9" fill="#64748b">6月</text>
+          <text x="215" y="150" text-anchor="middle" font-size="9" fill="#64748b">7月</text>
+          <text x="267" y="150" text-anchor="middle" font-size="9" fill="#64748b">8月</text>
+          <text x="319" y="150" text-anchor="middle" font-size="9" fill="#d97706">09-01→08</text>
+          <text x="346" y="168" text-anchor="end" font-size="9" fill="#94a3b8">合计 63,369 条</text>
+        </svg>
+      </div>
+      <div class="cchart">
+        <h4>覆盖 PR 数 · 按月</h4>
+        <div class="ct">被评论 PR vs 正式 review PR</div>
+        <svg class="csvg" viewBox="0 0 360 176" role="img" aria-label="qwen-code-ci-bot 被评论 PR 数与正式 review PR 数按月趋势">
+          <line x1="34" y1="18" x2="346" y2="18" stroke="#eef1f4"/>
+          <line x1="34" y1="74" x2="346" y2="74" stroke="#eef1f4"/>
+          <line x1="34" y1="130" x2="346" y2="130" stroke="#dfe4ea"/>
+          <text x="30" y="21" text-anchor="end" font-size="9" fill="#94a3b8">1.4k</text>
+          <text x="30" y="77" text-anchor="end" font-size="9" fill="#94a3b8">700</text>
+          <text x="30" y="133" text-anchor="end" font-size="9" fill="#94a3b8">0</text>
+          <polyline points="46,130 104,128.6 162,74.2 220,24.8 278,43.3 336,106.5" fill="none" stroke="#0891b2" stroke-width="2.4"/>
+          <circle class="cline-dot" cx="46" cy="130" r="3.2" fill="#0891b2"><title>4月 · 被评论 0</title></circle>
+          <circle class="cline-dot" cx="104" cy="128.6" r="3.2" fill="#0891b2"><title>5月 · 被评论 18</title></circle>
+          <circle class="cline-dot" cx="162" cy="74.2" r="3.2" fill="#0891b2"><title>6月 · 被评论 698</title></circle>
+          <circle class="cline-dot" cx="220" cy="24.8" r="3.8" fill="#0891b2"><title>7月 · 被评论 1,315</title></circle>
+          <circle class="cline-dot" cx="278" cy="43.3" r="3.8" fill="#0891b2"><title>8月 · 被评论 1,084</title></circle>
+          <circle class="cline-dot" cx="336" cy="106.5" r="3.2" fill="#d97706"><title>09-01→08 · 被评论 294</title></circle>
+          <polyline points="46,130 104,129.9 162,76.2 220,26.2 278,47.1 336,110.2" fill="none" stroke="#2563eb" stroke-width="2.1" stroke-dasharray="4 3"/>
+          <circle class="cline-dot" cx="46" cy="130" r="2.8" fill="#2563eb"><title>4月 · review 0</title></circle>
+          <circle class="cline-dot" cx="104" cy="129.9" r="2.8" fill="#2563eb"><title>5月 · review 1</title></circle>
+          <circle class="cline-dot" cx="162" cy="76.2" r="2.8" fill="#2563eb"><title>6月 · review 673</title></circle>
+          <circle class="cline-dot" cx="220" cy="26.2" r="3.4" fill="#2563eb"><title>7月 · review 1,298</title></circle>
+          <circle class="cline-dot" cx="278" cy="47.1" r="3.4" fill="#2563eb"><title>8月 · review 1,036</title></circle>
+          <circle class="cline-dot" cx="336" cy="110.2" r="2.8" fill="#d97706"><title>09-01→08 · review 248</title></circle>
+          <text x="220" y="14" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0891b2">1,315 / 1,298</text>
+          <text x="278" y="39" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0891b2">1,084 / 1,036</text>
+          <text x="336" y="102" text-anchor="middle" font-size="8.5" font-weight="700" fill="#d97706">294 / 248</text>
+          <text x="46" y="150" text-anchor="middle" font-size="9" fill="#64748b">4月</text>
+          <text x="104" y="150" text-anchor="middle" font-size="9" fill="#64748b">5月</text>
+          <text x="162" y="150" text-anchor="middle" font-size="9" fill="#64748b">6月</text>
+          <text x="220" y="150" text-anchor="middle" font-size="9" fill="#64748b">7月</text>
+          <text x="278" y="150" text-anchor="middle" font-size="9" fill="#64748b">8月</text>
+          <text x="336" y="150" text-anchor="middle" font-size="9" fill="#d97706">09-01→08</text>
+          <g transform="translate(42,164)">
+            <line x1="0" y1="0" x2="16" y2="0" stroke="#0891b2" stroke-width="2.4"/>
+            <text x="20" y="3" font-size="8.5" fill="#64748b">被评论 PR</text>
+            <line x1="92" y1="0" x2="108" y2="0" stroke="#2563eb" stroke-width="2.1" stroke-dasharray="4 3"/>
+            <text x="112" y="3" font-size="8.5" fill="#64748b">正式 review PR</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+    <div class="cgrid">
+      <div class="cbox"><b style="color:#0891b2">3,409</b><span>被 ci-bot 评论过的 merged PR</span><div class="m">月度：0 / 18 / 698 / 1,315 / 1,084 / 294</div></div>
+      <div class="cbox"><b style="color:#2563eb">3,256</b><span>ci-bot 留下正式 review 的 merged PR</span><div class="m">月度：0 / 1 / 673 / 1,298 / 1,036 / 248</div></div>
+      <div class="cbox"><b style="color:#7c3aed">63,369</b><span>ci-bot 实际评论条数（4 月 1 日至 9 月 8 日）</span><div class="m">含 issue comment / review / review comment；按作者过滤统计</div></div>
+      <div class="cbox"><b style="color:#d97706">3,164</b><span>评论文本含 <code>Suggestion</code> 的 merged PR</span><div class="m">用于衡量可执行建议覆盖面</div></div>
+    </div>
+    <div class="trend-note">说明：上表同时展示“被评论 PR 数”和“实际评论条数”两类口径。实际评论条数按 GitHub GraphQL 对每个 PR 的 issue comment、review、review comment 做作者过滤统计（4 月 0、5 月 44、6 月 7,909、7 月 13,012、8 月完整月与 9 月切片见评论图）。该数字统计的是机器人发布的评论实体，不是被评论 PR 数。</div>
+  </div>
+
+  <div class="trend reveal">
+    <div class="trend-h"><h3>研发自动化演进趋势</h3><span>人工 vs 机器人 · 五个完整月 + 09-01→08 今日切片</span></div>
+    <div class="trend-grid">
+      <svg class="trend-svg" viewBox="0 0 420 184" role="img" aria-label="自动评审覆盖率与机器人提交占比从四月到九月八日的趋势">
+        <line x1="34" y1="14" x2="410" y2="14" stroke="#eef1f4"/>
+        <line x1="34" y1="82" x2="410" y2="82" stroke="#eef1f4"/>
+        <line x1="34" y1="150" x2="410" y2="150" stroke="#dfe4ea"/>
+        <text x="30" y="17" text-anchor="end" font-size="9" fill="#94a3b8">100</text>
+        <text x="30" y="85" text-anchor="end" font-size="9" fill="#94a3b8">50</text>
+        <text x="30" y="153" text-anchor="end" font-size="9" fill="#94a3b8">0</text>
+        <polyline points="42,150 112,149.7 182,39.3 252,16.0 322,20.3 398,37.9" fill="none" stroke="#2563eb" stroke-width="2.4"/>
+        <circle cx="42" cy="150" r="3.5" fill="#2563eb"/><circle cx="112" cy="149.7" r="3.5" fill="#2563eb"/><circle cx="182" cy="39.3" r="3.5" fill="#2563eb"/><circle cx="252" cy="16.0" r="3.5" fill="#2563eb"/><circle cx="322" cy="20.3" r="4" fill="#2563eb"/><circle cx="398" cy="37.9" r="4" fill="#2563eb"/>
+        <text x="182" y="34" text-anchor="middle" font-size="9" fill="#2563eb">81.4%</text>
+        <text x="252" y="11" text-anchor="middle" font-size="9" fill="#2563eb">98.5%</text>
+        <text x="322" y="15" text-anchor="middle" font-size="9.5" font-weight="700" fill="#2563eb">95.4%</text>
+        <text x="398" y="33" text-anchor="middle" font-size="9.5" font-weight="700" fill="#2563eb">82.4%</text>
+        <polyline points="42,149.6 112,150 182,150 252,142.4 322,146.7 398,139.7" fill="none" stroke="#ea580c" stroke-width="2.2" stroke-dasharray="4 3"/>
+        <circle cx="252" cy="142.4" r="3.5" fill="#ea580c"/><circle cx="322" cy="146.7" r="3.5" fill="#ea580c"/><circle cx="398" cy="139.7" r="3.5" fill="#ea580c"/>
+        <text x="244" y="139" text-anchor="end" font-size="9" fill="#ea580c">5.6%</text>
+        <text x="314" y="143" text-anchor="end" font-size="9" fill="#ea580c">2.4%</text>
+        <text x="390" y="136" text-anchor="end" font-size="9" fill="#ea580c">7.6%</text>
+        <text x="42" y="168" text-anchor="middle" font-size="9.5" fill="#64748b">4月</text>
+        <text x="112" y="168" text-anchor="middle" font-size="9.5" fill="#64748b">5月</text>
+        <text x="182" y="168" text-anchor="middle" font-size="9.5" fill="#64748b">6月</text>
+        <text x="252" y="168" text-anchor="middle" font-size="9.5" fill="#64748b">7月</text>
+        <text x="322" y="168" text-anchor="middle" font-size="9.5" fill="#64748b">8月</text>
+        <text x="398" y="168" text-anchor="middle" font-size="9.5" fill="#d97706">09-01→08</text>
+      </svg>
+      <div class="trend-leg">
+        <div class="lg"><span class="sw2" style="background:#2563eb"></span><span><b>自动评审覆盖率</b>（ci-bot 评审 PR ÷ 合入 PR）：0% → 81.4% → 98.5% → 八月 95.4% → 今日 82.4%</span></div>
+        <div class="lg"><span class="sw2" style="background:#ea580c"></span><span><b>机器人提交占比</b>（dev-bot 作者 ÷ 合入 PR）：≈0% → 5.6% → 八月 2.4% → 今日 7.6%</span></div>
+        <div class="lg"><span class="sw2 dot" style="background:#cbd5e1"></span><span><b>无 ci-bot review 的 PR</b>：七月 20 → 八月 50 → 今日 53（含人工评审或无 review）</span></div>
+      </div>
+    </div>
+    <div class="trend-bars">
+      <div class="tb"><div class="tl">4月 · 评审构成</div><div class="stack"><div class="seg bot" style="height:0%"></div><div class="seg human" style="height:100%"></div></div><div class="pct" style="color:#94a3b8">人工 100%</div></div>
+      <div class="tb"><div class="tl">5月 · 评审构成</div><div class="stack"><div class="seg bot" style="height:0.2%"></div><div class="seg human" style="height:99.8%"></div></div><div class="pct" style="color:#94a3b8">人工 ≈100%</div></div>
+      <div class="tb"><div class="tl">6月 · 评审构成</div><div class="stack"><div class="seg bot" style="height:81.4%"></div><div class="seg human" style="height:18.6%"></div></div><div class="pct">自动 81.4%</div></div>
+      <div class="tb"><div class="tl">7月 · 评审构成</div><div class="stack"><div class="seg bot" style="height:98.5%"></div><div class="seg human" style="height:1.5%"></div></div><div class="pct">自动 98.5%</div></div>
+      <div class="tb"><div class="tl">8月 · 评审构成</div><div class="stack"><div class="seg bot" style="height:95.4%"></div><div class="seg human" style="height:4.6%"></div></div><div class="pct">自动 95.4%</div></div>
+      <div class="tb"><div class="tl">09-01→08 · 今日切片</div><div class="stack"><div class="seg bot" style="height:82.4%"></div><div class="seg human" style="height:17.6%"></div></div><div class="pct" style="color:#d97706">自动 82.4%</div></div>
+    </div>
+    <div class="trend-note">截至 9 月 8 日合计（GitHub Search issueCount、merge-date 口径、月份互不重叠）：合入 4,283 · 人工 authored 4,159 · 无 ci-bot review 1,027 · ci-bot 正式 review 3,256 · 被 ci-bot 评论过 3,409 · dev-bot 提交 124。该口径与第 04 章从 Git 历史按 PR 编号首次出现日期去重的 4,025 个略有差异；“被评论过 / 正式 review / 含 Suggestion / 含 Critical / 含 /takeover”均统计的是 merged PR 数，不是机器人发布的评论条数。八月完整月合入 1,086 个（review 1,036 / 评论 1,084 / dev-bot 26，覆盖率 95.4%）；09-01→08 切片合入 301 个，其中 ci-bot 正式 review 248 个、评论 294 个、dev-bot 发起 23 个，覆盖率 82.4%——dev-bot 产出占比上升，机器评审仍兜底绝大多数 PR。</div>
+  </div>
+
+  <div class="pipe">
+    <div class="stage reveal" style="--sc:#0d9488">
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="no">①</span><h3>门禁 · PR 入口</h3>
+          <span class="cmdchip">qwen-triage</span><span class="cmdchip">pr-safety-precheck</span>
+          <span class="span">05-20 → 09-01</span>
+        </div>
+        <div class="caps">
+          <div class="cap"><span class="d">05-20</span><span><code>pr-gate</code> PR 规模 / 设计预审 gate</span></div>
+          <div class="cap"><span class="d">06-04</span><span><code>qwen-triage</code> @qwen /triage 自动分诊 issue 与 PR（#4768）</span></div>
+          <div class="cap"><span class="d">06-12</span><span>分诊覆盖全部 PR（含 fork 来源）</span></div>
+          <div class="cap"><span class="d">07-02</span><span><code>qwen-pr-safety-precheck</code> PR 安全预检</span></div>
+          <div class="cap"><span class="d">07-22</span><span>智能 core review router 取代 CODEOWNERS 全量指派</span></div>
+          <div class="cap"><span class="d">07-24</span><span><code>pr-self-report-label</code> PR 自报告标签</span></div>
+          <div class="cap"><span class="d">08-28</span><span>duplicate / already-fixed 前置门（Stage 1-pre）（#10292）</span></div>
+          <div class="cap"><span class="d">08-29</span><span>PR 开启与延期时指派单一 accountable owner（#9813）</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage reveal" style="--sc:#2563eb">
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="no">②</span><h3>审查 · /review</h3>
+          <span class="cmdchip">qwen-code-pr-review</span>
+          <span class="span">03-14 → 09-06</span>
+        </div>
+        <div class="caps">
+          <div class="cap"><span class="d">03-14</span><span><b>bounded /review 引入</b> — 分块拓扑 + effort 分级 + 轮次/重启硬上限（#2348）</span></div>
+          <div class="cap"><span class="d">04-08</span><span>落地加固周（04-06 → 08，16 个 feat）：确定性分析 + 反向审计 + 临时 worktree + CI 配置自动发现 + suggestion 一键修复</span></div>
+          <div class="cap"><span class="d">05-01</span><span>review pipeline 扩展 + <code>qwen review</code> CLI 子命令（#3754）</span></div>
+          <div class="cap"><span class="d">06-08</span><span><b>自动化</b>：<code>qwen-code-pr-review</code> PR 自动触发 bundled /review（#4549）</span></div>
+          <div class="cap"><span class="d">07-03</span><span>Suggestion 级发现路由到可更新 PR 评论（#5786）</span></div>
+          <div class="cap"><span class="d">07-06</span><span>issue 保真 + 根因归属门禁（#6395）</span></div>
+          <div class="cap"><span class="d">07-09</span><span>Suggestion 以 inline comment 形式投递（#6593）</span></div>
+          <div class="cap"><span class="d">07-10</span><span>大 diff 每行都有 accountable reviewer（#6612）</span></div>
+          <div class="cap"><span class="d">07-12</span><span>程序正确性 finder + effort levels 分级（#6711）</span></div>
+          <div class="cap"><span class="d">07-13</span><span>未跟踪文件捕获 + snippet anchor 解析 + 代码内 posting 门禁（#6771）</span></div>
+          <div class="cap"><span class="d">07-15</span><span>Step 4 verifier + Step 5 反向审计固化到代码，并证明其真实运行（#6942 / #6965）</span></div>
+          <div class="cap"><span class="d">07-26</span><span>verifier 可执行探针 + mutation 检验测试效力（#7756 / #7735）</span></div>
+          <div class="cap"><span class="d">07-27</span><span>script-lint 确定性门禁 — compose-review 直读报告（#7751）</span></div>
+          <div class="cap"><span class="d">07-30</span><span><code>review run</code> — headless 审查 + 机器可读 verdict（#7983）</span></div>
+          <div class="cap"><span class="d">08-01</span><span>recall / fix loop、按规模派生预算、Test Plan 声明核查 + A/B harness、轮次账本上帖（#8315 / #8215 / #8255）</span></div>
+          <div class="cap"><span class="d">08-02</span><span>drive 驱动 + mock-provider + falsify 不对称 + 证据图像托管（#8349 / #8355 / #8346 / #8351）</span></div>
+          <div class="cap"><span class="d">08-03</span><span>Java/JVM 性能路径规则 + Web Shell 结构化审查结果（#8379 / #8402）</span></div>
+          <div class="cap"><span class="d">08-05</span><span>成本账本 + 反向依赖闭包验证，/review 进入可度量阶段（#8471 / #8490）</span></div>
+          <div class="cap"><span class="d">08-07</span><span>repo context manifest + fork-PR 无鉴权扫描拒绝（#8654 / #8671）</span></div>
+          <div class="cap"><span class="d">08-09</span><span>/review submit 后回显已发布 review 链接（#8770）</span></div>
+          <div class="cap"><span class="d">08-10</span><span>反向审计预算上限 + 预算停止时 compose 存活（#8773 / #8791）— 巨型 diff  shed 反向审计开销，保评审产出</span></div>
+          <div class="cap"><span class="d">08-12</span><span>反向审计覆盖建模系统缺陷层（#8956）；收敛对扩展到 3B 分块评审（#8903）</span></div>
+          <div class="cap"><span class="d">08-18</span><span>Aone Code 读路径成为第二评审平台（#9226）</span></div>
+          <div class="cap"><span class="d">08-22</span><span>Aone 内联锚点校验 + 时间可达性 / 事件重放视角（#9634 / #9708）</span></div>
+          <div class="cap"><span class="d">08-23</span><span>持续 critical 收敛建议（land-with-residual-risk）+ Aone comment-status / presubmit（#9526 / #9627）</span></div>
+          <div class="cap"><span class="d">08-25</span><span>--topology 单遍 A/B 臂 + 容器内跑仓库自有命令（#9919 / #9556）</span></div>
+          <div class="cap"><span class="d">08-27</span><span>内容锚定增量轮（#9659）+ Critical 再生跨轮警告（#10010）</span></div>
+          <div class="cap"><span class="d">08-28</span><span>Step 4 验证执行级（#9740）+ direction/baseline 轴延迟 Critical（#10301）</span></div>
+          <div class="cap"><span class="d">09-01</span><span>review worktree 预建 — agent 开跑前环境就绪（#10423）</span></div>
+          <div class="cap"><span class="d">09-06</span><span>散文执行审计 + 反框架审计（#10221）；低 effort 召回下限（#9912）</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage reveal" style="--sc:#ea580c">
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="no">③</span><h3>修复 · /autofix + /takeover</h3>
+          <span class="cmdchip">qwen-autofix</span><span class="cmdchip">fleet-shepherd</span>
+          <span class="span">06-15 → 09-07</span>
+        </div>
+        <div class="caps">
+          <div class="cap"><span class="d">06-15</span><span><code>qwen-autofix</code> 定时 workflow 上线 — 自动修复陈旧 bug issue（#4989）</span></div>
+          <div class="cap"><span class="d">06-17</span><span>issue-fix 与 review-response 统一为单生命周期 workflow（#5233）</span></div>
+          <div class="cap"><span class="d">07-08</span><span>审查循环扩展到全部 dev-bot PR + 实时触发（#6528）</span></div>
+          <div class="cap"><span class="d">07-18</span><span><code>qwen-fleet-shepherd</code> 机器人 PR 舰队看管（#7142）</span></div>
+          <div class="cap"><span class="d">07-19</span><span><code>@qwen-code /takeover</code> 标签驱动接管/释放 + 维护者 fork PR 直接接管 + 免标签自托管（#7165 / #7213 / #7243）</span></div>
+          <div class="cap"><span class="d">07-20</span><span><code>/retry</code> 重新武装搁浅 PR（#7354）</span></div>
+          <div class="cap"><span class="d">07-21</span><span>轮次上限 5 → 10 + 门禁拒绝反馈回路 + 自动 resolve 已修复线程（#7412 / #7368 / #7364）</span></div>
+          <div class="cap"><span class="d">07-23</span><span>stale-base 自愈：自动更新基线并重跑、基建失败 check 自动重跑（#7554 / #7595 / #7562）</span></div>
+          <div class="cap"><span class="d">07-28</span><span>五轮变更后建议延期（#7913）</span></div>
+          <div class="cap"><span class="d">07-30</span><span>takeover 里程碑摘要 + 空闲候选退避 + 分源反馈预算（#8046 / #8049 / #8071）</span></div>
+          <div class="cap"><span class="d">08-01</span><span>本地与 CI 流程统一进单一 skill（#8121）</span></div>
+          <div class="cap"><span class="d">08-05</span><span>review CLI bundle 一次构建、多腿分发（#8548）</span></div>
+          <div class="cap"><span class="d">08-07</span><span>fork-PR review 桥接到带凭据 review lane（#8676）</span></div>
+          <div class="cap"><span class="d">08-08</span><span>五轮变更后自动进入 Critical-only 模式（#8751）</span></div>
+          <div class="cap"><span class="d">08-14</span><span>deny-by-default footprint 门禁 + 不收敛升级维护者交接（#9156 / #9104）</span></div>
+          <div class="cap"><span class="d">08-21</span><span>超增长预算时审计方案而非停止（#9262）</span></div>
+          <div class="cap"><span class="d">08-27</span><span>长轮期间轮次状态评论保持 live（#9771）</span></div>
+          <div class="cap"><span class="d">08-29</span><span>消费 review 收敛信号 — takeover 循环熔断器（#10122）</span></div>
+          <div class="cap"><span class="d">09-07</span><span>autofix 轮报告外露解析模型与 CLI 版本（#11124）</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage reveal" style="--sc:#7e22ce">
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="no">④</span><h3>验证 · /verify</h3>
+          <span class="cmdchip">qwen-triage-finalize</span>
+          <span class="span">07-15 → 08-29</span>
+        </div>
+        <div class="caps">
+          <div class="cap"><span class="d">07-15</span><span>本地 PR 验证门禁脚本（#6873）</span></div>
+          <div class="cap"><span class="d">07-25</span><span><code>qwen-triage-finalize</code> 沙箱 /verify 深验证通道（#7710）</span></div>
+          <div class="cap"><span class="d">07-26</span><span>证据截图托管 + 量化 A/B 对照规则</span></div>
+          <div class="cap"><span class="d">07-29</span><span>外部 PR 赞助验证 · ECS 一次性 runner</span></div>
+          <div class="cap"><span class="d">08-29</span><span>verify 分片前对携带账本去重候选（#10121）— 深验证负载收敛</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage reveal" style="--sc:#16a34a">
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="no">⑤</span><h3>自愈 · CI 巡线</h3>
+          <span class="cmdchip">ci-flaky-rerun</span><span class="cmdchip">failure-issue</span>
+          <span class="span">07-12 → 09-03</span>
+        </div>
+        <div class="caps">
+          <div class="cap"><span class="d">07-12</span><span><code>main-ci-failure-issue</code> + <code>qwen-ci-flaky-rerun</code> 失败巡线（#6766）</span></div>
+          <div class="cap"><span class="d">07-19</span><span>确认 flaky 后自动开 deflake 修复 issue（#7231）</span></div>
+          <div class="cap"><span class="d">07-28</span><span>E2E 失败 issue 去重：追加评论而非重开（#7792）</span></div>
+          <div class="cap"><span class="d">07-29</span><span><code>windows-runner-smoke</code> Windows runner 冒烟（#8008）</span></div>
+          <div class="cap"><span class="d">08-10</span><span>静默沙箱挂起 watchdog + 回收泄漏容器（#8816）；triage 预算操作员可调（#8810）</span></div>
+          <div class="cap"><span class="d">09-03</span><span>巡线状态 rollup 逐 PR 读取（#10861）；竞争 unit 重试 + 挂起 attempt 封顶（#10868）</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage reveal" style="--sc:#db2777">
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="no">⑥</span><h3>发布 · Release</h3>
+          <span class="cmdchip">finalize-release</span><span class="cmdchip">serve-ab</span>
+          <span class="span">04-16 → 09-07</span>
+        </div>
+        <div class="caps">
+          <div class="cap"><span class="d">04-16</span><span><code>sdk-python</code> SDK 发布自动化起步</span></div>
+          <div class="cap"><span class="d">06-09</span><span>CHANGELOG.md 从 releases 自动同步（#4872）</span></div>
+          <div class="cap"><span class="d">07-14</span><span><code>finalize-release</code> 稳定版异步 finalize</span></div>
+          <div class="cap"><span class="d">07-15</span><span><code>serve-ab</code> serve 产物 A/B 发布</span></div>
+          <div class="cap"><span class="d">07-17</span><span>发布基准测试自动化 · Harbor 分发</span></div>
+          <div class="cap"><span class="d">07-23</span><span><code>sdk-java</code> Java SDK 发布线接入</span></div>
+          <div class="cap"><span class="d">09-03</span><span>稳定版不再被单个 flaky 测试阻断（#10842）；workspace 空失败测试运行自报（#10805）</span></div>
+          <div class="cap"><span class="d">09-07</span><span>release 下载基址可配置（#11150）</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 INVESTMENT ============ -->
+<section class="wrap">
+  <div class="sec-head reveal"><span class="sec-no">06</span><h2>投入分布</h2></div>
+  <p class="sec-note reveal">按合入 main 的 feat 提交数统计的功能域投入，4 月 1 日至 9 月 8 日共 <b style="color:var(--text-dim)">1,220 个合入 feat 提交</b>。cli 以 200 个提交居首（详见 03 章 CLI 专章），与 web-shell / core / serve+daemon 构成四条主线；telemetry 域按含 core / serve 可观测性相关 feat / perf 的宽口径计 40 个提交；其余 20+ 领域构成长尾广度。条形右侧为各域八月完整月 feat 增量，<b style="color:var(--text-dim)">review/verify +68</b> 居首，其余见图。</p>
+  <div class="bars reveal" id="bars"></div>
+</section>
+
+<footer class="wrap">
+  <span>Refreshed 2026-09-08 · window through 2026-09-08 · source: git log origin/main · merged only (4,359 commits)</span>
+  <span>Qwen Code · Feature Evolution Report · v0.14 → v0.23</span>
+</footer>
+
+<div id="tip"></div>
+
+<script>
+(function () {
+  /* ---- timeline geometry: Apr 1 = day 0; four complete months span the chart, and Aug 6 is pinned to the right-edge cutoff ---- */
+  var DAY0 = { 4: 0, 5: 30, 6: 61, 7: 91, 8: 122, 9: 153 };
+  function pos(m, d) { return Math.min(99.5, (DAY0[m] + d - 1) / 160 * 100); }
+
+  /* ---- inline milestone labels: estimate width, assign above/below lane, avoid overlap ---- */
+  var LANE = 1012; /* approx lane width in px (chart min-width 1240 - padding - name column) */
+  function estW(s) {
+    var w = 38; /* "MM-DD" + gap */
+    for (var i = 0; i < s.length; i++) w += s.charCodeAt(i) > 0x2e7f ? 10.5 : 6.2;
+    return w / LANE * 100;
+  }
+
+  var GROUPS = [
+    { name: '平台基座 · Platform', color: '#0e7490', items: [
+      { name: 'Daemon / Serve', color: '#0e7490', start: [5,7], ms: [
+        [5,13,'Stage 1 合入（#3889）— daemon 首个可跑骨架：SSE 事件流 + session / prompt 路由','Stage1 合入'],
+        [5,17,'协议加固 — 事件 schema v1、心跳与 auth 门控，让长连接可治理','协议加固'],
+        [5,27,'ACP Streamable HTTP transport（#4472）— daemon 首次讲 ACP 协议，用标准 HTTP 流承载','ACP HTTP'],
+        [6,11,'ACP WebSocket + REST parity（#4827）— 29 个新方法补齐，三种传输能力对齐','WS+REST parity'],
+        [6,12,'daemon-mode 合入 main（#4490）— 从实验分支进入主线，成为正式分发能力','合入 main'],
+        [6,19,'qwen serve 托管 Web Shell UI（#5392）— 浏览器版界面由 daemon 直接提供服务','托管 WebShell'],
+        [7,6,'Multi-workspace runtime 注册表（Phase 1–4）— 一个 daemon 同时托管多个项目工作区','多工作区注册表'],
+        [7,19,'Worktree 隔离会话（#7221）— 会话可绑定独立 git worktree，并行工作互不干扰','Worktree 隔离'],
+        [7,24,'Channel delivery workers（#7641）— 渠道消息由 daemon 内专职 worker 投递','Channel 投递'],
+        [7,31,'max sessions 提升至 32 + 调用方指定 sessionId（#8235 / #7836）— 并发容量翻倍，外部系统可稳定寻址会话','扩容',1],
+        [8,2,'daemon 内存预算解析与上报（#8245）— 内存压力可观测，超限前有据可查','内存预算',1],
+        [8,7,'以真实分母观测 daemon 与子进程内存（#8423）— 内存账本对上真实总量','内存分母',1],
+        [8,8,'Expose active work state（#8588）— 客户端可查询 daemon 当前活跃工作','active 状态',1],
+        [8,11,'daemon ACP NDJSON 缓冲上限（#8911）— 传输层缓冲设上限，异常流量下内存不失控','NDJSON 上限',1],
+        [8,12,'会话列表取消传播（#8954）— 客户端取消可靠传播到 daemon 会话列表','取消传播',1],
+        [8,17,'live-session 注册表 + qwen sessions ps（#8969）— 活会话有注册表，ps 式可查','sessions ps',1],
+        [8,19,'live-state 会话活动水位 + 可轮询轮次状态（#9396 / #9080）— 会话活跃度与轮次状态可轮询','live-state',1],
+        [8,22,'会话加载恢复 ask_user_question HITL（#9665）— 会话加载后人在回路提问可恢复','HITL 恢复',1],
+        [8,25,'ACP 通道传输 liveness（#9976）— ACP 传输活性可监测','传输 liveness',1],
+        [8,26,'当前会话定时任务（#9838）— 定时任务挂在当前会话','当前会话任务',1],
+        [8,28,'Aone 一等平台 session PR 绑定（#10287）— 会话与 PR 绑定扩展到 Aone','Aone PR 绑定',1],
+        [8,31,'workspace runtime 所有权（#10593）+ 可信 loopback 全 API（#10403）— runtime 选择有明确所有权','runtime 所有权',1],
+        [9,7,'并发 standalone daemon + 会话 lease 围栏（#11207 / #10924）— 多 daemon 并发、写者按会话围栏','并发 daemon',1]]},
+      { name: 'Web Shell', color: '#1d4ed8', start: [5,21], ms: [
+        [6,3,'内嵌终端命令 UI（#4710）— 在网页里直接执行并查看终端命令','内嵌终端'],
+        [6,11,'Composer API + 轮次折叠 + Todo 面板 — 输入框可编程，长会话可折叠，任务清单一目了然','Composer API'],
+        [6,19,'由 qwen serve 提供服务（#5392）— 无需单独部署，daemon 启动即开网页版','serve 托管'],
+        [6,25,'Excel 风格表格交互（#5650）— markdown 表格可排序、冻结、调列宽','Excel 表格'],
+        [7,5,'定时任务页 + token 分析仪表盘 — 定时任务与用量开销在网页端可视化管理','任务页+分析'],
+        [7,7,'Session Overview 面板 + 窗内分屏（#6400）— 会话全景总览，一窗看多个会话','Session Overview',1],
+        [7,11,'Artifact 面板 + shadcn 基座（#6760）— 产物集中管理，UI 组件体系统一','Artifact'],
+        [7,12,'多工作区分屏视图（#6746）— 多个项目工作区并排操作','多工作区'],
+        [7,15,'PR 视觉预览自动张贴（#6880）— UI 改动自动截图发回 PR','视觉预览',1],
+        [7,18,'git 状态 chip + 可视化 working-tree diff（#7054）— 改动状态与差异在网页里直接看','git 可视 diff',1],
+        [7,22,'渲染文件预览（#7467）— 图片、文档等文件在面板内直接预览','文件预览',1],
+        [7,25,'只读 GitHub PR 面板（#7683）— 网页端浏览 PR 列表与详情','PR 面板',1],
+        [7,27,'Git 分支 / 提交 / 创建 PR 流程（#7731）— 网页端完成从分支到 PR 的完整 git 工作流','Git 流程'],
+        [7,28,'Channel 管理页（#7793）— 渠道接入在网页端配置管理','Channel 管理',1],
+        [7,29,'流式图表 + 上下文任务面板（#7916 / #7929）— 数据流实时成图，任务上下文集中呈现','流式图表',1],
+        [8,1,'mid-turn 可变默认消息 + artifact 下载（#8229 / #8234）— 轮次中默认消息可改写，产物一键下载','mid-turn 可变',1],
+        [8,5,'原生 Live Voice + session workflow 驾驶舱（#7859）— 网页端实时语音对话，workflow 运行全景可视','Live Voice+驾驶舱',1],
+        [8,5,'mid-turn 只读命令立即执行（#8496）— 轮次进行中安全命令无需等待直接执行','mid-turn 命令',1],
+        [8,7,'流式期间节流 Markdown AST 解析（#7904）— 长输出渲染不再卡顿','AST 节流',1],
+        [8,7,'并行代理活动反馈（#8559）— 多代理并行时活动状态实时可见','并行反馈',1],
+        [8,10,'图片拖拽上传（#8696）— 对话里直接拖入图片，给 agent 提供视觉素材','图片拖拽',1],
+        [8,10,'上下文用量迷你进度 pill（#8794）— 状态栏小进度条显示上下文占用，溢出风险一眼可见','上下文 pill',1],
+        [8,11,'上传图片右栏预览（#8930）— 对话上传图片右栏即时预览','图片预览',1],
+        [8,12,'Channel 会话进侧栏与设置（#8457）— 渠道会话在 Web Shell 可见可管','Channel 会话',1],
+        [8,15,'composer 文本文件附件（#9180）— 输入框可附带的文本文件','文件附件',1],
+        [8,22,'GitHub PR 绑定会话（#9543）— PR 与会话绑定，侧栏徽标 + 搜索','PR 会话绑定',1],
+        [8,24,'agent 任务变更外露 + 异步提交准备（#9637 / #9802）— 代理任务变化实时可见','任务外露',1],
+        [8,26,'会话 token 用量面板（#9988）— 用量按会话可视','用量面板',1],
+        [8,28,'opt-in 浏览器终端 + composer add 菜单（#9984 / #10379）— 网页内可选开终端','浏览器终端',1],
+        [8,31,'workspace 总览 + 工作区菜单（#10407）— 侧栏直接看工作区全景','workspace 总览',1],
+        [9,1,'standalone 聊天 + Workspaces 总览面板 + 会话内容搜索（#10514 / #10589 / #10612）','standalone 聊天',1],
+        [9,3,'会话 artifact 快照（#10747）— 网页端会话产物可快照外露','artifact 快照',1],
+        [9,8,'上下文用量 tab + 连续历史与紧凑轮导航（#11177 / #11208）— 右栏看用量，长会话连续滚读','用量 tab+连续历史',1]]},
+      { name: 'SDK', color: '#0284c7', start: [4,25], ms: [
+        [5,7,'TS DaemonClient（#3803）— TypeScript 首个 daemon 客户端，程序可远程驱动 qwen','DaemonClient'],
+        [5,17,'DaemonSessionClient（#4201）— 会话级 API：创建、发送、订阅事件','SessionClient'],
+        [6,14,'DaemonTransport 抽象 + ACP 标准合规（#5040）— 传输层可插拔，协议与 ACP 标准对齐','DaemonTransport'],
+        [7,11,'控制请求（#6492）— SDK 可动态调整推理档位、查询模型 / 用量 / 上下文','控制请求'],
+        [7,23,'Java daemon transport（#7463）— Java 生态也能直连 daemon','Java transport'],
+        [8,28,'standalone 会话 API（#10294 / #10179）— SDK 可驱动独立会话','standalone API',1]]},
+      { name: 'Browser Extension', color: '#c026d3', start: [6,23], ms: [
+        [6,24,'CDP tunnel 反向链路 + 桥接注册表 — 浏览器标签页经 CDP 反向接入 agent 网络','CDP tunnel'],
+        [6,25,'Chrome 侧边栏托管 Web UI — 在浏览器侧边栏直接使用完整网页版','侧边栏托管'],
+        [6,28,'daemon-direct 架构重生（#5777）— 扩展直连 daemon，去掉中间层，稳定性大幅提升','架构重生'],
+        [8,4,'alpha readiness 诊断（#6739）— 发布前自检扩展各链路就绪状态','alpha 诊断',1]]},
+      { name: '模型接入 · Providers', color: '#7c3aed', start: [4,1], ms: [
+        [4,2,'function-calling 兜底 — 无原生 FC 的第三方模型也能用工具，接入面一下打开','FC 兜底'],
+        [4,6,'图像模态 / 视觉上下文接入 — 第三方视觉模型可读图，多模态不再是官方模型专属','Vision 输入'],
+        [5,2,'Anthropic 直连适配 — cache_control / prefill / 工具格式，Claude 系列一手接入','Anthropic'],
+        [5,11,'BYOK custom-provider + 五家预设同日入注册表 — 自带 key 自由接入 deepseek / minimax / z.ai / idealab / openrouter','BYOK+预设'],
+        [5,20,'模型回退链 + modelscope 接入 — 主模型故障自动切备用，可用性大幅提升','Fallback 链'],
+        [6,21,'requesty 接入 + 聚合器路由 / 鉴权完善 — 聚合网关类供应商全面支持','聚合器扩容'],
+        [7,14,'grok / xAI 预设上线 — xAI 模型开箱即用','Grok'],
+        [7,23,'required-thinking 重试 + reasoning effort 保留 — 抹平各家推理参数差异，思考链不丢','推理兼容'],
+        [7,30,'OpenAI Responses API + XML 工具调用兜底 — 新一代 OpenAI 接口与弱 FC 模型双双收口','Responses'],
+        [7,31,'Anthropic 1h 扩展 cache_control TTL（#8048）— 长会话缓存命中更久，成本更低','1h 缓存',1],
+        [8,7,'OpenAI / Gemini / Vertex 共享压缩缓存（#8418 / #8425）— 跨厂商压缩缓存复用，省 token','压缩缓存共享',1],
+        [8,13,'Web Shell 可配置 Qwen 3.8 推理（#8974）— 新一代推理模型网页端可调推理参数','Qwen3.8 推理',1],
+        [8,19,'qwen3.8-max 进 Token Plan 模型列表（#9383）— Token Plan 增加新模型','qwen3.8-max',1],
+        [8,24,'Kimi（Moonshot）内置供应商（#9814）— 月之暗面模型开箱即用','Kimi 内置',1],
+        [9,1,'modelProviders 热重载（#10582）— 供应商配置改动无需重启会话','provider 热重载',1]]}
+    ]},
+    { name: '代理能力 · Agent', color: '#ea580c', items: [
+      { name: 'Subagents', color: '#ea580c', start: [4,14], ms: [
+        [4,17,'后台子代理 + headless / SDK 支持（#3076）— 任务甩给子代理后台跑，主会话不被阻塞','后台子代理'],
+        [4,28,'Pill UI + /tasks 后台任务池（#3488）— 后台任务有入口、有状态、可管理','Pill+/tasks'],
+        [5,8,'前台→后台提升 + Ctrl+B 快捷键 — 跑久了的前台任务一键转后台','Ctrl+B 提升'],
+        [5,26,'并发限制 + 并行扇出面板（#4477）— 多子代理并行编组，资源有闸门','扇出面板'],
+        [6,11,'Agent Team + 声明式 frontmatter（#4844）— 团队化子代理用配置声明，开箱即编组','Agent Team'],
+        [6,22,'可复活代理 + transcript TTL（#5556）— 完成的代理可唤醒续聊，记录有过期策略','可复活代理'],
+        [7,3,'嵌套子代理 · 可配置深度（#6189）— 子代理再派生子代理，层级可控','嵌套子代理'],
+        [7,18,'按模型并发上限（#6984）— 不同模型独立限流，避免挤爆单一通道','模型并发限'],
+        [7,21,'fork_turns 限制 fork 继承窗口（#7346）— fork 只带最近几轮上下文，省 token','fork_turns',1],
+        [7,22,'后台代理常驻 + roster 恢复（#7426 / #7459）— 重启后代理花名册还在，可继续操作','常驻恢复',1],
+        [8,1,'agent view supervisor 运行时（#7799）— 代理运行有监督层，异常可见可干预','supervisor',1],
+        [8,12,'原生多代理协调（#8804）— 多 agent 间原生协调协议，分工不互撞','多代理协调',1],
+        [8,25,'agent view 会话生命周期管理（#9986）— 监督层会话可管理可回收','view 生命周期',1]]},
+      { name: 'Workflow', color: '#9333ea', start: [6,10], ms: [
+        [6,12,'P2 parallel() / pipeline()（#4947）— 工作流可并行、可串接，编排能力成形','P2 并发'],
+        [6,15,'P4 /workflows 命令 + 阶段树 UI — 工作流有命令入口，阶段进度树状可视','P4 命令+UI'],
+        [6,18,'P5 token 预算（#5231）— 工作流开销有上限，超预算即停','P5 预算'],
+        [6,22,'完整移植 — 恢复 / 保存 / 触发 / 通知（#5600）— 工作流全生命周期齐备','完整移植'],
+        [8,1,'后台运行 opt-in + 审批冒泡（#8303 / #8240）— 工作流可挂后台，关键审批仍会浮出','后台 Workflow',1],
+        [8,5,'session workflow 驾驶舱实验门控（#8391）— workflow 全景驾驶舱进入灰度','驾驶舱',1],
+        [8,8,'协作式 pause / resume（#8320）— workflow 可暂停可恢复，人机协作更顺手','pause/resume',1],
+        [8,20,'workflow 执行状态外露（#9034）— workflow 运行状态可查询可展示','workflow 状态',1],
+        [8,24,'workflow 显式 opt-in + 执行预览授权（#9806 / #9837）— 先看它将做什么再授权','opt-in 预览',1],
+        [8,31,'serve 外露 Workflow 任务与控制（#10411）— 工作流编排经协议可访问可控制','协议化',1],
+        [9,6,'run handles + inline 脚本持久化（#11089）— 运行可被程序引用','run handles',1]]},
+      { name: 'Loop / Cron', color: '#059669', start: [4,1], ms: [
+        [6,10,'默认开启 loop / cron 工具（#4950）— 定时与循环任务开箱可用','默认开启'],
+        [6,13,'持久化任务（#5004）— 重启后定时任务不丢','持久化'],
+        [6,19,'秒级会话唤醒引擎（#5182）— 到点秒级唤起会话执行任务','秒级唤醒'],
+        [6,30,'自治 /loop 模式（#5991）— agent 自定节奏连续迭代，无需人盯','自治 loop'],
+        [7,7,'专属命名会话（#6389）— 定时任务各有独立会话，互不串扰','命名会话'],
+        [7,10,'前置条件隔离运行（#6619）— 条件不满足就不跑，运行环境相互隔离','隔离运行'],
+        [7,25,'GitHub 轮询 · notification-as-wakeup（#7632）— GitHub 动态变成唤醒信号','GitHub 唤醒',1],
+        [8,24,'已有会话创建定时任务（#9361）— 定时任务可复用现有会话','既有会话任务',1]]},
+      { name: 'Goal', color: '#db2777', start: [5,16], ms: [
+        [5,19,'流事件 + 非交互 /goal（#4273）— 目标进度可订阅，脚本可静默提交目标','流事件'],
+        [7,18,'workspace Goals 页（#6561）— 工作区目标在网页端集中管理','Goals 页',1],
+        [7,24,'Goal v3 状态协议（#7517）— 目标生命周期状态机化，可校验可审计','v3 协议'],
+        [7,28,'v3 持久化与重放（#7815）；07-29 接入轮次引擎（#7895）— 目标跨重启存活并驱动真实轮次','v3 落地'],
+        [8,1,'Goal v3 进入交互式 TUI（#8005）— 终端里直接交互式管理目标','TUI Goal v3',1],
+        [8,8,'长时 Goal 证据 checkpoint（#8465）— 长目标证据分段 checkpoint，不丢进度','证据 checkpoint',1],
+        [8,12,'Goal v3 进 ACP 会话（#8732）— ACP 会话同样用上 Goal v3 协议','ACP Goal v3',1],
+        [8,25,'checkpoint 三连停滞自动停止 Goal（#9975）— 停滞自动止损，长目标不空转','停滞自停',1],
+        [8,26,'目标不可行早停 + 交接轮 + 预算再武装（#10125 / #10132 / #9891）— Goal 会判断、会交接','不可行早停',1],
+        [8,27,'目标变更一次性告知（#10013）— 目标改了只说一次','目标变更告知',1],
+        [9,1,'模型提案 Goal + 对话框审批（#10171）— Goal 可由模型提案、用户对话框批准','模型提案 Goal',1],
+        [9,7,'Goal 窗口花费可视（#11248 / #11254）— 预算窗口内花费一目了然','Goal 花费',1]]},
+      { name: 'Plan Mode', color: '#4f46e5', start: [4,8], ms: [
+        [6,12,'enter_plan_mode 工具 + 审批门（#4853）— 先出方案再动手，开工前必经审批','工具+审批门'],
+        [6,19,'进入计划模式自动展示 exit 工具（#5311）— 如何退出计划模式不再靠猜','自动展示'],
+        [7,2,'plan-required teammate leader 审批（#6138）— 团队协作场景方案由 leader 把关','Leader 审批'],
+        [7,19,'Plan-mode shell 安全路由 + 全文读 plan（#7172 / #7060）— 计划模式下命令走安全通道，方案全文可读','安全路由',1],
+        [8,4,'plan 审批绑定 Todo 修订（#8393）— 批准的方案自动转成待办清单执行','Todo 绑定',1]]},
+      { name: 'Auto Mode', color: '#dc2626', start: [5,20], ms: [
+        [6,23,'破坏性命令确定性护栏（#5754）— rm -rf 类危险命令规则层直接拦截','破坏性护栏'],
+        [7,1,'classifyAllShell 全量分类（#6040）— 所有 shell 命令先分类再放行，审批更准','全量分类'],
+        [7,15,'成为默认审批模式（#6899）— 自动模式默认上岗，人工只看风险项','默认模式']]}
+    ]},
+    { name: '连接生态 · Ecosystem', color: '#16a34a', items: [
+      { name: 'Channels', color: '#16a34a', start: [4,1], ms: [
+        [4,13,'Telegram 语音消息（#3150）— TG 语音直接转文字进会话','TG 语音'],
+        [5,6,'微信图片 CDN 上传（#3781）— 微信里发图，agent 收得到','微信图片'],
+        [5,28,'飞书 / Lark 通道（#4379）— 飞书群里直接 @ 机器人干活','飞书'],
+        [6,19,'QQ 机器人通道（#5202）— QQ 群接入 agent','QQ 机器人'],
+        [6,29,'ChannelAgentBridge 抽象层（#5978）— 渠道接入统一抽象，新渠道接入成本大降','Bridge 抽象'],
+        [7,1,'Channel loop + daemon worker（#6073）— 渠道消息由 daemon 常驻循环处理','Loop+Worker'],
+        [7,7,'企业微信智能机器人（#6436）— 企业微信场景开箱可用','企业微信'],
+        [7,25,'GitHub 轮询适配器（#7632）— GitHub 事件驱动 agent 行动','GitHub 适配'],
+        [7,29,'钉钉交互卡片（#6930）— 钉钉里收发结构化交互卡片','钉钉卡片'],
+        [8,7,'group pairing（#8440）— 群聊配对绑定，agent 进群有门禁','群配对',1],
+        [8,8,'飞书 ask-user 问题卡片（#8578）— 飞书里弹结构化提问卡片','飞书问卡片',1],
+        [8,25,'钉钉 Workspace 通道（#9394）— 第七通道：钉钉 Workspace','钉钉 Workspace',1],
+        [8,27,'owner-scoped 命名会话（#10198）— 渠道会话按主人命名','命名会话',1],
+        [8,31,'并发命名任务控制 + 输出归属（#10574 / #10420）— 渠道任务可并发、可归属','命名任务控制',1],
+        [9,1,'钉钉 Workspace 任务 reactions（#10610）— DWS 任务有反应反馈','DWS reactions',1],
+        [9,3,'钉钉文件外发（#10893）— 钉钉通道支持向外发送文件','钉钉文件外发',1],
+        [9,4,'worktree 隔离命名任务 + 消息前缀过滤（#10643 / #10817）— 渠道任务隔离运行','worktree 命名任务',1]]},
+      { name: 'Extensions', color: '#0d9488', start: [4,1], ms: [
+        [6,20,'多标签 /extensions 管理器（#4850）— 扩展可视化管理，一屏看完','多标签管理'],
+        [6,26,'@extension 提及 + creator skill — 对话里 @ 扩展，创建扩展有专用技能','@提及'],
+        [7,8,'插件文件热重载（#6347）— 改完扩展不用重启即时生效','热重载'],
+        [7,14,'Extension management v2（#6825）— 安装、启停、配置全链路升级','管理 v2'],
+        [8,8,'从归档安装 Extension（#8621）— 扩展可直接从压缩包安装','归档安装',1],
+        [8,11,'Agent Plugins v1 支持（#8834）— 扩展体系兼容 Agent Plugins v1 标准','Plugins v1',1],
+        [8,19,'带鉴权 HTTPS Git 安装（#9458）— 扩展可从私有 Git 经 HTTPS 安装','HTTPS Git 安装',1],
+        [8,26,'本地路径扩展安装（#10131）— 扩展可直接从本地路径装','本地路径安装',1],
+        [8,31,'workspace 级扩展 skill 状态管理（#10600）— 扩展技能状态按 workspace 管理','扩展 skill 状态',1]]},
+      { name: 'Skills', color: '#d97706', start: [4,13], ms: [
+        [5,5,'并行加载 + 路径条件激活（#3604）— 技能按路径自动激活，加载不串行','并行加载'],
+        [6,5,'/skills 选择器对话框（#4533）— 技能启停用对话框勾选','选择器'],
+        [6,13,'用户可调用 frontmatter（#5037）— 技能可被用户显式点名调用','可调用'],
+        [7,8,'自动生成技能审查（#6393）— 新技能自动过一遍审查','自动审查'],
+        [7,15,'/learn 用户主动创建（#6440）— 用户可让 agent 把经验沉淀成技能','/learn'],
+        [7,22,'自定义 skill 目录（#7395）— 技能可放在任意目录被加载','自定义目录',1],
+        [8,1,'auto-skill curator + disabled skill levels（#7846 / #8057）— 技能自动策展，停用分级管理','curator',1],
+        [8,8,'批量 skill 开关 API（#8664）— daemon 批量启停技能','批量开关',1],
+        [8,24,'find-simplifications 清扫 skill（#9384）— 仓库级冗余清扫技能入仓','清扫 skill',1],
+        [8,26,'bundled goal-draft skill（#10002）— 写出验证者可判定的 Goal','goal-draft',1]]}
+    ]},
+    { name: '输入输出 · I/O', color: '#e11d48', items: [
+      { name: 'Voice', color: '#e11d48', start: [6,22], ms: [
+        [6,24,'fast-model 转写精修 + daemon 语音通道 — 语音转写由快模型润色，准确率更高','转写精修'],
+        [6,25,'Keyterms 偏置 + 工作区语音 API — 专业词汇定制识别，项目级语音接口','Keyterms'],
+        [6,28,'桌面端语音听写（#5856）— 桌面应用里直接语音输入','桌面端'],
+        [7,14,'workspace 级 Voice API（#6839）— 语音能力按工作区开放调用','workspace Voice',1],
+        [7,28,'Web Shell hold 模式（#7839）— 网页端按住说话、松手发送','Hold 模式'],
+        [8,5,'Web Shell 原生 Live Voice 上线 — 网页端实时语音对话，边说边响应','Web Shell Live Voice',1],
+        [9,1,'qwen-live 独立语音 daemon 包（#10367）— 语音能力以独立包分发','qwen-live',1]]},
+      { name: 'Computer Use', color: '#65a30d', start: [5,29], ms: [
+        [6,3,'签名公证 fork（#4726）— 驱动程序带签名，macOS 不再拦截','签名 fork'],
+        [6,14,'cua-driver 跨平台迁移（#5051）— 桌面操控能力跨平台可用','cua-driver'],
+        [6,26,'自托管 qwen-cua-driver（#5896）— 驱动自研自托管，不再依赖外部发布','自托管'],
+        [7,3,'0.7.0 同步 + mobile-mcp（#6212）— 驱动升级，移动端设备也可操控','0.7.0'],
+        [7,28,'全分辨率图像缩放（#7809）— 高分屏截图精准映射坐标','图像缩放'],
+        [8,5,'Qwen CUA 驱动默认启用 — 桌面操控开箱即用，无需手动装驱动','CUA 默认',1],
+        [8,24,'内置工具替换为 bundled skill（#9856）+ 版本化 CU SDK（#9587）— CU 以 skill 形态分发','skill 化',1]]},
+      { name: 'Artifacts', color: '#ca8a04', start: [6,22], ms: [
+        [7,3,'Daemon artifact API（#5895）— 产物有统一 API，各端可读写','Artifact API'],
+        [7,9,'跨重启持久化（#6557）— 产物重启后仍在','持久化'],
+        [7,11,'Web Shell 右侧面板（#6591）— 网页端侧边栏直接看产物','右侧面板'],
+        [7,17,'默认开启 + 写入提醒（#7068）— 产物默认登记，重要写入有提示','默认开启'],
+        [8,1,'Web Shell artifact 下载（#8234）— 产物一键下载到本地','artifact 下载',1],
+        [8,4,'PR / issue / comment URL 记录引导（#8453）— 外部链接也引导登记为产物','URL artifact',1],
+        [8,25,'按项目落仓外 artifact（#9776）— 仓库之外的产物也有归属地','仓外 artifact',1]]},
+      { name: '文生图 Image', color: '#06b6d4', start: [7,22], ms: [
+        [7,22,'qwen3.8-max / kimi 图像模态支持（#7491）— 模型读图能力扩展到更多供应商','图像模态'],
+        [7,23,'可配置文生图模型 + image_gen 工具（#7607）— 对话里直接让 agent 画图','文生图工具'],
+        [7,28,'文本模型桥接工具结果图像（#7484）— 纯文本模型也能收到图像结果','图像桥接',1],
+        [8,1,'TUI 图像显示工具（#8217）— 终端里直接显示图片','TUI 图像显示',1]]},
+      { name: 'Sessions', color: '#6366f1', start: [4,19, '/recap · /rewind'], ms: [
+        [4,22,'重命名 / 删除 / 自动标题（#3093）— 会话可管理，标题自动生成','自动标题'],
+        [5,8,'/branch 会话分叉（#3539）— 从任意点岔出新会话试不同思路','/branch'],
+        [6,12,'跨会话 rewind 持久化（#4897）— 回滚状态跨会话保存','跨会话 rewind'],
+        [6,28,'中断轮次无感恢复（#5030）— 崩溃中断后轮次自动续上','中断恢复'],
+        [7,5,'归档 + 整理 + 导出（#6305）— 老会话可归档导出，列表清爽','归档导出'],
+        [7,9,'artifact 跨重启持久化 + Ctrl+O 冻结 transcript（#6557 / #5666）— 产物不丢，随时回看完整记录','artifact 持久化'],
+        [7,13,'多工作区 rewind + shell（#6826）— 多工作区场景也能回滚','多工作区 rewind',1],
+        [7,19,'worktree 隔离会话（#7221）— 会话绑定独立 worktree，并行互不干扰','worktree 隔离',1],
+        [7,24,'@ 引用过往会话 + 补全 tabs（#7302）— 对话里 @ 老会话引用其上下文','@ 会话引用'],
+        [8,2,'子会话并发上限可配置（#8341）— 子会话数量配额可调','子会话上限',1],
+        [8,5,'session workflow 驾驶舱（实验）（#8391）— 会话与 workflow 全景一屏掌握','workflow 驾驶舱',1],
+        [8,15,'任意对话 fork（#8817）— 任意会话都可分叉出新会话','任意 fork',1],
+        [8,26,'standalone 无项目会话（#9978）+ 跨会话消息入站门（#9576）— 无项目任务也有会话归属','standalone 会话',1],
+        [8,29,'按名跨会话寻址 + per-run 定时任务会话（#10158 / #10233）— 会话可按名寻址，定时任务每次运行有专属会话','按名寻址',1]]}
+    ]},
+    { name: '基础设施 · Infra', color: '#0f766e', items: [
+      { name: 'Memory', color: '#be185d', start: [4,16], ms: [
+        [5,9,'autoSkill 后台技能提取（#3673）— 对话经验自动沉淀为技能','autoSkill'],
+        [5,21,'QWEN.local.md 项目级上下文（#4091）— 项目私有约定随仓携带','QWEN.local'],
+        [6,4,'用户级 ~/.qwen/memories（#4747）— 跨项目记住你的偏好','用户级'],
+        [6,25,'/remember 与自动提取解耦（#5814）— 显式记忆与自动记忆各自独立','解耦'],
+        [6,27,'git 共享团队记忆层（#5886）— 团队约定经 git 共享，全组生效','团队记忆'],
+        [7,15,'Channel 结构化记忆（#6860）— 渠道对话也有结构化长期记忆','Channel 记忆'],
+        [7,18,'按消息召回相关记忆 + 自然语言记忆变更确认（#7157 / #7066）— 该想起来时自动想起，改动前确认','按消息召回',1],
+        [8,1,'Dream pinned 文件保护（#7714）— 置顶记忆文件不被自动流程改动','pinned 保护',1],
+        [8,3,'后台代理轮次上限可配置（#8171）— 记忆后台代理的资源开销可调','轮次上限',1],
+        [8,7,'可选 Mem0 记忆写入（#8507）— 外部记忆服务 Mem0 可选接入','Mem0 写入',1],
+        [8,26,'ACP 托管 auto-memory 生命周期（#9992）— 记忆生命周期经协议托管','托管记忆',1],
+        [8,28,'可配置 Mem0 扩展骨架（#10149）— Mem0 外接可配置','Mem0 骨架',1],
+        [8,31,'管理员自有 Mem0 dialect 加载（#10634）— 管理员 dialect 可加载管理','Mem0 dialect',1],
+        [9,1,'Mem0 Extension 包发布（#10653）— Mem0 扩展以包形态发布','Mem0 Extension',1],
+        [9,7,'daemon 记忆写入 + Mem0 管理员自动召回（#11311 / #11246）— 记忆闭环到 daemon','daemon 记忆写入',1]]},
+      { name: 'Hooks', color: '#b45309', start: [4,1], ms: [
+        [4,13,'stopFailure / postCompact（#2825）— 轮次失败与压缩后都有钩子，外部脚本可介入收尾','stop/post'],
+        [4,16,'HTTP / Function / Async hooks（#2827）— 钩子可走 HTTP、本地函数、异步三种形态','HTTP/Async'],
+        [4,16,'ACP 完整 hooks 支持（#3248）— ACP 客户端也能触发完整钩子生命周期','ACP hooks',1],
+        [5,15,'Prompt hook + LLM 评估（#3388）— 用模型判断放行与否，钩子有了智能','Prompt hook'],
+        [5,15,'TodoCreated / TodoCompleted hooks（#3378）— 待办创建与完成都可挂脚本','Todo hooks',1],
+        [5,29,'PermissionDenied hook（#4376）— AUTO 分类器拦截也会通知外部','PermissionDenied',1],
+        [6,3,'PostToolUseBatch 批量钩子（#4454）— 批量工具调用统一后置处理','批量钩子',1],
+        [6,5,'UserPromptExpansion hook（#4377）— 用户输入可被钩子改写扩展','prompt 扩展',1],
+        [6,8,'InstructionsLoaded hook（#4665）— 指令文件加载完成可挂自定义逻辑','InstructionsLoaded',1],
+        [6,10,'终端序列通知钩子（#4895）— 钩子可向终端发送原生通知','终端通知',1],
+        [6,18,'toolCallId 透传（#4918）— 钩子能定位到具体哪次工具调用','toolCallId'],
+        [7,6,'PreToolUse ask → TUI 确认（#5629）— 钩子可要求人工确认，终端弹确认框','ask 确认',1],
+        [7,8,'Stop / SubagentStop 注入后台任务与 cron 状态（#6531）— 收尾钩子看得到后台全貌','任务状态注入',1],
+        [7,11,'MessageDisplay 流式钩子（#6489）— 轮次中途流式消息也可拦截处理','MessageDisplay'],
+        [7,27,'submitted prompt 来源标记（#7762）— 提示词来自哪里可追溯','来源标记',1],
+        [7,29,'allowPrivateNetworkHooks（#7968）— 可信作用域内允许私网钩子，SSRF 防护可豁免','私网开关',1],
+        [7,31,'SessionDelete 事件 + 会话来源生命周期 payload（#8059 / #8155）— 会话删除有钩子，来源信息贯穿生命周期','SessionDelete',1]]},
+      { name: 'Telemetry', color: '#0f766e', start: [5,1], ms: [
+        [5,13,'分层会话 tracing spans（#4071）— 会话执行分层可追踪','分层 span'],
+        [5,22,'TTFT 捕获 + GenAI semconv（#4417）— 首 token 延迟可测，语义约定对齐行业标准','TTFT'],
+        [6,5,'子代理 span 隔离 + daemon 指标 — 子代理追踪独立成段，daemon 有了指标','子代理 span'],
+        [6,12,'运行时 CPU / 内存采样（#4868）— 进程资源消耗持续可观测','CPU/内存采样'],
+        [7,14,'daemon 模型 API 错误与重试指标（#6837）— 模型调用失败率、重试次数入指标','daemon 指标'],
+        [7,23,'GenAI telemetry 对齐 ARMS + TTFC tracing（#7536 / #8150）— 遥测直连阿里云 ARMS，首字延迟分段追踪','ARMS 对齐'],
+        [7,31,'tool-call 终端 telemetry 规范化（#8176）— 终端侧工具调用遥测统一格式','终端 telemetry',1],
+        [8,3,'工具执行结果追踪（#8180）— 每次工具执行成败可回溯','工具结果追踪',1],
+        [8,6,'SSE 流与客户端可观测性（#8572）— daemon SSE 流与客户端行为入观测','SSE 可观测',1],
+        [8,7,'daemon 会话 channel 归因（#8670）— daemon 派生会话按来源渠道归因','channel 归因',1],
+        [8,12,'会话生命周期对齐 OpenTelemetry（#8616）— 会话生命周期对齐 OTel 规范','OTel 生命周期',1],
+        [8,19,'daemon HTTP span 关联 W3C traceparent（#9391）— daemon 请求 span 接入入站 trace 链','traceparent 关联',1],
+        [8,26,'上下文用量 span 属性（#10016）— 上下文消耗入 span 可观测','上下文 span',1]]},
+      { name: 'Desktop', color: '#7e22ce', start: [4,25], ms: [
+        [5,28,'多品牌支持 + 分发指南（#4581）— 桌面壳可换品牌再分发','多品牌'],
+        [6,11,'ACP SDK 集成桌面包（#3778）— 桌面应用经 ACP 接入 agent','ACP 包'],
+        [6,28,'桌面语音听写（#5856）— 桌面端语音输入','桌面语音'],
+        [8,2,'Web Shell 打包为发布级桌面应用（#8132）— 网页版变身正式桌面应用','发布级应用',1],
+        [8,3,'Electron → Tauri 更新桥接（#8392）— 桌面更新通道迁移 Tauri','Tauri 桥接',1],
+        [8,9,'Local Control 配对 CLI 与 Desktop（#8727）— CLI 与桌面端本地配对控制','Local Control',1],
+        [8,10,'首启自动创建默认工作区（#8814）— 安装后零配置起步，桌面端首启即建默认工作区','默认工作区',1],
+        [8,12,'阿里云 OSS 发布镜像（#8976）— 桌面发布经 OSS 镜像分发，下载更快','OSS 镜像',1],
+        [8,17,'Local Control 归并为 daemon-owned 实现（#9106）— 桌面本地控制收归 daemon 统一实现','Local Control 归并',1],
+        [8,25,'packages/desktop 移除（OpenWork fork 后），保留 Tauri 桥（#9085）— 桌面壳转独立 fork','OpenWork fork',1]]}
+    ]}
+  ];
+
+  /* ---- render tracks ---- */
+  var lanes = document.getElementById('lanes');
+  var html = '';
+  GROUPS.forEach(function (g) {
+    html += '<div class="group-row" style="--gc:' + g.color + '"><b>' + g.name + '</b></div>';
+    g.items.forEach(function (t) {
+      var s = pos(t.start[0], t.start[1]);
+      var dstart = t.start[0] + '-' + String(t.start[1]).padStart(2,'0');
+      var lastR = { above: -999, below: -999 };
+      var items = '<span class="ms origin" style="--p:' + s + '%;--tc:' + t.color + '" data-d="' + dstart + '" data-l="' + (t.start[2] || '功能引入') + '"><i></i>';
+      if (t.start[2]) {
+        var ow = estW(t.start[2]); var ol = s - ow / 2;
+        if (ol < 0.2) ol = 0.2; if (ol + ow > 99.8) ol = 99.8 - ow;
+        items += '<em class="below" style="left:' + ol.toFixed(2) + '%"><b>' + dstart + '</b>' + t.start[2] + '</em>';
+        lastR.below = ol + ow;
+      }
+      items += '</span>';
+      /* label lanes: try both levels, pick the one with less overlap; right-align near
+         the right edge; push right on collision; clamp at chart edges. m[4] = label hidden */
+      function place(level, p, w) {
+        var left = p > 92 ? p - w : p - w / 2;
+        if (left < lastR[level] + 0.5) left = lastR[level] + 0.5;
+        if (left + w > 99.8) left = 99.8 - w;
+        if (left < 0.2) left = 0.2;
+        return { left: left, overlap: Math.max(0, lastR[level] + 0.5 - left), end: left + w };
+      }
+      t.ms.forEach(function (m) {
+        var p = pos(m[0], m[1]);
+        var d = m[0] + '-' + String(m[1]).padStart(2,'0');
+        if (m[4]) {
+          items += '<span class="ms dotonly" style="--p:' + p + '%;--tc:' + t.color + '" data-d="' + d + '" data-l="' + m[2] + '"><i></i></span>';
+          return;
+        }
+        var w = estW(m[3]);
+        var a = place('above', p, w), b = place('below', p, w);
+        var level = (a.overlap < b.overlap) ? 'above' : (b.overlap < a.overlap) ? 'below' :
+                    (p - lastR.above > p - lastR.below ? 'above' : 'below');
+        var c = level === 'above' ? a : b;
+        lastR[level] = c.end;
+        items += '<span class="ms" style="--p:' + p + '%;--tc:' + t.color + '" data-d="' + d + '" data-l="' + m[2] + '">' +
+          '<i></i><em class="' + level + '" style="left:' + c.left.toFixed(2) + '%"><b>' + d + '</b>' + m[3] + '</em></span>';
+      });
+      html += '<div class="track reveal"><div class="t-name" style="--tc:' + t.color + '"><i></i>' + t.name + '</div>' +
+        '<div class="t-lane"><div class="t-bar" style="left:' + s + '%;right:0.5%;--tc:' + t.color + '"></div>' + items + '</div></div>';
+    });
+  });
+  lanes.insertAdjacentHTML('beforeend', html);
+
+  /* ---- tooltip ---- */
+  var tip = document.getElementById('tip');
+  lanes.addEventListener('pointerover', function (e) {
+    var el = e.target.closest('.ms');
+    if (!el) return;
+    var c = getComputedStyle(el).getPropertyValue('--tc').trim();
+    tip.innerHTML = '<span class="td">' + el.dataset.d + (el.classList.contains('origin') ? ' · 引入' : ' · 里程碑') + '</span>' + el.dataset.l;
+    tip.style.setProperty('--tipc', c);
+    tip.style.borderColor = c;
+    tip.style.opacity = '1';
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (tip.style.opacity !== '1') return;
+    var x = Math.min(e.clientX + 16, window.innerWidth - 320);
+    tip.style.left = x + 'px';
+    tip.style.top = (e.clientY + 18) + 'px';
+  });
+  lanes.addEventListener('pointerout', function (e) {
+    if (e.target.closest('.ms')) tip.style.opacity = '0';
+  });
+
+  /* ---- investment bars ---- */
+  var BARS = [
+    ['cli', 200, '#1d4ed8', 33], ['web-shell', 199, '#0e7490', 49], ['core', 165, '#2563eb', 26],
+    ['serve / daemon', 121, '#0891b2', 35], ['review', 113, '#d97706', 68], ['channels', 48, '#16a34a', 8],
+    ['telemetry', 40, '#0f766e', 8], ['skills', 20, '#b45309', 3], ['desktop', 11, '#7e22ce', 5],
+    ['sdk', 5, '#0284c7', 1]
+  ];
+  var max = BARS[0][1];
+  document.getElementById('bars').innerHTML = BARS.map(function (b) {
+    return '<div class="bar-row"><span class="lb">' + b[0] + '</span>' +
+      '<div class="bar-track"><div class="bar-fill" style="--w:' + (b[1]/max*100).toFixed(1) + '%;background:' + b[2] + '"></div></div>' +
+      '<span class="vl">' + b[1] + '<span class="dl">+' + b[3] + '·8月</span></span></div>';
+  }).join('');
+
+  /* ---- weekly PR bars ---- */
+  var WEEKS = [
+    ['03-30', 3, '#0d9488', 1], ['04-06', 47, '#0d9488', 0], ['04-13', 96, '#0d9488', 0],
+    ['04-20', 78, '#0d9488', 0], ['04-27', 63, '#0d9488', 0],
+    ['05-04', 94, '#2563eb', 0], ['05-11', 116, '#2563eb', 0], ['05-18', 71, '#2563eb', 0],
+    ['05-25', 56, '#2563eb', 0],
+    ['06-01', 58, '#ea580c', 0], ['06-08', 154, '#ea580c', 0], ['06-15', 271, '#ea580c', 0],
+    ['06-22', 220, '#ea580c', 0], ['06-29', 230, '#ea580c', 0],
+    ['07-06', 270, '#db2777', 0], ['07-13', 288, '#db2777', 0], ['07-20', 315, '#db2777', 0],
+    ['07-27', 345, '#db2777', 0], ['08-03', 176, '#d97706', 0], ['08-10', 208, '#d97706', 0],
+    ['08-17', 221, '#d97706', 0], ['08-24', 324, '#d97706', 0], ['08-31', 293, '#d97706', 0],
+    ['09-07', 31, '#d97706', 1]
+  ];
+  var wmax = 345;
+  document.getElementById('wkbars').innerHTML = WEEKS.map(function (w) {
+    return '<div class="wk' + (w[3] ? ' part' : '') + (w[1] === wmax ? ' peak' : '') +
+      '" data-w="' + w[0] + '" data-c="' + w[1] + '" data-p="' + (w[3] ? 1 : 0) + '" data-clr="' + w[2] + '">' +
+      '<span class="vv">' + w[1] + '</span><div class="bar" style="--h:' + (w[1] / wmax * 88).toFixed(1) + '%;--wc:' + w[2] + '"></div></div>';
+  }).join('');
+  document.getElementById('wklabels').innerHTML = WEEKS.map(function (w) { return '<span>' + w[0] + '</span>'; }).join('');
+
+  var wkb = document.getElementById('wkbars');
+  wkb.addEventListener('pointerover', function (e) {
+    var el = e.target.closest('.wk'); if (!el) return;
+    tip.innerHTML = '<span class="td">' + el.dataset.w + ' 周（周一起）</span>' + el.dataset.c + ' 个 PR 合入' + (el.dataset.p === '1' ? ' · 不完整周' : '');
+    tip.style.setProperty('--tipc', el.dataset.clr);
+    tip.style.borderColor = el.dataset.clr;
+    tip.style.opacity = '1';
+  });
+  wkb.addEventListener('pointerout', function (e) { if (e.target.closest('.wk')) tip.style.opacity = '0'; });
+
+  /* ---- spotlight hover links (CLI / Web Shell / Core+Daemon) ---- */
+  ['data-cli', 'data-ws', 'data-ed', 'data-proto'].forEach(function (attr) {
+    document.querySelectorAll('[' + attr + ']').forEach(function (el) {
+      el.addEventListener('pointerenter', function () {
+        var v = el.getAttribute(attr);
+        document.querySelectorAll('[' + attr + '="' + v + '"]').forEach(function (x) { x.classList.add('hot'); });
+      });
+      el.addEventListener('pointerleave', function () {
+        var v = el.getAttribute(attr);
+        document.querySelectorAll('[' + attr + '="' + v + '"]').forEach(function (x) { x.classList.remove('hot'); });
+      });
+    });
+  });
+
+  /* ---- scroll reveal ---- */
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) {
+      if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+})();
+</script>
+</body>
+</html>
