@@ -1,0 +1,80 @@
+name: 'Probe 11375 real stall'
+
+on:
+  push:
+    branches:
+      - 'probe/pr11375-upload-retry'
+
+permissions:
+  contents: 'read'
+  actions: 'read'
+
+jobs:
+  j_real_stall:
+    name: 'J network stall triggers the action own stall detector'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 28
+    steps:
+      - name: 'Build payload and arm a delayed egress throttle'
+        run: |-
+          fallocate -l 6G "${RUNNER_TEMP}/big.tar.gz"
+          mkdir -p "${RUNNER_TEMP}/payload" && echo "RETRY-PAYLOAD-V2" > "${RUNNER_TEMP}/payload/marker.txt"
+          tar -czf "${RUNNER_TEMP}/e2e-build.tar.gz" -C "${RUNNER_TEMP}/payload" .
+          IF=$(ip route show default | awk '{print $5; exit}')
+          echo "PROBE_J iface=${IF}"
+          sudo bash -c "cat > /tmp/throttle.sh" <<SCRIPT
+          #!/bin/bash
+          sleep 25
+          tc qdisc add dev ${IF} root netem rate 12kbit
+          echo "PROBE_J throttle applied at \$(date -u +%H:%M:%S)"
+          sleep 780
+          tc qdisc del dev ${IF} root
+          echo "PROBE_J throttle removed at \$(date -u +%H:%M:%S)"
+          SCRIPT
+          sudo chmod +x /tmp/throttle.sh
+          sudo setsid nohup /tmp/throttle.sh > "${RUNNER_TEMP}/throttle.log" 2>&1 &
+          echo "PROBE_J throttle armed"
+
+      - name: 'Upload build artifact (expected to stall)'
+        id: 'upload-build'
+        continue-on-error: true
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'probe-j'
+          path: '${{ runner.temp }}/big.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+
+      - name: 'Wait out the throttle window and census the run artifacts'
+        if: 'always()'
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        run: |-
+          IF=$(ip route show default | awk '{print $5; exit}')
+          for i in $(seq 1 60); do
+            if ! tc qdisc show dev "${IF}" | grep -q netem; then break; fi
+            sleep 15
+          done
+          sudo tc qdisc del dev "${IF}" root 2>/dev/null || true
+          cat "${RUNNER_TEMP}/throttle.log" || true
+          echo "PROBE_J first.outcome=${{ steps.upload-build.outcome }}"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" \
+            --jq '"PROBE_J_TOTAL total_count=\(.total_count)", (.artifacts[] | "PROBE_J_ARTIFACT name=\(.name)")' || true
+
+      - name: 'Retry WITHOUT overwrite'
+        id: 'retry_no_overwrite'
+        if: "${{ steps.upload-build.outcome == 'failure' }}"
+        continue-on-error: true
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'probe-j'
+          path: '${{ runner.temp }}/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+
+      - name: 'REPORT'
+        if: 'always()'
+        run: |-
+          echo "PROBE_J retry_no_overwrite.outcome=${{ steps.retry_no_overwrite.outcome }}"
