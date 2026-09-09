@@ -1,0 +1,43 @@
+name: 'Probe 11375 job re-run'
+
+on:
+  push:
+    branches:
+      - 'probe/pr11375-upload-retry'
+  workflow_dispatch:
+
+permissions:
+  contents: 'read'
+  actions: 'read'
+
+jobs:
+  i_rerun:
+    name: 'I artifact survives into a job re-run?'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Pack'
+        run: |-
+          mkdir -p "${RUNNER_TEMP}/payload" && echo "ATTEMPT-${GITHUB_RUN_ATTEMPT}" > "${RUNNER_TEMP}/payload/marker.txt"
+          tar -czf "${RUNNER_TEMP}/e2e-build.tar.gz" -C "${RUNNER_TEMP}/payload" .
+          echo "PROBE_I attempt=${GITHUB_RUN_ATTEMPT}"
+
+      - name: 'Upload build artifact'
+        id: 'upload-build'
+        continue-on-error: true
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'probe-i'
+          path: '${{ runner.temp }}/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+
+      - name: 'REPORT the upload outcome for this attempt'
+        run: |-
+          echo "PROBE_I attempt=${GITHUB_RUN_ATTEMPT} upload.outcome=${{ steps.upload-build.outcome }}"
+
+      - name: 'Fail attempt 1 on purpose so the job can be re-run'
+        if: "${{ github.run_attempt == '1' }}"
+        run: |-
+          echo "PROBE_I failing attempt 1 deliberately"
+          exit 1
