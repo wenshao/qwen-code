@@ -13,3 +13,4 @@ head `f69d917cca`, merge-base `1919ff97f5`).
 | `imgs/pr11411-fig4-parity-sweep.png` | 377-pair `evaluate()` vs `findMatchingDenyRule()` parity sweep, both arms |
 | `imgs/pr11411-fig5-mutation.png`   | 6-mutant teeth check on the PR's new tests + counterfactual against pre-PR code |
 | `imgs/pr11411-fig6-toolwide.png`   | measured tool-wide-vs-scoped classification of the new reassurance |
+| `imgs/pr11411-fig7-acp.png`        | same A/B over `qwen --acp` (stdio JSON-RPC) — the path the PR body lists as out of scope is in fact covered |
