@@ -1,0 +1,170 @@
+name: 'Probe 11375 announce step'
+
+on:
+  push:
+    branches:
+      - 'probe/pr11375-upload-retry'
+
+permissions:
+  contents: 'read'
+  actions: 'read'
+  checks: 'read'
+
+jobs:
+  k_absorbed:
+    name: 'K absorbed stall: announce runs, job stays green'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Build both payloads'
+        run: |-
+          mkdir -p "${RUNNER_TEMP}/seed" "${RUNNER_TEMP}/payload"
+          echo SEED > "${RUNNER_TEMP}/seed/marker.txt"
+          echo RETRY > "${RUNNER_TEMP}/payload/marker.txt"
+          tar -czf "${RUNNER_TEMP}/seed.tar.gz" -C "${RUNNER_TEMP}/seed" .
+          tar -czf "${RUNNER_TEMP}/e2e-build.tar.gz" -C "${RUNNER_TEMP}/payload" .
+
+      - name: 'Reserve the artifact name (stands in for a finalized attempt)'
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'probe-k'
+          path: '${{ runner.temp }}/seed.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+
+      - name: 'Upload build artifact'
+        id: 'upload-build'
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        continue-on-error: true
+        with:
+          name: 'probe-k'
+          path: '${{ runner.temp }}/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+
+      - name: 'Upload build artifact (retry)'
+        id: 'retry'
+        if: "${{ steps.upload-build.outcome == 'failure' }}"
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'probe-k'
+          path: '${{ runner.temp }}/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+          overwrite: true
+
+      - name: 'Announce absorbed upload failure'
+        id: 'announce'
+        if: "${{ steps.upload-build.outcome == 'failure' }}"
+        run: |-
+          echo "::warning::Upload build artifact failed its first attempt and the retry absorbed it — count this toward the #11364 upload-stall recurrence threshold."
+
+      - name: 'ASSERT absorbed case'
+        run: |-
+          echo "PROBE_K first=${{ steps.upload-build.outcome }} retry=${{ steps.retry.outcome }} announce=${{ steps.announce.outcome }}"
+          test "${{ steps.upload-build.outcome }}" = "failure"
+          test "${{ steps.retry.outcome }}" = "success"
+          test "${{ steps.announce.outcome }}" = "success"
+          echo "PROBE_K RESULT=PASS announce-ran-on-the-absorbed-stall"
+
+  l_double_failure:
+    name: 'L double failure: announce must be skipped, job red'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Upload build artifact'
+        id: 'upload-build'
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        continue-on-error: true
+        with:
+          name: 'probe-l'
+          path: '${{ runner.temp }}/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+
+      - name: 'Upload build artifact (retry)'
+        id: 'retry'
+        if: "${{ steps.upload-build.outcome == 'failure' }}"
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'probe-l'
+          path: '${{ runner.temp }}/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+          overwrite: true
+
+      - name: 'Announce absorbed upload failure'
+        id: 'announce'
+        if: "${{ steps.upload-build.outcome == 'failure' }}"
+        run: |-
+          echo "::warning::Upload build artifact failed its first attempt and the retry absorbed it — count this toward the #11364 upload-stall recurrence threshold."
+
+      - name: 'REPORT (always) whether announce fired on a double failure'
+        if: 'always()'
+        run: |-
+          echo "PROBE_L first=${{ steps.upload-build.outcome }} retry=${{ steps.retry.outcome }} announce=${{ steps.announce.outcome }}"
+
+  m_happy:
+    name: 'M happy path: announce skipped'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Pack'
+        run: |-
+          mkdir -p "${RUNNER_TEMP}/payload" && echo OK > "${RUNNER_TEMP}/payload/marker.txt"
+          tar -czf "${RUNNER_TEMP}/e2e-build.tar.gz" -C "${RUNNER_TEMP}/payload" .
+
+      - name: 'Upload build artifact'
+        id: 'upload-build'
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        continue-on-error: true
+        with:
+          name: 'probe-m'
+          path: '${{ runner.temp }}/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+
+      - name: 'Upload build artifact (retry)'
+        id: 'retry'
+        if: "${{ steps.upload-build.outcome == 'failure' }}"
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'probe-m'
+          path: '${{ runner.temp }}/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+          overwrite: true
+
+      - name: 'Announce absorbed upload failure'
+        id: 'announce'
+        if: "${{ steps.upload-build.outcome == 'failure' }}"
+        run: |-
+          echo "::warning::Upload build artifact failed its first attempt and the retry absorbed it — count this toward the #11364 upload-stall recurrence threshold."
+
+      - name: 'ASSERT happy path stays silent'
+        run: |-
+          echo "PROBE_M first=${{ steps.upload-build.outcome }} retry=${{ steps.retry.outcome }} announce=${{ steps.announce.outcome }}"
+          test "${{ steps.announce.outcome }}" = "skipped"
+          echo "PROBE_M RESULT=PASS no-annotation-on-a-clean-run"
+
+  n_legs_still_run:
+    name: 'N legs behind needs:[build] still run after an absorbed stall'
+    runs-on: 'ubuntu-latest'
+    needs:
+      - 'k_absorbed'
+    steps:
+      - name: 'Download build artifact'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'probe-k'
+          path: '${{ runner.temp }}/dl'
+      - name: 'ASSERT'
+        run: |-
+          tar -xzf "${RUNNER_TEMP}/dl/e2e-build.tar.gz" -C "${RUNNER_TEMP}"
+          echo "PROBE_N content=$(cat "${RUNNER_TEMP}/marker.txt")"
+          test "$(cat "${RUNNER_TEMP}/marker.txt")" = "RETRY"
+          echo "PROBE_N RESULT=PASS legs-ran-and-got-the-retry-payload"
