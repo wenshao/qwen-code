@@ -1,0 +1,26 @@
+### 10-arm matrix -- every arm is a real vitest run in the PR worktree /root/git/pr11412
+###   base = 1f890086f1 (nightly tree)   pr = 34e6ea308b (#11412)   main = 3a75f37ef5 (has #11406)
+
+arm                         | test file| mutation               | result                            | first failure
+----------------------------+------+------------------------+-----------------------------------+----------------------------------------------
+1-base-nightly-tree         | base | none                   | 2 failed                          | ReferenceError: mockUseDaemonActivePromptBridge undefi
+ned
+2-pr11412-head              | pr   | none                   | 2 passed                          |
+3-main-after-11406          | main | none                   | 2 passed                          |
+4-pr+drop-rerender          | pr   | drop-rerender          | 1 failed | 1 passed               | negative guard: spy WAS called
+5-main+drop-rerender        | main | drop-rerender          | 2 failed                          | positive guard: spy was NOT called
+6-pr+prod-owner-filter      | pr   | prod-drop-owner-filter | 1 failed | 1 passed               | negative guard: spy WAS called
+7-main+prod-owner-filter    | main | prod-drop-owner-filter | 1 failed | 1 passed               | negative guard: spy WAS called
+8-pr+prod-always-rerender   | pr   | prod-always-rerender   | 2 failed                          | negative guard: spy WAS called
+9-main+prod-always-rerender | main | prod-always-rerender   | 2 failed                          | negative guard: spy WAS called
+10-main+clear-to-reset      | main | clear-to-reset         | 2 passed                          |
+
+Arms 4 vs 5 are the finding: with rerender() deleted, #11412's version still
+passes one variant (positive guard satisfied by stale setup-time calls);
+main's version goes red on the POSITIVE guard in both variants.
+root@iZbp19xfmxugric603zy23Z:~/git/pr11412#
+
+
+
+
+

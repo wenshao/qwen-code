@@ -1,0 +1,38 @@
+### Why #11412 is strictly weaker than what main already has
+### (spy call count at the positive toHaveBeenCalled() guard)
+
+--- ver=pr (rerender() present) ---
+  [CENSUS false] after-first-report calls=5
+  [CENSUS false] at-positive-guard calls=6
+  [CENSUS true] after-first-report calls=6
+  [CENSUS true] at-positive-guard calls=7
+        Tests  2 passed | 794 skipped (796)
+--- ver=main (rerender() present) ---
+  [CENSUS false] after-first-report calls=5
+  [CENSUS false] at-positive-guard calls=1
+  [CENSUS true] after-first-report calls=6
+  [CENSUS true] at-positive-guard calls=1
+        Tests  2 passed | 794 skipped (796)
+
+  #11412  : 6-7 calls at the guard -- only 1 is the rerender; the rest are setup leftovers.
+  main    : exactly 1 -- #11406's extra mockClear() makes the guard measure the rerender.
+
+----------------------------------------------------------------------------
+Static gates on the BROKEN tree (base 1f890086f1, 3 references to the deleted mock):
+
+  gate 1  tsc --noEmit -p packages/web-shell/tsconfig.json ...... rc=0   MISS
+          (tsconfig "exclude": ["client/**/*.test.ts", "client/**/*.test.tsx", ...])
+  gate 2  npx eslint packages/web-shell/client/App.test.tsx ..... rc=0   MISS
+          (eslint --print-config -> "no-undef": [0, {"typeof": false}])
+  gate 3  npx vitest run client/App.test.tsx -t "does not rerender..." rc=1  CATCH
+          ReferenceError: mockUseDaemonActivePromptBridge is not defined
+
+Only executing the test detects this class of break.
+root@iZbp19xfmxugric603zy23Z:~/git/pr11412#
+
+
+
+
+
+
+
