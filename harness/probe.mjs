@@ -38,6 +38,9 @@ const server = createServer((req, res) => {
   if (url === '/export-transcript-document.css') {
     if (mode === 'css-404') { res.writeHead(404); res.end('nope'); return; }
     if (mode === 'css-reset') { req.socket.destroy(); return; }
+    if (mode === 'css-empty') { res.writeHead(200, { 'content-type': 'text/css' }); res.end(''); return; }
+    if (mode === 'css-truncate') { res.writeHead(200, { 'content-type': 'text/css' }); res.end(css.subarray(0, Math.floor(css.length / 2))); return; }
+    if (mode === 'css-slow-404') { setTimeout(() => { res.writeHead(404); res.end('nope'); }, 1500); return; }
     if (mode === 'css-tamper') {
       res.writeHead(200, { 'content-type': 'text/css' });
       res.end(Buffer.concat([css, Buffer.from('/*x*/')]));
