@@ -27,9 +27,9 @@ scheduled with an `AbortController` that was aborted **before** `schedule()` was
 | hold on batch A | arm | batch B after 6 s | settled after | `requestQueue` |
 | --- | --- | --- | --- | --- |
 | `write_file` parked in `awaiting_approval` | base | **pending** | — | **1** |
-| `write_file` parked in `awaiting_approval` | PR | rejected — `Tool call cancelled while in queue.` | **1 ms** | 0 |
+| `write_file` parked in `awaiting_approval` | PR | rejected — `Tool call cancelled while in queue.` | **≤ 1 ms** | 0 |
 | `run_shell_command` parked in `executing` | base | **pending** | — | **1** |
-| `run_shell_command` parked in `executing` | PR | rejected — `Tool call cancelled while in queue.` | **0 ms** | 0 |
+| `run_shell_command` parked in `executing` | PR | rejected — `Tool call cancelled while in queue.` | **≤ 1 ms** | 0 |
 
 The `awaiting_approval` variant is the unbounded one the issue describes: the entry is
 released only when a human answers the prompt. Holding the prompt for 20 s and then
@@ -79,7 +79,14 @@ It fails on base for the reason the bug exists, with the exact assertion the iss
 | --- | --- |
 | `packages/core` `coreToolScheduler.test.ts` (PR) | **407 / 407** |
 | `packages/cli` `useReactToolScheduler.test.tsx` + `useToolScheduler.test.ts` (PR) | **33 / 33** |
-| full `npm run preflight` on the PR worktree | PREFLIGHT_RESULT |
+| full `npm run preflight` on the PR worktree | **69,908 passed / 12 failed / 110 skipped — all 12 also fail on base** |
+
+The 12 preflight failures are environmental, not PR-attributable, and I re-ran every one of
+them on the base worktree to confirm: 10 are permission-simulation tests (`... cannot be
+removed`, `unreadable owned lock`, `unlink silently fails`, `glob fails`) that a `uid 0`
+sandbox defeats, and 2 are `packages/qwen-live/src/manual/qodercli-acp.test.ts`, which drives
+a real external `qodercli --acp` binary (fails with `Invalid params: authId` on both arms).
+None of them touches the scheduler.
 
 ---
 
@@ -140,6 +147,22 @@ real executing call, then scheduled a second request through each caller branch:
 
 ---
 
+### 7. Real TUI session, both arms
+
+I also ran the real `qwen` TUI on each arm against a scripted mock OpenAI-compatible provider,
+same script both times: `/approval-mode default` → a prompt → the model calls
+`run_shell_command` → **the scheduler parks in `awaiting_approval`**, which is exactly the
+`isRunning() === true` precondition this guard is scoped to → `Esc` declines → the turn ends
+and the next turn works.
+
+Over the tool-call flow the two transcripts are line-identical; the only diff is the session
+start banner and one extra turn I ran on the PR arm. Nothing about the everyday interactive
+path changes.
+
+![TUI](https://raw.githubusercontent.com/wenshao/qwen-code/assets-pr11483/tui-pr-approval.png)
+
+---
+
 ### Findings
 
 **Finding 1 — Important, needs a decision. The full-turn caller turns the new rejection into a
@@ -185,6 +208,14 @@ completes, so those three entries stay for the life of the session. The soak run
 scale is bounded and small (a `Map` entry per dropped call), and this is **pre-existing** —
 the abort-after-enqueue rejection has always behaved this way. Worth a note in #11148 rather
 than a change here.
+
+Related and worth stating explicitly because it is what keeps this Minor rather than
+Important: on base the late `cancelled` completion also produced a `functionResponse` for the
+dropped call, and on the PR nothing does. That does not leave a wire-invalid transcript —
+`repairOrphanedToolUseTurns` (`core/llm-chat.ts:1815`, re-run inside `sendMessageStream` at
+`:3011` and again from `client.ts:2315`) exists precisely to close a dangling
+`model[functionCall]`. The PR shifts this case onto that safety net instead of the completion
+path.
 
 **Finding 3 — Nit. The regression test could pin a little more.**
 

@@ -24,9 +24,9 @@
 | 批次 A 的占用形态 | arm | 6 秒后批次 B | settle 耗时 | `requestQueue` |
 | --- | --- | --- | --- | --- |
 | `write_file` 停在 `awaiting_approval` | base | **pending** | — | **1** |
-| `write_file` 停在 `awaiting_approval` | PR | rejected —— `Tool call cancelled while in queue.` | **1 ms** | 0 |
+| `write_file` 停在 `awaiting_approval` | PR | rejected —— `Tool call cancelled while in queue.` | **≤ 1 ms** | 0 |
 | `run_shell_command` 停在 `executing` | base | **pending** | — | **1** |
-| `run_shell_command` 停在 `executing` | PR | rejected —— `Tool call cancelled while in queue.` | **0 ms** | 0 |
+| `run_shell_command` 停在 `executing` | PR | rejected —— `Tool call cancelled while in queue.` | **≤ 1 ms** | 0 |
 
 `awaiting_approval` 这一档就是 issue 描述的「无上界」场景：只有人回答审批提示才会释放。把提示挂起
 20 秒再回答，base 上批次 B 在 **t+20010 ms** 才 settle —— 也就是无关批次被释放的那一刻，而不是
@@ -74,7 +74,13 @@ AssertionError: expected 'pending' to be 'rejected'
 | --- | --- |
 | `packages/core` `coreToolScheduler.test.ts`（PR） | **407 / 407** |
 | `packages/cli` `useReactToolScheduler.test.tsx` + `useToolScheduler.test.ts`（PR） | **33 / 33** |
-| PR worktree 上完整 `npm run preflight` | PREFLIGHT_RESULT_ZH |
+| PR worktree 上完整 `npm run preflight` | **69,908 通过 / 12 失败 / 110 跳过 —— 12 个在 base 上同样失败** |
+
+这 12 个 preflight 失败属于环境因素，不可归因于本 PR，我把每一个都在 base worktree 上重跑做了确认：
+10 个是权限模拟测试（`... cannot be removed`、`unreadable owned lock`、`unlink silently fails`、
+`glob fails`），在 `uid 0` 的沙箱里失效；另外 2 个是
+`packages/qwen-live/src/manual/qodercli-acp.test.ts`，它驱动真实的外部 `qodercli --acp` 二进制
+（两个 arm 上都报 `Invalid params: authId`）。它们都与调度器无关。
 
 ---
 
@@ -132,6 +138,20 @@ guard 只在调度器已经繁忙时才触发，而只有**共享**调度器才�
 
 ---
 
+### 7. 真实 TUI 会话，两个 arm
+
+我还在两个 arm 上各跑了一次真实 `qwen` TUI，对接一个脚本化的 mock OpenAI 兼容服务，脚本完全一致：
+`/approval-mode default` → 发一条提示 → 模型调用 `run_shell_command` → **调度器停在
+`awaiting_approval`**，这正是本 guard 所限定的 `isRunning() === true` 前置条件 → `Esc` 拒绝 →
+本轮干净结束，下一轮正常工作。
+
+在工具调用这一段，两份 transcript 逐行一致；唯一差异是会话启动 banner 以及我在 PR arm 上多跑的一轮。
+日常交互路径没有任何变化。
+
+![TUI](https://raw.githubusercontent.com/wenshao/qwen-code/assets-pr11483/tui-pr-approval.png)
+
+---
+
 ### 发现
 
 **发现 1 —— Important，需要定夺。full-turn 调用方会把新的 reject 变成合成的 `UNHANDLED_EXCEPTION`。**
@@ -164,6 +184,12 @@ agent-capable 视觉模型、带图片的一轮、共享调度器正忙、并且
 而只在完成路径上删除（`:1141`、`:4863-4864`、`:5015-5018`）。入队前就被 reject 的请求永远不会完成，
 这三个条目会留到会话结束。压力测试显示量级有界且很小（每个被丢弃的调用一个 `Map` 条目），而且这是
 **既有行为** —— 入队后 abort 的 reject 路径一直如此。建议记到 #11148，而不是在本 PR 里改。
+
+还有一点值得明说，也正是这条只算 Minor 而不是 Important 的原因：base 上迟到的 `cancelled` 完成
+同时也会为被丢弃的调用产生一个 `functionResponse`，而 PR 上没有任何东西会产生它。这不会留下线格式
+非法的 transcript —— `repairOrphanedToolUseTurns`（`core/llm-chat.ts:1815`，在 `sendMessageStream`
+内 `:3011` 再跑一次，`client.ts:2315` 还会再跑一次）本来就是为了收尾悬空的 `model[functionCall]`。
+本 PR 把这种情形从完成路径挪到了这张安全网上。
 
 **发现 3 —— Nit。回归测试可以再钉牢一点。**
 
