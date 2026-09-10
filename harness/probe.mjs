@@ -210,6 +210,7 @@ async function runScenario(sc) {
     sideQueryThrows = false,
     force = true,
     omitUsage = false,
+    requestPayloadTooLarge = false,
     summaryLang,
     summaryChars = 0,
   } = sc;
@@ -373,6 +374,7 @@ async function runScenario(sc) {
       consecutiveFailures: 0,
       originalTokenCount: anchor,
       originalTokenCountIsEstimated: providerAnchor === 'estimated',
+      ...(requestPayloadTooLarge ? { requestPayloadTooLarge: true } : {}),
     });
   } catch (err) {
     thrown = String(err?.message ?? err);
