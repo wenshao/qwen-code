@@ -1,0 +1,117 @@
+name: 'Probe 11643 conhost'
+
+on:
+  push:
+    branches:
+      - 'probe/pr11643-**'
+  workflow_dispatch:
+
+permissions:
+  contents: 'read'
+
+jobs:
+  probe:
+    name: 'Windows ConPTY accounting (PR 11643)'
+    runs-on: 'windows-2022'
+    timeout-minutes: 90
+    env:
+      BASE_SHA: '78bbd9f55c5a8ba9aab96bad91f42e8c83025737'
+    defaults:
+      run:
+        shell: 'bash'
+    steps:
+      - name: 'Checkout'
+        uses: 'actions/checkout@v4'
+        with:
+          fetch-depth: 0
+
+      - name: 'Set up Node.js 22.x'
+        uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: 'Install dependencies'
+        run: 'npm ci --prefer-offline --no-audit --progress=false'
+
+      - name: 'Environment'
+        run: |-
+          mkdir -p probe-out
+          node -v
+          node -p "require('./node_modules/@lydell/node-pty/package.json').version"
+          ls node_modules/@lydell/ || true
+          ls node_modules/@lydell/node-pty-win32-x64/lib/ || true
+          cmd //c ver || true
+          powershell -NoProfile -Command "\$PSVersionTable.PSVersion.ToString()" || true
+          powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Caption + ' / ' + (Get-CimInstance Win32_OperatingSystem).Version"
+
+      - name: 'L1 inbox backend (raw node-pty)'
+        run: 'node probe/pr11643/l1-backend.mjs inbox 6 | tee probe-out/l1-inbox.txt'
+
+      - name: 'L1 bundled backend (raw node-pty)'
+        run: 'node probe/pr11643/l1-backend.mjs bundled 6 | tee probe-out/l1-bundled.txt'
+
+      - name: 'Unit tests on Windows — core (PR head)'
+        run: |-
+          cd packages/core
+          npx vitest run src/services/web-terminal-registry.test.ts src/services/conpty-host.test.ts 2>&1 | tee ../../probe-out/unit-core.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: 'Unit tests on Windows — cli pty host (PR head)'
+        run: |-
+          cd packages/cli
+          npx vitest run src/agent-view/pty-host.test.ts 2>&1 | tee ../../probe-out/unit-cli.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: 'L2 registry — PR head'
+        run: 'npx tsx probe/pr11643/l2-registry.mts head 3 6 | tee probe-out/l2-head.txt'
+
+      - name: 'L3 queries — PR head, powershell'
+        run: 'npx tsx probe/pr11643/l3-queries.mts head-powershell powershell.exe | tee probe-out/l3-head-powershell.txt'
+
+      - name: 'L3 queries — PR head, cmd'
+        run: 'npx tsx probe/pr11643/l3-queries.mts head-cmd cmd.exe | tee probe-out/l3-head-cmd.txt'
+
+      - name: 'Mutation — PR head with the query responder disabled'
+        run: |-
+          cp packages/core/src/services/web-terminal-registry.ts probe-out/registry.orig.ts
+          node -e "
+          const fs=require('node:fs');
+          const p='packages/core/src/services/web-terminal-registry.ts';
+          let s=fs.readFileSync(p,'utf8');
+          const before=s;
+          s=s.replace('if (useBundledConpty) {','if (false) {');
+          if(s===before){console.error('MUTATION DID NOT APPLY');process.exit(1)}
+          fs.writeFileSync(p,s);
+          "
+          npx tsx probe/pr11643/l3-queries.mts head-noresponder-powershell powershell.exe | tee probe-out/l3-head-noresponder.txt
+          cp probe-out/registry.orig.ts packages/core/src/services/web-terminal-registry.ts
+
+      - name: 'Switch production files to BASE'
+        run: |-
+          git checkout "$BASE_SHA" -- packages/core/src packages/cli/src scripts
+          git status --porcelain | head -20
+          grep -c useConptyDll packages/core/src/services/web-terminal-registry.ts || echo "BASE has no useConptyDll (expected)"
+
+      - name: 'L2 registry — BASE'
+        run: 'npx tsx probe/pr11643/l2-registry.mts base 3 6 | tee probe-out/l2-base.txt'
+
+      - name: 'L3 queries — BASE, powershell'
+        run: 'npx tsx probe/pr11643/l3-queries.mts base-powershell powershell.exe | tee probe-out/l3-base-powershell.txt'
+
+      - name: 'L3 queries — BASE, cmd'
+        run: 'npx tsx probe/pr11643/l3-queries.mts base-cmd cmd.exe | tee probe-out/l3-base-cmd.txt'
+
+      - name: 'Summary'
+        if: 'always()'
+        run: |-
+          echo '===== PROBE RESULTS ====='
+          grep -h PROBE_JSON probe-out/*.txt || true
+
+      - name: 'Upload probe output'
+        if: 'always()'
+        uses: 'actions/upload-artifact@v4'
+        with:
+          name: 'probe-11643'
+          path: 'probe-out/'
