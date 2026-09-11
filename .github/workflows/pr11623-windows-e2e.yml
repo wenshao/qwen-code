@@ -1,0 +1,66 @@
+name: PR 11623 Windows E2E
+
+on:
+  push:
+    branches: ['verify-pr11623-windows']
+  workflow_dispatch:
+
+jobs:
+  windows-e2e:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      BASE_SHA: 745d87b0b101661ec1e461840f87cb4981d43a4f
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the taskkill shim
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\fakewin\System32" | Out-Null
+          $csc = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          & $csc /nologo /target:exe /out:"$env:RUNNER_TEMP\fakewin\System32\taskkill.exe" verify-11623\taskkill-shim.cs
+          if (-not (Test-Path "$env:RUNNER_TEMP\fakewin\System32\taskkill.exe")) { throw "shim build failed" }
+          Get-Item "$env:RUNNER_TEMP\fakewin\System32\taskkill.exe" | Format-List Name,Length
+
+      - name: Build core (PR code)
+        run: npm run build
+        working-directory: packages/core
+
+      - name: E2E - PR build
+        shell: pwsh
+        run: verify-11623\run-legs.ps1 -Label PR
+
+      - name: Revert hookRunner.ts to main and rebuild
+        shell: pwsh
+        run: |
+          git checkout $env:BASE_SHA -- packages/core/src/hooks/hookRunner.ts
+          git diff --stat HEAD -- packages/core/src/hooks/hookRunner.ts
+          Set-Location packages/core
+          npm run build
+
+      - name: E2E - main (base) build
+        shell: pwsh
+        run: verify-11623\run-legs.ps1 -Label MAIN
+
+      - name: Summary
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Content "$env:RUNNER_TEMP\verdicts.txt" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr11623-windows-e2e-logs
+          path: ${{ runner.temp }}/e2e-*.log
