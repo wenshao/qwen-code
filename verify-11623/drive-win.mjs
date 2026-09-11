@@ -7,12 +7,20 @@ import { join } from 'node:path';
 
 const CORE_DIST = process.env.CORE_DIST;
 const SCENARIO = process.env.SCENARIO;
+// Node itself must start with the real %SystemRoot% (its CSPRNG init aborts
+// otherwise), so the shim is swapped in only while hookRunner.js is being
+// loaded: WINDOWS_TASKKILL is a module-load-time constant. Restoring it before
+// anything is spawned keeps every child process on the real System32.
+const REAL_SYSTEMROOT = process.env.SystemRoot;
+const FAKE_SYSTEMROOT = process.env.FAKE_WIN_ROOT;
+process.env.SystemRoot = FAKE_SYSTEMROOT;
 const { HookRunner } = await import(pathToFileURL(join(CORE_DIST, 'src/hooks/hookRunner.js')).href);
 const { HookEventName, HookType } = await import(pathToFileURL(join(CORE_DIST, 'src/hooks/types.js')).href);
+process.env.SystemRoot = REAL_SYSTEMROOT;
 
 // Keep the real SystemRoot for helper processes: only the core under test is
 // pointed at the shim.
-const psEnv = { ...process.env, SystemRoot: 'C:\\Windows' };
+const psEnv = { ...process.env };
 const ps = (cmd) => {
   try {
     return execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', cmd], { encoding: 'utf8', env: psEnv }).trim();
@@ -35,7 +43,7 @@ log(`platform seen by built core : ${process.platform}   *** REAL WINDOWS ***`);
 log(`os                          : ${ps('(Get-CimInstance Win32_OperatingSystem).Caption')}`);
 log(`node                        : ${process.version}`);
 log(`ComSpec                     : ${process.env.ComSpec}`);
-log(`taskkill resolved by core   : ${process.env.SystemRoot}\\System32\\taskkill.exe`);
+log(`taskkill resolved by core   : ${FAKE_SYSTEMROOT}\\System32\\taskkill.exe`);
 log(`                              (shim: logs + forwards to C:\\Windows\\System32\\taskkill.exe)`);
 log(`scenario                    : ${SCENARIO}`);
 log(`hook event                  : StopFailure  (survives parent exit)`);

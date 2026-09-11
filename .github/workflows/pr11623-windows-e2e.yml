@@ -38,10 +38,12 @@ jobs:
         working-directory: packages/core
 
       - name: E2E - PR build
+        continue-on-error: true
         shell: pwsh
         run: verify-11623\run-legs.ps1 -Label PR
 
       - name: Revert hookRunner.ts to main and rebuild
+        if: always()
         shell: pwsh
         run: |
           git checkout $env:BASE_SHA -- packages/core/src/hooks/hookRunner.ts
@@ -50,6 +52,8 @@ jobs:
           npm run build
 
       - name: E2E - main (base) build
+        if: always()
+        continue-on-error: true
         shell: pwsh
         run: verify-11623\run-legs.ps1 -Label MAIN
 

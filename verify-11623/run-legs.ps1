@@ -4,7 +4,7 @@ $dist = Join-Path $PWD 'packages\core\dist'
 foreach ($scenario in @('nofault', 'denied', 'deny-all', 'supervisor-gone')) {
   $env:CORE_DIST = $dist
   $env:SCENARIO = $scenario
-  $env:SystemRoot = "$env:RUNNER_TEMP\fakewin"
+  $env:FAKE_WIN_ROOT = "$env:RUNNER_TEMP\fakewin"
   $env:TASKKILL_LOG = "$env:RUNNER_TEMP\taskkill-$Label-$scenario.log"
   $env:DENY_NAME = ''
   if ($scenario -eq 'denied') { $env:DENY_NAME = 'node' }
