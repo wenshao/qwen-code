@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 90
     env:
       BASE_SHA: '78bbd9f55c5a8ba9aab96bad91f42e8c83025737'
+      ESBUILD: 'node_modules/.bin/esbuild'
     defaults:
       run:
         shell: 'bash'
@@ -40,10 +41,8 @@ jobs:
           mkdir -p probe-out
           node -v
           node -p "require('./node_modules/@lydell/node-pty/package.json').version"
-          ls node_modules/@lydell/ || true
           ls node_modules/@lydell/node-pty-win32-x64/lib/ || true
-          cmd //c ver || true
-          powershell -NoProfile -Command "\$PSVersionTable.PSVersion.ToString()" || true
+          ls node_modules/@lydell/node-pty-win32-x64/prebuilds/*/ || true
           powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Caption + ' / ' + (Get-CimInstance Win32_OperatingSystem).Version"
 
       - name: 'L1 inbox backend (raw node-pty)'
@@ -64,44 +63,74 @@ jobs:
           npx vitest run src/agent-view/pty-host.test.ts 2>&1 | tee ../../probe-out/unit-cli.txt
           exit ${PIPESTATUS[0]}
 
+      # tsx's loader segfaults with node-pty on this runner (exit 139), so the
+      # harnesses are bundled ahead of time and run on plain node. The two
+      # native modules stay external, i.e. loaded exactly as the product loads
+      # them.
+      - name: 'Bundle probes (PR head)'
+        run: |-
+          bundle() { "$ESBUILD" "probe/pr11643/$1.mts" --bundle --platform=node --format=esm --target=node22 --external:@lydell/node-pty --external:@xterm/headless --outfile="probe-out/$2.mjs" --log-level=warning; }
+          bundle l2-registry l2-head
+          bundle l3-queries l3-head
+
       - name: 'L2 registry — PR head'
-        run: 'npx tsx probe/pr11643/l2-registry.mts head 3 6 | tee probe-out/l2-head.txt'
+        run: 'node probe-out/l2-head.mjs head 3 6 | tee probe-out/l2-head.txt'
 
       - name: 'L3 queries — PR head, powershell'
-        run: 'npx tsx probe/pr11643/l3-queries.mts head-powershell powershell.exe | tee probe-out/l3-head-powershell.txt'
+        run: 'node probe-out/l3-head.mjs head-powershell powershell.exe | tee probe-out/l3-head-powershell.txt'
 
       - name: 'L3 queries — PR head, cmd'
-        run: 'npx tsx probe/pr11643/l3-queries.mts head-cmd cmd.exe | tee probe-out/l3-head-cmd.txt'
+        run: 'node probe-out/l3-head.mjs head-cmd cmd.exe | tee probe-out/l3-head-cmd.txt'
 
-      - name: 'Mutation — PR head with the query responder disabled'
+      - name: 'Mutation A — PR head with the query responder disabled'
         run: |-
           cp packages/core/src/services/web-terminal-registry.ts probe-out/registry.orig.ts
           node -e "
           const fs=require('node:fs');
           const p='packages/core/src/services/web-terminal-registry.ts';
-          let s=fs.readFileSync(p,'utf8');
-          const before=s;
-          s=s.replace('if (useBundledConpty) {','if (false) {');
-          if(s===before){console.error('MUTATION DID NOT APPLY');process.exit(1)}
-          fs.writeFileSync(p,s);
+          const s=fs.readFileSync(p,'utf8');
+          const out=s.replace('if (useBundledConpty) {','if (false) {');
+          if(out===s){console.error('MUTATION A DID NOT APPLY');process.exit(1)}
+          fs.writeFileSync(p,out);
           "
-          npx tsx probe/pr11643/l3-queries.mts head-noresponder-powershell powershell.exe | tee probe-out/l3-head-noresponder.txt
+          "$ESBUILD" probe/pr11643/l3-queries.mts --bundle --platform=node --format=esm --target=node22 --external:@lydell/node-pty --external:@xterm/headless --outfile=probe-out/l3-mutA.mjs --log-level=warning
+          node probe-out/l3-mutA.mjs head-no-responder-powershell powershell.exe | tee probe-out/l3-mutA.txt
+          cp probe-out/registry.orig.ts packages/core/src/services/web-terminal-registry.ts
+
+      - name: 'Mutation B — PR head with the scrollback strip disabled (observe raw queries)'
+        run: |-
+          node -e "
+          const fs=require('node:fs');
+          const p='packages/core/src/services/web-terminal-registry.ts';
+          const s=fs.readFileSync(p,'utf8');
+          const out=s.replace('let buffered = useBundledConpty ? stripTerminalQueries(data) : data;','let buffered = data;');
+          if(out===s){console.error('MUTATION B DID NOT APPLY');process.exit(1)}
+          fs.writeFileSync(p,out);
+          "
+          "$ESBUILD" probe/pr11643/l3-queries.mts --bundle --platform=node --format=esm --target=node22 --external:@lydell/node-pty --external:@xterm/headless --outfile=probe-out/l3-mutB.mjs --log-level=warning
+          node probe-out/l3-mutB.mjs head-no-strip-powershell powershell.exe | tee probe-out/l3-mutB-powershell.txt
+          node probe-out/l3-mutB.mjs head-no-strip-cmd cmd.exe | tee probe-out/l3-mutB-cmd.txt
           cp probe-out/registry.orig.ts packages/core/src/services/web-terminal-registry.ts
 
       - name: 'Switch production files to BASE'
         run: |-
           git checkout "$BASE_SHA" -- packages/core/src packages/cli/src scripts
           git status --porcelain | head -20
-          grep -c useConptyDll packages/core/src/services/web-terminal-registry.ts || echo "BASE has no useConptyDll (expected)"
+          if grep -q useConptyDll packages/core/src/services/web-terminal-registry.ts; then
+            echo "BASE tree still mentions useConptyDll — revert failed"; exit 1
+          fi
+          bundle() { "$ESBUILD" "probe/pr11643/$1.mts" --bundle --platform=node --format=esm --target=node22 --external:@lydell/node-pty --external:@xterm/headless --outfile="probe-out/$2.mjs" --log-level=warning; }
+          bundle l2-registry l2-base
+          bundle l3-queries l3-base
 
       - name: 'L2 registry — BASE'
-        run: 'npx tsx probe/pr11643/l2-registry.mts base 3 6 | tee probe-out/l2-base.txt'
+        run: 'node probe-out/l2-base.mjs base 3 6 | tee probe-out/l2-base.txt'
 
       - name: 'L3 queries — BASE, powershell'
-        run: 'npx tsx probe/pr11643/l3-queries.mts base-powershell powershell.exe | tee probe-out/l3-base-powershell.txt'
+        run: 'node probe-out/l3-base.mjs base-powershell powershell.exe | tee probe-out/l3-base-powershell.txt'
 
       - name: 'L3 queries — BASE, cmd'
-        run: 'npx tsx probe/pr11643/l3-queries.mts base-cmd cmd.exe | tee probe-out/l3-base-cmd.txt'
+        run: 'node probe-out/l3-base.mjs base-cmd cmd.exe | tee probe-out/l3-base-cmd.txt'
 
       - name: 'Summary'
         if: 'always()'
