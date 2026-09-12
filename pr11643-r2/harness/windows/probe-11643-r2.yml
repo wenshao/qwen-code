@@ -1,0 +1,145 @@
+name: 'Probe 11643 r2'
+
+on:
+  push:
+    branches:
+      - 'probe/pr11643r2-**'
+  workflow_dispatch:
+
+permissions:
+  contents: 'read'
+
+jobs:
+  probe:
+    name: 'Windows ConPTY r2 (PR 11643 @ b7934e39)'
+    runs-on: 'windows-2022'
+    timeout-minutes: 90
+    env:
+      BASE_SHA: 'ea10c604bff2ea38ae700e0e2534f93e91b8bcec'
+      ESBUILD: 'node_modules/.bin/esbuild'
+    defaults:
+      run:
+        shell: 'bash'
+    steps:
+      - name: 'Checkout'
+        uses: 'actions/checkout@v4'
+        with:
+          fetch-depth: 0
+
+      - name: 'Set up Node.js 22.x'
+        uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: 'Install dependencies'
+        run: 'npm ci --prefer-offline --no-audit --progress=false'
+
+      - name: 'Environment'
+        run: |-
+          mkdir -p probe-out
+          node -v
+          node -p "require('./node_modules/@lydell/node-pty/package.json').version"
+          find node_modules/@lydell -iname 'conpty.node' -o -iname 'conpty.dll' -o -iname 'OpenConsole.exe' | tee probe-out/prebuild-files.txt
+          pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()' || true
+          powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Caption + ' / ' + (Get-CimInstance Win32_OperatingSystem).Version"
+          git log -1 --format='%H %s'
+
+      - name: 'Bundle probes (PR head)'
+        run: |-
+          bundle() { "$ESBUILD" "probe/$1.mts" --bundle --platform=node --format=esm --target=node22 --external:@lydell/node-pty --external:@xterm/headless --outfile="probe-out/$2.mjs" --log-level=warning; }
+          bundle pr11643/l2-registry l2-head
+          bundle pr11643r2/l3r2 l3r2-head
+
+      - name: 'L2 registry leak — PR head (3 x 6)'
+        continue-on-error: true
+        run: 'node probe-out/l2-head.mjs head 3 6 | tee probe-out/l2-head.txt'
+
+      - name: 'L3r2 — PR head, cmd / powershell / pwsh'
+        continue-on-error: true
+        run: |-
+          for sh in cmd.exe powershell.exe pwsh.exe; do
+            node probe-out/l3r2-head.mjs "head-$sh" "$sh" | tee "probe-out/l3r2-head-$sh.txt"
+          done
+
+      - name: 'Unit tests on Windows — PR head (5 changed files)'
+        continue-on-error: true
+        run: |-
+          (cd packages/core && npx vitest run src/services/web-terminal-registry.test.ts src/services/conpty-host.test.ts) 2>&1 | tee probe-out/unit-core.txt
+          (cd packages/cli && npx vitest run src/agent-view/pty-host.test.ts src/serve/routes/terminal.test.ts) 2>&1 | tee probe-out/unit-cli.txt
+          (cd packages/web-shell && npx vitest run client/components/terminal/TerminalPanel.test.tsx) 2>&1 | tee probe-out/unit-web-shell.txt
+
+      - name: 'Mutation R — responder disabled (who answers startup DA when no browser is attached?)'
+        continue-on-error: true
+        run: |-
+          cp packages/core/src/services/web-terminal-registry.ts probe-out/registry.orig.ts
+          node -e "
+          const fs=require('node:fs');
+          const p='packages/core/src/services/web-terminal-registry.ts';
+          const s=fs.readFileSync(p,'utf8');
+          if(s.split('if (useBundledConpty) {').length!==2){console.error('MUTATION R ANCHOR NOT UNIQUE');process.exit(1)}
+          fs.writeFileSync(p,s.replace('if (useBundledConpty) {','if (false) {'));
+          "
+          "$ESBUILD" probe/pr11643r2/l3r2.mts --bundle --platform=node --format=esm --target=node22 --external:@lydell/node-pty --external:@xterm/headless --outfile=probe-out/l3r2-mutR.mjs --log-level=warning
+          cp probe-out/registry.orig.ts packages/core/src/services/web-terminal-registry.ts
+          for sh in cmd.exe powershell.exe pwsh.exe; do
+            node probe-out/l3r2-mutR.mjs "mutR-$sh" "$sh" | tee "probe-out/l3r2-mutR-$sh.txt"
+          done
+
+      - name: 'Fallback A — conpty.dll missing (bundled spawn should throw, inbox retry)'
+        continue-on-error: true
+        run: |-
+          DLL=$(grep -i 'conpty\.dll$' probe-out/prebuild-files.txt | grep -i win32-x64 | head -1)
+          echo "renaming $DLL"; mv "$DLL" "$DLL.off"
+          for sh in cmd.exe powershell.exe; do
+            node probe-out/l3r2-head.mjs "fallbackA-$sh" "$sh" | tee "probe-out/l3r2-fallbackA-$sh.txt"
+          done
+          node probe-out/l2-head.mjs fallbackA 1 6 | tee probe-out/l2-fallbackA.txt
+          mv "$DLL.off" "$DLL"
+
+      - name: 'Fallback B — OpenConsole.exe missing (conpty.dll present)'
+        continue-on-error: true
+        run: |-
+          OC=$(grep -i 'OpenConsole\.exe$' probe-out/prebuild-files.txt | grep -i win32-x64 | head -1)
+          echo "renaming $OC"; mv "$OC" "$OC.off"
+          for sh in cmd.exe powershell.exe; do
+            node probe-out/l3r2-head.mjs "fallbackB-$sh" "$sh" | tee "probe-out/l3r2-fallbackB-$sh.txt"
+          done
+          node probe-out/l2-head.mjs fallbackB 1 6 | tee probe-out/l2-fallbackB.txt
+          mv "$OC.off" "$OC"
+
+      - name: 'Switch production files to BASE (merge-base)'
+        run: |-
+          git checkout "$BASE_SHA" -- packages/core/src packages/cli/src scripts
+          if grep -q useConptyDll packages/core/src/services/web-terminal-registry.ts; then
+            echo "BASE tree still mentions useConptyDll — revert failed"; exit 1
+          fi
+          bundle() { "$ESBUILD" "probe/$1.mts" --bundle --platform=node --format=esm --target=node22 --external:@lydell/node-pty --external:@xterm/headless --outfile="probe-out/$2.mjs" --log-level=warning; }
+          bundle pr11643/l2-registry l2-base
+          bundle pr11643r2/l3r2 l3r2-base
+
+      - name: 'L2 registry leak — BASE (3 x 6)'
+        continue-on-error: true
+        run: 'node probe-out/l2-base.mjs base 3 6 | tee probe-out/l2-base.txt'
+
+      - name: 'L3r2 — BASE, cmd / powershell / pwsh'
+        continue-on-error: true
+        run: |-
+          for sh in cmd.exe powershell.exe pwsh.exe; do
+            node probe-out/l3r2-base.mjs "base-$sh" "$sh" | tee "probe-out/l3r2-base-$sh.txt"
+          done
+
+      - name: 'Summary'
+        if: 'always()'
+        run: |-
+          echo '===== PROBE RESULTS ====='
+          grep -h PROBE_JSON probe-out/*.txt || true
+          grep -hE 'Test Files|Tests ' probe-out/unit-*.txt || true
+
+      - name: 'Upload probe output'
+        if: 'always()'
+        uses: 'actions/upload-artifact@v4'
+        with:
+          name: 'probe-11643-r2'
+          path: 'probe-out/'
