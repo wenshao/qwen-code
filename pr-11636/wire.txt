@@ -1,0 +1,18 @@
+# real `qwen serve` + real ACP child + scripted OpenAI-compatible mock; oracle = daemon REST/SSE + the provider request bodies
+# columns: base e432e40580 (merge base)  |  PR d8a1413e20 (head)
+!idle - a background agent returns after the parent turn ended (6 s model reply)
+  /status + live-state during the reply     base: hasActivePrompt=false            PR: hasActivePrompt=true, backgroundTurn=<id>
+  terminal event                            base: ..._turn_complete (no promptId)  PR: turn_complete{promptId=<bg id>}
+!same - the agent returns during the parent's silent `sleep` tool call
+  where the model receives the result       base: extra automatic turn afterwards  PR: next request of the SAME prompt
+  daemon state while it is handled          base: hasActivePrompt=false            PR: hasActivePrompt=true
+!steer - user types in the Web Shell during the continuation (12 s reply)
+  request the page sends                    base: POST /prompt -> 202              PR: POST /mid-turn-message -> 200 accepted
+  the continuation                          base: ABORTED after 3.4 s (cancelled)  PR: completes; message injected at its boundary
+!stop - cancel the continuation while a second result is already queued
+  second result reaches the model           base: never, even after a new prompt   PR: yes, after the next user prompt
+!overflow - 21 results reach one boundary (QWEN_CODE_MAX_BACKGROUND_AGENTS=30)
+  requests that carry results               base: 20 automatic turns, 1 each       PR: 1 request = drop summary + 20 results
+  daemon hasActivePrompt meanwhile          base: false                            PR: true (same user prompt)
+!reload - page reloaded during the continuation
+  page after reload                         base: "request was interrupted" banner PR: "Processing Alpha probe results"
