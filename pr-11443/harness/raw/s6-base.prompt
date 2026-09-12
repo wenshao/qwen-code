@@ -1,0 +1,7 @@
+pending-only replay across reload
+@@tool lsp {"operation":"hover","filePath":"src/a.txt","line":1,"character":1}
+@@tool lsp {"operation":"hover","filePath":"src/b.txt","line":1,"character":1}
+@@tool run_shell_command {"command":"kill $(jq -r .pid /root/git/pr11443-e2e/out/s6-base.fake.jsonl | tail -1); sleep 4","description":"crash server"}
+@@tool lsp {"operation":"hover","filePath":"src/a.txt","line":1,"character":1}
+@@tool run_shell_command {"command":"printf 'bravo AFTER-RELOAD\\n' > src/b.txt; node -e \"const f='.lsp.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f));j.plaintext.env.RELOAD='1';fs.writeFileSync(f,JSON.stringify(j))\"; sleep 7; echo MARK-AFTER-RELOAD >> /root/git/pr11443-e2e/out/s6-base.fake.jsonl","description":"edit b.txt + change .lsp.json (restart)"}
+@@tool lsp {"operation":"workspaceDiagnostics"}
