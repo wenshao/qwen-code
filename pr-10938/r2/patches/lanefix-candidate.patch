@@ -1,0 +1,58 @@
+diff --git a/packages/web-shell/client/components/messages/PlanExecutionView.tsx b/packages/web-shell/client/components/messages/PlanExecutionView.tsx
+index 663bcf74fc..75d184780f 100644
+--- a/packages/web-shell/client/components/messages/PlanExecutionView.tsx
++++ b/packages/web-shell/client/components/messages/PlanExecutionView.tsx
+@@ -862,14 +862,28 @@ export function PlanExecutionView({
+       // dependencies drew them on top of each other. Give each its own lane,
+       // ordered by span so the longest sits furthest out and the lanes nest
+       // instead of crossing.
++      const layerLeft = new Map<number, number>();
++      const layerRight = new Map<number, number>();
++      for (const [id, rect] of measuredNodes) {
++        const layer = layerByTodoRef.current.get(id) ?? 0;
++        layerLeft.set(layer, Math.min(layerLeft.get(layer) ?? Infinity, rect.left));
++        layerRight.set(layer, Math.max(layerRight.get(layer) ?? -Infinity, rect.right));
++      }
+       spanning.sort((a, b) => a.span - b.span);
+       spanning.forEach((edge, lane) => {
+         const routeY = Math.min(
+           maxNodeBottom + 14 + lane * EDGE_LANE_HEIGHT,
+           Math.max(graphHeight - 6, maxNodeBottom + 14),
+         );
+-        const dropX = edge.startX + 24;
+-        const riseX = edge.endX - 24;
++        const fromLayer = layerByTodoRef.current.get(edge.from) ?? 0;
++        const toLayer = layerByTodoRef.current.get(edge.to) ?? 0;
++        const dropRun = (layerLeft.get(fromLayer + 1) ?? edge.startX + 60) - 4 - edge.startX;
++        const riseRun = edge.endX - ((layerRight.get(toLayer - 1) ?? edge.endX - 60) + 4);
++        const dropShoulder = Math.min(24, dropRun / 2);
++        const riseShoulder = Math.min(24, riseRun / 2);
++        const corner = Math.min(EDGE_CORNER, dropShoulder / 2, riseShoulder / 2);
++        const dropX = edge.startX + dropShoulder;
++        const riseX = edge.endX - riseShoulder;
+         const down = routeY > edge.startY ? 1 : -1;
+         const up = edge.endY > routeY ? 1 : -1;
+         edges.push({
+@@ -877,14 +891,14 @@ export function PlanExecutionView({
+           to: edge.to,
+           d:
+             `M ${edge.startX} ${edge.startY} ` +
+-            `H ${dropX - EDGE_CORNER} ` +
+-            `Q ${dropX} ${edge.startY} ${dropX} ${edge.startY + EDGE_CORNER * down} ` +
+-            `V ${routeY - EDGE_CORNER * down} ` +
+-            `Q ${dropX} ${routeY} ${dropX + EDGE_CORNER} ${routeY} ` +
+-            `H ${riseX - EDGE_CORNER} ` +
+-            `Q ${riseX} ${routeY} ${riseX} ${routeY + EDGE_CORNER * up} ` +
+-            `V ${edge.endY - EDGE_CORNER * up} ` +
+-            `Q ${riseX} ${edge.endY} ${riseX + EDGE_CORNER} ${edge.endY} ` +
++            `H ${dropX - corner} ` +
++            `Q ${dropX} ${edge.startY} ${dropX} ${edge.startY + corner * down} ` +
++            `V ${routeY - corner * down} ` +
++            `Q ${dropX} ${routeY} ${dropX + corner} ${routeY} ` +
++            `H ${riseX - corner} ` +
++            `Q ${riseX} ${routeY} ${riseX} ${routeY + corner * up} ` +
++            `V ${edge.endY - corner * up} ` +
++            `Q ${riseX} ${edge.endY} ${riseX + corner} ${edge.endY} ` +
+             `H ${edge.endX}`,
+         });
+       });

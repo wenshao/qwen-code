@@ -1,0 +1,31 @@
+diff --git a/packages/web-shell/client/components/messages/PlanExecutionView.tsx b/packages/web-shell/client/components/messages/PlanExecutionView.tsx
+index 663bcf74fc..b50741da73 100644
+--- a/packages/web-shell/client/components/messages/PlanExecutionView.tsx
++++ b/packages/web-shell/client/components/messages/PlanExecutionView.tsx
+@@ -1294,13 +1294,21 @@ export function PlanExecutionView({
+                 // matching the rows this node renders and the inspector's
+                 // Subagents list for the same step. The runtime above stays
+                 // on roots, so nested time is not summed twice.
+-                const agentCount = executions.reduce(
+-                  (count, tool) =>
++                const agentCount = executions.reduce((count, tool) => {
++                  const live = nestedTasksFromIndex(tool, taskIndex);
++                  const liveCallIds = new Set(
++                    live.flatMap(({ task }) => (task.toolUseId ? [task.toolUseId] : [])),
++                  );
++                  const transcriptOnly = nestedAgentToolsForTool(tool).filter(
++                    ({ tool: nested }) => !liveCallIds.has(nested.callId),
++                  );
++                  return (
+                     count +
+                     (isSubAgentToolCall(tool) ? 1 : 0) +
+-                    nestedAgentToolsForTool(tool).length,
+-                  0,
+-                );
++                    live.length +
++                    transcriptOnly.length
++                  );
++                }, 0);
+                 // blockedBy is model-authored and can repeat an id — or name
+                 // the todo itself. Dedup and drop self-references like the
+                 // topology builder; ghost ids stay, because above the edge
