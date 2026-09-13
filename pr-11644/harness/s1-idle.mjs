@@ -7,7 +7,7 @@ const { browser, page, reqs, t0 } = await launch();
 await openUi(page);
 const tOpen = Date.now() - t0;
 await sleep(WINDOW);
-await page.screenshot({ path: `/root/git/h11644/shots/s1-${arm}-idle.png` });
+await page.screenshot({ path: `/root/git/h11644/shots/${process.env.OUTDIR || ''}s1-${arm}-idle.png` });
 const expanded = await page.locator('[aria-expanded]').evaluateAll((els) =>
   els.map((e) => `${e.getAttribute('aria-label') || e.textContent?.trim().slice(0, 30)}=${e.getAttribute('aria-expanded')}`));
 const res = {

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 source /root/git/h11644/env.sh
-MB=00d86315c8
+MB=b5567bb7a9
 cd "$WT"
 rm -rf "$H/ws-pr" "$H/ws-base"
 cp -r dist/web-shell "$H/ws-pr"

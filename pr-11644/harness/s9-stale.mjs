@@ -24,7 +24,7 @@ await details.waitFor();
 const tVisible = Date.now();
 const samples = [];
 for (let i = 0; i < 60; i++) { samples.push([Date.now() - tVisible, await summary()]); if (samples.at(-1)[1] !== before && i > 0) break; await sleep(50); }
-await page.screenshot({ path: `/root/git/h11644/shots/s9-${arm}-reopen.png`, clip: { x: 0, y: 0, width: 900, height: 520 } });
+await page.screenshot({ path: `/root/git/h11644/shots/${process.env.OUTDIR || ''}s9-${arm}-reopen.png`, clip: { x: 0, y: 0, width: 900, height: 520 } });
 execSync(`cd ${REPO} && git checkout -- f2.txt f3.txt && rm -f untracked.txt`);
 const firstFresh = samples.find(([, s]) => s !== before);
 const res = { arm, before, gitPorcelainWhileClosed: gitNow, hoverToVisibleMs: tVisible - tHover, firstSample: samples[0], firstFresh: firstFresh ?? null, samples: samples.slice(0, 12) };

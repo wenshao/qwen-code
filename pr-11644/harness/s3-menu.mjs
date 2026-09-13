@@ -26,7 +26,7 @@ await sleep(1_500);
 const items = (await menu.getByRole('menuitem').allInnerTexts()).map((s) => s.replace(/\s+/g, ' '));
 const detailsVisibleWithMenu = await page.getByRole('dialog', { name: TARGET }).isVisible();
 const mb = await menu.boundingBox();
-await page.screenshot({ path: `/root/git/h11644/shots/s3-${arm}-${WSKEY}-menu.png`, clip: { x: 0, y: 0, width: Math.min(1440, Math.round((mb?.x ?? 0) + (mb?.width ?? 400) + 30)), height: Math.min(900, Math.round((mb?.y ?? 0) + (mb?.height ?? 400) + 30)) } });
+await page.screenshot({ path: `/root/git/h11644/shots/${process.env.OUTDIR || ''}s3-${arm}-${WSKEY}-menu.png`, clip: { x: 0, y: 0, width: Math.min(1440, Math.round((mb?.x ?? 0) + (mb?.width ?? 400) + 30)), height: Math.min(900, Math.round((mb?.y ?? 0) + (mb?.height ?? 400) + 30)) } });
 await sleep(60_500);
 const tClose = now();
 phase.open = { items0, seconds: Math.round((tClose - tStart) / 1000), detailsVisibleWithMenu, items, facets: count(reqs, facetW, tStart, tClose), git: count(reqs, gitW, tStart, tClose) };

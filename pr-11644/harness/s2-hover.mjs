@@ -23,7 +23,7 @@ const details = page.getByRole('dialog', { name: TARGET });
 await details.waitFor({ timeout: 5000 });
 await sleep(2_500);
 const box = await details.boundingBox();
-await page.screenshot({ path: `/root/git/h11644/shots/s2-${arm}-${WSKEY}-details.png`, clip: { x: 0, y: 0, width: Math.min(1440, Math.round((box?.x ?? 0) + (box?.width ?? 600) + 30)), height: Math.min(900, Math.max(360, Math.round((box?.y ?? 0) + (box?.height ?? 300) + 30))) } });
+await page.screenshot({ path: `/root/git/h11644/shots/${process.env.OUTDIR || ''}s2-${arm}-${WSKEY}-details.png`, clip: { x: 0, y: 0, width: Math.min(1440, Math.round((box?.x ?? 0) + (box?.width ?? 600) + 30)), height: Math.min(900, Math.max(360, Math.round((box?.y ?? 0) + (box?.height ?? 300) + 30))) } });
 const detailsText = await details.innerText();
 await sleep(29_500);
 const tLeave = now();

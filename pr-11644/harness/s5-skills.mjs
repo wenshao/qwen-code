@@ -27,7 +27,7 @@ await page.keyboard.type('rel', { delay: 40 });
 await sleep(2_000);
 const options1 = await menu.getByRole('option').allInnerTexts().catch(() => []);
 const box = await menu.boundingBox();
-await page.screenshot({ path: `/root/git/h11644/shots/s5-${arm}-slash.png`, clip: box ? { x: Math.max(0, box.x - 30), y: Math.max(0, box.y - 30), width: Math.min(1400, box.width + 60), height: Math.min(880, box.height + 160) } : undefined });
+await page.screenshot({ path: `/root/git/h11644/shots/${process.env.OUTDIR || ''}s5-${arm}-slash.png`, clip: box ? { x: Math.max(0, box.x - 30), y: Math.max(0, box.y - 30), width: Math.min(1400, box.width + 60), height: Math.min(880, box.height + 160) } : undefined });
 phases.firstSlash = { catalogReads: count(reqs, cat, from, now()), options: options1.map((s) => s.replace(/\s+/g, ' ').slice(0, 60)), paths: reqs.filter((r) => cat(r) && r.t >= from).map((r) => `${r.t}ms ${r.method} ${r.path}`) };
 await page.keyboard.press('Escape');
 await page.keyboard.press('Control+A');

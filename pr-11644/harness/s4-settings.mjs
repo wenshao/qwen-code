@@ -14,7 +14,7 @@ async function openSettings(label) {
   const from = now();
   await settingsBtn.click();
   await sleep(8_000);
-  const shot = `/root/git/h11644/shots/s4-${arm}-${label}.png`;
+  const shot = `/root/git/h11644/shots/${process.env.OUTDIR || ''}s4-${arm}-${label}.png`;
   await page.screenshot({ path: shot });
   phases[label] = { providers: count(reqs, prov, from, now()), liveSetup: count(reqs, (r) => r.kind === 'live-setup', from, now()) };
 }

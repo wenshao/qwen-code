@@ -43,6 +43,11 @@ const server = http.createServer(async (req, res) => {
   const rawAll = JSON.stringify(msgs);
   log('chat/completions images_last=' + countImgs(lastUser?.content) + ' images_all=' + imagesAll + ' marker=' + ((rawAll.match(/MRK-[a-z]+-\d+/) || [''])[0]) + ' prompt=', JSON.stringify(prompt));
   const reply = `ACK<${prompt.replace(/\s+/g, ' ').trim()}>`;
+  const slow = /SLOWTURN/.test(prompt);
+  const chunks = slow ? 80 : CHUNKS;
+  const chunkMs = slow ? 250 : CHUNK_MS;
+  let aborted = false;
+  req.on('close', () => { if (!res.writableEnded) { aborted = true; log('client aborted stream prompt=', JSON.stringify(prompt.slice(0, 40))); } });
 
   res.writeHead(200, {
     'content-type': 'text/event-stream',
@@ -53,9 +58,10 @@ const server = http.createServer(async (req, res) => {
   const base = { id, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: 'mock-model' };
   sse(res, { ...base, choices: [{ index: 0, delta: { role: 'assistant', content: '' }, finish_reason: null }] });
   const parts = [];
-  for (let i = 0; i < CHUNKS; i++) parts.push(i === 0 ? reply : ` .${i}`);
+  for (let i = 0; i < chunks; i++) parts.push(i === 0 ? reply : ` .${i}`);
   for (const p of parts) {
-    await new Promise((r) => setTimeout(r, CHUNK_MS));
+    await new Promise((r) => setTimeout(r, chunkMs));
+    if (aborted) return;
     sse(res, { ...base, choices: [{ index: 0, delta: { content: p }, finish_reason: null }] });
   }
   sse(res, { ...base, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 } });

@@ -78,5 +78,5 @@ export async function openUi(page) {
 }
 
 export function save(name, data) {
-  fs.writeFileSync(`/root/git/h11644/out/${name}.json`, JSON.stringify(data, null, 2));
+  fs.writeFileSync(`/root/git/h11644/out/${process.env.OUTDIR || ''}${name}.json`, JSON.stringify(data, null, 2));
 }

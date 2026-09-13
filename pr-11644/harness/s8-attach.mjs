@@ -22,7 +22,7 @@ await page.keyboard.insertText(`/release-notes ${marker}`);
 await sleep(300);
 const menuOpen = await page.locator('[data-web-shell-slash-menu]').isVisible().catch(() => false);
 if (menuOpen) { await page.keyboard.press('Escape'); await sleep(200); }
-await page.screenshot({ path: `/root/git/h11644/shots/s8-${arm}-before-send.png` });
+await page.screenshot({ path: `/root/git/h11644/shots/${process.env.OUTDIR || ''}s8-${arm}-before-send.png` });
 const tSend = Date.now();
 await page.keyboard.press('Enter');
 let line;
@@ -31,7 +31,7 @@ for (let i = 0; i < 120 && !line; i++) {
   line = fs.readFileSync('/root/git/h11644/mock.log', 'utf8').split('\n').find((l) => l.includes(marker));
 }
 await sleep(3_000);
-await page.screenshot({ path: `/root/git/h11644/shots/s8-${arm}-after-send.png` });
+await page.screenshot({ path: `/root/git/h11644/shots/${process.env.OUTDIR || ''}s8-${arm}-after-send.png` });
 const cmdReads = reqs.filter((r) => /\/commands|supported-commands|supportedCommands/.test(r.path) && r.t >= tSend - (Date.now() - tSend) - 1);
 const res = { arm, marker, attachedChipsBeforeSend: chips, slashMenuOpenAfterInsert: menuOpen, mockLine: line ?? null, commandReadsAfterSend: reqs.filter((r) => /command/i.test(r.path)).map((r) => `${r.t}ms ${r.method} ${r.path}`) };
 save(`s8-${arm}`, { ...res, reqs });
