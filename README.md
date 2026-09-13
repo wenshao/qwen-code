@@ -48,3 +48,14 @@ frames are tmux captures rendered to PNG. Full report: `pr11692-r3/report.en.md`
 | `pr11692-r3/01-live-token-plan-tui.png` | The PR build against the live Token Plan endpoint with nothing under `tools.webSearch`: a real search completes (`Did 2 searches in 49.8s`). |
 | `pr11692-r3/02-model-payload-without-narration.png` | What the model receives when no narration arrives: a completed search on base (14,275 chars, unlabeled) vs the PR (label + exactly 6,000), and a live base run that hit the 60 s wall. |
 | `pr11692-r3/03-settings-bounds.png` | `/settings` saves `700000` on the PR head and the next search silently runs on the 120 s default; the same tree with `minimum: 1, maximum: 600000` rejects the value. |
+
+## Round 4 — `6645d558ad`: bounds, qualified wording, new tests
+
+Head moved `2176e5ad7b` → `6645d558ad` (three commits, no new merge of `main`). Built in the same
+worktree, run as the real bundled CLI on Linux; the daemon write routes were driven against a real
+`qwen serve` on both heads. Full report: `pr11692-r4/report.en.md` (English) and
+`pr11692-r4/report.zh.md` (中文).
+
+| File | What it shows |
+| --- | --- |
+| `pr11692-r4/01-settings-bounds-before-after.png` | `/settings` on the round-3 head saves `700000`; on `6645d558ad` the same input is rejected and `settings.json` is unchanged, while `90000` is accepted. |
