@@ -1,0 +1,44 @@
+// S5 — composer Skills catalog: idle startup, ordinary typing, then "/" twice.
+// Counts sessionless catalog reads (GET …/skills, …/config/skills,
+// …/runtime/skills) per phase and checks the project skill is offered.
+import { launch, openUi, summarize, count, save, sleep } from './ui.mjs';
+const arm = process.argv[2];
+const { browser, page, reqs, t0 } = await launch();
+await openUi(page);
+const now = () => Date.now() - t0;
+const cat = (r) => r.kind === 'skills' || /\/(config|runtime)\/skills$/.test(r.path.split('?')[0]);
+const phases = {};
+await sleep(20_000);
+phases.startupIdle = { catalogReads: count(reqs, cat, 0, now()), paths: reqs.filter(cat).map((r) => `${r.t}ms ${r.method} ${r.path}`) };
+const editor = page.locator('[data-web-shell-composer-editor] .cm-content');
+let from = now();
+await editor.click();
+await page.keyboard.type('hello there, just ordinary text', { delay: 25 });
+await sleep(5_000);
+phases.ordinaryTyping = { catalogReads: count(reqs, cat, from, now()) };
+await page.keyboard.press('Control+A');
+await page.keyboard.press('Backspace');
+from = now();
+await page.keyboard.type('/', { delay: 25 });
+const menu = page.locator('[data-web-shell-slash-menu]');
+await menu.waitFor({ timeout: 8000 });
+await sleep(4_000);
+await page.keyboard.type('rel', { delay: 40 });
+await sleep(2_000);
+const options1 = await menu.getByRole('option').allInnerTexts().catch(() => []);
+const box = await menu.boundingBox();
+await page.screenshot({ path: `/root/git/h11644/shots/s5-${arm}-slash.png`, clip: box ? { x: Math.max(0, box.x - 30), y: Math.max(0, box.y - 30), width: Math.min(1400, box.width + 60), height: Math.min(880, box.height + 160) } : undefined });
+phases.firstSlash = { catalogReads: count(reqs, cat, from, now()), options: options1.map((s) => s.replace(/\s+/g, ' ').slice(0, 60)), paths: reqs.filter((r) => cat(r) && r.t >= from).map((r) => `${r.t}ms ${r.method} ${r.path}`) };
+await page.keyboard.press('Escape');
+await page.keyboard.press('Control+A');
+await page.keyboard.press('Backspace');
+await sleep(1_500);
+from = now();
+await page.keyboard.type('/rel', { delay: 40 });
+await sleep(4_000);
+const options2 = await menu.getByRole('option').allInnerTexts().catch(() => []);
+phases.secondSlash = { catalogReads: count(reqs, cat, from, now()), options: options2.map((s) => s.replace(/\s+/g, ' ').slice(0, 60)) };
+const res = { arm, phases, all: summarize(reqs) };
+save(`s5-${arm}`, { ...res, reqs });
+console.log(JSON.stringify(res, null, 2));
+await browser.close();

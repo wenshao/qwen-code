@@ -1,0 +1,44 @@
+// S2 — hover details on TARGET (default beta-lib: not the active workspace, so
+// the chat composer's own Git poll of the active workspace cannot leak into
+// the counts). idle 35 s → hover, stay open 32 s → leave → 65 s closed + focus.
+import { launch, openUi, summarize, count, isFacet, save, sleep } from './ui.mjs';
+const arm = process.argv[2];
+const TARGET = process.env.TARGET || 'beta-lib';
+const WSKEY = { 'alpha-app': 'alpha', 'beta-lib': 'beta', 'gamma-docs': 'gamma' }[TARGET];
+const { browser, page, reqs, t0 } = await launch();
+await openUi(page);
+const now = () => Date.now() - t0;
+const header = page.getByRole('complementary').getByRole('button', { name: new RegExp(`^${TARGET}`) }).first();
+await header.waitFor();
+await sleep(35_000);
+const mine = (r) => r.ws === WSKEY;
+const gitW = (r) => mine(r) && (r.kind === 'git' || r.kind === 'git?wait');
+const facetW = (r) => mine(r) && (isFacet(r) || r.kind === 'skills');
+const phase = {};
+const tHover = now();
+phase.idle = { facets: count(reqs, facetW, 0, tHover), git: count(reqs, gitW, 0, tHover) };
+await page.mouse.move(5, 5);
+await header.hover();
+const details = page.getByRole('dialog', { name: TARGET });
+await details.waitFor({ timeout: 5000 });
+await sleep(2_500);
+const box = await details.boundingBox();
+await page.screenshot({ path: `/root/git/h11644/shots/s2-${arm}-${WSKEY}-details.png`, clip: { x: 0, y: 0, width: Math.min(1440, Math.round((box?.x ?? 0) + (box?.width ?? 600) + 30)), height: Math.min(900, Math.max(360, Math.round((box?.y ?? 0) + (box?.height ?? 300) + 30))) } });
+const detailsText = await details.innerText();
+await sleep(29_500);
+const tLeave = now();
+phase.open = { seconds: Math.round((tLeave - tHover) / 1000), facets: count(reqs, facetW, tHover, tLeave), git: count(reqs, gitW, tHover, tLeave) };
+await page.mouse.move(700, 850);
+await sleep(1_000);
+const hidden = !(await details.isVisible());
+const tClosed = now();
+await sleep(65_000);
+await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+await sleep(1_500);
+const tEnd = now();
+phase.closed = { hidden, seconds: Math.round((tEnd - tClosed) / 1000), facets: count(reqs, facetW, tClosed, tEnd), git: count(reqs, gitW, tClosed, tEnd) };
+const timeline = reqs.filter((r) => gitW(r) || facetW(r)).map((r) => `${r.t} ${r.kind}`);
+const res = { arm, TARGET, phase, detailsText, timeline, windows: { tHover, tLeave, tClosed, tEnd } };
+save(`s2-${arm}-${WSKEY}`, { ...res, reqs });
+console.log(JSON.stringify(res, null, 2));
+await browser.close();

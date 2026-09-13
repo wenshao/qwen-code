@@ -1,0 +1,12 @@
+import { launch, openUi, summarize, sleep } from './ui.mjs';
+const { browser, page, reqs } = await launch();
+await openUi(page);
+await sleep(6000);
+await page.screenshot({ path: '/root/git/h11644/shots/recon.png' });
+const side = page.getByRole('complementary').first();
+const buttons = await side.getByRole('button').evaluateAll((els) => els.map((e) => (e.getAttribute('aria-label') || e.textContent || '').trim().slice(0, 40)));
+console.log('sidebar buttons:', JSON.stringify(buttons));
+const all = await page.getByRole('button').evaluateAll((els) => els.map((e) => (e.getAttribute('aria-label') || e.textContent || '').trim().slice(0, 40)).filter(Boolean));
+console.log('all buttons:', JSON.stringify([...new Set(all)]));
+console.log(JSON.stringify(summarize(reqs), null, 1));
+await browser.close();

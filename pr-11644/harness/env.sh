@@ -1,0 +1,11 @@
+export WT=/root/git/pr11644
+export H=/root/git/h11644
+export PORT=4644
+export TOKEN=T0KEN11644
+export MOCK_PORT=18644
+export WS=$H/ws/alpha-app
+export WS2=$H/ws/beta-lib
+export WS3=$H/ws/gamma-docs
+export QWEN_RUNTIME_DIR=$H/runtime
+export HOME_QWEN=$H/home
+export BASE_URL="http://127.0.0.1:$PORT"
