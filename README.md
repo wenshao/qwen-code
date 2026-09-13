@@ -33,3 +33,18 @@ round 2 rebuilt both arms — PR head `2176e5ad7b` and its new base
 | --- | --- |
 | `pr11692-r2/01-documented-precedence-both-directions.png` | The sentence the docs now state, checked both ways: a cap above the budget lets the partial result survive; a cap below it discards the partial result. |
 | `pr11692-r2/02-settings-dialog-truncation.png` | The same sentence never reaches the `/settings` dialog, which truncates a setting's description to one line. |
+
+## Round 3 — Linux, live Token Plan, settings write paths
+
+Head unchanged at `2176e5ad7b`. PR head and merge base `bc7a186cda` built in one
+worktree, run as the real bundled CLI on Linux x86_64. Live rows use the PR's own
+end-to-end plan against the real Token Plan endpoint; deterministic rows use a
+fake DashScope over real TLS through a local CONNECT proxy (`--proxy`). Terminal
+frames are tmux captures rendered to PNG. Full report: `pr11692-r3/report.en.md`
+(English) and `pr11692-r3/report.zh.md` (中文).
+
+| File | What it shows |
+| --- | --- |
+| `pr11692-r3/01-live-token-plan-tui.png` | The PR build against the live Token Plan endpoint with nothing under `tools.webSearch`: a real search completes (`Did 2 searches in 49.8s`). |
+| `pr11692-r3/02-model-payload-without-narration.png` | What the model receives when no narration arrives: a completed search on base (14,275 chars, unlabeled) vs the PR (label + exactly 6,000), and a live base run that hit the 60 s wall. |
+| `pr11692-r3/03-settings-bounds.png` | `/settings` saves `700000` on the PR head and the next search silently runs on the 120 s default; the same tree with `minimum: 1, maximum: 600000` rejects the value. |
