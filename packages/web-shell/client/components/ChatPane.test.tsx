@@ -2509,7 +2509,16 @@ describe('ChatPane', () => {
       options?.onAdmissionStarted?.();
       throw new Error('disconnected');
     });
-    render({ onError, onImageIngestionNotice });
+    connectionState.commands = [
+      { name: 'compress', source: 'builtin-command' },
+    ];
+    const registerContextUsageControls = vi.fn(
+      (_controls: ContextUsageControls) => vi.fn(),
+    );
+    render({ onError, onImageIngestionNotice, registerContextUsageControls });
+    expect(registerContextUsageControls).toHaveBeenLastCalledWith(
+      expect.objectContaining({ canCompress: true }),
+    );
     const commit = vi.fn();
     await act(async () => {
       latestOnSubmit!('hi', undefined, undefined, commit);
@@ -2525,6 +2534,13 @@ describe('ChatPane', () => {
     const notice = testid('pane-prompt-admission-unknown');
     expect(notice).not.toBeNull();
     expect(latestChatEditorProps.disabled).toBe(true);
+    expect(registerContextUsageControls).toHaveBeenLastCalledWith(
+      expect.objectContaining({ canCompress: false }),
+    );
+    await act(async () => {
+      await registerContextUsageControls.mock.calls.at(-1)![0].compress();
+    });
+    expect(sendPrompt).toHaveBeenCalledTimes(1);
     expect(catalogController.promptAdmissionUncertain).toHaveBeenCalledWith(
       '/w',
     );
@@ -2544,6 +2560,9 @@ describe('ChatPane', () => {
     });
     expect(commit).not.toHaveBeenCalled();
     expect(latestChatEditorProps.disabled).toBe(false);
+    expect(registerContextUsageControls).toHaveBeenLastCalledWith(
+      expect.objectContaining({ canCompress: true }),
+    );
     expect(testid('pane-prompt-admission-unknown')).not.toBeNull();
     expect(sendPrompt).toHaveBeenCalledTimes(1);
     confirm.mockRestore();

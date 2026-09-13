@@ -75,9 +75,15 @@ function mount() {
     ],
   };
   let generation = 0;
-  const captureOwner = vi.fn(() => {
+  let recovery = 0;
+  const captureOwner = vi.fn((options?: { includeRecovery?: boolean }) => {
     const captured = generation;
-    return { isCurrent: () => generation === captured };
+    const capturedRecovery = recovery;
+    return {
+      isCurrent: () =>
+        generation === captured &&
+        (!options?.includeRecovery || recovery === capturedRecovery),
+    };
   });
   const ownerGuard = { capture: captureOwner };
   let busy = false;
@@ -115,6 +121,10 @@ function mount() {
     get controls() {
       return latest!;
     },
+    recover() {
+      recovery++;
+      render();
+    },
     update(
       patch: Partial<DaemonConnectionState>,
       active = false,
@@ -141,8 +151,11 @@ describe('useContextUsageControls', () => {
   it('captures recovery-aware owners for retained counter reconciliation', () => {
     const h = mount();
     const original = h.controls.captureOwner();
-    expect(h.captureOwner).toHaveBeenLastCalledWith({ includeRecovery: true });
     expect(original.isCurrent()).toBe(true);
+    h.recover();
+    expect(original.isCurrent()).toBe(false);
+    expect(h.captureOwner).toHaveBeenLastCalledWith({ includeRecovery: true });
+    expect(h.controls.captureOwner().isCurrent()).toBe(true);
     h.update({ sessionId: 'session-b' });
     expect(original.isCurrent()).toBe(false);
     expect(h.controls.captureOwner().isCurrent()).toBe(true);
@@ -150,6 +163,27 @@ describe('useContextUsageControls', () => {
     expect(original.isCurrent()).toBe(false);
     expect(h.controls.captureOwner().isCurrent()).toBe(true);
   });
+
+  it.each(['command', 'reading'])(
+    'settles compression after same-session recovery during the %s',
+    async (phase) => {
+      const h = mount();
+      let operation!: Promise<void>;
+      act(() => {
+        operation = h.controls.compress();
+      });
+      if (phase === 'command') h.recover();
+      await act(async () => h.command.resolve({ stopReason: 'end_turn' }));
+      if (phase === 'reading') h.recover();
+      expect(h.controls.compressing).toBe(true);
+      await act(async () => {
+        h.read.resolve(usage());
+        await operation;
+      });
+      expect(h.controls.result).toEqual({ kind: 'completed', usage: usage() });
+      expect(h.controls.compressing).toBe(false);
+    },
+  );
 
   it('waits for completion, submits once, and reads fresh usage through the owner', async () => {
     const h = mount();
@@ -211,29 +245,26 @@ describe('useContextUsageControls', () => {
         { name: 'compress', description: '', source: 'custom-command' },
       ],
     },
-  ])(
-    'rejects a stale callback after availability changes: %j',
-    async (patch) => {
-      const h = mount();
-      const old = h.controls.compress;
-      h.update(patch as Partial<DaemonConnectionState>);
-      expect(h.controls.canCompress).toBe(false);
-      await act(async () => old());
-      expect(h.sendPrompt).not.toHaveBeenCalled();
-      expect(h.onBeforeCompress).not.toHaveBeenCalled();
-    },
-  );
+  ])('rejects a stale callback after availability changes: %j', (patch) => {
+    const h = mount();
+    const old = h.controls.compress;
+    h.update(patch as Partial<DaemonConnectionState>);
+    expect(h.controls.canCompress).toBe(false);
+    act(() => void old());
+    expect(h.sendPrompt).not.toHaveBeenCalled();
+    expect(h.onBeforeCompress).not.toHaveBeenCalled();
+  });
 
   it.each([
     [true, false],
     [false, true],
   ])(
     'blocks active work or a pending write (busy=%s, blocked=%s)',
-    async (busy, blocked) => {
+    (busy, blocked) => {
       const h = mount();
       const old = h.controls.compress;
       h.update({}, busy, blocked);
-      await act(async () => old());
+      act(() => void old());
       expect(h.sendPrompt).not.toHaveBeenCalled();
       expect(h.onBeforeCompress).not.toHaveBeenCalled();
       expect(h.controls.canCompress).toBe(false);

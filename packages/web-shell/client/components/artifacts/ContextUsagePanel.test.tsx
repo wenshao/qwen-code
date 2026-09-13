@@ -131,7 +131,8 @@ describe('ContextUsagePanel', () => {
 
   it('uses explicit live controls and shows completion with the new reading', async () => {
     const compress = vi.fn().mockResolvedValue(undefined);
-    const get = vi.fn().mockResolvedValue(fixture());
+    const firstRead = deferred();
+    const get = vi.fn().mockReturnValue(firstRead.promise);
     const controls = {
       sessionId: 's-1',
       canCompress: true,
@@ -140,14 +141,15 @@ describe('ContextUsagePanel', () => {
       getContextUsage: get,
     };
     const { container, rerender } = renderPanel(get, controls);
-    await act(async () => {});
-    expect(get).toHaveBeenCalledWith({
-      detail: true,
-      silent: true,
-    });
     const button = Array.from(container.querySelectorAll('button')).find(
       (node) => node.textContent === 'Compress context',
     )!;
+    expect(button.disabled).toBe(true);
+    expect(button.parentElement?.title).toBe('Loading...');
+    await act(async () => firstRead.resolve(fixture()));
+    expect(get).toHaveBeenCalledWith({ detail: true, silent: true });
+    expect(button.disabled).toBe(false);
+    expect(button.parentElement?.title).toBe('');
     await act(async () => button.click());
     expect(compress).toHaveBeenCalledTimes(1);
     rerender(undefined, 's-1', {
@@ -157,6 +159,7 @@ describe('ContextUsagePanel', () => {
     });
     expect(button.disabled).toBe(true);
     expect(refresh(container).disabled).toBe(true);
+    expect(button.parentElement?.title).toBe('');
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
       'Compressing…',
     );

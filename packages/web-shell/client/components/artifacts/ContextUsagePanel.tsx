@@ -144,9 +144,13 @@ export function ContextUsagePanel({
           </Button>
           <span
             title={
-              !liveControls?.canCompress
-                ? t('contextUsage.compressUnavailable')
-                : undefined
+              liveControls?.compressing
+                ? undefined
+                : !liveControls?.canCompress
+                  ? t('contextUsage.compressUnavailable')
+                  : loading
+                    ? t('common.loading')
+                    : undefined
             }
           >
             <Button
