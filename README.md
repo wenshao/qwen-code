@@ -21,3 +21,15 @@ Playwright).
 | `pr11692/02-model-payload-before-after.png` | The `web_search` tool result captured off the wire on the next model request: 13,197 unlabeled characters of page text before, 6,131 (130-char label + 6,000 characters) after. |
 | `pr11692/03-outer-tool-cap-interaction.png` | With `QWEN_CODE_TOOL_EXECUTION_TIMEOUT_MS=90000`: `main` self-limits at 60s and returns a partial result; the PR hits the outer cap at 90s and the searched evidence is discarded. |
 | `pr11692/04-cancellation-preempts-budget.png` | Esc during a search still ends the turn immediately under the doubled budget. |
+
+## Round 2 — re-verification after `8de3eeef23`
+
+The PR head moved to `2176e5ad7b` (a docs-only commit plus another merge of
+`main`). The production code this PR touches is byte-identical to round 1, so
+round 2 rebuilt both arms — PR head `2176e5ad7b` and its new base
+`bc7a186cda` — and re-ran the whole matrix plus the mutation set.
+
+| File | What it shows |
+| --- | --- |
+| `pr11692-r2/01-documented-precedence-both-directions.png` | The sentence the docs now state, checked both ways: a cap above the budget lets the partial result survive; a cap below it discards the partial result. |
+| `pr11692-r2/02-settings-dialog-truncation.png` | The same sentence never reaches the `/settings` dialog, which truncates a setting's description to one line. |
