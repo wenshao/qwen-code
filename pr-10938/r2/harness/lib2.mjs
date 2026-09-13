@@ -14,7 +14,8 @@ export const R2 = path.join(H, 'r2');
 export const FIGS = path.join(R2, 'figs');
 fs.mkdirSync(FIGS, { recursive: true });
 // lanefix :4941 is NOT the PR — a candidate fix for the lane-edge crossing, served for comparison only.
-export const ARMS = { head: 'http://127.0.0.1:4938', base: 'http://127.0.0.1:4939', revert: 'http://127.0.0.1:4940', lanefix: 'http://127.0.0.1:4941', r8fix: 'http://127.0.0.1:4942' };
+export const ARMS = { head: 'http://127.0.0.1:4938', base: 'http://127.0.0.1:4939', revert: 'http://127.0.0.1:4940', lanefix: 'http://127.0.0.1:4941', r8fix: 'http://127.0.0.1:4942', head2: 'http://127.0.0.1:4943' };
+// head2 :4943 = new PR head 5f70a13866 (client-only commit on top of 5c4f1de), same daemon.
 export const THEME_KEY = 'qwen-code-web-shell-theme';
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const sid = (label) => fs.readFileSync(`${H}/out/session-${label}.txt`, 'utf8').trim();

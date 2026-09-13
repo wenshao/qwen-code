@@ -1,26 +1,28 @@
-## 本地真实环境验证（第二轮）—— PR #10938 @ `5c4f1de`
+## 本地真实环境验证（第二轮）—— PR #10938 @ `5f70a13`
 
-**建议：第一轮的两个阻断项都已修复，在 Chromium 中实测成立；合并 `main` 没有带来任何回归。还剩两处小问题，都由本 diff 引入，我在同一套环境里各验证了一个单文件补丁。建议修复后再合并：**
+**建议：修掉一处只在手机宽度出现的小回归后合并。** 第一轮的两个阻断项（R6-3、R7-3）都已修复，在 Chromium 中实测成立。之前仍未关闭的 Critical R8-2 已由 `5f70a13866` 修复：我在 `5c4f1de` 上用真实会话复现了它，在 `5f70a13` 上它已经消失。合并 `main` 没有带来任何回归。
 
-1. **R8-2（未关闭的 Critical）在真实会话中复现。** 某个节点显示 "1 agent"，但它下面渲染着两行实时 agent，概览条也显示 2。作者在 thread 里提出的修法能让节点显示 "2 agents"，代价是恰好一个测试变红：`test:512` 里钉住那个错误数字的断言。
-2. **新发现：视口 ≤480px 时，跨层回程边会竖直穿过夹在中间的步骤。** 这是 R6-3 中跨层的那一半，作者因为还没人观察到而暂未处理。在 390px 和 430px 下，`riseX = endX - 24` 处的竖线落在步骤 4 内部 10px，于是步骤 3 → 步骤 5 的依赖看起来像是连进了步骤 4。一个 10 行的候选补丁能让 1440px 下所有路径保持逐字节不变、消除穿越，并通过全部 47 个 `PlanExecutionView` 测试。
+**还剩一处缺陷，由本 diff 引入：** 视口 ≤480px 时，跳过一层的依赖边，其竖线会穿过夹在中间的步骤。这是 R6-3 中关于跨多层边的那一部分，作者因为还没人观察到而暂未处理。在 390px 和 430px 下，`riseX = endX - 24` 处的竖线落在步骤 4 内部 10px，于是步骤 3 → 步骤 5 的依赖看起来像是连进了步骤 4。一个 10 行的候选补丁能消除穿越、让 1440px 下所有路径保持逐字节不变，并通过全部 47 个 `PlanExecutionView` 测试。它只影响手机宽度、且只影响含这类边的计划，所以作为紧随其后的 follow-up 也是合理的。
+
+另外还有一个测试缺口：新 agent 计数里按 `toolUseId` 去重的逻辑没有测试覆盖（变异 M20 能通过测试）。
 
 ### 与第一轮相比的变化
 
 - `4860e0a7e6`：修复 R6-3（相邻层边的肩宽）和 R7-3（新增 sr-only 依赖摘要）。
-- `5c4f1de9e8`：合并 `main`。merge base 是 `bc7a186`，也就是当前 `main` 的最新提交，所以分支落后 0 个提交。
+- `5c4f1de9e8`：合并 `main`。merge base 是 `bc7a186`，即当前 `main` 的最新提交。
+- `5f70a13866`：在本轮验证进行中（06:23）推送，修复 R8-2。它只改 web-shell 客户端文件，所以我把它单独构建成 bundle，并重跑了所有可能受它影响的检查。
 
 ### 环境
 
-本轮复用第一轮的验证环境，worktree 在 `5c4f1de` 上用 `npm ci` 重新构建（Node 22.22.2，Linux）。所有分支共用**一个**由 head 构建的真实 `qwen serve` daemon。每个分支是一个静态代理：提供自己的 bundle，把全部 REST 和 SSE 请求转发给这个 daemon。所以**所有分支渲染的是同一批活会话**：
+本轮复用第一轮的验证环境，worktree 用 `npm ci` 构建（Node 22.22.2，Linux）。所有分支共用**一个**由 `5c4f1de` 构建的真实 `qwen serve` daemon。`5f70a13` 只改客户端代码，所以这个 daemon 同样可以作为新 head 的后端。每个分支是一个静态代理：提供自己的 bundle，把全部 REST 和 SSE 请求转发给这个 daemon。所以**所有分支在同一时刻渲染的是同一批活会话**：
 
 | 分支 | 端口 | bundle |
 | --- | --- | --- |
 | base | 4939 | 7 个改动源文件与 `bc7a186` 上完全一致（用 `git diff --quiet` 确认） |
-| revert | 4940 | 在 head 上反向应用 `4860e0a7e6`（2 个文件） |
-| **head** | 4938 | `5c4f1de`。重新构建出的 `index-BOiyY4sp.js` 与 daemon 实际提供的 bundle 哈希一致 |
-| lanefix | 4941 | head 加上候选泳道补丁，**不属于本 PR** |
-| r8fix | 4942 | head 加上作者提出的 R8-2 补丁，**不属于本 PR** |
+| revert | 4940 | 在 `5c4f1de` 上反向应用 `4860e0a7e6`（2 个文件） |
+| 上一个 head | 4938 | `5c4f1de`。重新构建出的 bundle 与 daemon 实际提供的哈希一致 |
+| **head** | 4943 | `5f70a13` |
+| lanefix | 4941 | 上一个 head 加上候选泳道补丁，**不属于本 PR** |
 
 所有会话都是新建的，走真实的 Plan & Review 流程。#11423 之后，批准选项的文案是 **"Approve and execute · Full Access"**。
 
@@ -33,7 +35,7 @@
 
 ### 1. R6-3 已修复：各档宽度下箭头都指向目标
 
-对每条相邻层边，我从渲染出的 `[data-plan-edge]` 路径读取终点切线（终点减最后一个控制点）。每个宽度下，三条相邻边的值都相同：
+对每条相邻层边，我从渲染出的 `[data-plan-edge]` 路径读取终点切线（终点减最后一个控制点）。每个宽度下，三条相邻边的值都相同；`5c4f1de` 和 `5f70a13` 测得的数值也完全一致：
 
 | 视口 | 间隙 | base | revert | **head** |
 | --- | --- | --- | --- | --- |
@@ -55,7 +57,7 @@ revert 分支精确复现了第一轮测得的数值。变异 M13 把 `Math.max(
 - base：`compare-findings Blocked Compare findings and draft the migration plan Depends on: survey-api, read-tests`
 - revert：`Blocked 4 Compare findings and draft the migration plan`
 - **head：`Blocked 4 Compare findings and draft the migration plan Depends on: 1 Survey the public API surface, 2 Read the existing test suite`**
-- head，zh-CN：`被阻塞 4 Compare findings and draft the migration plan 依赖： 1 Survey the public API surface, 2 Read the existing test suite`
+- zh-CN（在 `5c4f1de` 上测，`5f70a13` 没有改这部分代码）：`被阻塞 4 Compare findings and draft the migration plan 依赖： 1 Survey the public API surface, 2 Read the existing test suite`
 
 这段摘要在视觉上没有任何变化。它的 span 是 `1×1`、`position: absolute`、`clip-path: inset(50%)`。revert 与 head 的审批卡片图截图（966×253）**像素差异为 0**，两边每个节点的高度也相同。每个界面上，依赖都只表述一次：
 
@@ -67,35 +69,40 @@ revert 分支精确复现了第一轮测得的数值。变异 M13 把 `Math.max(
 
 变异 M14–M17 全部被测试抓到：删掉摘要、去掉裁剪、用裸 id 代替编号加标题、在可见 chip 旁边也渲染摘要。
 
-### 3. R8-2（未关闭的 Critical）在真实会话中复现
+### 3. R8-2 已由 `5f70a13866` 修复，真实会话中确认
 
-会话 NEST，cockpit 视图，所有数值来自同一次渲染：
+会话 NEST，cockpit 视图。两个 head 在同一时刻、对着同一个 daemon 渲染：
 
 | 分支 | 节点正面 | 该节点上的 agent 行 | 概览条 |
 | --- | --- | --- | --- |
-| **head** | **`1 agent`** | 2（`Agent: Parent agent`、`↳ general-purpose: Nested probe`） | `2 Active agents` |
-| r8fix（作者在 thread 里给出的补丁） | `2 agents` | 2 | `2 Active agents` |
+| 上一个 head `5c4f1de` | **`1 agent`** | 2（`Agent: Parent agent`、`↳ general-purpose: Nested probe`） | `2 Active agents` |
+| **head `5f70a13`** | **`2 agents`** | 2 | `2 Active agents` |
 | base | 正面没有计数 | 2 | `2 Active agents` |
 
-![R8-2 真实会话复现](https://raw.githubusercontent.com/wenshao/qwen-code/asserts/pr-10938/r2/fig3-r8-2-agent-count.png)
+![R8-2：上一个 head vs head](https://raw.githubusercontent.com/wenshao/qwen-code/asserts/pr-10938/r2/fig3-r8-2-agent-count.png)
 
-触发条件很普通：一个后台 agent，它的 subagent 调用了 `agent`。嵌套默认开启（`DEFAULT_MAX_SUBAGENT_DEPTH = 5`），`general-purpose` 也继承了 `agent` 工具。嵌套的子 agent 以带 `parentAgentId` 的实时任务出现，但父工具调用的 `subTools` 里没有对应条目。这正是评审描述的"有实时任务、但 transcript 里没有对应条目"的情形。节点正面的计数是本 PR 新加的，所以这个不一致也是新的。
+触发条件很普通：一个后台 agent，它的 subagent 调用了 `agent`。嵌套默认开启（`DEFAULT_MAX_SUBAGENT_DEPTH = 5`），`general-purpose` 也继承了 `agent` 工具。嵌套的子 agent 以带 `parentAgentId` 的实时任务出现，但父工具调用的 `subTools` 里没有对应条目。这正是评审描述的"有实时任务、但 transcript 里没有对应条目"的情形。
 
-打上补丁后，PR 自带测试 86/87 通过。唯一的失败是 `groups executions by todo and keeps missing links unassigned`，`test:512` 报 ``expected 'Running2Build◐2 agents…' to contain '1 agent'``，正是评审说需要挪走的那条断言。修复时需要一个只有单个根 agent 的装置，让单数形式仍有测试覆盖；另外还要为实时嵌套子 agent 加一个测试。
+推送之前，我已经把作者在 thread 里提出的补丁单独构建成 bundle，它同样显示 `2 agents`。推送的提交与之代码相同，只差一个变量名。
 
-### 4. 新发现：≤480px 时回程泳道从两端之间的步骤中穿过
+`5f70a13` 上的测试情况：
 
-跨越多层的边，路由仍然使用固定的 24px 肩宽：`:871-872` 处的 `dropX = startX + 24` 和 `riseX = endX - 24`。18px 间隙只留下 10px 的水平跨度，所以竖线落进了相邻那一列节点内部 6px。
+- 原有装置现在期望 `2 agents`。
+- 新测试 `the node-face agent tally matches the rows it renders` 覆盖了"没有 transcript 条目的实时子 agent"，并让单数形式（`1 agent`）继续有测试覆盖。
+- 变异 **M19**（计数改回只读 transcript）和 **M21**（不计实时子任务）都被测试抓到。
+- 变异 **M20** 去掉了按 `toolUseId` 去重，于是同时以实时任务和 `subTools` 条目出现的 agent 会被计两次，但**它仍能通过全部 41 个测试**。去重逻辑存在，只是没有测试。我尝试用前台变体在真实会话中制造这种重叠：根 agent 在前台运行，它的 subagent 调用 `agent`。嵌套 agent 自己的模型请求确实发出了，但两个 head 都完全没有显示它（1 行、`1 agent`、概览条 1），所以无法从界面上走到重叠情形。因此 M20 是测试缺口，而不是已观察到的缺陷。补一个装置，让实时任务的 `toolUseId` 与 transcript 的 `subTools` 条目相同，并断言只计一次，即可补上。
 
-在 390px 的 DAG 会话中，边 `check-docs → write-summary`（步骤 3 → 步骤 5）在 x=246 处竖直上升，而步骤 4 的范围是 x=140–256。这段竖线与步骤 4 重叠了 106px，而且 SVG 绘制在节点下层。于是蓝色泳道一路升进步骤 4 的底边就消失了，在手机上看起来像是步骤 4 的依赖。各情形的数值：
+### 4. 剩余缺陷：≤480px 时回程泳道从两端之间的步骤中穿过
 
-- 430px：同样穿过。
+跨越多层的边，路由仍然使用固定的 24px 肩宽：`PlanExecutionView.tsx` 里的 `dropX = startX + 24` 和 `riseX = endX - 24`。18px 间隙只留下 10px 的水平跨度，所以竖线落进了相邻那一列节点内部 6px。
+
+在 390px 的 DAG 会话中，边 `check-docs → write-summary`（步骤 3 → 步骤 5）在 x=246 处竖直上升，而步骤 4 的范围是 x=140–256。这段竖线与步骤 4 重叠了 106px，而且 SVG 绘制在节点下层。于是蓝色泳道一路升进步骤 4 的底边就消失了，在手机上看起来像是步骤 4 的依赖。在 `5f70a13` 上测得：
+
+- 390px 和 430px：穿越完全相同。
 - 700px（32px 间隙）：竖线离步骤 4 还有 4px。
 - 1440px：离步骤 4 有 36px。
 - base：从不穿过，因为它的间隙始终是 64px。
 - 下降段的几何关系完全相同：390px 下 x=150 落在第 2 层的范围内。这里没有碰到节点，只是因为第 2 层恰好只有一个节点。
-
-作者把这一半留给维护者决定，因为第一轮只测了这条边的终点切线。
 
 ![390px 泳道穿越：head vs 候选补丁](https://raw.githubusercontent.com/wenshao/qwen-code/asserts/pr-10938/r2/fig1-lane-crossing.png)
 
@@ -114,11 +121,11 @@ const corner = Math.min(EDGE_CORNER, dropShoulder / 2, riseShoulder / 2);
 - **390px**：上升段在 265（间隙 256–274），下降段在 131（间隙 122–140）。430px 相同，只是整体偏移 5px。没有任何穿越，末端切线为 (2.5, 0)。
 - **测试**：`PlanExecutionView` 测试 47/47 通过。
 
-第一版补丁用的是 `corner = min(6, shoulder)`，在 18px 间隙下末段长度会变成 0，所以转角半径要再减半。
+第一版补丁用的是 `corner = min(6, shoulder)`，在 18px 间隙下末段长度会变成 0，所以转角半径要再减半。补丁只动路由代码，在 `5f70a13` 上可以原样应用。
 
 ### 5. 合并 `main` 之后，第一轮的结论
 
-只看 head，同一个活会话。第一轮测过的所有数值仍然成立：
+在 `5c4f1de` 上测。`5f70a13` 只改了 agent 计数，而 DAG 会话里没有嵌套 agent。第一轮测过的所有数值仍然成立：
 
 | 结论 | 第二轮 |
 | --- | --- |
@@ -133,20 +140,20 @@ const corner = Math.min(EDGE_CORNER, dropShoulder / 2, riseShoulder / 2);
 | 依赖 > 500 条 | 不画边，显示提示；25/25 个叶子节点显示 chip |
 | 控制台和页面错误 | 所有分支、所有场景都是 0 |
 
-![head 上的 cockpit](https://raw.githubusercontent.com/wenshao/qwen-code/asserts/pr-10938/r2/fig4-cockpit-head.png)
+![5c4f1de 上的 cockpit](https://raw.githubusercontent.com/wenshao/qwen-code/asserts/pr-10938/r2/fig4-cockpit-head.png)
 
 ### 6. 静态检查、测试与 CI
 
-| 检查 | 结果 |
-| --- | --- |
-| `tsc -p packages/web-shell/tsconfig.json --noEmit` | ✅ 0 个错误 |
-| 对 9 个改动的 TS/TSX 文件跑 `eslint` · 对全部 13 个改动文件跑 `prettier --check` | ✅ · ✅ |
-| `vitest run client/components/messages/PlanExecutionView client/components/workflow` | ✅ 9 个文件、87 个用例：作者的 84 个，加上 #11434 通过 `main` 带进来的用例 |
-| web-shell 全量 `vitest` | ✅ 311 个文件、7691 个用例 |
-| 变异测试：18 个变异（第一轮的 12 个，加上针对 `4860e0a7e6` 的 6 个） | 17 个被测试抓到。**M7**（从 gate 中去掉 `documentMode`）仍然能通过测试 |
-| `5c4f1de` 上的 CI | Lint & Static、Test (ubuntu)、web-shell E2E Smoke、Capture web-shell visuals、Integration (no-AK)、Desktop Shell 全部通过 |
+| 检查 | `5c4f1de` | **`5f70a13`** |
+| --- | --- | --- |
+| `tsc -p packages/web-shell/tsconfig.json --noEmit` | ✅ 0 个错误 | ✅ 0 个错误 |
+| 对改动的 TS/TSX 文件跑 `eslint` · 对全部改动文件跑 `prettier --check` | ✅ · ✅ | ✅ · ✅ |
+| `vitest run client/components/messages/PlanExecutionView client/components/workflow` | ✅ 87 个用例 | ✅ **88 个用例** |
+| web-shell 全量 `vitest` | ✅ 311 个文件、7691 个用例 | ✅ 311 个文件、**7692** 个用例 |
+| 变异测试 | 18 个变异，17 个被抓到，**M7** 仍能通过 | 另加 3 个：M19、M21 被抓到，**M20** 仍能通过 |
+| CI | 全绿（Lint & Static、Test、web-shell E2E Smoke、visuals、Integration、Desktop Shell） | Lint & Static、Integration (no-AK)、Desktop Shell 已通过；发布本报告时 Test (ubuntu) 和 web-shell visuals 仍在运行 |
 
-作者报告的 353 个 `tsc` 错误来自其本机环境：没有构建出 `@qwen-code/sdk` 的 dist。完整跑过 `npm ci` 之后，`tsc` 的退出码为 0。
+`5c4f1de` 上的 87 个用例，是作者的 84 个加上 #11434 通过 `main` 带进来的用例。作者本机看到的 353 个 `tsc` 错误，是因为缺少 `@qwen-code/sdk` 的 dist；完整跑过 `npm ci` 之后，`tsc` 的退出码为 0。
 
 ### 第一轮遗留项
 
@@ -163,6 +170,6 @@ const corner = Math.min(EDGE_CORNER, dropShoulder / 2, riseShoulder / 2);
 - macOS 和 Windows。
 - zh-CN 的视觉渲染：只检查了无障碍名称。
 - 经由 Plan & tasks 对话框的路径。
-- R8-2 的另一个方向：transcript 里有 `subTools` 条目，但没有对应的实时任务。
+- 新 agent 计数的重叠情形（见第 3 节）：无法从界面上走到。
 
 图、原始截图、JSON、日志、补丁和验证脚本都在 [`asserts/pr-10938/r2`](https://github.com/wenshao/qwen-code/tree/asserts/pr-10938/r2)。

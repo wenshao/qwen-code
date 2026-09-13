@@ -7,7 +7,7 @@ import { launch, openPage, gotoSession, sleep, FIGS, writeJson, sid, noise } fro
 const require = createRequire('/var/tmp/pr10938-wt/node_modules/');
 const sharp = require('sharp');
 const DAG = sid('r2DAG');
-const REVIEW = sid('r2REVIEW');
+const REVIEW = sid(process.env.REVIEW_LABEL || 'r2REVIEW');
 const BIG = sid('r2BIG');
 const ARMS3 = (process.env.ARMS || 'base,revert,head').split(',');
 const OUTSUFFIX = process.env.OUTSUFFIX || '';
@@ -207,9 +207,11 @@ if (want.has('a11y')) {
     facts[arm] = f;
     console.log('a11y', arm, JSON.stringify(f.review.names['compare-findings']), 'sr', f.review.srSummaries.length, 'cockpit sr', f.cockpit.srSummaries.length, 'rows', f.cockpit.visibleDependsRows.length, 'big', JSON.stringify(f.big));
   }
-  facts.reviewGraphPixelDiff = { revertVsHead: await pixelDiff(shots.revert, shots.head), baseVsHead: await pixelDiff(shots.base, shots.head) };
+  const lastArm = ARMS3[ARMS3.length - 1];
+  facts.reviewGraphPixelDiff = {};
+  for (const arm of ARMS3.slice(0, -1)) facts.reviewGraphPixelDiff[`${arm}Vs${lastArm}`] = await pixelDiff(shots[arm], shots[lastArm]);
   console.log('pixel diff', JSON.stringify(facts.reviewGraphPixelDiff));
-  writeJson('fixes-a11y.json', facts);
+  writeJson(`fixes-a11y${OUTSUFFIX}.json`, facts);
 }
 
 // ---------------- zh-CN: the summary under the Chinese locale ----------------

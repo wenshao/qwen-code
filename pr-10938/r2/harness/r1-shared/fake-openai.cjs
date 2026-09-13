@@ -60,6 +60,13 @@ const PLANS = {
     todo('nest-step', 'Probe nested agents', 'in_progress'),
     todo('follow-up', 'Follow up on the nested result', 'pending', ['nest-step']),
   ],
+  // NEST2: same plan, but the root agent runs in the FOREGROUND, so its nested
+  // agent call streams into the transcript (subTools) AND may register as a
+  // live task — the overlap case the R8-2 tally must count once.
+  NEST2: [
+    todo('nest-step', 'Probe nested agents', 'in_progress'),
+    todo('follow-up', 'Follow up on the nested result', 'pending', ['nest-step']),
+  ],
   BIG: (() => {
     const roots = Array.from({ length: 25 }, (_, i) =>
       todo(`root-${i + 1}`, `Inventory module ${i + 1}`, i < 5 ? 'completed' : 'pending'),
@@ -90,6 +97,7 @@ const AGENTS = {
   ],
   BIG: [],
   NEST: [['Parent agent', 'nest-step', 'nest', 0]],
+  NEST2: [['Foreground parent agent', 'nest-step', 'nest', 0, false]],
 };
 
 function classify(body) {
@@ -233,13 +241,13 @@ const server = http.createServer((req, res) => {
     const agents = scn ? AGENTS[scn] || [] : [];
     if (plan && has('agent') && agents.length && count('agent') === 0) {
       return toolCalls(
-        agents.map(([description, todo_id, mode, ms]) => [
+        agents.map(([description, todo_id, mode, ms, background = true]) => [
           'agent',
           {
             description,
             todo_id,
             subagent_type: 'general-purpose',
-            run_in_background: true,
+            run_in_background: background,
             prompt: `${description}. __SUB:${mode}:${ms}__`,
           },
         ]),
