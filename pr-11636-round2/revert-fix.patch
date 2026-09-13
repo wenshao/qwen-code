@@ -1,0 +1,76 @@
+diff --git a/packages/cli/src/serve/live/live-task-service.ts b/packages/cli/src/serve/live/live-task-service.ts
+index d1b9cb3eee..f8754c8e49 100644
+--- a/packages/cli/src/serve/live/live-task-service.ts
++++ b/packages/cli/src/serve/live/live-task-service.ts
+@@ -466,6 +466,11 @@ function eventWakeReason(
+   event: BridgeEvent,
+ ): 'turnCompleted' | 'needsAttention' | undefined {
+   if (event.type === 'permission_request') return 'needsAttention';
++  if (
++    event.type === 'turn_complete' &&
++    (event.data as { backgroundTurn?: unknown } | null)?.backgroundTurn
++  )
++    return undefined;
+   if (
+     event.type === 'turn_complete' ||
+     event.type === 'turn_error' ||
+@@ -852,13 +857,6 @@ export class LiveTaskService {
+     )) {
+       const reason = eventWakeReason(event);
+       if (!reason) continue;
+-      if (
+-        event.type === 'turn_complete' &&
+-        (event.data as { backgroundTurn?: unknown } | null)?.backgroundTurn &&
+-        task.runtime.bridge.getSessionSummary(task.bridgeSessionId)
+-          .hasActivePrompt
+-      )
+-        continue;
+       return {
+         reason,
+         threadId: target.threadId,
+diff --git a/packages/web-shell/client/components/MessageList.tsx b/packages/web-shell/client/components/MessageList.tsx
+index 8ef7c5de89..a0ac340eb1 100644
+--- a/packages/web-shell/client/components/MessageList.tsx
++++ b/packages/web-shell/client/components/MessageList.tsx
+@@ -1580,7 +1580,7 @@ function completedBackgroundShellTaskIds(
+       typeof data === 'object' &&
+       'backgroundTask' in data
+     ) {
+-      data = data.backgroundTask ?? data;
++      data = data.backgroundTask;
+     }
+     if (!data || typeof data !== 'object' || Array.isArray(data)) continue;
+     if (!('kind' in data) || data.kind !== 'shell') continue;
+@@ -1684,7 +1684,7 @@ function backgroundAgentCompletionForMessage(message: Message): {
+     typeof data === 'object' &&
+     'backgroundTask' in data
+   ) {
+-    data = data.backgroundTask ?? data;
++    data = data.backgroundTask;
+   }
+   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+     return identifiesAgent
+diff --git a/packages/web-shell/client/daemon/session/actions.ts b/packages/web-shell/client/daemon/session/actions.ts
+index 31443b4f71..882792c6d2 100644
+--- a/packages/web-shell/client/daemon/session/actions.ts
++++ b/packages/web-shell/client/daemon/session/actions.ts
+@@ -1013,17 +1013,16 @@ export function createDaemonSessionActions({
+     ) {
+       backgroundTurn = parseDaemonBackgroundTurn(backgroundTurn);
+       const connection = getConnection();
+-      const backstopSession = sessionRef.current;
+       if (
+         connection.sessionId === owner.sessionId &&
+-        backstopSession?.sessionId === owner.sessionId &&
+-        backstopSession?.workspaceCwd === owner.workspaceCwd &&
++        connection.workspaceCwd === owner.workspaceCwd &&
+         requestStartedAt !== undefined &&
+         requestStartedAt <= (connection.backgroundTurnObservedAt ?? -Infinity)
+       )
+         return;
+       const previous = daemonActivePromptRef.current;
+       daemonActivePromptRef.current = { active, ...owner };
++      const backstopSession = sessionRef.current;
+       if (
+         active !== undefined &&
+         backstopSession?.sessionId === owner.sessionId &&
