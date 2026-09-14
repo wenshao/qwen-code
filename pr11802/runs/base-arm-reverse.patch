@@ -1,0 +1,255 @@
+diff --git a/packages/cli/src/acp-integration/session/Session.test.ts b/packages/cli/src/acp-integration/session/Session.test.ts
+index d926ceb534..d93ae2c5f7 100644
+--- a/packages/cli/src/acp-integration/session/Session.test.ts
++++ b/packages/cli/src/acp-integration/session/Session.test.ts
+@@ -1956,26 +1956,23 @@ describe('Session', () => {
+     );
+   });
+ 
+-  it('does not serialize permissions across sessions sharing one ACP connection', async () => {
+-    let settleFirst:
+-      | ((response: RequestPermissionResponse) => void)
+-      | undefined;
+-    let settleSecond:
++  it('serializes permissions across sessions sharing one ACP connection', async () => {
++    let resolveFirst:
+       | ((response: RequestPermissionResponse) => void)
+       | undefined;
+     vi.mocked(mockClient.requestPermission)
+       .mockImplementationOnce(
+         () =>
+           new Promise<RequestPermissionResponse>((resolve) => {
+-            settleFirst = resolve;
++            resolveFirst = resolve;
+           }),
+       )
+-      .mockImplementationOnce(
+-        () =>
+-          new Promise<RequestPermissionResponse>((resolve) => {
+-            settleSecond = resolve;
+-          }),
+-      );
++      .mockResolvedValueOnce({
++        outcome: {
++          outcome: 'selected',
++          optionId: core.ToolConfirmationOutcome.ProceedOnce,
++        },
++      });
+     const secondWorkflowRunRegistry = {
+       ...mockWorkflowRunRegistry,
+       setApprovalRequestCallback: vi.fn(),
+@@ -1997,10 +1994,10 @@ describe('Session', () => {
+       .mock.calls[0]?.[0] as core.WorkflowApprovalRequestCallback;
+     const secondCallback = secondWorkflowRunRegistry.setApprovalRequestCallback
+       .mock.calls[0]?.[0] as core.WorkflowApprovalRequestCallback;
+-    const makeApproval = (approvalId: string): core.WorkflowApproval => ({
+-      approvalId,
+-      subagentId: `agent-${approvalId}`,
+-      callId: `call-${approvalId}`,
++    const makeApproval = (): core.WorkflowApproval => ({
++      approvalId: 'wfap_1',
++      subagentId: 'agent-1',
++      callId: 'call-1',
+       name: 'run_shell_command',
+       description: 'Run command',
+       confirmationDetails: {
+@@ -2015,35 +2012,37 @@ describe('Session', () => {
+ 
+     const first = firstCallback(
+       { runId: 'wf_first' } as core.WorkflowTask,
+-      makeApproval('wfap_first'),
++      makeApproval(),
+       { command: 'echo first' },
+       new AbortController().signal,
+     );
+     const second = secondCallback(
+       { runId: 'wf_second' } as core.WorkflowTask,
+-      makeApproval('wfap_second'),
++      makeApproval(),
+       { command: 'echo second' },
+       new AbortController().signal,
+     );
+ 
+-    // Neither request is answered and neither signal aborts, which is the
+-    // shape of an idle session nobody is watching: a sibling session sharing
+-    // the connection must still reach the client.
+     await vi.waitFor(() => {
+-      expect(mockClient.requestPermission).toHaveBeenCalledTimes(2);
++      expect(mockClient.requestPermission).toHaveBeenCalledOnce();
+     });
++    resolveFirst?.({
++      outcome: {
++        outcome: 'selected',
++        optionId: core.ToolConfirmationOutcome.ProceedOnce,
++      },
++    });
++    await Promise.all([first, second]);
++
++    expect(mockClient.requestPermission).toHaveBeenCalledTimes(2);
+     expect(
+       vi
+         .mocked(mockClient.requestPermission)
+         .mock.calls.map(([request]) => request.toolCall.toolCallId),
+     ).toEqual([
+-      'workflow:test-session-id:wf_first:wfap_first',
+-      'workflow:second-session-id:wf_second:wfap_second',
++      'workflow:test-session-id:wf_first:wfap_1',
++      'workflow:second-session-id:wf_second:wfap_1',
+     ]);
+-
+-    settleFirst?.({ outcome: { outcome: 'cancelled' } });
+-    settleSecond?.({ outcome: { outcome: 'cancelled' } });
+-    await Promise.allSettled([first, second]);
+     secondSession.dispose();
+   });
+ 
+@@ -2111,87 +2110,6 @@ describe('Session', () => {
+     settleFirstTransport?.({ outcome: { outcome: 'cancelled' } });
+   });
+ 
+-  it('drops a queued permission request that was abandoned before the head settled', async () => {
+-    let settleFirst:
+-      | ((response: RequestPermissionResponse) => void)
+-      | undefined;
+-    vi.mocked(mockClient.requestPermission)
+-      .mockImplementationOnce(
+-        () =>
+-          new Promise<RequestPermissionResponse>((resolve) => {
+-            settleFirst = resolve;
+-          }),
+-      )
+-      .mockResolvedValueOnce({
+-        outcome: {
+-          outcome: 'selected',
+-          optionId: core.ToolConfirmationOutcome.ProceedOnce,
+-        },
+-      });
+-    const callback = mockWorkflowRunRegistry.setApprovalRequestCallback.mock
+-      .calls[0]?.[0] as core.WorkflowApprovalRequestCallback;
+-    const makeApproval = (approvalId: string): core.WorkflowApproval => ({
+-      approvalId,
+-      subagentId: `agent-${approvalId}`,
+-      callId: `call-${approvalId}`,
+-      name: 'run_shell_command',
+-      description: 'Run command',
+-      confirmationDetails: {
+-        type: 'exec',
+-        title: 'Run command',
+-        command: 'echo safe',
+-        rootCommand: 'echo',
+-        hideAlwaysAllow: true,
+-      },
+-      at: 1,
+-    });
+-
+-    const first = callback(
+-      { runId: 'wf_queued_abort' } as core.WorkflowTask,
+-      makeApproval('wfap_head'),
+-      { command: 'echo first' },
+-      new AbortController().signal,
+-    );
+-    await vi.waitFor(() => {
+-      expect(mockClient.requestPermission).toHaveBeenCalledOnce();
+-    });
+-    const queuedAbort = new AbortController();
+-    const queued = callback(
+-      { runId: 'wf_queued_abort' } as core.WorkflowTask,
+-      makeApproval('wfap_queued'),
+-      { command: 'echo second' },
+-      queuedAbort.signal,
+-    );
+-    expect(mockClient.requestPermission).toHaveBeenCalledOnce();
+-
+-    queuedAbort.abort();
+-    await queued;
+-    settleFirst?.({ outcome: { outcome: 'cancelled' } });
+-    await first;
+-    // The head releasing must not resurrect the abandoned request. Published
+-    // after its caller is gone, it would sit on the host as a prompt nobody
+-    // can answer and no longer cancels.
+-    expect(mockClient.requestPermission).toHaveBeenCalledOnce();
+-    expect(
+-      vi
+-        .mocked(mockWorkflowRunRegistry.resolvePendingApproval)
+-        .mock.calls.map(([, approvalId]) => approvalId),
+-    ).toEqual(['wfap_queued', 'wfap_head']);
+-
+-    // Dropping it must not wedge the session queue either.
+-    await callback(
+-      { runId: 'wf_queued_abort' } as core.WorkflowTask,
+-      makeApproval('wfap_after'),
+-      { command: 'echo third' },
+-      new AbortController().signal,
+-    );
+-    expect(mockClient.requestPermission).toHaveBeenCalledTimes(2);
+-    expect(
+-      vi.mocked(mockClient.requestPermission).mock.calls[1]?.[0].toolCall
+-        .toolCallId,
+-    ).toBe('workflow:test-session-id:wf_queued_abort:wfap_after');
+-  });
+-
+   it('fails a workflow approval closed when the ACP request times out', async () => {
+     vi.mocked(mockClient.requestPermission).mockRejectedValue(
+       new Error('Permission request timed out'),
+diff --git a/packages/cli/src/acp-integration/session/Session.ts b/packages/cli/src/acp-integration/session/Session.ts
+index 930aa4c935..ab2a5c4f22 100644
+--- a/packages/cli/src/acp-integration/session/Session.ts
++++ b/packages/cli/src/acp-integration/session/Session.ts
+@@ -440,6 +440,10 @@ import {
+ } from './repeated-tool-failure-guard.js';
+ 
+ const debugLogger = createDebugLogger('SESSION');
++const permissionRequestTails = new WeakMap<
++  AgentSideConnection,
++  Promise<void>
++>();
+ const MAX_RETAINED_SESSION_ROUTE_COUNTS = 8;
+ const USER_CANCEL_ABORT_REASON = 'qwen:user-cancel';
+ const NEW_PROMPT_ABORT_REASON = 'qwen:new-prompt';
+@@ -2235,14 +2239,6 @@ export class Session implements SessionContext {
+   readonly sessionId: string;
+   private sessionReasoningSelection?: ReasoningSelection;
+   private readonly restoredHistoryGaps?: HistoryGap[];
+-  /**
+-   * Tail of this session's permission queue. The serialization unit is the
+-   * session, not the `AgentSideConnection`: one daemon child owns a single
+-   * connection that every session on it multiplexes onto, so a connection-wide
+-   * queue makes unrelated sessions inherit the wait behind a question nobody
+-   * is going to answer. Mirrors `promptQueue`, which is per session bridge-side.
+-   */
+-  private permissionRequestTail: Promise<void> = Promise.resolve();
+ 
+   constructor(
+     id: string,
+@@ -10927,11 +10923,21 @@ export class Session implements SessionContext {
+     await this.sendUpdate(update);
+   }
+ 
++  /**
++   * Requests permission from the client for a tool call.
++   * Used by SubAgentTracker for sub-agent approval requests.
++   */
++  async requestPermission(
++    params: RequestPermissionRequest,
++  ): Promise<RequestPermissionResponse> {
++    return this.client.requestPermission(params);
++  }
++
+   #requestPermissionQueued(
+     params: RequestPermissionRequest,
+     signal: AbortSignal,
+   ): Promise<RequestPermissionResponse> {
+-    const prior = this.permissionRequestTail;
++    const prior = permissionRequestTails.get(this.client) ?? Promise.resolve();
+     const transportRequest = prior.then(() =>
+       signal.aborted
+         ? requestPermissionWithAbort(this.client, params, signal)
+@@ -10953,7 +10959,7 @@ export class Session implements SessionContext {
+     ]).finally(() => {
+       if (abortListener) signal.removeEventListener('abort', abortListener);
+     });
+-    this.permissionRequestTail = tail;
++    permissionRequestTails.set(this.client, tail);
+     return requestPermissionWithAbort(
+       { requestPermission: () => transportRequest },
+       params,
