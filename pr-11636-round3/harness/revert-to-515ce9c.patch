@@ -1,0 +1,1192 @@
+diff --git a/packages/acp-bridge/src/bridge.test.ts b/packages/acp-bridge/src/bridge.test.ts
+index 26e105ad58..30ee5f9af7 100644
+--- a/packages/acp-bridge/src/bridge.test.ts
++++ b/packages/acp-bridge/src/bridge.test.ts
+@@ -40553,110 +40553,6 @@ describe('background notification admission', () => {
+     }
+   });
+ 
+-  it('rejects queueOnly steering during a background turn but queues ordinary input', async () => {
+-    const handle = makeChannel({
+-      promptImpl: async () => ({ stopReason: 'end_turn' }),
+-    });
+-    const bridge = makeBridge({ channelFactory: async () => handle.channel });
+-    const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+-    try {
+-      expect(
+-        await handle.agentConnection.extMethod('_qwencode/start_turn', {
+-          sessionId: session.sessionId,
+-          source: 'background_notification',
+-          ...backgroundTurn,
+-        }),
+-      ).toEqual({ accepted: true });
+-      // A background turn has no coordinator collector: queueOnly steering
+-      // must still be refused so the Live coordinator runs the next turn
+-      // itself.
+-      expect(
+-        bridge.enqueueMidTurnMessage(
+-          session.sessionId,
+-          'live steering',
+-          { clientId: session.clientId },
+-          'queue-only-1',
+-          { queueOnly: true },
+-        ),
+-      ).toEqual({ accepted: false });
+-      // Ordinary input and the public rejectIfIdle route queue into the
+-      // running automatic execution instead of promoting a new prompt.
+-      expect(
+-        bridge.enqueueMidTurnMessage(
+-          session.sessionId,
+-          'user input',
+-          { clientId: session.clientId },
+-          'plain-1',
+-        ),
+-      ).toEqual({ accepted: true, messageId: 'plain-1' });
+-      expect(
+-        bridge.enqueueMidTurnMessage(
+-          session.sessionId,
+-          'btw',
+-          { clientId: session.clientId },
+-          'idle-guard-1',
+-          { rejectIfIdle: true },
+-        ),
+-      ).toEqual({ accepted: true, messageId: 'idle-guard-1' });
+-      expect(bridge.getPendingPrompts(session.sessionId)).toEqual([]);
+-      expect(handle.agent.promptCalls).toHaveLength(0);
+-    } finally {
+-      await bridge.shutdown();
+-    }
+-  });
+-
+-  it('resolves the terminal record installed after the terminal was published', async () => {
+-    const prompt = deferred<PromptResponse>();
+-    const handle = makeChannel({ promptImpl: () => prompt.promise });
+-    const bridge = makeBridge({ channelFactory: async () => handle.channel });
+-    const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+-    const resolveSpy = vi.spyOn(
+-      SessionAttachmentStore.prototype,
+-      'resolveContent',
+-    );
+-    const gate =
+-      deferred<Awaited<ReturnType<SessionAttachmentStore['resolveContent']>>>();
+-    resolveSpy.mockReturnValueOnce(gate.promise);
+-    try {
+-      const running = bridge.sendPrompt(
+-        session.sessionId,
+-        {
+-          sessionId: session.sessionId,
+-          prompt: [{ type: 'text', text: 'work' }],
+-        },
+-        undefined,
+-        { promptId: 'user-1', deadlineMs: 50 },
+-      );
+-      // The deadline fires while the dispatch is parked in attachment
+-      // resolution, so the terminal is published before the
+-      // activePromptTerminal record exists.
+-      await vi.waitFor(() =>
+-        expect(bridge.getSessionSummary(session.sessionId).hasTurnError).toBe(
+-          true,
+-        ),
+-      );
+-      gate.resolve([{ type: 'text', text: 'work' }]);
+-      await expect(running).rejects.toBeInstanceOf(PromptDeadlineExceededError);
+-      await vi.waitFor(() => expect(handle.agent.promptCalls).toHaveLength(1));
+-      // A background admission ordering itself after that prompt must not
+-      // hang on the record's never-resolved promise.
+-      const start = await Promise.race([
+-        handle.agentConnection.extMethod('_qwencode/start_turn', {
+-          sessionId: session.sessionId,
+-          source: 'background_notification',
+-          afterPromptId: 'user-1',
+-          ...backgroundTurn,
+-        }),
+-        new Promise((resolve) => setTimeout(() => resolve('timed out'), 2000)),
+-      ]);
+-      expect(start).toEqual({ accepted: true });
+-    } finally {
+-      resolveSpy.mockRestore();
+-      prompt.resolve({ stopReason: 'end_turn' });
+-      await bridge.shutdown();
+-    }
+-  });
+-
+   it('rejects a start behind a newer RPC instead of waiting for it', async () => {
+     const prompt = deferred<PromptResponse>();
+     const handle = makeChannel({ promptImpl: () => prompt.promise });
+diff --git a/packages/acp-bridge/src/bridge.ts b/packages/acp-bridge/src/bridge.ts
+index 012c9fe4f5..fda7b1d085 100644
+--- a/packages/acp-bridge/src/bridge.ts
++++ b/packages/acp-bridge/src/bridge.ts
+@@ -10780,14 +10780,6 @@ export function createAcpSessionBridge(opts: BridgeOptions): AcpSessionBridge {
+                   }),
+                   resolve: () => resolveTerminal(),
+                 };
+-                // The terminal can already be published bridge-side while
+-                // this dispatch was resolving attachments (deadline expiry,
+-                // teardown flush); the terminalPublished latch then
+-                // suppresses the resolve in publishPromptTerminal, and a
+-                // background admission awaiting this record would hang.
+-                if (pendingEntry.terminalPublished) {
+-                  entry.activePromptTerminal.resolve();
+-                }
+                 entry.promptActive = true;
+                 // The child serializes Goal turns against RPC prompts, so a
+                 // still-set flag here means the goal end_turn signal was
+@@ -14024,14 +14016,11 @@ export function createAcpSessionBridge(opts: BridgeOptions): AcpSessionBridge {
+       if (
+         entry.pendingPromptCount === 0 &&
+         entry.goalTurnActive !== true &&
+-        (!entry.backgroundTurn || options?.queueOnly)
++        !entry.backgroundTurn
+       ) {
+         // Both modes refuse new ownership once idle. `queueOnly` callers (live
+         // steering) additionally drive the next turn themselves: a promoted
+         // message would have no collector forwarding its response or deadline.
+-        // An automatic background turn has no coordinator collector either, so
+-        // `queueOnly` steering must still be rejected while one runs; ordinary
+-        // input belongs in its mid-turn queue.
+         if (options?.queueOnly || options?.rejectIfIdle) {
+           writeStderrLine(
+             `[mid-turn] session=${JSON.stringify(entry.sessionId)} rejected id ${JSON.stringify(messageId)}: session idle`,
+diff --git a/packages/acp-bridge/src/bridgeClient.test.ts b/packages/acp-bridge/src/bridgeClient.test.ts
+index 5094784fe4..b17b1de9f6 100644
+--- a/packages/acp-bridge/src/bridgeClient.test.ts
++++ b/packages/acp-bridge/src/bridgeClient.test.ts
+@@ -75,10 +75,7 @@ import type {
+   CurrentSessionScheduledTaskCreateInfo,
+ } from './bridgeOptions.js';
+ import { CancelSentinelCollisionError } from './bridgeErrors.js';
+-import {
+-  CANCEL_VOTE_SENTINEL,
+-  MultiClientPermissionMediator,
+-} from './permissionMediator.js';
++import { CANCEL_VOTE_SENTINEL } from './permissionMediator.js';
+ import { SessionArtifactStore } from './sessionArtifacts.js';
+ import {
+   SESSION_ATTACHMENT_MAX_ITEM_BYTES,
+@@ -1243,7 +1240,7 @@ describe('BridgeClient — mode promotion fallback', () => {
+       const client = new BridgeClient(
+         (() => entry) as never,
+         vi.fn(),
+-        { request: vi.fn(), cancelForPrompt: vi.fn() },
++        { request: vi.fn() },
+         0,
+         Infinity,
+       );
+@@ -5087,7 +5084,7 @@ describe('background execution ownership', () => {
+       const client = new BridgeClient(
+         (() => entry) as never,
+         vi.fn(),
+-        { request: vi.fn(), cancelForPrompt: vi.fn() },
++        { request: vi.fn() },
+         0,
+         Infinity,
+       );
+@@ -5204,69 +5201,4 @@ describe('background execution ownership', () => {
+       }),
+     );
+   });
+-
+-  it('cancels the finished turn’s orphaned approvals but not a live prompt’s', async () => {
+-    const backgroundTurn = {
+-      turnId: 'notification-1',
+-      taskId: 'task',
+-      kind: 'agent' as const,
+-      startedAt: 1000,
+-    };
+-    const publish = vi.fn().mockReturnValue(true);
+-    const entry = {
+-      sessionId: 'session',
+-      promptActive: true,
+-      activePromptId: 'user-1',
+-      backgroundTurn,
+-      events: { publish },
+-      pendingPermissionIds: new Set<string>(),
+-      pendingInteractions: new Map<string, unknown>(),
+-    };
+-    const mediator = new MultiClientPermissionMediator('first-responder', {
+-      emit: () => {},
+-      audit: {
+-        recordRequested: () => {},
+-        recordVoted: () => {},
+-        recordForbidden: () => {},
+-        recordResolved: () => {},
+-        recordTimeout: () => {},
+-      },
+-      now: () => Date.now(),
+-      votersForSession: () => new Set<string>(),
+-    });
+-    const client = new BridgeClient(
+-      (() => entry) as never,
+-      () => undefined,
+-      mediator,
+-      0,
+-      Infinity,
+-    );
+-
+-    const turnApproval = client.requestPermission({
+-      sessionId: 'session',
+-      _meta: { backgroundTurn },
+-      toolCall: { toolCallId: 'call-bg', title: 'run', kind: 'execute' },
+-      options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }],
+-    });
+-    const promptApproval = client.requestPermission({
+-      sessionId: 'session',
+-      toolCall: { toolCallId: 'call-fg', title: 'run', kind: 'execute' },
+-      options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }],
+-    });
+-    expect(entry.pendingPermissionIds.size).toBe(2);
+-
+-    client.finishBackgroundTurn('session', 'notification-1', 'end_turn');
+-
+-    await expect(turnApproval).resolves.toMatchObject({
+-      outcome: { outcome: 'cancelled' },
+-    });
+-    expect(entry.pendingPermissionIds.size).toBe(1);
+-    expect(entry.pendingInteractions.size).toBe(1);
+-    // The live prompt's approval stays pending for its own lifecycle.
+-    mediator.forgetSession('session');
+-    await expect(promptApproval).resolves.toMatchObject({
+-      outcome: { outcome: 'cancelled' },
+-    });
+-    expect(entry.pendingPermissionIds.size).toBe(0);
+-  });
+ });
+diff --git a/packages/acp-bridge/src/bridgeClient.ts b/packages/acp-bridge/src/bridgeClient.ts
+index 9dec778a2f..258f60e145 100644
+--- a/packages/acp-bridge/src/bridgeClient.ts
++++ b/packages/acp-bridge/src/bridgeClient.ts
+@@ -829,10 +829,7 @@ export class BridgeClient implements Client {
+      * the resolution to the agent. Strategy dispatch and audit/emit
+      * fan-out live inside the mediator.
+      */
+-    private readonly mediator: Pick<
+-      PermissionMediator,
+-      'request' | 'cancelForPrompt'
+-    >,
++    private readonly mediator: Pick<PermissionMediator, 'request'>,
+     /**
+      * Bd1yh: wall-clock ms before `requestPermission` resolves as cancelled
+      * if no client vote arrives. 0 = disabled. Forwarded directly to
+@@ -1405,11 +1402,6 @@ export class BridgeClient implements Client {
+       return;
+     const backgroundTurn = entry.backgroundTurn;
+     delete entry.backgroundTurn;
+-    // The turn's own permission requests are attributed to its turnId
+-    // (`requestPermission`). Ending the turn must cancel them: the child has
+-    // stopped waiting on the RPC, and with the mediator timer disabled an
+-    // orphaned approval would otherwise pend for the life of the session.
+-    this.mediator.cancelForPrompt(sessionId, turnId);
+     entry.events.publish({
+       type: 'turn_complete',
+       promptId: turnId,
+diff --git a/packages/acp-bridge/src/permission.ts b/packages/acp-bridge/src/permission.ts
+index c2b51d2523..28c4e2b04f 100644
+--- a/packages/acp-bridge/src/permission.ts
++++ b/packages/acp-bridge/src/permission.ts
+@@ -173,14 +173,4 @@ export interface PermissionMediator {
+    * `{ kind: 'cancelled', reason: 'session_closed' }`.
+    */
+   forgetSession(sessionId: string): void;
+-
+-  /**
+-   * Cancel the pending requests belonging to one prompt within the
+-   * session — called when an automatic background turn ends while its
+-   * approval is still outstanding, so the orphaned request resolves as
+-   * `{ kind: 'cancelled', reason: 'agent_cancelled' }` instead of pending
+-   * for the life of the session. Requests attributed to any other prompt
+-   * (a live user prompt sharing the session) are left alone.
+-   */
+-  cancelForPrompt(sessionId: string, promptId: string): void;
+ }
+diff --git a/packages/acp-bridge/src/permissionMediator.test.ts b/packages/acp-bridge/src/permissionMediator.test.ts
+index 4cb17f0370..54fb9d843c 100644
+--- a/packages/acp-bridge/src/permissionMediator.test.ts
++++ b/packages/acp-bridge/src/permissionMediator.test.ts
+@@ -489,77 +489,6 @@ describe('MultiClientPermissionMediator — forgetSession', () => {
+   });
+ });
+ 
+-describe('MultiClientPermissionMediator — cancelForPrompt', () => {
+-  beforeEach(() => {
+-    vi.useFakeTimers();
+-  });
+-  afterEach(() => {
+-    vi.useRealTimers();
+-  });
+-
+-  it('cancels only the pending requests attributed to the finished turn', async () => {
+-    const { mediator, events } = makeMediator();
+-    const promiseTurn = mediator.request(
+-      makeRecord({
+-        requestId: 'req-turn',
+-        sessionId: 'sess-1',
+-        promptId: 'turn-1',
+-      }),
+-      5_000,
+-    );
+-    const promiseUser = mediator.request(
+-      makeRecord({
+-        requestId: 'req-user',
+-        sessionId: 'sess-1',
+-        promptId: 'user-1',
+-      }),
+-      5_000,
+-    );
+-    const promiseOtherSession = mediator.request(
+-      makeRecord({
+-        requestId: 'req-other',
+-        sessionId: 'sess-2',
+-        promptId: 'turn-1',
+-      }),
+-      5_000,
+-    );
+-
+-    mediator.cancelForPrompt('sess-1', 'turn-1');
+-
+-    await expect(promiseTurn).resolves.toEqual({
+-      kind: 'cancelled',
+-      reason: 'agent_cancelled',
+-    });
+-    // Same session but a live user prompt: untouched.
+-    expect(mediator.peekSessionFor('req-user')).toBe('sess-1');
+-    // Same turnId on a different session: untouched.
+-    expect(mediator.peekSessionFor('req-other')).toBe('sess-2');
+-    const resolved = events.filter(
+-      (e) => e.event.type === 'permission_resolved',
+-    );
+-    expect(resolved).toHaveLength(1);
+-    expect(resolved[0].sessionId).toBe('sess-1');
+-    expect(resolved[0].event.promptId).toBe('turn-1');
+-
+-    mediator.forgetSession('sess-1');
+-    mediator.forgetSession('sess-2');
+-    await Promise.all([promiseUser, promiseOtherSession]);
+-  });
+-
+-  it('is a no-op when nothing pending matches the prompt', () => {
+-    const { mediator, events } = makeMediator();
+-    void mediator.request(
+-      makeRecord({ requestId: 'req-1', promptId: 'user-1' }),
+-      5_000,
+-    );
+-
+-    mediator.cancelForPrompt('sess-1', 'turn-gone');
+-    expect(events).toHaveLength(0);
+-
+-    mediator.forgetSession('sess-1');
+-  });
+-});
+-
+ describe('MultiClientPermissionMediator — timeout', () => {
+   beforeEach(() => {
+     vi.useFakeTimers();
+diff --git a/packages/acp-bridge/src/permissionMediator.ts b/packages/acp-bridge/src/permissionMediator.ts
+index a976857957..7842193d5a 100644
+--- a/packages/acp-bridge/src/permissionMediator.ts
++++ b/packages/acp-bridge/src/permissionMediator.ts
+@@ -667,33 +667,6 @@ export class MultiClientPermissionMediator implements PermissionMediator {
+     }
+   }
+ 
+-  /**
+-   * Per-turn sibling of `forgetSession`: resolves every pending request
+-   * whose `(sessionId, promptId)` matches as agent-cancelled. A background
+-   * notification turn can end (or be aborted) while its approval is still
+-   * outstanding; the bridge attributes those requests to the turn's id, so
+-   * finishing the turn cancels exactly them and leaves a concurrently live
+-   * user prompt's requests pending.
+-   */
+-  cancelForPrompt(sessionId: string, promptId: string): void {
+-    // Snapshot the keys to avoid mutating the Map during iteration.
+-    const requestIds: string[] = [];
+-    for (const [id, pending] of this.pending) {
+-      if (pending.sessionId === sessionId && pending.promptId === promptId)
+-        requestIds.push(id);
+-    }
+-    for (const id of requestIds) {
+-      const pending = this.pending.get(id);
+-      if (!pending) continue;
+-      this.resolveEntry(
+-        pending,
+-        { kind: 'cancelled', reason: 'agent_cancelled' },
+-        { type: 'agent-cancelled' },
+-        undefined,
+-      );
+-    }
+-  }
+-
+   /**
+    * Lookup the sessionId for a given requestId. Used by the legacy
+    * `bridge.respondToPermission(requestId, ...)` route which doesn't
+diff --git a/packages/cli/src/acp-integration/session/Session.test.ts b/packages/cli/src/acp-integration/session/Session.test.ts
+index 25c4517833..340611999e 100644
+--- a/packages/cli/src/acp-integration/session/Session.test.ts
++++ b/packages/cli/src/acp-integration/session/Session.test.ts
+@@ -11029,69 +11029,6 @@ describe('Session', () => {
+         },
+       );
+ 
+-      it('defers admission when the host never answers the start_turn request', async () => {
+-        mockChat.sendMessageStream = vi
+-          .fn()
+-          .mockImplementation(async () => createEmptyStream());
+-        await session.prompt({
+-          sessionId: 'test-session-id',
+-          prompt: [{ type: 'text', text: 'start' }],
+-        });
+-        vi.mocked(mockClient.extMethod).mockImplementation(async (method) => {
+-          if (method === '_qwencode/start_turn')
+-            return new Promise(() => undefined);
+-          return { messages: [], hasQueuedPrompt: false };
+-        });
+-        vi.useFakeTimers();
+-        try {
+-          notification()('done', 'RESULT', {
+-            agentId: 'silent-host-worker',
+-            status: 'completed',
+-          });
+-          await vi.advanceTimersByTimeAsync(0);
+-          const starts = () =>
+-            vi
+-              .mocked(mockClient.extMethod)
+-              .mock.calls.filter(
+-                ([method]) => method === '_qwencode/start_turn',
+-              );
+-          expect(starts()).toHaveLength(1);
+-          // The admission deadline releases the turn: the item is retained
+-          // via the defer path (same turnId on the retry) rather than lost,
+-          // and the notification pipeline is not wedged.
+-          await vi.advanceTimersByTimeAsync(2100);
+-          expect(
+-            (session as unknown as { notificationProcessing: boolean })
+-              .notificationProcessing,
+-          ).toBe(false);
+-          expect(
+-            session
+-              .collectActiveWorkHolds()
+-              .some((hold) => hold.id === 'silent-host-worker'),
+-          ).toBe(true);
+-          // The defer path retries with the SAME turnId after the backoff.
+-          await vi.advanceTimersByTimeAsync(1100);
+-          expect(starts().length).toBeGreaterThan(1);
+-          expect(
+-            new Set(starts().map(([, params]) => params['turnId'])).size,
+-          ).toBe(1);
+-          // Let the second silent attempt hit its own admission deadline so
+-          // no fake-timer race is left dangling across the switch below.
+-          await vi.advanceTimersByTimeAsync(2100);
+-          expect(
+-            (session as unknown as { notificationProcessing: boolean })
+-              .notificationProcessing,
+-          ).toBe(false);
+-        } finally {
+-          vi.useRealTimers();
+-        }
+-        const followUp = await session.prompt({
+-          sessionId: 'test-session-id',
+-          prompt: [{ type: 'text', text: 'next question' }],
+-        });
+-        expect(followUp.stopReason).toBe('end_turn');
+-      });
+-
+       it.each([false, true])(
+         'bounds admission retries and honors explicit stop=%s',
+         async (stop) => {
+diff --git a/packages/cli/src/acp-integration/session/Session.ts b/packages/cli/src/acp-integration/session/Session.ts
+index b1ee301d66..b5649ea332 100644
+--- a/packages/cli/src/acp-integration/session/Session.ts
++++ b/packages/cli/src/acp-integration/session/Session.ts
+@@ -1477,14 +1477,6 @@ class TodoStopGuardClaimTimeoutError extends Error {
+   }
+ }
+ 
+-class BackgroundTurnAdmissionTimeoutError extends Error {
+-  constructor() {
+-    super(
+-      `background turn admission got no response within ${MID_TURN_QUEUE_DRAIN_TIMEOUT_MS}ms`,
+-    );
+-  }
+-}
+-
+ export interface BackgroundNotificationQueueItem {
+   sourceTurnId?: string;
+   displayText: string;
+@@ -10687,37 +10679,21 @@ export class Session implements SessionContext {
+             return;
+           }
+           let admission: Record<string, unknown> | undefined;
+-          let admissionTimeoutHandle: NodeJS.Timeout | undefined;
+           try {
+-            // The admission RPC is request-shaped: a host that silently drops
+-            // unknown ext methods never settles it, so without the deadline
+-            // the await would wedge the notification pipeline, the next user
+-            // prompt, and the settle/close loop. A timeout rethrows into the
+-            // outer catch, which retains the item via #deferBackgroundAdmission.
+-            admission = await Promise.race([
+-              this.client.extMethod('_qwencode/start_turn', {
+-                sessionId: this.sessionId,
+-                source: 'background_notification',
+-                ...turn,
+-                ...(this.lastCompletedRpcPromptId
+-                  ? { afterPromptId: this.lastCompletedRpcPromptId }
+-                  : {}),
+-              }),
+-              new Promise<never>((_, reject) => {
+-                admissionTimeoutHandle = setTimeout(
+-                  () => reject(new BackgroundTurnAdmissionTimeoutError()),
+-                  MID_TURN_QUEUE_DRAIN_TIMEOUT_MS,
+-                );
+-              }),
+-            ]);
++            admission = await this.client.extMethod('_qwencode/start_turn', {
++              sessionId: this.sessionId,
++              source: 'background_notification',
++              ...turn,
++              ...(this.lastCompletedRpcPromptId
++                ? { afterPromptId: this.lastCompletedRpcPromptId }
++                : {}),
++            });
+           } catch (error) {
+             const code =
+               error && typeof error === 'object' && 'code' in error
+                 ? error.code
+                 : undefined;
+             if (code !== -32601) throw error;
+-          } finally {
+-            clearTimeout(admissionTimeoutHandle);
+           }
+           if (admission?.['accepted'] === false) {
+             this.#deferBackgroundAdmission(item);
+diff --git a/packages/cli/src/serve/live/live-task-service.test.ts b/packages/cli/src/serve/live/live-task-service.test.ts
+index 71ec375293..e88b80c969 100644
+--- a/packages/cli/src/serve/live/live-task-service.test.ts
++++ b/packages/cli/src/serve/live/live-task-service.test.ts
+@@ -926,52 +926,6 @@ describe('LiveTaskService', () => {
+     });
+   });
+ 
+-  it('wakes on a background terminal when the session left the bridge mid-stream', async () => {
+-    const harness = makeHarness();
+-    const backgroundTurn = {
+-      turnId: 'background-1',
+-      taskId: 'agent-1',
+-      kind: 'agent' as const,
+-      startedAt: 1_785_369_603_000,
+-    };
+-    harness.summaries.set('task-1', {
+-      sessionId: 'task-1',
+-      workspaceCwd: '/conversations',
+-      createdAt: '2026-07-30T00:00:00.000Z',
+-      clientCount: 1,
+-      hasActivePrompt: true,
+-      backgroundTurn,
+-    });
+-    harness.resident.add('task-1');
+-    persistedSessions.set('task-1', persisted('task-1'));
+-    const originalSubscribe = harness.bridge.subscribeEvents;
+-    vi.spyOn(harness.bridge, 'subscribeEvents').mockImplementation(
+-      async function* (sessionId, options) {
+-        // The session leaves the bridge after the wait has subscribed; the
+-        // wake-suppression summary lookup then throws SessionNotFoundError.
+-        harness.resident.delete('task-1');
+-        yield {
+-          v: 1,
+-          eventId: 8,
+-          type: 'turn_complete',
+-          sessionId,
+-          timestamp: '2026-07-30T00:00:05.000Z',
+-          data: { promptId: backgroundTurn.turnId, backgroundTurn },
+-        };
+-        yield* originalSubscribe(sessionId, options);
+-      },
+-    );
+-    const result = await harness.service.handle({
+-      callerSessionId: 'live-root',
+-      name: 'wait_threads',
+-      arguments: { targets: [{ threadId: 'task-1' }], timeoutMs: 20 },
+-    });
+-    expect(result).toMatchObject({
+-      timedOut: false,
+-      wake: { reason: 'turnCompleted', threadId: 'task-1', hostId: 'local' },
+-    });
+-  });
+-
+   it('returns inactive snapshots and per-target errors without creating tasks', async () => {
+     const harness = makeHarness();
+     const summary: BridgeSessionSummary = {
+diff --git a/packages/cli/src/serve/live/live-task-service.ts b/packages/cli/src/serve/live/live-task-service.ts
+index b9fec4b5b5..d1b9cb3eee 100644
+--- a/packages/cli/src/serve/live/live-task-service.ts
++++ b/packages/cli/src/serve/live/live-task-service.ts
+@@ -854,21 +854,11 @@ export class LiveTaskService {
+       if (!reason) continue;
+       if (
+         event.type === 'turn_complete' &&
+-        (event.data as { backgroundTurn?: unknown } | null)?.backgroundTurn
+-      ) {
+-        // getSessionSummary throws when the session left the bridge between
+-        // the publish and this read; fail open so a delivered wake is not
+-        // swallowed as a silent neither-woke-nor-timed-out result.
+-        let stillActive = false;
+-        try {
+-          stillActive = task.runtime.bridge.getSessionSummary(
+-            task.bridgeSessionId,
+-          ).hasActivePrompt;
+-        } catch {
+-          stillActive = false;
+-        }
+-        if (stillActive) continue;
+-      }
++        (event.data as { backgroundTurn?: unknown } | null)?.backgroundTurn &&
++        task.runtime.bridge.getSessionSummary(task.bridgeSessionId)
++          .hasActivePrompt
++      )
++        continue;
+       return {
+         reason,
+         threadId: target.threadId,
+diff --git a/packages/cli/src/ui/opentui/dialogs-modes.test.tsx b/packages/cli/src/ui/opentui/dialogs-modes.test.tsx
+index 2a017380c4..1ab1e2c514 100644
+--- a/packages/cli/src/ui/opentui/dialogs-modes.test.tsx
++++ b/packages/cli/src/ui/opentui/dialogs-modes.test.tsx
+@@ -336,16 +336,7 @@ describe('OpenTuiOutputStyleDialog', () => {
+       />,
+     );
+ 
+-    // Wait for the selection marker, not just the row: the catalog text
+-    // renders with the mount-time selection (index 0) and the pre-selection
+-    // of the active style lands in a later passive-effect commit. Pressing
+-    // keys on text presence alone can interleave as up-then-derive-then-
+-    // return, which picks Concise instead of default.
+-    await waitFor(() =>
+-      expect(screen.getByText('Concise').parentElement?.textContent).toContain(
+-        '› Concise',
+-      ),
+-    );
++    await waitFor(() => expect(screen.queryByText('Concise')).not.toBeNull());
+     press('up');
+     press('return');
+ 
+diff --git a/packages/qwen-live/src/adaptor/qwen-code-adaptor.test.ts b/packages/qwen-live/src/adaptor/qwen-code-adaptor.test.ts
+index eb54caca89..5f2e16c947 100644
+--- a/packages/qwen-live/src/adaptor/qwen-code-adaptor.test.ts
++++ b/packages/qwen-live/src/adaptor/qwen-code-adaptor.test.ts
+@@ -882,227 +882,6 @@ describe('QwenCodeAdaptor.events', () => {
+     expect((await iterator.next()).done).toBe(true);
+   });
+ 
+-  it('does not adopt a background execution as the active job of an idle session', async () => {
+-    const client = makeClient({
+-      subscribeEvents: vi.fn(() =>
+-        envelopeStream([
+-          envelope(
+-            'session_update',
+-            {
+-              update: {
+-                sessionUpdate: 'agent_message_chunk',
+-                content: { type: 'text', text: 'Working on it' },
+-                _meta: {
+-                  source: 'background_notification_turn_started',
+-                  backgroundTurn: { turnId: 'background-1' },
+-                },
+-              },
+-            },
+-            { promptId: 'background-1' },
+-          ),
+-          envelope('session_update', {
+-            update: {
+-              sessionUpdate: 'agent_message_chunk',
+-              content: { type: 'text', text: 'background reply' },
+-              _meta: {
+-                source: 'background_notification_response',
+-                backgroundTask: { taskId: 'task-1' },
+-              },
+-            },
+-          }),
+-          envelope(
+-            'turn_complete',
+-            {
+-              promptId: 'background-1',
+-              backgroundTurn: { turnId: 'background-1' },
+-              stopReason: 'end_turn',
+-            },
+-            { promptId: 'background-1' },
+-          ),
+-        ]),
+-      ),
+-    });
+-    const adaptor = makeAdaptor(client);
+-    const handle = handleFor();
+-    const events = await collect(adaptor, handle);
+-    // The background execution is not an orchestrator-dispatched job: no
+-    // terminal may be emitted for it, and the session must not read busy.
+-    expect(events.filter((event) => event.type === 'turn_complete')).toEqual(
+-      [],
+-    );
+-    expect(adaptor.isBusy(handle)).toBe(false);
+-    // The reply activity still reaches the live transcript.
+-    expect(events).toContainEqual({
+-      type: 'activity',
+-      kind: 'message',
+-      text: 'background reply',
+-    });
+-  });
+-
+-  it('does not stamp background activity with the unowned background jobRef', async () => {
+-    // Production background chunks carry both the background turnId as the
+-    // envelope promptId (bridgeClient attributes them to the background turn)
+-    // and _meta.backgroundTurn. The activity must stay session-level: the
+-    // turnId belongs to no orchestrator job, so jobByRef cannot resolve it
+-    // and the event would be dropped or buffered into an unrelated pending
+-    // submission.
+-    const client = makeClient({
+-      subscribeEvents: vi.fn(() =>
+-        envelopeStream([
+-          envelope(
+-            'session_update',
+-            {
+-              update: {
+-                sessionUpdate: 'agent_message_chunk',
+-                content: { type: 'text', text: 'background reply' },
+-                _meta: {
+-                  source: 'background_notification_response',
+-                  backgroundTurn: { turnId: 'background-1' },
+-                  backgroundTask: { taskId: 'task-1' },
+-                },
+-              },
+-            },
+-            { promptId: 'background-1' },
+-          ),
+-          envelope(
+-            'session_update',
+-            {
+-              update: {
+-                sessionUpdate: 'tool_call',
+-                title: 'Read file',
+-                _meta: { backgroundTurn: { turnId: 'background-1' } },
+-              },
+-            },
+-            { promptId: 'background-1' },
+-          ),
+-        ]),
+-      ),
+-    });
+-    const adaptor = makeAdaptor(client);
+-
+-    const events = await collect(adaptor, handleFor());
+-
+-    expect(events).toContainEqual({
+-      type: 'activity',
+-      kind: 'message',
+-      text: 'background reply',
+-    });
+-    const progress = events.filter((event) => event.type === 'progress');
+-    expect(progress).toHaveLength(1);
+-    expect(progress[0]).not.toHaveProperty('jobRef');
+-    for (const event of events) {
+-      expect(event).not.toHaveProperty('jobRef');
+-    }
+-  });
+-
+-  it('ignores a mid-turn drain consumed by a background execution', async () => {
+-    const client = makeClient({
+-      subscribeEvents: vi.fn(() =>
+-        envelopeStream([
+-          envelope(
+-            'session_update',
+-            {
+-              update: {
+-                sessionUpdate: 'agent_message_chunk',
+-                content: { type: 'text', text: 'Working on it' },
+-                _meta: {
+-                  source: 'background_notification_turn_started',
+-                  backgroundTurn: { turnId: 'background-1' },
+-                },
+-              },
+-            },
+-            { promptId: 'background-1' },
+-          ),
+-          envelope(
+-            'mid_turn_message_injected',
+-            { messageIds: ['m-1'], messages: ['keep going'] },
+-            { promptId: 'background-1' },
+-          ),
+-          envelope(
+-            'turn_complete',
+-            {
+-              promptId: 'background-1',
+-              backgroundTurn: { turnId: 'background-1' },
+-              stopReason: 'end_turn',
+-            },
+-            { promptId: 'background-1' },
+-          ),
+-        ]),
+-      ),
+-    });
+-    const adaptor = makeAdaptor(client);
+-    const handle = handleFor();
+-
+-    const events = await collect(adaptor, handle);
+-
+-    // The background turnId is no orchestrator job: no join event, and the
+-    // dropped background terminal must not leave busy state behind.
+-    expect(events.filter((event) => event.type === 'turn_joined')).toEqual([]);
+-    expect(adaptor.isBusy(handle)).toBe(false);
+-  });
+-
+-  it('releases attach-seeded busy state on a background terminal', async () => {
+-    // Attaching while a background turn runs seeds busy from the widened
+-    // hasActivePrompt; the start marker is already gone, so the terminal is
+-    // the only frame that can release it.
+-    const client = makeClient({
+-      createOrAttachSession: vi.fn(async () => ({
+-        sessionId: SESSION_ID,
+-        clientId: ISSUED_CLIENT_ID,
+-        hasActivePrompt: true,
+-      })),
+-      subscribeEvents: vi.fn(() =>
+-        envelopeStream([
+-          envelope(
+-            'turn_complete',
+-            {
+-              promptId: 'background-1',
+-              backgroundTurn: { turnId: 'background-1' },
+-              stopReason: 'end_turn',
+-            },
+-            { promptId: 'background-1' },
+-          ),
+-        ]),
+-      ),
+-    });
+-    const adaptor = makeAdaptor(client);
+-    const handle = await adaptor.createSession();
+-    expect(adaptor.isBusy(handle)).toBe(true);
+-
+-    const events = await collect(adaptor, handle);
+-
+-    expect(events.filter((event) => event.type === 'turn_complete')).toEqual(
+-      [],
+-    );
+-    expect(adaptor.isBusy(handle)).toBe(false);
+-  });
+-
+-  it('keeps a foreground job busy across a background terminal', async () => {
+-    const client = makeClient({
+-      subscribeEvents: vi.fn(() =>
+-        envelopeStream([
+-          envelope('pending_prompt_started', {}, { promptId: 'p1' }),
+-          envelope(
+-            'turn_complete',
+-            {
+-              promptId: 'background-1',
+-              backgroundTurn: { turnId: 'background-1' },
+-              stopReason: 'end_turn',
+-            },
+-            { promptId: 'background-1' },
+-          ),
+-        ]),
+-      ),
+-    });
+-    const adaptor = makeAdaptor(client);
+-    const handle = handleFor();
+-
+-    const events = await collect(adaptor, handle);
+-
+-    expect(events).toEqual([{ type: 'turn_started', jobRef: 'p1' }]);
+-    expect(adaptor.isBusy(handle)).toBe(true);
+-  });
+-
+   it('maps turn_error to a turn_error event carrying the message', async () => {
+     const client = makeClient({
+       subscribeEvents: vi.fn(() =>
+diff --git a/packages/qwen-live/src/adaptor/qwen-code-adaptor.ts b/packages/qwen-live/src/adaptor/qwen-code-adaptor.ts
+index a62e0532ef..84c574a33e 100644
+--- a/packages/qwen-live/src/adaptor/qwen-code-adaptor.ts
++++ b/packages/qwen-live/src/adaptor/qwen-code-adaptor.ts
+@@ -150,8 +150,6 @@ export interface QwenCodeAdaptorOptions {
+ interface SessionState {
+   busy: boolean;
+   activeJobRef?: string;
+-  /** Turn id of the admitted automatic background execution, if observed. */
+-  backgroundTurnId?: string;
+   /** Daemon-issued client id for this session; echoed on every call. */
+   clientId?: string;
+   /** Accumulated assistant text for the current turn. */
+@@ -722,10 +720,6 @@ export class QwenCodeAdaptor implements BackendAdaptor {
+       case 'mid_turn_message_injected': {
+         const jobRef = envelope.promptId;
+         if (!jobRef || !Array.isArray(data['messageIds'])) return [];
+-        // A background turn's drain names the background turnId, which no
+-        // orchestrator job owns: adopting it would latch busy state that the
+-        // (dropped) background terminal could never release.
+-        if (jobRef === state.backgroundTurnId) return [];
+         if (state.activeJobRef === undefined) {
+           state.activeJobRef = jobRef;
+           state.busy = true;
+@@ -755,32 +749,18 @@ export class QwenCodeAdaptor implements BackendAdaptor {
+       case 'session_update': {
+         const update = isRecord(data['update']) ? data['update'] : undefined;
+         if (!update) return [];
+-        // An automatic background turn is never an orchestrator-dispatched
+-        // job: its stamped updates must not adopt the session's activeJobRef,
+-        // or its terminal would be reported as that job's completion.
+-        const updateMeta = isRecord(update['_meta']) ? update['_meta'] : {};
+-        const backgroundUpdate = updateMeta['backgroundTurn'] !== undefined;
+-        if (backgroundUpdate && envelope.promptId !== undefined) {
+-          state.backgroundTurnId = envelope.promptId;
+-        }
+         if (
+           state.activeJobRef === undefined &&
+-          envelope.promptId !== undefined &&
+-          !backgroundUpdate
++          envelope.promptId !== undefined
+         ) {
+           state.activeJobRef = envelope.promptId;
+           state.busy = true;
+           state.turnBuffer = '';
+         }
+         const kind = update['sessionUpdate'];
+-        // Background activity is session-level: stamping the background
+-        // turnId as jobRef would buffer the reply into an unrelated pending
+-        // submission (or drop it), since no orchestrator job owns that ref.
+         const activity = publicActivity(
+           update,
+-          backgroundUpdate
+-            ? undefined
+-            : (envelope.promptId ?? state.activeJobRef),
++          envelope.promptId ?? state.activeJobRef,
+         );
+         if (kind === 'agent_message_chunk') {
+           const content = isRecord(update['content'])
+@@ -807,7 +787,7 @@ export class QwenCodeAdaptor implements BackendAdaptor {
+           return [
+             {
+               type: 'progress',
+-              ...(envelope.promptId !== undefined && !backgroundUpdate
++              ...(envelope.promptId !== undefined
+                 ? { jobRef: envelope.promptId }
+                 : {}),
+               summary: summary || 'running a tool',
+@@ -818,24 +798,7 @@ export class QwenCodeAdaptor implements BackendAdaptor {
+       }
+       case 'turn_complete': {
+         const jobRef = envelope.promptId ?? state.activeJobRef;
+-        if (data['backgroundTurn']) {
+-          // A background turn's terminal is the only frame that can release
+-          // state the turn itself seeded (attach during the turn, or a
+-          // mid-turn drain consumed before its start marker was observed).
+-          // Never touch a foreground job's state.
+-          if (
+-            state.activeJobRef === undefined ||
+-            state.activeJobRef === jobRef
+-          ) {
+-            state.busy = false;
+-            state.activeJobRef = undefined;
+-            state.turnBuffer = '';
+-          }
+-          if (state.backgroundTurnId === jobRef) {
+-            state.backgroundTurnId = undefined;
+-          }
+-          return [];
+-        }
++        if (data['backgroundTurn'] && jobRef !== state.activeJobRef) return [];
+         const active =
+           envelope.promptId === undefined || jobRef === state.activeJobRef;
+         const detail = active ? state.turnBuffer.trim() : '';
+diff --git a/packages/web-shell/client/components/messages/ToolGroup.test.tsx b/packages/web-shell/client/components/messages/ToolGroup.test.tsx
+index e364e05727..9993f38411 100644
+--- a/packages/web-shell/client/components/messages/ToolGroup.test.tsx
++++ b/packages/web-shell/client/components/messages/ToolGroup.test.tsx
+@@ -1015,20 +1015,6 @@ describe('tool row rendering', () => {
+     if (reason) expect(container.textContent).toContain(reason);
+   });
+ 
+-  it('shows the awaiting-processing badge on a single completed background agent', () => {
+-    // The SubAgentPanel badge sits in its header, which the single-agent path
+-    // hides — the row meta is the only place the pending state can surface.
+-    const container = renderToolLine(
+-      makeTool({
+-        toolName: 'Task',
+-        status: 'completed',
+-        backgroundResultPending: true,
+-      }),
+-    );
+-
+-    expect(container.textContent).toContain('Awaiting processing');
+-  });
+-
+   it('shows a tool-kind icon on every expanded group row', () => {
+     const container = renderToolGroup([
+       makeTool({ callId: 'read', toolName: 'ReadFile' }),
+diff --git a/packages/web-shell/client/components/messages/ToolGroup.tsx b/packages/web-shell/client/components/messages/ToolGroup.tsx
+index 79822622af..c90b794664 100644
+--- a/packages/web-shell/client/components/messages/ToolGroup.tsx
++++ b/packages/web-shell/client/components/messages/ToolGroup.tsx
+@@ -1263,8 +1263,6 @@ export const ToolLine = memo(function ToolLine({
+       .filter(Boolean)
+       .join(' · ');
+     const completeMeta = [
+-      // SubAgentPanel's own badge sits in its header, which this path hides.
+-      tool.backgroundResultPending ? t('background.pending') : '',
+       info.subToolCount > 0
+         ? t('subagent.toolsCount', { count: info.subToolCount })
+         : '',
+diff --git a/packages/web-shell/client/components/sidebar/WebShellSidebar.module.css b/packages/web-shell/client/components/sidebar/WebShellSidebar.module.css
+index 7ae060911d..d57ca6f435 100644
+--- a/packages/web-shell/client/components/sidebar/WebShellSidebar.module.css
++++ b/packages/web-shell/client/components/sidebar/WebShellSidebar.module.css
+@@ -2014,11 +2014,7 @@
+   color: var(--warning-color, #d29922);
+ }
+ 
+-/* Hover-gated: touch devices get no hover reveal, and a sticky tap-hover on
+-   the background dot must not hide the always-visible row actions. */
+-@media (hover: hover) {
+-  .sessionRow:has(.sessionBackgroundRunning:hover) .sessionActions {
+-    opacity: 0;
+-    pointer-events: none;
+-  }
++.sessionRow:has(.sessionBackgroundRunning:hover) .sessionActions {
++  opacity: 0;
++  pointer-events: none;
+ }
+diff --git a/packages/web-shell/client/daemon/session/DaemonSessionProvider.test.tsx b/packages/web-shell/client/daemon/session/DaemonSessionProvider.test.tsx
+index 294718a8f9..dc0b1b8229 100644
+--- a/packages/web-shell/client/daemon/session/DaemonSessionProvider.test.tsx
++++ b/packages/web-shell/client/daemon/session/DaemonSessionProvider.test.tsx
+@@ -10270,82 +10270,6 @@ describe('DaemonSessionProvider', () => {
+     expect(promptStatus).toBe('idle');
+   });
+ 
+-  it('does not settle a restored foreground prompt on a background terminal while the daemon reports activity', async () => {
+-    const eventsGate = createDeferred<void>();
+-    const backgroundSeen = createDeferred<void>();
+-    const finish = createDeferred<void>();
+-    const finished = createDeferred<void>();
+-    const backgroundTurn = {
+-      turnId: 'auto-1',
+-      taskId: 'task-1',
+-      kind: 'agent' as const,
+-      startedAt: 100,
+-    };
+-    const session = createMockSession({
+-      hasActivePrompt: true,
+-      backgroundTurn,
+-      lastEventId: 5,
+-      async *events() {
+-        await eventsGate.promise;
+-        yield {
+-          id: 6,
+-          v: 1,
+-          type: 'turn_complete',
+-          data: { promptId: 'auto-1', stopReason: 'end_turn' },
+-        };
+-        backgroundSeen.resolve();
+-        await finish.promise;
+-        yield {
+-          id: 7,
+-          v: 1,
+-          type: 'turn_complete',
+-          data: { promptId: 'user-1', stopReason: 'end_turn' },
+-        };
+-        finished.resolve();
+-      },
+-    });
+-    sdkMocks.sessions.push(session);
+-    let connection: ReturnType<typeof useDaemonConnection> | undefined;
+-    let promptStatus: ReturnType<typeof useDaemonPromptStatus> = 'idle';
+-    let actions: DaemonSessionActions | undefined;
+-    function Harness() {
+-      connection = useDaemonConnection();
+-      promptStatus = useDaemonPromptStatus();
+-      actions = useDaemonActions();
+-      return null;
+-    }
+-    await renderWithProvider(<Harness />, {
+-      autoConnect: true,
+-      reconnectDelayMs: 1,
+-      maxReconnectDelayMs: 1,
+-    });
+-    await act(async () => {
+-      await flushPromises();
+-    });
+-    expect(connection?.backgroundTurn).toEqual(backgroundTurn);
+-    expect(promptStatus).not.toBe('idle');
+-    // The live-state authority reports the restored foreground prompt still
+-    // in flight: the background execution's own terminal must not settle it.
+-    // (The bridge re-supplies the tracked descriptor on every publish, the
+-    // way useDaemonSessionActivityBridge does from the live-state response.)
+-    await act(async () => {
+-      actions?.setDaemonActivePrompt(true, undefined, backgroundTurn);
+-      eventsGate.resolve();
+-      await backgroundSeen.promise;
+-      await flushPromises();
+-    });
+-    // The background bookkeeping completes (the descriptor is consumed) while
+-    // the restored foreground prompt keeps the pane streaming.
+-    expect(connection?.backgroundTurn).toBeUndefined();
+-    expect(promptStatus).not.toBe('idle');
+-    await act(async () => {
+-      finish.resolve();
+-      await finished.promise;
+-      await flushPromises();
+-    });
+-    expect(promptStatus).toBe('idle');
+-  });
+-
+   it('settles restored active prompts when turn_complete arrives', async () => {
+     const turnCompleted = createDeferred<void>();
+     const session = createMockSession({
+diff --git a/packages/web-shell/client/daemon/session/DaemonSessionProvider.tsx b/packages/web-shell/client/daemon/session/DaemonSessionProvider.tsx
+index cce8ab2255..adfd3065d9 100644
+--- a/packages/web-shell/client/daemon/session/DaemonSessionProvider.tsx
++++ b/packages/web-shell/client/daemon/session/DaemonSessionProvider.tsx
+@@ -3580,13 +3580,6 @@ export function DaemonSessionProvider(props: DaemonSessionProviderProps) {
+               if (
+                 !activePromptSettled &&
+                 !ignoreStaleTerminal &&
+-                // A background execution's own terminal is not authoritative
+-                // for a restored FOREGROUND prompt; the live-state authority
+-                // still releases a background-only session on its next poll.
+-                !(
+-                  backgroundTerminal &&
+-                  getDaemonActivePrompt(activeSession) === true
+-                ) &&
+                 restoredActivePrompt &&
+                 (event.type === 'turn_complete' || event.type === 'turn_error')
+               ) {
+diff --git a/packages/web-shell/client/visual-capture-contracts.test.ts b/packages/web-shell/client/visual-capture-contracts.test.ts
+index 597528aebc..30c961ee46 100644
+--- a/packages/web-shell/client/visual-capture-contracts.test.ts
++++ b/packages/web-shell/client/visual-capture-contracts.test.ts
+@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
+ import { FIXED_CAPTURE_TIME } from './e2e/visuals/constants';
+ 
+ /*
+- * Contracts the visuals pipeline depends on and that no runtime assertion
++ * Three contracts the visuals pipeline depends on and that no runtime assertion
+  * can reach.
+  *
+  * They live in a vitest file OUTSIDE `e2e/` on purpose. `vitest.config.ts`
+@@ -148,20 +148,4 @@ describe('visual capture contracts', () => {
+       }
+     }
+   });
+-
+-  it('keeps the background-dot action hide inside the hover media query', () => {
+-    // Touch devices get no hover reveal: the (hover: none) block keeps row
+-    // actions always visible, and this (0,4,0) rule would out-specify it on a
+-    // sticky tap-hover, hiding (but not disarming) the buttons.
+-    const css = readFileSync(
+-      join(HERE, 'components/sidebar/WebShellSidebar.module.css'),
+-      'utf8',
+-    );
+-    const hideRule =
+-      '.sessionRow:has(.sessionBackgroundRunning:hover) .sessionActions';
+-    expect(css.indexOf(hideRule)).toBe(css.lastIndexOf(hideRule));
+-    expect(css, 'the hide rule must live inside @media (hover: hover)').toMatch(
+-      /@media \(hover: hover\) \{\s*\.sessionRow:has\(\.sessionBackgroundRunning:hover\) \.sessionActions \{/,
+-    );
+-  });
+ });
