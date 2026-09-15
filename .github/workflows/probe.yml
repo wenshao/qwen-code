@@ -1,0 +1,63 @@
+name: 'probe-pr11855-queued-cancel'
+on:
+  push:
+    branches: ['probe/pr11855-queued-cancel']
+permissions:
+  actions: 'read'
+  contents: 'read'
+jobs:
+  precheck-pr:
+    runs-on: 'ubuntu-latest'
+    steps:
+      - run: 'gh --version | head -1'
+  review-config:
+    runs-on: 'ubuntu-latest'
+    steps:
+      - run: 'echo ok'
+  authorize:
+    runs-on: 'ubuntu-latest'
+    steps:
+      - run: 'echo ok'
+  delay-automatic-review:
+    needs: ['authorize']
+    runs-on: 'ubuntu-latest'
+    steps:
+      - run: 'echo ok'
+  review-pr:
+    needs: ['precheck-pr', 'review-config', 'authorize', 'delay-automatic-review']
+    runs-on: ['self-hosted', 'linux', 'x64', 'ecs-review']
+    steps:
+      - run: 'echo never'
+  fallback-comment:
+    needs: ['precheck-pr', 'review-config', 'authorize', 'delay-automatic-review', 'review-pr']
+    if: |-
+      always() &&
+      (needs.review-pr.result == 'failure' ||
+       (needs.review-pr.result == 'cancelled' &&
+        needs.authorize.result != 'cancelled' &&
+        needs.delay-automatic-review.result != 'cancelled') ||
+       needs.authorize.result == 'failure' ||
+       needs.review-config.result == 'failure' ||
+       needs.delay-automatic-review.result == 'failure' ||
+       needs.precheck-pr.result == 'failure')
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'verbatim never_started block from PR head'
+        env:
+          GH_TOKEN: '${{ github.token }}'
+          REVIEW_PR_RESULT: '${{ needs.review-pr.result }}'
+        run: |
+          set -uo pipefail
+          never_started="unknown"
+          if [ "$REVIEW_PR_RESULT" = "failure" ] || [ "$REVIEW_PR_RESULT" = "cancelled" ]; then
+            never_started="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID:?}/jobs?per_page=100" \
+              --jq '[.jobs[] | select(.name == "review-pr")] | if length == 0 then "unknown" elif all(.[]; (.runner_name // "") == "" and ((.steps // []) | length) == 0) then "true" else "false" end' 2>/dev/null)" || never_started="unknown"
+            if [ "$never_started" = "true" ]; then
+              echo "review-pr in run ${GITHUB_RUN_ID} was never started by a runner (queue expired); posting the queue-expiry body." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+          echo "PROBE needs.review-pr.result=$REVIEW_PR_RESULT never_started=$never_started"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" > jobs.json
+          jq -c '.jobs[] | select(.name=="review-pr") | {status,conclusion,runner_name,steps:(.steps|length),created_at,started_at,completed_at}' jobs.json | sed 's/^/PROBE review-pr /'
+          cat "$GITHUB_STEP_SUMMARY" | sed 's/^/PROBE summary: /'
