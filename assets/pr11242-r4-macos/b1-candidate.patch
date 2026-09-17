@@ -1,0 +1,50 @@
+diff --git a/packages/browser-use/src/bridge/transport/chrome-extension-transport.ts b/packages/browser-use/src/bridge/transport/chrome-extension-transport.ts
+index 2819d98dd0..795eb4a807 100644
+--- a/packages/browser-use/src/bridge/transport/chrome-extension-transport.ts
++++ b/packages/browser-use/src/bridge/transport/chrome-extension-transport.ts
+@@ -275,8 +275,16 @@ export class ChromeExtensionTransport implements ChromeBridge {
+     }, this.connectTimeoutMs);
+     handshakeTimer.unref();
+     socket.on('data', (chunk) => {
++      let messages: unknown[];
+       try {
+-        for (const message of decoder.push(chunk)) {
++        messages = [...decoder.push(chunk)];
++      } catch {
++        socket.destroy(new Error('Invalid Chrome bridge frame'));
++        return;
++      }
++      const drain = (start: number): void => {
++        for (let index = start; index < messages.length; index += 1) {
++          const message = messages[index];
+           if (!validated) {
+             if (!isObject(message) || message.type !== 'hello') continue;
+             if (
+@@ -319,11 +327,24 @@ export class ChromeExtensionTransport implements ChromeBridge {
+             continue;
+           }
+           if (this.socket !== socket) return;
++          // A response only settles a promise here: it reaches Playwright
++          // after the awaits in request()/sendCommand() and the consumer's
++          // then(). Events are emitted synchronously. Without this yield the
++          // events that shared a chunk with a response overtake it, and
++          // Playwright drops the ones it has no listener for yet.
++          const settlesResponse =
++            isObject(message) &&
++            message.type === 'response' &&
++            typeof message.id === 'string' &&
++            this.pending.has(message.id);
+           this.handleMessage(message);
++          if (settlesResponse && index + 1 < messages.length) {
++            setImmediate(() => drain(index + 1));
++            return;
++          }
+         }
+-      } catch {
+-        socket.destroy(new Error('Invalid Chrome bridge frame'));
+-      }
++      };
++      drain(0);
+     });
+     socket.on('error', () => undefined);
+     socket.on('close', () => {
