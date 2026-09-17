@@ -13,3 +13,10 @@ with working unprivileged bubblewrap.
 | `imgs/02-retention-leak.png` | root cause of the 33/34, quantified temp-directory leak, single-hunk causal mutation |
 | `imgs/03-fix-ab.png` | 3-arm A/B/C proving the settle-wedge fix and the EPIPE fix, plus the mutation matrix |
 | `imgs/04-packaging-gates.png` | packaging chain of custody through a real `npm pack`, gate results, abort-window measurement |
+
+## Round 2 — head `8c270290abbce9dc2aa935c3b1d48ca9b2499181`
+
+| image | what it shows |
+| --- | --- |
+| `imgs/05-round2-verifier-leak.png` | the round-1 leak is fixed; the verifier is still 33/34 on a different, stale assertion |
+| `imgs/06-retention-matrix.png` | retention decision matrix from a real relay + real finalizer with a stand-in bwrap, and the measured fix |
