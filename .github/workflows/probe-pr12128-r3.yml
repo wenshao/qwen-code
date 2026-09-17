@@ -1,13 +1,13 @@
-# PROBE ONLY — round 2. The download / retry / announce steps below are
-# byte-for-byte PR 12128's; the surrounding steps only break and restore the
-# runner's route to the artifact service, so the REAL action meets a REAL
-# network failure on its first attempt and the real one on its retry.
-name: 'PR 12128 download-retry probe R2'
+# PROBE ONLY — round 3. The download / retry / announce steps are byte-for-byte
+# PR 12128's. The surrounding steps only blackhole the runner's route to the
+# artifact service for the duration of the FIRST attempt, so the real action
+# meets a real network failure, and restore it before the retry.
+name: 'PR 12128 download-retry probe R3'
 
 on:
   push:
     branches:
-      - 'probe/pr12128-r2**'
+      - 'probe/pr12128-r3**'
   workflow_dispatch: {}
 
 jobs:
@@ -29,21 +29,29 @@ jobs:
           compression-level: 0
           retention-days: 1
 
-  leg_a2_transient_absorbed:
-    name: 'A2 · real network failure on attempt 1, retry recovers'
+  leg_a3_transient_absorbed:
+    name: 'A3 · real network failure on attempt 1, retry recovers'
     runs-on: 'ubuntu-latest'
     timeout-minutes: 20
     needs:
       - 'seed'
     steps:
+      - name: 'Checkout (for the local probe action)'
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # v4.3.0
+
+      - name: 'Learn the real artifact service host'
+        uses: './.github/actions/probe-dump'
+
       - name: 'Cut the runner off from the artifact service (connection refused)'
         run: |-
           set -euo pipefail
-          host="$(printf '%s' "${ACTIONS_RESULTS_URL}" | sed -E 's#^https?://##; s#[:/].*$##')"
-          echo "artifact service host: ${host}"
           sudo cp /etc/hosts /tmp/hosts.orig
-          echo "127.0.0.1 ${host}" | sudo tee -a /etc/hosts
-          getent ahosts "${host}" | head -5
+          {
+            echo "127.0.0.1 ${PROBE_RESULTS_HOST}"
+            for n in $(seq 1 40); do echo "127.0.0.1 productionresultssa${n}.blob.core.windows.net"; done
+          } | sudo tee -a /etc/hosts >/dev/null
+          echo "blackholed ${PROBE_RESULTS_HOST} and productionresultssa1..40.blob.core.windows.net -> 127.0.0.1"
+          getent ahosts "${PROBE_RESULTS_HOST}" | head -2
 
       - name: 'Download build artifact'
         id: 'download-build'
@@ -59,8 +67,7 @@ jobs:
         run: |-
           set -uo pipefail
           sudo cp /tmp/hosts.orig /etc/hosts
-          host="$(printf '%s' "${ACTIONS_RESULTS_URL}" | sed -E 's#^https?://##; s#[:/].*$##')"
-          getent ahosts "${host}" | head -5
+          getent ahosts "${PROBE_RESULTS_HOST}" | head -2
 
       - name: 'Download build artifact (retry)'
         if: "${{ steps.download-build.outcome == 'failure' }}"
@@ -86,21 +93,29 @@ jobs:
             && echo "PAYLOAD-PRESENT $(wc -c <"${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz") bytes" \
             || echo "PAYLOAD-ABSENT"
 
-  leg_b2_hang_timeboxed:
-    name: 'B2 · attempt 1 hangs, the time-box makes it retryable'
+  leg_b3_hang_timeboxed:
+    name: 'B3 · attempt 1 hangs, the time-box makes it retryable'
     runs-on: 'ubuntu-latest'
     timeout-minutes: 20
     needs:
       - 'seed'
     steps:
+      - name: 'Checkout (for the local probe action)'
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # v4.3.0
+
+      - name: 'Learn the real artifact service host'
+        uses: './.github/actions/probe-dump'
+
       - name: 'Cut the runner off from the artifact service (blackholed)'
         run: |-
           set -euo pipefail
-          host="$(printf '%s' "${ACTIONS_RESULTS_URL}" | sed -E 's#^https?://##; s#[:/].*$##')"
-          echo "artifact service host: ${host}"
           sudo cp /etc/hosts /tmp/hosts.orig
-          echo "192.0.2.1 ${host}" | sudo tee -a /etc/hosts
-          getent ahosts "${host}" | head -5
+          {
+            echo "192.0.2.1 ${PROBE_RESULTS_HOST}"
+            for n in $(seq 1 40); do echo "192.0.2.1 productionresultssa${n}.blob.core.windows.net"; done
+          } | sudo tee -a /etc/hosts >/dev/null
+          echo "blackholed ${PROBE_RESULTS_HOST} and productionresultssa1..40.blob.core.windows.net -> 192.0.2.1"
+          getent ahosts "${PROBE_RESULTS_HOST}" | head -2
 
       - name: 'Download build artifact'
         id: 'download-build'
@@ -116,8 +131,7 @@ jobs:
         run: |-
           set -uo pipefail
           sudo cp /tmp/hosts.orig /etc/hosts
-          host="$(printf '%s' "${ACTIONS_RESULTS_URL}" | sed -E 's#^https?://##; s#[:/].*$##')"
-          getent ahosts "${host}" | head -5
+          getent ahosts "${PROBE_RESULTS_HOST}" | head -2
 
       - name: 'Download build artifact (retry)'
         if: "${{ steps.download-build.outcome == 'failure' }}"
@@ -148,10 +162,10 @@ jobs:
     runs-on: 'ubuntu-latest'
     if: "${{ always() }}"
     needs:
-      - 'leg_a2_transient_absorbed'
-      - 'leg_b2_hang_timeboxed'
+      - 'leg_a3_transient_absorbed'
+      - 'leg_b3_hang_timeboxed'
     steps:
       - name: 'Print the result matrix'
         run: |-
-          echo "leg_a2=${{ needs.leg_a2_transient_absorbed.result }} (expected success)"
-          echo "leg_b2=${{ needs.leg_b2_hang_timeboxed.result }} (expected success)"
+          echo "leg_a3=${{ needs.leg_a3_transient_absorbed.result }} (expected success)"
+          echo "leg_b3=${{ needs.leg_b3_hang_timeboxed.result }} (expected success)"
