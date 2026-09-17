@@ -1,0 +1,157 @@
+# PROBE ONLY — round 2. The download / retry / announce steps below are
+# byte-for-byte PR 12128's; the surrounding steps only break and restore the
+# runner's route to the artifact service, so the REAL action meets a REAL
+# network failure on its first attempt and the real one on its retry.
+name: 'PR 12128 download-retry probe R2'
+
+on:
+  push:
+    branches:
+      - 'probe/pr12128-r2**'
+  workflow_dispatch: {}
+
+jobs:
+  seed:
+    name: 'Seed the e2e-build artifact'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Make a stand-in payload at the real archive path'
+        run: |-
+          mkdir -p "${RUNNER_TEMP}/seed"
+          head -c 4194304 /dev/urandom >"${RUNNER_TEMP}/seed/e2e-build.tar.gz"
+
+      - name: 'Upload build artifact'
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/seed/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+
+  leg_a2_transient_absorbed:
+    name: 'A2 · real network failure on attempt 1, retry recovers'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 20
+    needs:
+      - 'seed'
+    steps:
+      - name: 'Cut the runner off from the artifact service (connection refused)'
+        run: |-
+          set -euo pipefail
+          host="$(printf '%s' "${ACTIONS_RESULTS_URL}" | sed -E 's#^https?://##; s#[:/].*$##')"
+          echo "artifact service host: ${host}"
+          sudo cp /etc/hosts /tmp/hosts.orig
+          echo "127.0.0.1 ${host}" | sudo tee -a /etc/hosts
+          getent ahosts "${host}" | head -5
+
+      - name: 'Download build artifact'
+        id: 'download-build'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        continue-on-error: true
+        timeout-minutes: 10
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      - name: 'Restore the route before the retry'
+        if: "${{ always() }}"
+        run: |-
+          set -uo pipefail
+          sudo cp /tmp/hosts.orig /etc/hosts
+          host="$(printf '%s' "${ACTIONS_RESULTS_URL}" | sed -E 's#^https?://##; s#[:/].*$##')"
+          getent ahosts "${host}" | head -5
+
+      - name: 'Download build artifact (retry)'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      # An absorbed download stall leaves the leg green, so the main-CI
+      # failure tracker never records it — the warning annotation keeps the
+      # recurrence countable, mirroring the build job's upload announce.
+      - name: 'Announce absorbed download failure'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        run: |-
+          echo "::warning::Download build artifact failed its first attempt and the retry absorbed it — count this toward the #12125 download-stall recurrence watch."
+
+      - name: 'Observe the runner-side truth'
+        if: "${{ always() }}"
+        run: |-
+          echo "outcome=${{ steps.download-build.outcome }}"
+          echo "conclusion=${{ steps.download-build.conclusion }}"
+          test -f "${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz" \
+            && echo "PAYLOAD-PRESENT $(wc -c <"${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz") bytes" \
+            || echo "PAYLOAD-ABSENT"
+
+  leg_b2_hang_timeboxed:
+    name: 'B2 · attempt 1 hangs, the time-box makes it retryable'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 20
+    needs:
+      - 'seed'
+    steps:
+      - name: 'Cut the runner off from the artifact service (blackholed)'
+        run: |-
+          set -euo pipefail
+          host="$(printf '%s' "${ACTIONS_RESULTS_URL}" | sed -E 's#^https?://##; s#[:/].*$##')"
+          echo "artifact service host: ${host}"
+          sudo cp /etc/hosts /tmp/hosts.orig
+          echo "192.0.2.1 ${host}" | sudo tee -a /etc/hosts
+          getent ahosts "${host}" | head -5
+
+      - name: 'Download build artifact'
+        id: 'download-build'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        continue-on-error: true
+        timeout-minutes: 2
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      - name: 'Restore the route before the retry'
+        if: "${{ always() }}"
+        run: |-
+          set -uo pipefail
+          sudo cp /tmp/hosts.orig /etc/hosts
+          host="$(printf '%s' "${ACTIONS_RESULTS_URL}" | sed -E 's#^https?://##; s#[:/].*$##')"
+          getent ahosts "${host}" | head -5
+
+      - name: 'Download build artifact (retry)'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      # An absorbed download stall leaves the leg green, so the main-CI
+      # failure tracker never records it — the warning annotation keeps the
+      # recurrence countable, mirroring the build job's upload announce.
+      - name: 'Announce absorbed download failure'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        run: |-
+          echo "::warning::Download build artifact failed its first attempt and the retry absorbed it — count this toward the #12125 download-stall recurrence watch."
+
+      - name: 'Observe the runner-side truth'
+        if: "${{ always() }}"
+        run: |-
+          echo "outcome=${{ steps.download-build.outcome }}"
+          echo "conclusion=${{ steps.download-build.conclusion }}"
+          test -f "${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz" \
+            && echo "PAYLOAD-PRESENT $(wc -c <"${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz") bytes" \
+            || echo "PAYLOAD-ABSENT"
+
+  verdict:
+    name: 'Verdict'
+    runs-on: 'ubuntu-latest'
+    if: "${{ always() }}"
+    needs:
+      - 'leg_a2_transient_absorbed'
+      - 'leg_b2_hang_timeboxed'
+    steps:
+      - name: 'Print the result matrix'
+        run: |-
+          echo "leg_a2=${{ needs.leg_a2_transient_absorbed.result }} (expected success)"
+          echo "leg_b2=${{ needs.leg_b2_hang_timeboxed.result }} (expected success)"
