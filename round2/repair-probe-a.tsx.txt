@@ -1,0 +1,124 @@
+  it('PROBE-A no repair marker: the same non-admitted terminal publishes live', async () => {
+    // The load arms a live-journal repair for `prompt-live` and the same
+    // prompt's terminal then arrives on the live stream. Publishing there
+    // would certify the truncated projection as the turn's final message, and
+    // the key burn makes it uncorrectable, so the live path withholds it until
+    // the repair resolves. Dropping `!repairTargetsTerminal` from the publish
+    // condition turns this red.
+    const terminalGate = createDeferred<void>();
+    const initialSession = createMockSession({
+      sessionId: 'session-settle-repair',
+      hasActivePrompt: true,
+      lastEventId: 5,
+      replaySnapshot: {
+        compactedReplay: [],
+        liveJournal: [
+          {
+            id: 5,
+            v: 1,
+            type: 'session_update',
+            promptId: 'prompt-live',
+            data: {
+              update: {
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'retained tail' },
+              },
+            },
+          },
+        ],
+      },
+      events: async function* matchingTerminal(
+        options: { signal?: AbortSignal } = {},
+      ) {
+        await Promise.race([
+          terminalGate.promise,
+          new Promise<void>((resolve) =>
+            options.signal?.addEventListener('abort', () => resolve(), {
+              once: true,
+            }),
+          ),
+        ]);
+        if (options.signal?.aborted) return;
+        yield {
+          id: 6,
+          v: 1,
+          type: 'turn_complete',
+          promptId: 'prompt-live',
+          data: { promptId: 'prompt-live', stopReason: 'end_turn' },
+        } satisfies DaemonEvent;
+        await new Promise<void>((resolve) =>
+          options.signal?.addEventListener('abort', () => resolve(), {
+            once: true,
+          }),
+        );
+      },
+    });
+    // The repair reload reads the whole turn back. Its replay publishes
+    // nothing here either — the prompt was never locally bound — so the
+    // assertion below cannot be satisfied by a second, post-repair publish.
+    const repairedSession = createMockSession({
+      sessionId: 'session-settle-repair',
+      lastEventId: 7,
+      replaySnapshot: {
+        compactedReplay: [
+          {
+            id: 4,
+            v: 1,
+            type: 'session_update',
+            promptId: 'prompt-live',
+            data: {
+              update: {
+                sessionUpdate: 'user_message_chunk',
+                content: { type: 'text', text: 'long prompt' },
+              },
+            },
+          },
+          {
+            id: 5,
+            v: 1,
+            type: 'session_update',
+            promptId: 'prompt-live',
+            data: {
+              update: {
+                sessionUpdate: 'agent_message_chunk',
+                content: { type: 'text', text: 'repaired answer' },
+              },
+            },
+          },
+          {
+            id: 6,
+            v: 1,
+            type: 'turn_complete',
+            promptId: 'prompt-live',
+            data: { promptId: 'prompt-live', stopReason: 'end_turn' },
+          },
+        ],
+        liveJournal: [],
+      },
+    });
+    sdkMocks.sessions.push(initialSession, repairedSession);
+    const settlements: DaemonPromptSettledEvent[] = [];
+
+    function Harness() {
+      useDaemonPromptSettled((event) => {
+        settlements.push(event);
+      });
+      return null;
+    }
+
+    await renderWithProvider(<Harness />, { autoConnect: true });
+    await act(async () => {
+      terminalGate.resolve();
+      await flushPromises();
+      await flushTranscriptDispatch();
+    });
+
+    expect(settlements).toHaveLength(1);
+    // Positive control: the episode really was armed for this prompt, and the
+    // terminal really did trigger the repair reload rather than being ignored.
+    await act(async () => {
+      expect(sdkMocks.MockDaemonSessionClient.load).toHaveBeenCalledTimes(1);
+      await flushPromises();
+    });
+    expect(settlements).toHaveLength(1);
+  });
