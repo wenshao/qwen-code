@@ -1,0 +1,39 @@
+# PR #11242 round-5: synthesized key input vs. Chrome's active tab (head 5a85819827)
+# Every run: real CfT 149, real extension + Native Messaging host, headed window.
+# "type" = tab.playwright.getByPlaceholder(...).type(...)  -> Playwright pressSequentially
+# "fill" = the same locator's .fill()    "evaluate" = tab.playwright.evaluate()
+#
+# --- tab IS Chrome's active tab (user-claimed foreground tab) -------------------
+t1  claimed  type 1 key 775 ms | type 12 keys 1660 ms | type 12 keys @default 1596 ms  -> all ok
+t2  claimed  type 1 key 1038 ms | type 12 keys 1716 ms | type 12 keys @default 1662 ms -> all ok
+f3  claimed  type 1 key 1308 ms | type 12 keys 1704 ms | type 12 keys @default 1678 ms -> all ok
+k1  claimed  per-key x12 [862,151,270,257,174,32,23,42,382,417,166,37] ms -> ok
+k2  claimed  per-key x12 [243,245,53,107,379,169,27,27,215,60,102,158] ms -> ok
+#
+# --- tab is NOT Chrome's active tab --------------------------------------------
+# agent-owned tab: the relay creates it with chrome.tabs.create({ active: false })
+f4  agent    type 1 key 6108 ms | type 12 keys FAIL 120399 ms (pressSequentially timeout)
+             | type 12 keys @default FAIL 5940 ms       [fill ok 1165 ms, evaluate ok 57 ms]
+k3  agent    type 1 key 6045 ms | type 12 keys FAIL 120692 ms | @default FAIL 5539 ms
+             | click+type FAIL 6237 ms                   [fill ok 974 ms, evaluate ok 236 ms]
+k4  agent    type 1 key 6180 ms | type 12 keys FAIL 120714 ms | @default FAIL 5641 ms
+             | click+type FAIL 6564 ms
+             page state during the stall: {"hasFocus":true,"active":"password","visibility":"visible"}
+             PUT /json/activate/<target> -> 200  (Chrome's own endpoint, not the relay)
+             type 12 keys @default AFTER activation -> ok 2285 ms
+# inverse experiment: a foreground claimed tab pushed into the background
+k5  claimed  opened+activated another tab (PUT /json/new) -> claimed tab no longer active
+             type 1 key 22647 ms | type 12 keys FAIL 120454 ms | @default FAIL 5525 ms
+             | click+type FAIL 6950 ms
+             PUT /json/activate/<claimed target> -> 200
+             type 12 keys @default AFTER activation -> ok 2284 ms
+#
+# Model-driven smoke on this head (repo's own harness, headless, agent tab):
+#   the model hit "pressSequentially: Timeout 5000ms exceeded" with only 2 of 13
+#   characters typed, diagnosed it as ~769 ms/key, and finished the run only after
+#   passing timeoutMs: 120000 to every later type(); the 14-char checkout form took ~90 s.
+#
+# Discarded as a rig artifact: one earlier run (f2) showed 29.7 s for a single key
+# while Chrome's password-leak modal was up. The repo's own managed-chrome harness
+# disables that modal through profile preferences; after doing the same in this rig
+# the outlier did not recur, and the runs above have it disabled.
