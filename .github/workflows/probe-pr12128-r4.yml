@@ -1,0 +1,275 @@
+# PROBE ONLY — round 4, regenerated from PR 12128 head 35b166918f.
+# The download / retry / announce steps are byte-for-byte the PR's
+# e2e-test-macos block (sha256 of the slice is printed by the generator and
+# re-derived in the Verdict job). The surrounding steps only cut the runner's
+# route to the artifact service for the FIRST attempt and restore it before
+# the retry, so the real action meets a real network failure, then the real
+# service.
+name: 'PR 12128 download-retry probe R4'
+
+on:
+  push:
+    branches:
+      - 'probe/pr12128-r4**'
+  workflow_dispatch: {}
+
+jobs:
+  seed:
+    name: 'Seed the e2e-build artifact'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Make a stand-in payload at the real archive path'
+        run: |-
+          mkdir -p "${RUNNER_TEMP}/seed"
+          head -c 4194304 /dev/urandom >"${RUNNER_TEMP}/seed/e2e-build.tar.gz"
+
+      - name: 'Upload build artifact'
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/seed/e2e-build.tar.gz'
+          if-no-files-found: 'error'
+          compression-level: 0
+          retention-days: 1
+
+  leg_a3_transient_absorbed:
+    name: 'A3 · real network failure on attempt 1, retry recovers'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 20
+    needs:
+      - 'seed'
+    steps:
+      - name: 'Checkout (for the local probe action)'
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # v4.3.0
+
+      - name: 'Learn the real artifact service host'
+        uses: './.github/actions/probe-dump'
+
+      - name: 'Cut the runner off from the artifact service (connection refused)'
+        run: |-
+          set -euo pipefail
+          sudo cp /etc/hosts /tmp/hosts.orig
+          {
+            echo "127.0.0.1 ${PROBE_RESULTS_HOST}"
+            for n in $(seq 1 40); do echo "127.0.0.1 productionresultssa${n}.blob.core.windows.net"; done
+          } | sudo tee -a /etc/hosts >/dev/null
+          echo "blackholed ${PROBE_RESULTS_HOST} and productionresultssa1..40.blob.core.windows.net -> 127.0.0.1"
+          getent ahosts "${PROBE_RESULTS_HOST}" | head -2
+
+      - name: 'Download build artifact'
+        id: 'download-build'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        continue-on-error: true
+        timeout-minutes: 10
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      - name: 'Restore the route before the retry'
+        if: "${{ always() }}"
+        run: |-
+          set -uo pipefail
+          sudo cp /tmp/hosts.orig /etc/hosts
+          getent ahosts "${PROBE_RESULTS_HOST}" | head -2
+
+      - name: 'Download build artifact (retry)'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      # An absorbed download stall leaves the leg green, so the main-CI
+      # failure tracker never records it — the warning annotation keeps the
+      # recurrence countable, mirroring the build job's upload announce.
+      - name: 'Announce absorbed download failure'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        run: |-
+          echo "::warning::Download build artifact failed its first attempt and the retry absorbed it — count this toward the #12125 download-stall recurrence watch."
+
+      - name: 'Observe the runner-side truth'
+        if: "${{ always() }}"
+        run: |-
+          echo "outcome=${{ steps.download-build.outcome }}"
+          echo "conclusion=${{ steps.download-build.conclusion }}"
+          test -f "${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz" \
+            && echo "PAYLOAD-PRESENT $(wc -c <"${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz") bytes" \
+            || echo "PAYLOAD-ABSENT"
+
+  leg_b3_hang_timeboxed:
+    name: 'B3 · attempt 1 hangs, the time-box makes it retryable'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 20
+    needs:
+      - 'seed'
+    steps:
+      - name: 'Checkout (for the local probe action)'
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # v4.3.0
+
+      - name: 'Learn the real artifact service host'
+        uses: './.github/actions/probe-dump'
+
+      - name: 'Cut the runner off from the artifact service (blackholed)'
+        run: |-
+          set -euo pipefail
+          sudo cp /etc/hosts /tmp/hosts.orig
+          {
+            echo "192.0.2.1 ${PROBE_RESULTS_HOST}"
+            for n in $(seq 1 40); do echo "192.0.2.1 productionresultssa${n}.blob.core.windows.net"; done
+          } | sudo tee -a /etc/hosts >/dev/null
+          echo "blackholed ${PROBE_RESULTS_HOST} and productionresultssa1..40.blob.core.windows.net -> 192.0.2.1"
+          getent ahosts "${PROBE_RESULTS_HOST}" | head -2
+
+      - name: 'Download build artifact'
+        id: 'download-build'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        continue-on-error: true
+        timeout-minutes: 2
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      - name: 'Restore the route before the retry'
+        if: "${{ always() }}"
+        run: |-
+          set -uo pipefail
+          sudo cp /tmp/hosts.orig /etc/hosts
+          getent ahosts "${PROBE_RESULTS_HOST}" | head -2
+
+      - name: 'Download build artifact (retry)'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      # An absorbed download stall leaves the leg green, so the main-CI
+      # failure tracker never records it — the warning annotation keeps the
+      # recurrence countable, mirroring the build job's upload announce.
+      - name: 'Announce absorbed download failure'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        run: |-
+          echo "::warning::Download build artifact failed its first attempt and the retry absorbed it — count this toward the #12125 download-stall recurrence watch."
+
+      - name: 'Observe the runner-side truth'
+        if: "${{ always() }}"
+        run: |-
+          echo "outcome=${{ steps.download-build.outcome }}"
+          echo "conclusion=${{ steps.download-build.conclusion }}"
+          test -f "${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz" \
+            && echo "PAYLOAD-PRESENT $(wc -c <"${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz") bytes" \
+            || echo "PAYLOAD-ABSENT"
+
+  leg_c_control:
+    name: 'C · control, nothing injected: retry and announce must skip'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 20
+    needs:
+      - 'seed'
+    steps:
+      - name: 'Download build artifact'
+        id: 'download-build'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        continue-on-error: true
+        timeout-minutes: 10
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      - name: 'Download build artifact (retry)'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'e2e-build'
+          path: '${{ runner.temp }}/e2e-build'
+
+      # An absorbed download stall leaves the leg green, so the main-CI
+      # failure tracker never records it — the warning annotation keeps the
+      # recurrence countable, mirroring the build job's upload announce.
+      - name: 'Announce absorbed download failure'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        run: |-
+          echo "::warning::Download build artifact failed its first attempt and the retry absorbed it — count this toward the #12125 download-stall recurrence watch."
+
+      - name: 'Observe the runner-side truth'
+        if: "${{ always() }}"
+        run: |-
+          echo "outcome=${{ steps.download-build.outcome }}"
+          echo "conclusion=${{ steps.download-build.conclusion }}"
+          test -f "${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz" \
+            && echo "PAYLOAD-PRESENT $(wc -c <"${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz") bytes" \
+            || echo "PAYLOAD-ABSENT"
+
+  leg_d_deterministic_missing:
+    name: 'D · artifact genuinely missing: both attempts fail, leg stays red'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 20
+    needs:
+      - 'seed'
+    steps:
+      - name: 'Download build artifact'
+        id: 'download-build'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        continue-on-error: true
+        timeout-minutes: 10
+        with:
+          name: 'e2e-build-never-uploaded'
+          path: '${{ runner.temp }}/e2e-build'
+
+      - name: 'Download build artifact (retry)'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'e2e-build-never-uploaded'
+          path: '${{ runner.temp }}/e2e-build'
+
+      # An absorbed download stall leaves the leg green, so the main-CI
+      # failure tracker never records it — the warning annotation keeps the
+      # recurrence countable, mirroring the build job's upload announce.
+      - name: 'Announce absorbed download failure'
+        if: "${{ steps.download-build.outcome == 'failure' }}"
+        run: |-
+          echo "::warning::Download build artifact failed its first attempt and the retry absorbed it — count this toward the #12125 download-stall recurrence watch."
+
+      - name: 'Observe the runner-side truth'
+        if: "${{ always() }}"
+        run: |-
+          echo "outcome=${{ steps.download-build.outcome }}"
+          echo "conclusion=${{ steps.download-build.conclusion }}"
+          test -f "${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz" \
+            && echo "PAYLOAD-PRESENT $(wc -c <"${RUNNER_TEMP}/e2e-build/e2e-build.tar.gz") bytes" \
+            || echo "PAYLOAD-ABSENT"
+
+  verdict:
+    name: 'Verdict'
+    runs-on: 'ubuntu-latest'
+    if: "${{ always() }}"
+    needs:
+      - 'leg_a3_transient_absorbed'
+      - 'leg_b3_hang_timeboxed'
+      - 'leg_c_control'
+      - 'leg_d_deterministic_missing'
+    steps:
+      - name: 'Checkout'
+        uses: 'actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955' # v4.3.0
+
+      - name: 'Re-derive the verbatim slice hash from the checked-out e2e.yml'
+        run: |-
+          python3 - <<'EOF'
+          import hashlib
+          t = open('.github/workflows/e2e.yml').read()
+          i = t.index("  e2e-test-macos:")
+          j = t.index("      - name: 'Download build artifact'", i)
+          k = t.index("      - name: 'Unpack build artifact'", j)
+          block = t[j:k].rstrip('\n') + '\n'
+          p = open('.github/workflows/probe-pr12128-r4.yml').read()
+          print('e2e.yml slice sha256 =', hashlib.sha256(block.encode()).hexdigest())
+          print('slice present verbatim in probe leg C:', block in p)
+          EOF
+
+      - name: 'Print the result matrix'
+        run: |-
+          echo "leg_a3=${{ needs.leg_a3_transient_absorbed.result }} (expected success)"
+          echo "leg_b3=${{ needs.leg_b3_hang_timeboxed.result }} (expected success)"
+          echo "leg_c=${{ needs.leg_c_control.result }} (expected success)"
+          echo "leg_d=${{ needs.leg_d_deterministic_missing.result }} (expected failure)"
