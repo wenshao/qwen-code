@@ -1,0 +1,67 @@
+M1-dedupe-gate: SURVIVED — Test Files  2 passed (2) | Tests  679 passed (679)
+M2-repair-suppression: SURVIVED — Test Files  2 passed (2) | Tests  679 passed (679)
+M3-replay-admission-gate: KILLED — Test Files  1 failed | 1 passed (2) | Tests  1 failed | 678 passed (679)
+    daemon/session/DaemonSessionProvider.test.tsx > DaemonSessionProvider > does not publish settlements when a first attach replays a finished turn
+M4-pre-publish-flush: SURVIVED — Test Files  2 passed (2) | Tests  679 passed (679)
+M5-bind-on-admission: KILLED — Test Files  1 failed | 1 passed (2) | Tests  3 failed | 676 passed (679)
+    daemon/session/DaemonSessionProvider.test.tsx > DaemonSessionProvider > publishes a settlement when a replayed terminal settles a bound prompt
+    daemon/session/DaemonSessionProvider.test.tsx > DaemonSessionProvider > publishes the replayed terminal when an epoch reset discards the binding
+    daemon/session/DaemonSessionProvider.test.tsx > DaemonSessionProvider > publishes a replayed cancelled terminal after the prompt was cancelled
+M6-unbind-on-publish: SURVIVED — Test Files  2 passed (2) | Tests  679 passed (679)
+M7-cancelled-outcome: NOT APPLIED — Error: anchor matched 0 times
+M8-listener-isolation: SURVIVED — Test Files  2 passed (2) | Tests  679 passed (679)
+M9-epoch-reset-cleanup: SURVIVED — Test Files  2 passed (2) | Tests  679 passed (679)
+M10-foreign-removal-guard: SURVIVED — Test Files  2 passed (2) | Tests  679 passed (679)
+M11-streaming-guard: SURVIVED — Test Files  1 passed (1) | Tests  13 passed (13)
+M12-subagent-exclusion: KILLED — Test Files  1 failed (1) | Tests  1 failed | 12 passed (13)
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > does not return subagent-owned assistant text as the turn answer
+M13-prompt-ownership: KILLED — Test Files  1 failed (1) | Tests  5 failed | 8 passed (13)
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > publishes this prompt its own final message while a later prompt streams
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > publishes this prompt its own final message past a finished unstamped sibling
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > publishes this prompt its own final message past an unstamped streaming sibling
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > gives two adjacent prompts their own messages, never a merged one
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > still publishes each turn its own message when a user echo separates them
+M14-insight-strip: KILLED — Test Files  1 failed (1) | Tests  3 failed | 10 passed (13)
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > skips a whitespace-only assistant block after a tool boundary
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > does not publish an insight payload-only block as the turn answer
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > strips insight frames from a glued final block
+M15-session-scope: KILLED — Test Files  1 failed (1) | Tests  1 failed | 12 passed (13)
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > omits the message for a settlement from another session
+M16-error-defaults: KILLED — Test Files  1 failed | 1 passed (2) | Tests  1 failed | 678 passed (679)
+    daemon/session/DaemonSessionProvider.test.tsx > DaemonSessionProvider > defaults the settlement error code when a turn_error frame omits it
+M17-stale-removal-unbind: KILLED — Test Files  1 failed | 1 passed (2) | Tests  1 failed | 678 passed (679)
+    daemon/session/actions.test.ts > createDaemonSessionActions > notifies prompt removal on the stale-session branch with the foreign session id
+M18-visible-text-helper: KILLED — Test Files  1 failed (1) | Tests  2 failed | 11 passed (13)
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > does not publish an insight payload-only block as the turn answer
+    assistant-turn-settlement.test.tsx > assistant turn settlement projection > strips insight frames from a glued final block
+
+=== matrix ===
+SURVIVED    M1-dedupe-gate  drop the published-key dedupe gate (one terminal may publish twice)
+SURVIVED    M2-repair-suppression  publish the live terminal even while a journal repair targets it
+KILLED      M3-replay-admission-gate  publish every replayed terminal, not only locally admitted prompts (history load stops being silent)
+SURVIVED    M4-pre-publish-flush  remove the flushTranscriptSync() that commits the terminal projection before hosts run
+KILLED      M5-bind-on-admission  never bind an admitted prompt (replay catch-up can no longer publish)
+SURVIVED    M6-unbind-on-publish  keep the admission key after publishing (stale key survives)
+NOT_APPLIED M7-cancelled-outcome  
+SURVIVED    M8-listener-isolation  let one throwing host listener break the delivery loop
+SURVIVED    M9-epoch-reset-cleanup  keep epoch-reset bound prompts after a fresh load reports none active
+SURVIVED    M10-foreign-removal-guard  let a foreign-session prompt removal mutate the current session stores
+SURVIVED    M11-streaming-guard  publish a still-streaming block as the settled answer
+KILLED      M12-subagent-exclusion  drop the subagent (parentToolCallId) exclusion
+KILLED      M13-prompt-ownership  drop the prompt-ownership term (a foreign turn's answer can win)
+KILLED      M14-insight-strip  publish raw block text instead of the rendered visible text (insight frames leak)
+KILLED      M15-session-scope  project a message for another session's terminal from this session's blocks
+KILLED      M16-error-defaults  drop the turn_error message/code defaults
+KILLED      M17-stale-removal-unbind  stop reporting stale-session prompt removals to the provider
+KILLED      M18-visible-text-helper  make assistantVisibleTextOf return payload-only frames as text
+DONE
+M7-cancelled-outcome: KILLED — Test Files  1 failed | 1 passed (2) | Tests  1 failed | 678 passed (679)
+    daemon/session/DaemonSessionProvider.test.tsx > DaemonSessionProvider > publishes a replayed cancelled terminal after the prompt was cancelled
+M19-error-stop-outcome: SURVIVED — Test Files  2 passed (2) | Tests  679 passed (679)
+M20-stopreason-default: SURVIVED — Test Files  2 passed (2) | Tests  679 passed (679)
+
+=== matrix ===
+KILLED      M7-cancelled-outcome  report a cancelled turn as completed (outcome mapping)
+SURVIVED    M19-error-stop-outcome  report a stopReason 'error' turn as completed
+SURVIVED    M20-stopreason-default  drop the end_turn default for a terminal with no stopReason
+DONE
