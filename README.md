@@ -29,3 +29,9 @@ with working unprivileged bubblewrap.
 | `imgs/07-aarch64-02-bwrap-verifier.png` | standalone verifier 34/36 on head; both reds attributed to this host (no CONFIG_PROC_CHILDREN; bwrap 0.8.0 namespace teardown) |
 | `imgs/07-aarch64-03-structured-launch.png` | structured launch harness: literal argv, exact env, binary stdin round-trip, validation rejections |
 | `imgs/07-aarch64-04-standin-retention-matrix.png` | round-2 "payload did not run" finding re-measured at `cb79dc40`: real relay + finalizer driven by a stand-in bwrap whose payload provably runs — 35/35 |
+## Round 4 — head `ebd3e25cf29504e2ed3ebe9600bcb5e9cf0bc92a` (aarch64, kernel 6.6.89-cix, bubblewrap 0.8.0, Node v24.14.0)
+
+| image | what it shows |
+| --- | --- |
+| `imgs/08-aarch64-round4-verifier.png` | verifier 35/36 at the new head; the bwrap-version-sensitive promoted-settlement scenario is now the portable "shared promotion" probe and passes; the one remaining red needs CONFIG_PROC_CHILDREN (absent on this kernel) |
+| `imgs/09-aarch64-round4-standin-matrix.png` | receipt/retention decision matrix re-run at the new head: 35/35, identical to cb79dc40 |
