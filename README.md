@@ -20,3 +20,11 @@ with working unprivileged bubblewrap.
 | --- | --- |
 | `imgs/05-round2-verifier-leak.png` | the round-1 leak is fixed; the verifier is still 33/34 on a different, stale assertion |
 | `imgs/06-retention-matrix.png` | retention decision matrix from a real relay + real finalizer with a stand-in bwrap, and the measured fix |
+
+## Round 3 — head `cb79dc40d54f39b3257dee7e5c1cfb47c888662c` (aarch64, kernel 6.6.89-cix, bubblewrap 0.8.0, Node v24.14.0)
+
+| image | what it shows |
+| --- | --- |
+| `imgs/07-aarch64-01-ab-stream-settle.png` | streamStdout A/B: base settles at exit and loses trailing output; head keeps it and the 1s drain fence prevents the grandchild wedge |
+| `imgs/07-aarch64-02-bwrap-verifier.png` | standalone verifier 34/36 on head; both reds attributed to this host (no CONFIG_PROC_CHILDREN; bwrap 0.8.0 namespace teardown) |
+| `imgs/07-aarch64-03-structured-launch.png` | structured launch harness: literal argv, exact env, binary stdin round-trip, validation rejections |
