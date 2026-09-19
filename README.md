@@ -19,3 +19,12 @@ Follow-up screenshots for PR #12252, implementation commit `462b9836f2d343eb4eca
 - `pr-12252/history-previous-240.png`: native composer-element capture at 240px, showing the editing controls wrapping without overflow.
 
 The earlier before, Add drawer, and expanded-editor screenshots are retained.
+
+## Review follow-up
+
+Original browser screenshots for PR #12252 at implementation `71df8f08d185ea647b8f0021ca56560f6ad6ed22`, captured from built Web Shell assets with deterministic mock daemon routes and Chromium touch emulation (390×844). No pixel editing or compositing.
+
+- `pr-12252/review-expanded-paste.png`: native expanded-dialog screenshot while a long paste is already accepted as one attachment; the dialog stays open.
+- `pr-12252/review-commands.png`: native command-drawer screenshot showing a slash-prefixed query and shared command argument hints.
+
+Earlier before/after and history-navigation screenshots are preserved.
