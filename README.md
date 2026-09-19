@@ -28,3 +28,4 @@ with working unprivileged bubblewrap.
 | `imgs/07-aarch64-01-ab-stream-settle.png` | streamStdout A/B: base settles at exit and loses trailing output; head keeps it and the 1s drain fence prevents the grandchild wedge |
 | `imgs/07-aarch64-02-bwrap-verifier.png` | standalone verifier 34/36 on head; both reds attributed to this host (no CONFIG_PROC_CHILDREN; bwrap 0.8.0 namespace teardown) |
 | `imgs/07-aarch64-03-structured-launch.png` | structured launch harness: literal argv, exact env, binary stdin round-trip, validation rejections |
+| `imgs/07-aarch64-04-standin-retention-matrix.png` | round-2 "payload did not run" finding re-measured at `cb79dc40`: real relay + finalizer driven by a stand-in bwrap whose payload provably runs — 35/35 |
