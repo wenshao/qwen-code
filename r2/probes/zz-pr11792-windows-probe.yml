@@ -1,0 +1,199 @@
+name: 'PR 11792 Windows probe'
+
+# Maintainer verification rig for PR #11792. The repository's `test_windows`
+# lane runs only on merge_group / schedule / workflow_dispatch, so a PR never
+# gets a real Windows result; this branch-scoped workflow buys one on a hosted
+# windows-2022 runner. Push-triggered on purpose: workflow_dispatch would have
+# to live on the fork's default branch first.
+on:
+  push:
+    branches:
+      - 'probe/pr11792-**'
+
+permissions:
+  contents: 'read'
+
+defaults:
+  run:
+    shell: 'bash'
+
+jobs:
+  probe:
+    name: 'qwen-live suites on real Windows'
+    runs-on: 'windows-2022'
+    timeout-minutes: 90
+    steps:
+      - name: 'Checkout'
+        uses: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10' # v6.0.3
+        with:
+          fetch-depth: 0
+
+      # Verbatim from ci.yml's test_windows: hosted runners expose TEMP through
+      # an 8.3 short alias, which breaks suites that compare real paths.
+      - name: 'Point temp at a short-alias-free directory'
+        shell: 'powershell'
+        run: |-
+          $temp = Join-Path $env:RUNNER_WORKSPACE 'qwen-code-temp'
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+          "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "TEMP set to $temp"
+
+      - name: 'Set up Node.js 22.x'
+        uses: 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e' # v6.4.0
+        with:
+          node-version: '22.x'
+          package-manager-cache: false
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: 'Cache pnpm store'
+        uses: './.github/actions/pnpm-store-cache'
+
+      - name: 'Configure npm for rate limiting'
+        run: |-
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          npm config set fetch-retries 5
+          npm config set fetch-timeout 300000
+
+      # ci.yml runs this without a fallback, but its Windows lane lands on the
+      # ECS pool; on a hosted runner the workspace `prepare` build trips the
+      # packages/web-templates document-export size budget (1931934 > 1930000),
+      # which is unrelated to this PR and to qwen-live. Dependency resolution
+      # and linking finish before `prepare` runs, so keep going and assert the
+      # tree is usable instead.
+      - name: 'Install dependencies'
+        run: |-
+          set +e
+          corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+          echo "INSTALL_RC=$?"
+          set -e
+          node -e "console.log('vitest at', require.resolve('vitest/package.json'))"
+          test -d packages/qwen-live/node_modules || echo 'no package-level node_modules (hoisted layout)'
+
+      - name: 'Fetch the arm commits from upstream'
+        run: |-
+          for sha in 9eeacf9e08176e80263eecf4003c5cf2668d94e0 70edbf475e322d8b9e2d85fe63ff60a8668b5348; do
+            if ! git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 https://github.com/QwenLM/qwen-code.git "${sha}"
+            fi
+            git cat-file -e "${sha}^{commit}"
+            echo "have ${sha}"
+          done
+
+      - name: 'Record the runner'
+        run: |-
+          node -e "console.log(JSON.stringify({platform: process.platform, release: require('node:os').release(), version: process.version, cpus: require('node:os').cpus().length, tmpdir: require('node:os').tmpdir()}))"
+
+      - name: 'Run the three arms'
+        env:
+          NO_COLOR: 'true'
+          HOME: '${{ runner.temp }}/qwen-ci-home'
+          USERPROFILE: '${{ runner.temp }}/qwen-ci-home'
+          OPENAI_API_KEY: ''
+          DASHSCOPE_API_KEY: ''
+          QWEN_API_KEY: ''
+          GEMINI_API_KEY: ''
+          QWEN_DEFAULT_AUTH_TYPE: ''
+          # PRE  = main immediately before #11787 ("restore Windows test baseline")
+          # MAIN = origin/main at the time of this probe
+          # MERGE = this branch = main + PR #11792 merged
+          PRE_SHA: '9eeacf9e08176e80263eecf4003c5cf2668d94e0'
+          MAIN_SHA: '70edbf475e322d8b9e2d85fe63ff60a8668b5348'
+          # Round-13 review claims main's nightly Windows lane still fails on
+          # this file, outside this PR. Measure it on the same runner.
+          CORE_NIGHTLY_SUSPECT: 'src/utils/git-remotes-kill.test.ts'
+        run: |-
+          set -u
+          node -e "const fs = require('node:fs'); for (const key of ['HOME', 'USERPROFILE']) { const dir = process.env[key]; if (dir) fs.mkdirSync(dir, { recursive: true }); }"
+          git config --global core.autocrlf false
+          mkdir -p probe-out
+          MERGE_SHA="$(git rev-parse HEAD)"
+
+          run_arm() {
+            arm="$1"
+            sha="$2"
+            echo "::group::arm ${arm} (${sha})"
+            # `git checkout <sha> -- <path>` never deletes files absent from
+            # <sha>, so wipe the package first: otherwise private-directory.ts
+            # would survive into the PRE/MAIN arms and their suites would run
+            # against a tree that exists in no commit.
+            for entry in packages/qwen-live/*; do
+              case "${entry}" in
+                */node_modules) continue ;;
+              esac
+              rm -rf "${entry}"
+            done
+            git checkout "${sha}" -- packages/qwen-live
+            if git diff --quiet "${sha}" -- packages/qwen-live; then
+              echo "ARM_VERIFIED ${arm} tree matches ${sha}"
+            else
+              echo "ARM_MISMATCH ${arm} does not match ${sha}"
+              git diff --stat "${sha}" -- packages/qwen-live | tail -20
+              exit 1
+            fi
+            set +e
+            ( cd packages/qwen-live && node ../../node_modules/vitest/vitest.mjs run \
+                --reporter=default --reporter=json \
+                --outputFile.json="../../probe-out/${arm}.json" ) \
+              > "probe-out/${arm}.txt" 2>&1
+            rc=$?
+            set -e
+            echo "ARM_RC ${arm} ${rc}"
+            tail -40 "probe-out/${arm}.txt"
+            echo "::endgroup::"
+          }
+
+          run_arm merge "${MERGE_SHA}"
+          run_arm main "${MAIN_SHA}"
+          run_arm pre "${PRE_SHA}"
+
+          # Independent of the arms: is main's Windows lane still red outside
+          # packages/qwen-live? Run the file the round-13 review names, on the
+          # branch tree (whose packages/core is current main's).
+          echo "::group::core nightly suspect"
+          set +e
+          ( cd packages/core && node ../../node_modules/vitest/vitest.mjs run \
+              "${CORE_NIGHTLY_SUSPECT}" --reporter=default ) \
+            > probe-out/core-suspect.txt 2>&1
+          echo "CORE_SUSPECT_RC $?"
+          set -e
+          tail -30 probe-out/core-suspect.txt
+          echo "::endgroup::"
+
+          # Restore the branch tree so nothing downstream sees a spliced package.
+          for entry in packages/qwen-live/*; do
+            case "${entry}" in
+              */node_modules) continue ;;
+            esac
+            rm -rf "${entry}"
+          done
+          git checkout "${MERGE_SHA}" -- packages/qwen-live
+
+          node -e "
+            const fs = require('node:fs');
+            for (const arm of ['merge', 'main', 'pre']) {
+              const path = 'probe-out/' + arm + '.json';
+              if (!fs.existsSync(path)) { console.log('PROBE_JSON ' + JSON.stringify({arm, missing: true})); continue; }
+              const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+              const files = report.testResults ?? [];
+              const failures = [];
+              let passed = 0, failed = 0, skipped = 0;
+              for (const file of files) {
+                for (const test of file.assertionResults ?? []) {
+                  if (test.status === 'passed') passed++;
+                  else if (test.status === 'failed') { failed++; failures.push({file: file.name.replace(/^.*qwen-live[\\\\/]/, ''), title: test.fullName, message: (test.failureMessages ?? [])[0]?.split('\n')[0] ?? ''}); }
+                  else skipped++;
+                }
+              }
+              console.log('PROBE_JSON ' + JSON.stringify({arm, files: files.length, passed, failed, skipped, failures: failures.slice(0, 60)}));
+            }
+          " | tee probe-out/summary.txt
+
+      - name: 'Upload probe output'
+        if: 'always()'
+        uses: 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' # v4.6.2
+        with:
+          name: 'pr11792-windows-probe'
+          path: 'probe-out'
+          retention-days: 7
