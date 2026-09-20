@@ -56,9 +56,30 @@ jobs:
           npm config set fetch-retries 5
           npm config set fetch-timeout 300000
 
+      # ci.yml runs this without a fallback, but its Windows lane lands on the
+      # ECS pool; on a hosted runner the workspace `prepare` build trips the
+      # packages/web-templates document-export size budget (1931934 > 1930000),
+      # which is unrelated to this PR and to qwen-live. Dependency resolution
+      # and linking finish before `prepare` runs, so keep going and assert the
+      # tree is usable instead.
       - name: 'Install dependencies'
         run: |-
+          set +e
           corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+          echo "INSTALL_RC=$?"
+          set -e
+          node -e "console.log('vitest at', require.resolve('vitest/package.json'))"
+          test -d packages/qwen-live/node_modules || echo 'no package-level node_modules (hoisted layout)'
+
+      - name: 'Fetch the arm commits from upstream'
+        run: |-
+          for sha in 9eeacf9e08176e80263eecf4003c5cf2668d94e0 8589f713319808f19ed6dbdcfc62e26cd5e83b8d; do
+            if ! git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 https://github.com/QwenLM/qwen-code.git "${sha}"
+            fi
+            git cat-file -e "${sha}^{commit}"
+            echo "have ${sha}"
+          done
 
       - name: 'Record the runner'
         run: |-
