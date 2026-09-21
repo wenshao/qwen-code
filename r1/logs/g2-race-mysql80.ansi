@@ -1,0 +1,20 @@
+[1;36m### mysql80: 8 JVMs x 8 threads, barrier start, 20 scopes, 10s churn (run r1789987551)[0m
+Phase A  findOrCreate calls returned : 1280  (expected 1280)
+Phase A  distinct (scope,binding,gen)  : 20  (expected 20 = one binding per scope, all generation 1)
+Phase A  generations seen              : 1 
+Phase A  JVMs that won a creation      : w4:8 w5:12 
+Phase B  claim granted / fenced        : 1 / 63  (expected 1 / 63)
+Phase B  winner                        : CLAIM w4-t2 1
+Phase C  totals across all JVMs:
+       6010   C-claim-fenced
+        218   C-claim-granted
+       6228   C-findOrCreate
+        218   C-released
+DB invariants after the run:
+   slots=23 sum(last_generation)=238 bindings=238  (must be equal: every generation is one row)
+   slots with active binding=20 active bindings=20  (must be equal)
+   scopes with >1 active                            = 0
+   scopes with generation gap/dup                   = 0
+   slots pointing at a missing/terminal binding     = 0
+   active bindings not referenced by their slot     = 0
+   INVARIANTS: PASS

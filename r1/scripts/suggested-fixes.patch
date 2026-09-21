@@ -1,0 +1,70 @@
+diff --git a/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositorySupport.java b/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositorySupport.java
+index 8090fbe987..4cdb375f2b 100644
+--- a/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositorySupport.java
++++ b/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositorySupport.java
+@@ -62,13 +62,16 @@ final class JdbcRepositorySupport {
+ 
+     static Instant databaseNow(Connection connection) throws SQLException {
+         try (PreparedStatement statement = connection.prepareStatement(
+-                "SELECT CURRENT_TIMESTAMP")) {
++                "SELECT UNIX_TIMESTAMP(CURRENT_TIMESTAMP(6))")) {
+             try (ResultSet result = statement.executeQuery()) {
+                 if (!result.next()) {
+                     throw new SQLException("database returned no clock row");
+                 }
+-                return result.getTimestamp(1, utcCalendar()).toInstant()
+-                        .truncatedTo(ChronoUnit.MICROS);
++                long micros = result.getBigDecimal(1).movePointRight(6)
++                        .longValueExact();
++                return Instant.ofEpochSecond(
++                        Math.floorDiv(micros, 1_000_000L),
++                        Math.floorMod(micros, 1_000_000L) * 1_000L);
+             }
+         }
+     }
+@@ -108,7 +111,7 @@ final class JdbcRepositorySupport {
+             } catch (SQLException exception) {
+                 rollback(connection, exception);
+                 throw failure(exception);
+-            } catch (RuntimeException exception) {
++            } catch (RuntimeException | Error exception) {
+                 rollback(connection, exception);
+                 throw exception;
+             } finally {
+@@ -170,7 +173,7 @@ final class JdbcRepositorySupport {
+     }
+ 
+     private static void rollback(Connection connection,
+-            Exception original) {
++            Throwable original) {
+         try {
+             connection.rollback();
+         } catch (SQLException rollbackFailure) {
+diff --git a/src/main/resources/com/alibaba/qwen/code/runtimebroker/schema.sql b/src/main/resources/com/alibaba/qwen/code/runtimebroker/schema.sql
+index ba08f519bd..4694a57dd9 100644
+--- a/src/main/resources/com/alibaba/qwen/code/runtimebroker/schema.sql
++++ b/src/main/resources/com/alibaba/qwen/code/runtimebroker/schema.sql
+@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS qwen_runtime_binding_slot (
+     isolation_key VARCHAR(512),
+     last_generation BIGINT NOT NULL,
+     active_binding_id VARCHAR(512)
+-);
++) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;
+ 
+ CREATE TABLE IF NOT EXISTS qwen_runtime_binding (
+     binding_id VARCHAR(512) PRIMARY KEY,
+@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS qwen_runtime_binding (
+         UNIQUE (request_key, runtime_generation),
+     INDEX idx_runtime_binding_scope
+         (scope_key, isolation_key, binding_state)
+-);
++) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;
+ 
+ CREATE TABLE IF NOT EXISTS qwen_runtime_session (
+     scope_key CHAR(64) NOT NULL,
+@@ -61,4 +61,4 @@ CREATE TABLE IF NOT EXISTS qwen_runtime_session (
+     PRIMARY KEY (scope_key, runtime_session_id),
+     INDEX idx_runtime_session_binding
+         (binding_id, runtime_generation, session_state)
+-);
++) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;

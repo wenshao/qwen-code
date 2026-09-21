@@ -1,0 +1,18 @@
+[1;36m### Scenario 1 - live lease is taken over (mutual exclusion lost)[0m
+[1;36m$ broker A (session UTC): claim a 30-minute lease[0m
+  owner-A claimOperation(1800s) -> GRANTED owner=owner-A operationGeneration=1 leaseUntil=2026-09-21T11:04:00.153088Z (real now=2026-09-21T10:34:00.159031292Z)
+[1;36m$ broker B (session +08:00), 1 second later: claim the same binding[0m
+  owner-B claimOperation(1800s) -> null (fenced / rejected)
+[1;36m$ broker A: renew the lease it was granted a moment ago[0m
+  owner-A renewOperation(gen=1) -> GRANTED owner=owner-A operationGeneration=1 leaseUntil=2026-09-21T11:04:00.959722Z (real now=2026-09-21T10:34:00.971248775Z)
+
+[1;36m### Scenario 2 - expired lease cannot be taken over (liveness lost)[0m
+[1;36m$ broker B (session +08:00): claim a 3-second lease, then 'crash'[0m
+  owner-B claimOperation(3s) -> GRANTED owner=owner-B operationGeneration=1 leaseUntil=2026-09-21T10:34:04.359439Z (real now=2026-09-21T10:34:01.364292538Z)
+[1;36m$ sleep 6   # lease expired 3 seconds ago in real time[0m
+[1;36m$ broker A (session UTC): take over the expired lease[0m
+  owner-A claimOperation(1800s) -> GRANTED owner=owner-A operationGeneration=2 leaseUntil=2026-09-21T11:04:07.753079Z (real now=2026-09-21T10:34:07.764406816Z)
+
+[1;36m### Control - both brokers on the plain URL[0m
+  owner-A claimOperation(1800s) -> GRANTED owner=owner-A operationGeneration=1 leaseUntil=2026-09-21T11:04:08.173229Z (real now=2026-09-21T10:34:08.178032981Z)
+  owner-B claimOperation(1800s) -> null (fenced / rejected)
