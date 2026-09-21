@@ -1,0 +1,18 @@
+[1mIs "the current session is protected by name" actually load-bearing?[0m
+[2mA live session keeps appending, so its mtime stays fresh and the name guard never fires.[0m
+[2mTo reach it: chmod 0444 the live log (appends now fail), then set its mtime to 60 days ago.[0m
+[2mBoth arms run the SAME production bundle. The mutant differs by one token in dist/chunks:[0m
+[2m      excludeSessionIds: new Set([currentSessionId])   ->   new Set([])[0m
+
+  arm                                 the running session's own debug log, after the sweep
+  ──────────────────────────────────  ────────────────────────────────────────────────────
+  HEAD  (PR as written)               [32m 17394 B   mtime 2026-07-23   intact ✓[0m
+  HEAD  minus the name guard          [31m   252 B   mtime 2026-09-21   unlinked, then re-created ✗[0m
+
+[2m  Without the guard the running session lost 17 KB of diagnostics: the sweep unlinked the[0m
+[2m  file and the next appendFile() silently started an empty one. With it, nothing happens.[0m
+
+[1mA side effect the PR description does not mention: `latest` can dangle[0m
+  after the sweep:  latest -> 44444444-4444-4444-8444-444444444444.txt   [33mdangling = yes[0m
+[2m  bundled /stuck skill, step 1: read "$RUNTIME_DIR"/debug/latest first.[0m
+[2m  Any new debug-logging session re-points the alias, so the window is narrow — but real.[0m

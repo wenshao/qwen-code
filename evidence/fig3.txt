@@ -1,0 +1,29 @@
+[1mScale + mutation evidence[0m
+
+[36m  1.  read-only dry run over this maintainer's real ~/.qwen/debug (predicate lifted verbatim[0m
+[36m      from the PR's own source, nothing deleted)[0m
+        10 726 entries · 10 721 valid <sessionId>.txt · 2 dirs (daemon, daemon-dev) · 3 strays
+        at cleanupPeriodDays = 30 → [32m6 622 files would be removed[0m · 4 099 kept (74.2 MiB)
+[2m        99.95 % of what the real writer produced passes the PR's validator; the 3 skipped[0m
+[2m        files are hand-made probe fixtures, not session logs.[0m
+
+[36m  2.  the real compiled cleanupOldDebugLogs against a 10 702-entry corpus[0m
+        as written (SWEEP_CONCURRENCY = 20)       [32mremoved 6 600   errors 0   428 ms[0m
+        loop stride enlarged (first batch only)   [31mremoved    14   errors 0    23 ms[0m[2m  ← silent[0m
+        fully unbounded concurrency                 removed 6 600   errors 0   351 ms
+[2m        The stride mutant under-deletes by 99.8 % and still reports errors = 0. No test in[0m
+[2m        the PR uses more than one batch, so that mutant survives the suite (M15 below).[0m
+
+[36m  3.  mutation matrix over the two new suites (63 tests)[0m
+        [32m10 killed[0m   [33m6 survived[0m   (of 16 effective mutants)
+
+        [33mSURVIVED[0m  M1   drop the isFile() guard (symlinks/dirs become sweep candidates)
+        [33mSURVIVED[0m  M2   drop the .txt suffix guard
+        [33mSURVIVED[0m  M13  scheduler passes a validator that accepts everything
+        [33mSURVIVED[0m  M6   boundary: < becomes <=
+        [33mSURVIVED[0m  M8   a concurrent delete (ENOENT) is counted as an error
+        [33mSURVIVED[0m  M15  loop stride enlarged — only the first 20 candidates are ever visited
+
+[2m        M1 / M6 / M8 are equivalent against any real debug dir (no *.txt directory or symlink[0m
+[2m        exists, mtime equality is measure-zero, ENOENT is a race). M2 / M13 / M15 are genuine[0m
+[2m        fixture gaps. None of the six is a defect in the shipped code.[0m
