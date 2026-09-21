@@ -38,6 +38,19 @@ if v == 'cand':
         "      });\n"
         "      await vi.waitFor(() => expect(bridge.sessionCount).toBe(0));\n\n"
         "      await bridge.shutdown();")
+elif v == 'ctrl':
+    # keep the legacy (non-negotiated) fixture; drop the counter that cannot
+    # move there; add the end_turn positive control
+    sub("      expect(conditionalCloseCalls).toBe(0);\n      expect(bridge.sessionCount).toBe(1);\n\n      await bridge.shutdown();",
+        "      expect(bridge.sessionCount).toBe(1);\n\n"
+        "      await handle.agentConnection.extNotification('_qwencode/end_turn', {\n"
+        "        sessionId: session.sessionId,\n"
+        "        source: 'background_notification',\n"
+        "        reason: 'end_turn',\n"
+        "        turnId: admittedBackgroundTurn.turnId,\n"
+        "      });\n"
+        "      await vi.waitFor(() => expect(bridge.sessionCount).toBe(0));\n\n"
+        "      await bridge.shutdown();")
 elif v == 'reap0':
     sub("        sessionReapIntervalMs: 10,\n        sessionIdleTimeoutMs: 10,\n      });\n      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });\n      await expect(",
         "        sessionReapIntervalMs: 0,\n        sessionIdleTimeoutMs: 10,\n      });\n      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });\n      await expect(")
