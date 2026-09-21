@@ -320,6 +320,26 @@ public final class PlanMatrixProbe2 {
                 row("OWN-UNKNOWN", "BLOCKED", "lease holder's withUnknown() refused (" + e.getMessage() + ")");
             }
         });
+        guard("KEEP-UNKNOWN", () -> {             // lease holder marks UNKNOWN but keeps its claim, lease then ends
+            MClock clock = new MClock();
+            InMemoryToolExecutionRepository repo = new InMemoryToolExecutionRepository(clock);
+            repo.findOrCreate(prepared("keep"));
+            ToolExecutionRecord v1 = repo.claimDispatch("keep", "owner-a", LEASE);
+            ToolExecutionRecord u = cas(repo, v1, v1.withState(State.UNKNOWN, false), "owner-a", 1);
+            ToolExecutionRecord renew = repo.renewDispatch("keep", "owner-a", 1, LEASE);
+            clock.adv(31);
+            String how = "withState(UNKNOWN) kept owner=" + u.getDispatchOwner() + ", renew=" + d(renew)
+                    + ", lease ended";
+            try {
+                ToolExecutionRecord r = resolve(repo, "keep", u.getDispatchGeneration(), "owner-a", clock.instant());
+                row("KEEP-UNKNOWN", "ok", how + " -> resolved " + d(r) + "; session active="
+                        + repo.hasActiveByRuntimeSession("session"));
+            } catch (Refused e) {
+                clock.adv(3600);
+                row("KEEP-UNKNOWN", "STUCK", how + " -> resolution refused (" + e.getMessage()
+                        + "); 1h later session active=" + repo.hasActiveByRuntimeSession("session"));
+            }
+        });
         guard("R1-3b1", () -> {                   // host requests cancel; owner then erases it
             InMemoryToolExecutionRepository repo = new InMemoryToolExecutionRepository(new MClock());
             repo.findOrCreate(prepared("k3b"));

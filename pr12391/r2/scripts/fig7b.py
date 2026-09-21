@@ -31,7 +31,8 @@ groups = [
   ]),
   ('The UNKNOWN lifecycle', [
     ('OWN-UNKNOWN', "lease holder records an ambiguous outcome: withUnknown()"),
-    ('LIVE', 'an UNKNOWN execution can be resolved: resolveUnknown()'),
+    ('KEEP-UNKNOWN', 'claim kept via withState(UNKNOWN), resolved after lease end'),
+    ('LIVE', 'UNKNOWN from a takeover can be resolved: resolveUnknown()'),
   ]),
   ('Controls and smaller notes', [
     ('CTL', 'owner claim/renew/settle + host cancel still work'),
@@ -41,7 +42,7 @@ groups = [
     ('NOTE-ctor', '20-argument constructor no longer public'),
   ]),
 ]
-W = 58
+W = 60
 print(f"{B}{CY}Your plan as of 12:56 (10:52 comment + inline replies), implemented literally, against the same probes{R}")
 print(f"{D}head = 9fcc065 · plan = fenced CAS, requestCancel, takeover->UNKNOWN, 3 transition rules, preserve-or-advance claim,{R}")
 print(f"{D}       lastSequence monotonic, Number allowlist, package-private 20-arg ctor, R1 notes  (+92/-13){R}")
@@ -59,6 +60,7 @@ print()
 defects = [rid for g in groups[:3] for rid, _ in g[1]]
 closed = lambda a: sum(1 for rid in defects if arms[a][rid] == 'closed')
 print(f"  defect rows closed: head {closed('head')}/{len(defects)} · plan {closed('L2')}/{len(defects)} · plan +3 {closed('C2')}/{len(defects)}")
-print(f"  {M}BLOCKED{R} withUnknown() clears owner and lease, so preserve-or-advance refuses it: UNKNOWN is reachable only via takeover")
-print(f"  {M}STUCK{R}   once UNKNOWN there is no live-lease triple to present and the 2-arg CAS is gone: resolveUnknown() is refused")
-print(f"          as the former owner and as anyone, claim is refused, hasActiveByRuntimeSession is still true 1 h later")
+print(f"  {M}BLOCKED{R} withUnknown() clears owner and lease, so preserve-or-advance refuses it. withState(UNKNOWN) keeps the claim and")
+print(f"          gets in, but renewDispatch refuses UNKNOWN, so only a withResult() before the lease ends gets back out")
+print(f"  {M}STUCK{R}   once no live lease is left, nobody can present the triple and the 2-arg CAS is gone: resolveUnknown() is")
+print(f"          refused as the former owner and as anyone; claim and renew refuse UNKNOWN; session still active 1 h later")

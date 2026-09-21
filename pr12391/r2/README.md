@@ -15,6 +15,7 @@ Every patch applies with `git apply` on `9fcc065`; the PR's 12 tests need three 
 
 - `scripts/PlanMatrixProbe2.java` — the matrix in `fig7-plan-matrix.png`; lives in package `com.alibaba.qwen.code.runtimebroker` (clause-level); reaches the fenced CAS / `requestCancel` / `resolveUnknown` by reflection. Output: `logs/matrix2-<arm>.tsv`.
 - `scripts/PlanMatrixProbe.java` — earlier public-API variant (`logs/matrix-<arm>.tsv`).
+- `scripts/UnknownSideDoorProbe.java` — on L2, `withUnknown()` is refused but `withState(UNKNOWN, false)` (claim kept) gets in; `renewDispatch` refuses UNKNOWN, so only `withResult` before the lease ends gets out (`logs/unknown-side-door-L2.log`).
 - `scripts/BotWitnessProbe.java` — the bot review's R1-1..R1-9 witnesses through the public API (`logs/bot-witness-head.log`).
 - `scripts/AllocProbe.java` — R1-7 allocation (`logs/alloc.log`).
 - `scripts/mutants.py` — 17 mutants on the sites R1-6 names + 6 controls (`logs/mutants.log`).
