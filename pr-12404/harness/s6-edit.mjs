@@ -1,0 +1,25 @@
+// s6-edit.mjs <arm> <sid> — after a daemon restart, edit the restored message ("Review" -> "Recheck") and resend.
+import { launch, BASE, TOKEN, OUT, sleep, save } from './ui.mjs';
+const [arm, sid] = process.argv.slice(2);
+const { browser, page, log } = await launch();
+await page.goto(`${BASE}/session/${sid}#token=${TOKEN}`); await sleep(6000);
+await page.locator('[class*="chatBubble"]').first().hover(); await sleep(400);
+await page.getByRole('button', { name: 'Edit message' }).first().click(); await sleep(1000);
+const ta = page.locator('textarea').first();
+const orig = await ta.inputValue();
+await ta.fill(orig.replace(/^Review/, 'Recheck'));
+const reqP = page.waitForRequest((r) => r.method() === 'POST' && /\/prompt$/.test(new URL(r.url()).pathname), { timeout: 20000 });
+await page.getByRole('button', { name: 'Send' }).first().click();
+const body = (await reqP).postDataJSON();
+const anns = (body._meta?.inputAnnotations || []).map((a) => [a.start, a.end, a.text, body.prompt[0].text.slice(a.start, a.end) === a.text]);
+console.log(`[${arm}] edited prompt:`, JSON.stringify(body.prompt[0].text.slice(0, 60)), 'annotations:', JSON.stringify(anns));
+await page.getByText('Done. (mock reply)').first().waitFor({ timeout: 30000 }); await sleep(2500);
+const tagsOf = () => page.locator('[class*="chatBubble"]', { hasText: 'Recheck' }).first().locator('[class*="messageTag"][title]').evaluateAll((els) => els.map((e) => e.textContent.trim()));
+const live = await tagsOf();
+await page.screenshot({ path: `${OUT}/${arm}-s6-edit-live.png` });
+await page.reload(); await sleep(6000);
+const reload = await tagsOf();
+await page.screenshot({ path: `${OUT}/${arm}-s6-edit-reload.png` });
+console.log(`[${arm}] edited message tags live=${JSON.stringify(live)} reload=${JSON.stringify(reload)}`);
+save(`${arm}-s6-edit.json`, { anns, live, reload, log });
+await browser.close();

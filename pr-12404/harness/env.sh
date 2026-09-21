@@ -1,0 +1,9 @@
+export WT=/root/git/h12404
+export H=/root/git/h12404-e2e
+export PORT=4404
+export TOKEN=T0KEN12404
+export MOCK_PORT=18404
+export WS=$H/ws/demo-app
+export QWEN_RUNTIME_DIR=$H/runtime
+export HOME_QWEN=$H/home
+export BASE_URL="http://127.0.0.1:$PORT"

@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import { BASE, TOKEN, WS, OUT, sleep } from './ui.mjs';
+const arm = process.argv[2];
+const H = { Authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
+const c = await (await fetch(BASE + '/session', { method: 'POST', headers: H, body: JSON.stringify({ cwd: WS, sessionScope: 'thread' }) })).json();
+const text = 'HUGETEXT check ' + 'y '.repeat(5_000_000);
+const r = await fetch(`${BASE}/session/${c.sessionId}/prompt`, { method: 'POST', headers: { ...H, 'X-Qwen-Client-Id': c.clientId }, body: JSON.stringify({ prompt: [{ type: 'text', text }] }) });
+console.log(`[${arm}] HUGETEXT prompt=${r.status} bytes=${text.length} sid=${c.sessionId}`);
+await sleep(8000);
+fs.writeFileSync(`${OUT}/${arm}-s5-sids-hugetext.json`, JSON.stringify({ cases: { HUGETEXT: { sid: c.sessionId } } }));

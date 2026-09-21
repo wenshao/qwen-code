@@ -1,0 +1,20 @@
+// A browser watches a session live while a raw HTTP client posts inputAnnotations: [null, valid].
+import { launch, BASE, TOKEN, WS, OUT, sleep, save } from './ui.mjs';
+const arm = process.argv[2];
+const H = { Authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
+const c = await (await fetch(BASE + '/session', { method: 'POST', headers: H, body: JSON.stringify({ cwd: WS, sessionScope: 'thread' }) })).json();
+const { browser, page, log } = await launch();
+await page.goto(`${BASE}/session/${c.sessionId}#token=${TOKEN}`); await sleep(5000);
+const text = 'LIVENULL check @README.md';
+const r = await fetch(`${BASE}/session/${c.sessionId}/prompt`, { method: 'POST', headers: { ...H, 'X-Qwen-Client-Id': c.clientId }, body: JSON.stringify({ prompt: [{ type: 'text', text }], _meta: { inputAnnotations: [null, { type: 'reference', start: 15, end: 25, text: '@README.md', reference: { id: 'file:@README.md', kind: 'file', value: 'README.md' } }] } }) });
+await sleep(6000);
+const body = await page.locator('body').innerText();
+const live = { prompt: r.status, couldNotDisplay: (body.match(/This message could not be displayed/g) || []).length, bubble: await page.locator('[class*="chatBubble"]', { hasText: 'LIVENULL' }).count(), reply: body.includes('Done. (mock reply)') };
+await page.screenshot({ path: `${OUT}/${arm}-s5-livenull-live.png` });
+await page.reload(); await sleep(6000);
+const body2 = await page.locator('body').innerText();
+const reload = { couldNotDisplay: (body2.match(/This message could not be displayed/g) || []).length, bubble: await page.locator('[class*="chatBubble"]', { hasText: 'LIVENULL' }).count(), tags: await page.locator('[class*="chatBubble"] [class*="messageTag"][title]').count() };
+await page.screenshot({ path: `${OUT}/${arm}-s5-livenull-reload.png` });
+console.log(`[${arm}] live:`, JSON.stringify(live), ' reload:', JSON.stringify(reload));
+save(`${arm}-s5-livenull.json`, { live, reload, sid: c.sessionId, errors: log.filter((l) => /null/.test(l)).slice(0, 2) });
+await browser.close();

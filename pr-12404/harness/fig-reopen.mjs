@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import { launch, TOKEN, OUT, sleep, userTags } from './ui.mjs';
+const [arm, theme] = process.argv.slice(2);
+const { url } = JSON.parse(fs.readFileSync(`${OUT}/fig-${arm}-${theme}.json`, 'utf8'));
+const { browser, context, page } = await launch({ width: 1100, height: 700 });
+await context.addInitScript((t) => { try { localStorage.setItem('qwen-code-web-shell-theme', t); } catch {} }, theme);
+await page.goto(`${url}#token=${TOKEN}`); await sleep(6000); await page.mouse.move(5, 5); await sleep(300);
+await page.locator('[class*="chatBubble"]').first().screenshot({ path: `${OUT}/fig-${arm}-${theme}-restart.png` });
+console.log(`[${arm}/${theme}] after restart tags:`, (await userTags(page)).length);
+await browser.close();

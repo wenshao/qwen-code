@@ -1,0 +1,34 @@
+# PR 12404 local verification — raw summaries
+head f6d25c84ec  merge-base 065dd351c8  Linux x64, Node 22.22.2, Chromium (Playwright), real qwen serve + ACP child + JSONL, mock OpenAI provider
+
+## Persisted user record (Review … message)
+pr: systemPayload={"displayText": "Review @README.md using @ext:browser-kit and @mcp:o2-docs plus @src/very-long-module-name-for-tag-truncation-check.ts", "hookContext": "", "inputAnnotations": [{"type": "reference", "start": 7, "end": 17, "text": "@README.md", "reference": {"id": "file:@README.md", "kind": "file", "value": "README.md", "metadata": {"fileKind": "file"}, "serialized": "@README.md"}}, {"type": "reference", "start": 24, "end": 40, "text": "@ext:browser-kit", "reference": {"id": "extension:@ext:browser-kit", "kind": "extension", "value": "browser-kit", "serialized": "@ext:browser-kit"}}, {"type": "reference", "start": 45, "end": 57, "text": "@mcp:o2-docs", "reference": {"id": "mcp:@mcp:o2-docs", "kind": "mcp", "value": "o2-docs", "serialized": "@mcp:o2-docs"}}, {"type": "reference", "start": 63, "end": 117, "text": "@src/very-long-module-name-for-tag-truncation-check.ts", "reference": {"id": 
+base: systemPayload=null
+
+## Model-bound request, main turn (normalized runtime path / timestamps / uuids)
+identical: True  bytes pr/base: 39781 39781  "inputAnnotations" in request pr/base: False False
+
+## Mutation probes (tests at head, mutant applied, restored after each)
+M1 drop `|| inputAnnotations` gate (ordinary prompt): Tests  3 failed | 1038 passed (1041)
+M2 drop inputAnnotations field (ordinary prompt): Tests  3 failed | 1038 passed (1041)
+M3 no structuredClone snapshot: Tests  3 failed | 1038 passed (1041)
+M4 drop gate on deferred /advisor path: Tests  1 failed | 1040 passed (1041)
+M5 replay drops inputAnnotations: Tests  3 failed | 113 passed (116)
+M6 replay forwards non-arrays: Tests  3 failed | 113 passed (116)
+restored; git diff empty: yes
+
+## Unit tests at head
+acp-bridge transcript-replay.test.ts 116/116; core chatRecordingService.test.ts 144/144; cli Session.test.ts 1041/1041; web-shell UserMessage + QueuedPromptDisplay + transcriptToMessages + composerTag 328/328
+
+## ~10 MB annotation record: browser transcript traffic after daemon restart
+POST /load -> 200, historyHasMore=true (user record not in first page)
+GET /transcript?beforeRecordId=4ed835fa…&limit=200 -> 200, 0 events, hasMore=true, nextCursor present
+scroll up -> GET /transcript?cursor=… -> user_message_chunk (10,276,179 bytes), hasMore=false; bubble visible
+
+## Composer crash (pre-existing, unrelated): recon5 log base arm
+V1 cjk+file submitted: true "V1 看一下 @README.md"
+V2 emoji+file submitted: true "V2 🚀 @README.md"
+[console.error] Error: Calls to EditorView.update are not allowed while an update is in progress
+[console.error] [web-shell] web-shell-root failed: Error: Calls to EditorView.update are not allowed while an update is in progress
+[console.error] Error: Calls to EditorView.update are not allowed while an update is in progress
+[console.error] [web-shell] web-shell-root failed: Error: Calls to EditorView.update are not allowed while an update is in progress
