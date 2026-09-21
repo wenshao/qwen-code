@@ -438,6 +438,27 @@ public final class PlanMatrixProbe3 {
                 row("OWN-UNKNOWN", "BLOCKED", "refused (" + e.getMessage() + ")");
             }
         });
+        guard("KEEP-UNKNOWN", () -> {  // lease holder marks UNKNOWN keeping its claim; resolved after the lease ends
+            MClock clock = new MClock();
+            InMemoryToolExecutionRepository repo = new InMemoryToolExecutionRepository(clock);
+            repo.findOrCreate(prepared("keep"));
+            ToolExecutionRecord a = repo.claimDispatch("keep", "owner-a", LEASE);
+            ToolExecutionRecord u;
+            try {
+                u = cas(repo, a, a.withState(State.UNKNOWN, false), "owner-a", 1);
+            } catch (Refused e) {
+                row("KEEP-UNKNOWN", "n/a", "withState(UNKNOWN) refused at entry (" + e.getMessage() + ")");
+                return;
+            }
+            clock.adv(3631);
+            try {
+                ToolExecutionRecord r = resolve(repo, "keep", clock.instant());
+                row("KEEP-UNKNOWN", "ok", "recorded " + d(u) + " -> resolved after the lease ended " + d(r)
+                        + "; active=" + repo.hasActiveByRuntimeSession("session"));
+            } catch (Refused e) {
+                row("KEEP-UNKNOWN", "STUCK", "recorded " + d(u) + " -> resolution refused (" + e.getMessage() + ")");
+            }
+        });
         guard("LIVE", () -> {     // takeover UNKNOWN, resolved an hour later
             MClock clock = new MClock();
             InMemoryToolExecutionRepository repo = new InMemoryToolExecutionRepository(clock);

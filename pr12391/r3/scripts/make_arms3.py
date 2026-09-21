@@ -52,16 +52,78 @@ TEST_4ARG = TEST_2ARG.replace(
     '''reread.withResult(result("error"), 0, clock.instant())));''',
     '''reread.withResult(result("error"), 0, clock.instant()),
                 "owner-a", 1));
+        // Right generation, wrong owner: still not owner B's claim.
+        assertNull(repository.compareAndSet(reread,
+                reread.withResult(result("error"), 0, clock.instant()),
+                "owner-a", 2));
         ToolExecutionRecord settled = repository.compareAndSet(takeover,
                 takeover.withResult(result("success"), 0, clock.instant()),
-                "owner-b", takeover.getDispatchGeneration());
+                "owner-b", 2);
         assertEquals("success", settled.getExecutionStatus());''').replace(
     '''        assertSame(takeover, repository.findByExecutionCallId(
                 created.getExecutionCallId()));
 ''', '')
 
+# The caller's own identity at each ToolExecution CAS call site, in file order (literals, never copied
+# from a snapshot: copying the owner out of a re-read snapshot is exactly what the fence must defeat).
+CALLERS = [('"owner-a"', 1), ('"owner-b"', 2), ('"owner-b"', 2), ('"owner-a"', 1), ('null', 0),
+           ('"owner-a"', 1), ('"owner-a"', 2), ('"owner-a"', 1), ('"owner-a"', 1), ('"owner-a"', 1),
+           ('"owner-a"', 1), ('"owner-a"', 1), ('"owner-a"', 1), ('"owner-b"', 2)]
+
+TEST_STALE_GEN = """    @Test
+    void sameOwnerCannotWriteWithAStaleGeneration() {
+        MutableClock clock = new MutableClock(START);
+        InMemoryToolExecutionRepository repository =
+                new InMemoryToolExecutionRepository(clock);
+        ToolExecutionRecord created = repository.findOrCreate(
+                execution("execution"));
+        repository.claimDispatch(created.getExecutionCallId(), "owner-a",
+                Duration.ofSeconds(30));
+        clock.advance(Duration.ofSeconds(31));
+        ToolExecutionRecord reclaimed = repository.claimDispatch(
+                created.getExecutionCallId(), "owner-a",
+                Duration.ofSeconds(30));
+        assertEquals(2, reclaimed.getDispatchGeneration());
+
+        // Same owner, but the generation it claimed first: fenced off.
+        assertNull(repository.compareAndSet(reclaimed,
+                reclaimed.withResult(result("error"), 0, clock.instant()),
+                "owner-a", 1));
+        assertEquals("success", repository.compareAndSet(reclaimed,
+                reclaimed.withResult(result("success"), 0, clock.instant()),
+                "owner-a", 2).getExecutionStatus());
+    }
+"""
+
+TEST_NO_BACKWARDS = """    @Test
+    void executionStateDoesNotMoveBackwards() {
+        MutableClock clock = new MutableClock(START);
+        InMemoryToolExecutionRepository repository =
+                new InMemoryToolExecutionRepository(clock);
+        ToolExecutionRecord created = repository.findOrCreate(
+                execution("execution"));
+        ToolExecutionRecord claimed = repository.claimDispatch(
+                created.getExecutionCallId(), "owner-a",
+                Duration.ofSeconds(30));
+        ToolExecutionRecord executing = repository.compareAndSet(claimed,
+                claimed.withState(ToolExecutionRecord.State.EXECUTING, false),
+                "owner-a", 1);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> repository.compareAndSet(executing,
+                        executing.withState(
+                                ToolExecutionRecord.State.PREPARED, false),
+                        "owner-a", 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> repository.compareAndSet(executing,
+                        executing.withState(
+                                ToolExecutionRecord.State.DISPATCHING, false),
+                        "owner-a", 1));
+    }
+"""
+
 def actorize_test_calls(path):
-    """Append the caller's own claim (taken from its own snapshot) to every ToolExecution CAS call."""
+    """Append the caller's own identity (a literal) to every ToolExecution CAS call."""
     s = open(path).read()
     start = s.index("void executionIdempotencyAndDispatchClaimAreDurablePrimitives")
     head, tail = s[:start], s[start:]
@@ -79,8 +141,10 @@ def actorize_test_calls(path):
         first = inner.split(',', 1)[0].strip()
         if inner.rstrip().endswith('"owner-a", 1') or 'getDispatchOwner()' in inner:
             out.append(tail[i:k]); i = k; continue
-        out.append(tail[i:k - 1] + f", {first}.getDispatchOwner(), {first}.getDispatchGeneration())")
+        owner, gen = CALLERS[n]
+        out.append(tail[i:k - 1] + f", {owner}, {gen})")
         i = k; n += 1
+    assert n == len(CALLERS), (n, len(CALLERS))
     open(path, 'w').write(head + ''.join(out))
     return n
 
@@ -128,6 +192,9 @@ def build(arm):
     edit(repo, pairs)
     n = actorize_test_calls(base + TEST)
     add_test(base + TEST, TEST_4ARG)
+    add_test(base + TEST, TEST_STALE_GEN)
+    if arm == 'F2':
+        add_test(base + TEST, TEST_NO_BACKWARDS)
     print(arm, 'test CAS call sites given the caller identity:', n)
 
 for a in ('T', 'F', 'F2'):

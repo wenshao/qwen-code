@@ -41,7 +41,7 @@ index 4d30dd0..f399cd2 100644
      /** Taking over an expired EXECUTING claim yields UNKNOWN, not a claim. */
      ToolExecutionRecord claimDispatch(String executionCallId, String owner,
 diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java
-index 099fb50..88f09c9 100644
+index 099fb50..ab35c3b 100644
 --- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java
 +++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java
 @@ -312,16 +312,16 @@ class InMemoryRepositoryTest {
@@ -49,18 +49,18 @@ index 099fb50..88f09c9 100644
          assertEquals(2, takeover.getDispatchGeneration());
          assertNull(repository.compareAndSet(first,
 -                first.withResult(result("error"), 0, clock.instant())));
-+                first.withResult(result("error"), 0, clock.instant()), first.getDispatchOwner(), first.getDispatchGeneration()));
++                first.withResult(result("error"), 0, clock.instant()), "owner-a", 1));
  
          ToolExecutionRecord settled = repository.compareAndSet(takeover,
                  takeover.withResult(result("success"), 0,
 -                        clock.instant()));
-+                        clock.instant()), takeover.getDispatchOwner(), takeover.getDispatchGeneration());
++                        clock.instant()), "owner-b", 2);
          assertEquals("success", settled.getExecutionStatus());
          assertFalse(repository.hasActiveByRuntimeSession("session"));
          assertNull(repository.compareAndSet(settled,
                  settled.withState(ToolExecutionRecord.State.PREPARED,
 -                        false)));
-+                        false), settled.getDispatchOwner(), settled.getDispatchGeneration()));
++                        false), "owner-b", 2));
      }
  
      @Test
@@ -69,13 +69,13 @@ index 099fb50..88f09c9 100644
          assertNull(repository.compareAndSet(staleClaim,
                  staleClaim.withResult(result("error"), 0,
 -                        clock.instant())));
-+                        clock.instant()), staleClaim.getDispatchOwner(), staleClaim.getDispatchGeneration()));
++                        clock.instant()), "owner-a", 1));
  
          ToolExecutionRecord noClaim = takeover.withDispatch(null, null, 0,
                  takeover.getState());
          assertNull(repository.compareAndSet(noClaim,
 -                noClaim.withResult(result("error"), 0, clock.instant())));
-+                noClaim.withResult(result("error"), 0, clock.instant()), noClaim.getDispatchOwner(), noClaim.getDispatchGeneration()));
++                noClaim.withResult(result("error"), 0, clock.instant()), null, 0));
  
          assertSame(takeover, repository.findByExecutionCallId(
                  created.getExecutionCallId()));
@@ -84,7 +84,7 @@ index 099fb50..88f09c9 100644
          assertNull(repository.compareAndSet(claimed,
                  claimed.withResult(result("success"), 0,
 -                        clock.instant())));
-+                        clock.instant()), claimed.getDispatchOwner(), claimed.getDispatchGeneration()));
++                        clock.instant()), "owner-a", 1));
          assertNull(repository.renewDispatch(created.getExecutionCallId(),
                  "owner-a", claimed.getDispatchGeneration(),
                  Duration.ofSeconds(30)));
@@ -93,7 +93,7 @@ index 099fb50..88f09c9 100644
          ToolExecutionRecord settled = repository.compareAndSet(reclaimed,
                  reclaimed.withResult(result("success"), 0,
 -                        clock.instant()));
-+                        clock.instant()), reclaimed.getDispatchOwner(), reclaimed.getDispatchGeneration());
++                        clock.instant()), "owner-a", 2);
          assertEquals("success", settled.getExecutionStatus());
      }
  
@@ -102,7 +102,7 @@ index 099fb50..88f09c9 100644
          ToolExecutionRecord executing = repository.compareAndSet(claimed,
                  claimed.withState(ToolExecutionRecord.State.EXECUTING,
 -                        false));
-+                        false), claimed.getDispatchOwner(), claimed.getDispatchGeneration());
++                        false), "owner-a", 1);
  
          clock.advance(Duration.ofSeconds(31));
          assertNull(repository.claimDispatch(created.getExecutionCallId(),
@@ -111,7 +111,7 @@ index 099fb50..88f09c9 100644
          assertNull(repository.compareAndSet(executing,
                  executing.withResult(result("success"), 0,
 -                        clock.instant())));
-+                        clock.instant()), executing.getDispatchOwner(), executing.getDispatchGeneration()));
++                        clock.instant()), "owner-a", 1));
          assertNull(repository.claimDispatch(created.getExecutionCallId(),
                  "owner-b", Duration.ofSeconds(30)));
          assertNull(repository.renewDispatch(created.getExecutionCallId(),
@@ -120,7 +120,7 @@ index 099fb50..88f09c9 100644
          assertNull(repository.compareAndSet(resolved,
                  resolved.withState(ToolExecutionRecord.State.PREPARED,
 -                        false)));
-+                        false), resolved.getDispatchOwner(), resolved.getDispatchGeneration()));
++                        false), "owner-a", 1));
      }
  
      @Test
@@ -129,7 +129,7 @@ index 099fb50..88f09c9 100644
          ToolExecutionRecord executing = repository.compareAndSet(claimed,
                  claimed.withState(ToolExecutionRecord.State.EXECUTING,
 -                        false));
-+                        false), claimed.getDispatchOwner(), claimed.getDispatchGeneration());
++                        false), "owner-a", 1);
  
          ToolExecutionRecord requested = repository.requestCancel(
                  created.getExecutionCallId(), executing.getVersion());
@@ -138,21 +138,21 @@ index 099fb50..88f09c9 100644
                          dropping.withState(
                                  ToolExecutionRecord.State.CANCEL_REQUESTED,
 -                                false)));
-+                                false), dropping.getDispatchOwner(), dropping.getDispatchGeneration()));
++                                false), "owner-a", 1));
  
          ToolExecutionRecord settled = repository.compareAndSet(dropping,
                  dropping.withResult(result("cancelled"), 0,
 -                        clock.instant()));
-+                        clock.instant()), dropping.getDispatchOwner(), dropping.getDispatchGeneration());
++                        clock.instant()), "owner-a", 1);
          assertTrue(settled.isCancelRequested());
          assertNull(repository.requestCancel(created.getExecutionCallId(),
                  settled.getVersion()));
-@@ -528,10 +528,36 @@ class InMemoryRepositoryTest {
+@@ -528,10 +528,64 @@ class InMemoryRepositoryTest {
          // The new owner honours the intent instead of dispatching again.
          ToolExecutionRecord settled = repository.compareAndSet(takeover,
                  takeover.withResult(result("cancelled"), 0,
 -                        clock.instant()));
-+                        clock.instant()), takeover.getDispatchOwner(), takeover.getDispatchGeneration());
++                        clock.instant()), "owner-b", 2);
          assertEquals("cancelled", settled.getExecutionStatus());
      }
  
@@ -176,10 +176,38 @@ index 099fb50..88f09c9 100644
 +        assertNull(repository.compareAndSet(reread,
 +                reread.withResult(result("error"), 0, clock.instant()),
 +                "owner-a", 1));
++        // Right generation, wrong owner: still not owner B's claim.
++        assertNull(repository.compareAndSet(reread,
++                reread.withResult(result("error"), 0, clock.instant()),
++                "owner-a", 2));
 +        ToolExecutionRecord settled = repository.compareAndSet(takeover,
 +                takeover.withResult(result("success"), 0, clock.instant()),
-+                "owner-b", takeover.getDispatchGeneration());
++                "owner-b", 2);
 +        assertEquals("success", settled.getExecutionStatus());
++    }
++
++    @Test
++    void sameOwnerCannotWriteWithAStaleGeneration() {
++        MutableClock clock = new MutableClock(START);
++        InMemoryToolExecutionRepository repository =
++                new InMemoryToolExecutionRepository(clock);
++        ToolExecutionRecord created = repository.findOrCreate(
++                execution("execution"));
++        repository.claimDispatch(created.getExecutionCallId(), "owner-a",
++                Duration.ofSeconds(30));
++        clock.advance(Duration.ofSeconds(31));
++        ToolExecutionRecord reclaimed = repository.claimDispatch(
++                created.getExecutionCallId(), "owner-a",
++                Duration.ofSeconds(30));
++        assertEquals(2, reclaimed.getDispatchGeneration());
++
++        // Same owner, but the generation it claimed first: fenced off.
++        assertNull(repository.compareAndSet(reclaimed,
++                reclaimed.withResult(result("error"), 0, clock.instant()),
++                "owner-a", 1));
++        assertEquals("success", repository.compareAndSet(reclaimed,
++                reclaimed.withResult(result("success"), 0, clock.instant()),
++                "owner-a", 2).getExecutionStatus());
 +    }
 +
      private static ToolExecutionRecord execution(String executionCallId) {

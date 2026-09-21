@@ -32,6 +32,7 @@ groups = [
   ]),
   ('UNKNOWN lifecycle and controls', [
     ('OWN-UNKNOWN', 'lease holder records UNKNOWN, then it is resolved'),
+    ('KEEP-UNKNOWN', 'withState(UNKNOWN) keeps the claim; resolved after the lease'),
     ('LIVE', 'takeover UNKNOWN resolved an hour later, session drains'),
     ('CTL', 'claim/renew/settle, host cancel (EXECUTING and PREPARED)'),
   ]),
@@ -58,7 +59,7 @@ LABEL = {
 }
 print(f"{B}{CY}The same probes, four arms{X}  {D}(PlanMatrixProbe3, module package; each caller writes with the snapshot it has{X}")
 print(f"{D}and, where the CAS takes one, passes its own owner/generation){X}")
-print(f"{D}+actor = compareAndSet(expected, replacement, owner, dispatchGeneration)  (+8/-4)   +rule = no move back to PREPARED/DISPATCHING  (+8 more){X}")
+print(f"{D}+actor = compareAndSet(expected, replacement, owner, dispatchGeneration)  (+8/-4)   +rule = +actor, plus no move back to PREPARED/DISPATCHING  (+16/-4){X}")
 print()
 print(f"  {'':15s}{'':{W}s}{B}{'9fcc065':8s}  {'25a38c3':8s}  {'+actor':8s}  {'+rule':8s}{X}")
 for title, rows in groups:
@@ -83,3 +84,5 @@ for line in open('/root/verify/pr12391-harness/r3/mutants/run.log'):
 tot = open('/root/verify/pr12391-harness/r3/mutants/run.log').read()
 k = re.search(r'killed (\d+)/(\d+)', tot)
 print(f"  killed {k.group(1)}/{k.group(2)} · renewDispatch: expiry clause now pinned; owner and generation clauses still survive")
+own = [l.split() for l in open('/root/verify/pr12391-harness/r3/logs/f2-own-mutants.log') if l.strip()]
+print(f"  {D}for comparison, the +rule arm's own four clauses (owner, generation, two backwards moves): {sum(1 for l in own if l[1]=='KILLED')}/{len(own)} killed by its added tests{X}")

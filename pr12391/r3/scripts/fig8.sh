@@ -14,10 +14,14 @@ for arm in head merged; do
   done
 done
 echo
+n=$(wc -l < $L/ci-25a38c3.tsv); ok=$(command grep -c 'success$' $L/ci-25a38c3.tsv)
+echo "  ${D}CI on the merge ref: ${X}${G}$ok/$n green${X}${D} — Test (ubuntu, Node 22.x), Lint & Static, and the six SDK Java jobs${X}"
+echo
 echo "${B}C. Your own pinning test from 10:06 — \"owner A re-reads for a fresh version, withResult must fail\"${X}"
-echo "${D}   written from your description and added to the suite; 2-arg compareAndSet exactly as it ships in 25a38c3${X}"
+echo "${D}   written from your description and added to the suite; 2-arg CAS as shipped (Zulu 21.0.10);${X}"
+echo "${D}   in the +actor arms the same test passes the caller's own owner/generation${X}"
 printf "  %-12s %s\n" "25a38c3" "${RD}$(command grep -h -E 'Tests run: [0-9]+, Failures: [1-9]' $L/arm-T-test.log | head -1 | sed -E 's/^\[ERROR\] //; s/, Time elapsed.*//')${X}"
 printf "  %-12s %s\n" "" "${RD}$(command grep -h -E '^\[ERROR\]   InMemoryRepositoryTest\.' $L/arm-T-test.log | head -1 | sed -E 's/^\[ERROR\]   InMemoryRepositoryTest\.//; s/com\.alibaba\.qwen\.code\.runtimebroker\.//')${X}"
 for a in F F2; do
-  printf "  %-12s %s\n" "+$( [ $a = F ] && echo actor || echo actor+rule)" "${G}$(cat $R/trees/$a/sdk-java/runtime-broker/target/surefire-reports/*.txt | command grep 'Tests run' | head -1 | sed -E 's/, Time elapsed.*//')${X}  ${D}(same test, caller passes its own owner/generation)${X}"
+  printf "  %-12s %s\n" "+$( [ $a = F ] && echo actor || echo actor+rule)" "${G}$(cat $R/trees/$a/sdk-java/runtime-broker/target/surefire-reports/*.txt | command grep 'Tests run' | head -1 | sed -E 's/, Time elapsed.*//')${X}  ${D}(+ $( [ $a = F ] && echo "a stale-generation test" || echo "stale-generation and no-backwards tests"))${X}"
 done
