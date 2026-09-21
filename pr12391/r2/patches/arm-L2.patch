@@ -1,0 +1,236 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
+index 7603ed1..e38105a 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
+@@ -1,5 +1,7 @@
+ package com.alibaba.qwen.code.runtimebroker;
+ 
++import java.math.BigDecimal;
++import java.math.BigInteger;
+ import java.net.URI;
+ import java.util.ArrayList;
+ import java.util.Collections;
+@@ -39,21 +41,19 @@ final class BrokerValues {
+         return value.resolve("/");
+     }
+ 
+-    static Map<String, Object> immutableMap(Map<String, ?> source) {
++    static Map<String, Object> immutableMap(Map<?, ?> source) {
+         Map<String, Object> copy = new LinkedHashMap<>();
+-        for (Map.Entry<String, ?> entry : source.entrySet()) {
+-            if (entry.getKey() == null) {
+-                throw new IllegalArgumentException("map key must not be null");
++        for (Map.Entry<?, ?> entry : source.entrySet()) {
++            if (!(entry.getKey() instanceof String key)) {
++                throw new IllegalArgumentException("map key must be a string");
+             }
+-            copy.put(entry.getKey(), immutableValue(entry.getValue()));
++            copy.put(key, immutableValue(entry.getValue()));
+         }
+         return Collections.unmodifiableMap(copy);
+     }
+ 
+     private static Object immutableValue(Object value) {
+-        if (value instanceof Map) {
+-            @SuppressWarnings("unchecked")
+-            Map<String, ?> nested = (Map<String, ?>) value;
++        if (value instanceof Map<?, ?> nested) {
+             return immutableMap(nested);
+         }
+         if (value instanceof List) {
+@@ -65,7 +65,11 @@ final class BrokerValues {
+             return Collections.unmodifiableList(copy);
+         }
+         if (value == null || value instanceof String
+-                || value instanceof Number || value instanceof Boolean) {
++                || value instanceof Boolean || value instanceof Integer
++                || value instanceof Long || value instanceof Short
++                || value instanceof Byte || value instanceof Double
++                || value instanceof Float || value instanceof BigInteger
++                || value instanceof BigDecimal) {
+             return value;
+         }
+         throw new IllegalArgumentException("unsupported JSON value");
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
+index d237458..f912f7f 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
+@@ -66,7 +66,8 @@ public final class InMemoryToolExecutionRepository
+     @Override
+     public synchronized ToolExecutionRecord compareAndSet(
+             ToolExecutionRecord expected,
+-            ToolExecutionRecord replacement) {
++            ToolExecutionRecord replacement, String owner,
++            long dispatchGeneration) {
+         requireReplacement(expected, replacement);
+         ToolExecutionRecord current = recordsById.get(
+                 expected.getExecutionCallId());
+@@ -76,6 +77,12 @@ public final class InMemoryToolExecutionRepository
+                 || current.isSettled()) {
+             return null;
+         }
++        if (owner == null || !owner.equals(current.getDispatchOwner())
++                || dispatchGeneration != current.getDispatchGeneration()
++                || !current.getDispatchLeaseUntil().isAfter(clock.instant())) {
++            return null;
++        }
++        requireTransition(current, replacement);
+         ToolExecutionRecord updated = replacement.withVersion(
+                 expected.getVersion() + 1);
+         recordsById.put(updated.getExecutionCallId(), updated);
+@@ -101,6 +108,12 @@ public final class InMemoryToolExecutionRepository
+                 && current.getDispatchLeaseUntil().isAfter(now)) {
+             return null;
+         }
++        if (current.getState() == ToolExecutionRecord.State.EXECUTING
++                && !current.isCancelRequested()) {
++            recordsById.put(executionCallId, current.withUnknown()
++                    .withVersion(current.getVersion() + 1));
++            return null;
++        }
+         ToolExecutionRecord.State nextState = current.isCancelRequested()
+                 && (current.getState() == ToolExecutionRecord.State.EXECUTING
+                         || current.getState()
+@@ -138,6 +151,27 @@ public final class InMemoryToolExecutionRepository
+         return renewed;
+     }
+ 
++    @Override
++    public synchronized ToolExecutionRecord requestCancel(
++            String executionCallId) {
++        ToolExecutionRecord current = requireRecord(executionCallId);
++        if (current == null || current.isSettled()) {
++            return null;
++        }
++        if (current.isCancelRequested()) {
++            return current;
++        }
++        ToolExecutionRecord.State state = current.getState();
++        ToolExecutionRecord.State nextState =
++                state == ToolExecutionRecord.State.DISPATCHING
++                        || state == ToolExecutionRecord.State.EXECUTING
++                ? ToolExecutionRecord.State.CANCEL_REQUESTED : state;
++        ToolExecutionRecord cancelled = current.withState(nextState, true)
++                .withVersion(current.getVersion() + 1);
++        recordsById.put(executionCallId, cancelled);
++        return cancelled;
++    }
++
+     @Override
+     public synchronized boolean hasActiveByRuntimeSession(
+             String runtimeSessionId) {
+@@ -155,6 +189,7 @@ public final class InMemoryToolExecutionRepository
+ 
+     private static void requireCandidate(ToolExecutionRecord candidate) {
+         if (candidate == null || candidate.getVersion() != 0
++                || candidate.getLastSequence() != 0
+                 || candidate.getState()
+                         != ToolExecutionRecord.State.PREPARED
+                 || candidate.getDispatchOwner() != null) {
+@@ -173,6 +208,43 @@ public final class InMemoryToolExecutionRepository
+         }
+     }
+ 
++    private static void requireTransition(ToolExecutionRecord current,
++            ToolExecutionRecord replacement) {
++        ToolExecutionRecord.State from = current.getState();
++        ToolExecutionRecord.State to = replacement.getState();
++        if (from == ToolExecutionRecord.State.UNKNOWN
++                && to != ToolExecutionRecord.State.SETTLED) {
++            throw new IllegalStateException(
++                    "unknown execution must be resolved");
++        }
++        if (current.isCancelRequested() && !replacement.isCancelRequested()) {
++            throw new IllegalArgumentException(
++                    "cancellation intent must be preserved");
++        }
++        if (to == ToolExecutionRecord.State.PREPARED
++                && from != ToolExecutionRecord.State.PREPARED
++                || to == ToolExecutionRecord.State.DISPATCHING
++                        && from == ToolExecutionRecord.State.EXECUTING) {
++            throw new IllegalStateException(
++                    "execution state must not move backwards");
++        }
++        boolean keepsOrAdvancesClaim = replacement.getDispatchOwner() != null
++                && current.getDispatchOwner().equals(
++                replacement.getDispatchOwner())
++                && replacement.getDispatchGeneration()
++                        >= current.getDispatchGeneration()
++                && !replacement.getDispatchLeaseUntil().isBefore(
++                        current.getDispatchLeaseUntil());
++        if (!keepsOrAdvancesClaim) {
++            throw new IllegalArgumentException(
++                    "replacement must preserve or advance the dispatch claim");
++        }
++        if (replacement.getLastSequence() < current.getLastSequence()) {
++            throw new IllegalArgumentException(
++                    "result sequence must not move backwards");
++        }
++    }
++
+     private static Duration requireDuration(Duration duration) {
+         if (duration == null || duration.isZero() || duration.isNegative()) {
+             throw new IllegalArgumentException(
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
+index 16877de..0038df0 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
+@@ -39,7 +39,7 @@ public final class ToolExecutionRecord {
+     private final long version;
+     private final Instant settledAt;
+ 
+-    public ToolExecutionRecord(String executionCallId, String idempotencyKey,
++    ToolExecutionRecord(String executionCallId, String idempotencyKey,
+             String bindingId, long runtimeGeneration,
+             String harnessSessionId, String runtimeSessionId, String turnId,
+             String toolCallId, String requestDigest,
+@@ -301,7 +301,7 @@ public final class ToolExecutionRecord {
+                 && reference.equals(other.reference);
+     }
+ 
+-    boolean sameRequest(ToolExecutionRecord other) {
++    public boolean sameRequest(ToolExecutionRecord other) {
+         return other != null
+                 && idempotencyKey.equals(other.idempotencyKey)
+                 && bindingId.equals(other.bindingId)
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRepository.java
+index 2c5dba5..0ba3dde 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRepository.java
+@@ -11,7 +11,10 @@ public interface ToolExecutionRepository {
+     ToolExecutionRecord findByIdempotencyKey(String idempotencyKey);
+ 
+     ToolExecutionRecord compareAndSet(ToolExecutionRecord expected,
+-            ToolExecutionRecord replacement);
++            ToolExecutionRecord replacement, String owner,
++            long dispatchGeneration);
++
++    ToolExecutionRecord requestCancel(String executionCallId);
+ 
+     ToolExecutionRecord claimDispatch(String executionCallId, String owner,
+             Duration leaseDuration);
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java
+index f56bc0b..4fdfd35 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java
+@@ -312,16 +312,17 @@ class InMemoryRepositoryTest {
+                 "owner-b", Duration.ofSeconds(30));
+         assertEquals(2, takeover.getDispatchGeneration());
+         assertNull(repository.compareAndSet(first,
+-                first.withResult(result("error"), 0, clock.instant())));
++                first.withResult(result("error"), 0, clock.instant()),
++                "owner-a", 1));
+ 
+         ToolExecutionRecord settled = repository.compareAndSet(takeover,
+                 takeover.withResult(result("success"), 0,
+-                        clock.instant()));
++                        clock.instant()), "owner-b", 2);
+         assertEquals("success", settled.getExecutionStatus());
+         assertFalse(repository.hasActiveByRuntimeSession("session"));
+         assertNull(repository.compareAndSet(settled,
+                 settled.withState(ToolExecutionRecord.State.PREPARED,
+-                        false)));
++                        false), "owner-b", 2));
+     }
+ 
+     @Test

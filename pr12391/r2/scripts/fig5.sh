@@ -14,7 +14,7 @@ for g in clean_test:"mvn clean test" checkstyle_check:"mvn checkstyle:check" ver
   printf "  %-22s %-58s %s\n" "$n" "${t}${c}" "$(ok "$b")"
 done
 echo
-echo "${B}B. PR merged into current main da695fe${R}  ${D}(#12390 JDBC persistence landed 11:25 UTC, after round 1)${R}"
+echo "${B}B. PR merged into main da695fe${R}  ${D}(#12390 JDBC persistence landed 11:25 UTC, after round 1; later main commits do not touch sdk-java)${R}"
 for g in clean_test:"mvn clean test" checkstyle_check:"mvn checkstyle:check" verify:"mvn verify"; do
   f=$L/mvn-merged-${g%%:*}.log; n=${g#*:}
   t=$(tr $f 'Tests run: [0-9]+, Failures' ); c=$(tr $f 'You have [0-9]+ Checkstyle'); b=$(tr $f 'BUILD (SUCCESS|FAILURE)')
@@ -23,13 +23,13 @@ done
 grep -h -E "Tests run: .* in com" $L/mvn-merged-clean_test.log | sed -E 's/^\[INFO\] Tests run: ([0-9]+).* in com\.alibaba\.qwen\.code\.runtimebroker\.(.*)/    \2: \1 test(s)/' | sed "s/^/${D}/;s/$/${R}/"
 echo "    ${D}git merge: clean · ToolExecution*/BrokerValues/InMemoryRepositoryTest: 0-line diff vs PR head${R}"
 echo
-echo "${B}C. Root gates from your Test Plan${R}  ${D}(round 1 did not run these) · node $(sed -n 2p $L/root-gates.summary) · pnpm 11.24.0${R}"
+echo "${B}C. Root gates from your Test Plan, on the head${R}  ${D}(round 1 did not run these) · node $(sed -n 2p $L/root-gates.summary) · pnpm 11.24.0${R}"
 while IFS= read -r line; do
   case "$line" in
     pnpm*|npm*) name=$(echo "$line" | sed -E 's/ exit=.*//'); ex=$(echo "$line" | sed -E 's/.*exit=([0-9]+).*/\1/'); s=$(echo "$line" | sed -E 's/.*secs=([0-9]+).*/\1/')
       extra=""; [ "$name" = "npm run typecheck" ] && extra="  $(grep -c 'error TS' $L/npm-typecheck.log) × 'error TS'"
-      [ "$name" = "pnpm install" ] && name="pnpm install --frozen-lockfile"
-      printf "  %-32s %s  %4ss%s\n" "$name" "$( [ "$ex" = 0 ] && ok "exit 0" || echo "exit $ex")" "$s" "$extra";;
-    git*) printf "  %-32s %s\n" "git status --porcelain" "$(ok "$(echo "$line" | sed -E 's/git status after: //')")";;
+      [ "$name" = "pnpm install" ] && name="(prep) pnpm install --frozen-lockfile"; [ "$name" = "(prep) pnpm install --frozen-lockfile" ] && extra="  QWEN_SKIP_PREPARE=1 HUSKY=0"
+      printf "  %-38s %s  %4ss%s\n" "$name" "$( [ "$ex" = 0 ] && ok "exit 0" || echo "exit $ex")" "$s" "$extra";;
+    git*) printf "  %-38s %s\n" "git status --porcelain" "$(ok "$(echo "$line" | sed -E 's/git status after: //')")";;
   esac
 done < $L/root-gates.summary
