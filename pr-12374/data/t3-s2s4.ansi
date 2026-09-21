@@ -1,0 +1,40 @@
+[1m[36m# S2 — real `qwen serve` with QWEN_DEBUG_LOG_FILE=1: the allowlisted name is a real daemon file[0m
+$ ls -la runtime/debug
+ 14424 23:38:13 c21d30ce-5370-4424-b206-0bb99e132db7.txt
+ 12033 23:37:33 d5730792-779c-4cd1-9a29-0b943fd814e9.txt
+  4096 23:38:13 daemon
+    40 23:37:33 latest -> c21d30ce-5370-4424-b206-0bb99e132db7.txt
+  4808 23:37:04 workspace-mcp-discovery.txt
+$ head -2 runtime/debug/workspace-mcp-discovery.txt
+2026-09-21T15:37:04.814Z [INFO] Config initialization started
+2026-09-21T15:37:04.817Z [DEBUG] Extension manager initialized
+
+[1m[36m# S2 — copy of that dir; *.txt aged 45 d (pr, base) or left fresh; then an idle interactive TUI[0m
+entry                                           base, 45 d      PR, 45 d     PR, fresh
+c21d30ce-5370-4424-b206-0bb99e132db7.txt              kept       [31mREMOVED[39m          kept
+d5730792-779c-4cd1-9a29-0b943fd814e9.txt              kept       [31mREMOVED[39m          kept
+daemon                                                kept          kept          kept
+latest                                                kept      dangling          kept
+workspace-mcp-discovery.txt                           kept       [31mREMOVED[39m          kept
+
+[1m[36m# S4 — restart the daemon 3x, no client requests: appended once per start, never rotated[0m
+$ for i in 1 2 3; do restart qwen serve; stat -c %s workspace-mcp-discovery.txt; done
+restart 1: 4808 bytes, 1 init blocks
+restart 2: 9616 bytes, 2 init blocks
+restart 3: 14424 bytes, 3 init blocks
+
+[1m[36m# S4 — daemon still running, file mtime 2 h old, TUI with cleanupPeriodDays: 0[0m
+removed by the sweep: ['workspace-mcp-discovery.txt']
+kept: 2 session logs (fresh), daemon/, latest
+$ curl /health ; POST /session/:id/prompt   # afterwards
+{"status":"ok"} HTTP 200 ; {"promptId":"37b54c08-…"} HTTP 202
+
+
+
+
+
+
+
+
+
+

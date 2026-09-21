@@ -1,0 +1,30 @@
+[1m[36m# 1. ambient QWEN_RUNTIME_DIR=<sentinel> exported, housekeeping suites run as uid 1500 (R1-6/R1-7)[0m
+#    same PR-head production code in both runs; only the two test files differ
+   test files               vitest                         sentinel (5 files seeded)
+   b83983c19 (round 2)      8 failed | 56 passed (64)      [31m1 of 5 left[39m
+   81fecd5f (this round)    65 passed (65)                 [32m5 of 5 left[39m
+
+[1m[36m# 2. mutation matrix, round-3 claims (uid 1500, cleanup.test.ts + scheduler.test.ts)[0m
+   id     mutant                                                   r2 tests       r3 tests
+   R1-1   OpenAI marker dropped from first-pass catch-up list      [31msurvived      [39m [32mkilled (2)    [39m
+   D1     debug marker dropped from first-pass catch-up list       [2mnot run       [0m [32mkilled (1)    [39m
+   R1-5   pseudo-stem allowlist emptied                            [31msurvived      [39m [32mkilled (1)    [39m
+   R1-5b  allowlist keeps only transcript-replay                   [2mnot run       [0m [32mkilled (1)    [39m
+   R1-10  call site passes () => true (validator unpinned)         [31msurvived      [39m [32mkilled (1)    [39m
+   G1     current session no longer excluded                       [2mnot run       [0m [32mkilled (1)    [39m
+   K1     debug marker keyed on QWEN_HOME, not the debug dir       [32mkilled (2)    [39m [32mkilled (2)    [39m
+   R1-8   sweep rmdirs an emptied debug root                       [32mkilled (1)    [39m [32mkilled (1)    [39m
+   X1     exclude check removed inside the sweeper                 [2mnot run       [0m [32mkilled (2)    [39m
+   P1     sweep root = QWEN_HOME/debug (ignores QWEN_RUNTIME_DIR)  [2mnot run       [0m [32mkilled (1)    [39m
+   A1     allowlist widened to prefix match                        [2mnot run       [0m [31msurvived      [39m
+   A2     allowlist matched case-insensitively                     [2mnot run       [0m [31msurvived      [39m
+
+[1m[36m# 3. same suites, Linux[0m
+   uid 1500 (non-root)         : [32m65 passed (65)[39m
+   uid 0 (root), main          : 2 failed | 51 passed (53)
+   uid 0 (root), PR            : 3 failed | 62 passed (65)  # chmod EACCES cases (root)
+
+
+
+
+

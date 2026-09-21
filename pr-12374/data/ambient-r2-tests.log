@@ -1,0 +1,258 @@
+
+ RUN  v3.2.7 /root/git/h12374/packages/cli
+
+ ❯ src/utils/housekeeping/cleanup.test.ts (34 tests | 5 failed) 104ms
+   ✓ getCutoffDate > returns now - N days for N > 0 1ms
+   ✓ getCutoffDate > clamps to 1 hour when cleanupPeriodDays = 0 (active-session safety) 0ms
+   ✓ getCutoffDate > treats negative values as 0 (defends against schema-bypass) 0ms
+   ✓ getCutoffDate > keeps oversized retention values within the valid Date range 1ms
+   ✓ cleanupOldFileHistoryBackups > returns zero result when root does not exist 2ms
+   ✓ cleanupOldFileHistoryBackups > removes empty root after sweeping nothing 1ms
+   ✓ cleanupOldFileHistoryBackups > preserves dirs younger than cutoff 1ms
+   ✓ cleanupOldFileHistoryBackups > removes dirs older than cutoff 1ms
+   ✓ cleanupOldFileHistoryBackups > preserves new dirs and sweeps old ones in mixed input 1ms
+   ✓ cleanupOldFileHistoryBackups > preserves session ids listed in excludeSessionIds even if old 1ms
+   ✓ cleanupOldFileHistoryBackups > ignores non-directory entries at root 1ms
+   ✓ cleanupOldFileHistoryBackups > handles 100 old dirs without fd exhaustion 10ms
+   ✓ cleanupOldFileHistoryBackups > counts errors and continues sweep when one dir cannot be removed 1ms
+   ✓ cleanupOldSubagentTranscripts > returns zero result when the subagents root does not exist 0ms
+   ✓ cleanupOldSubagentTranscripts > removes session dirs older than cutoff, preserving recent and excluded ones 1ms
+   ✓ cleanupOldSubagentTranscripts > keeps the project-local subagents root after it becomes empty 1ms
+   ✓ cleanupOldOpenAILogs > returns zero result when the log dir does not exist 1ms
+   ✓ cleanupOldOpenAILogs > removes logs whose filename date is older than the cutoff, even with a fresh mtime 1ms
+   ✓ cleanupOldOpenAILogs > keeps logs whose filename date is newer than the cutoff 1ms
+   ✓ cleanupOldOpenAILogs > preserves old openai-prefixed JSON files not emitted by OpenAILogger 1ms
+   ✓ cleanupOldOpenAILogs > recognizes the current OpenAILogger filename contract 2ms
+   ✓ cleanupOldOpenAILogs > uses mtime to disambiguate files dated exactly on the cutoff day 1ms
+   ✓ cleanupOldOpenAILogs > ignores non-matching files and directories 1ms
+   ✓ cleanupOldOpenAILogs > returns incomplete without opening the directory when already aborted 0ms
+   ✓ cleanupOldOpenAILogs > checks cancellation for every directory entry 1ms
+   ✓ cleanupOldOpenAILogs > settles a partially populated deletion batch before returning 52ms
+   ✓ cleanupOldOpenAILogs > rejects when the log directory cannot be scanned 1ms
+   ✓ cleanupOldDebugLogs > returns zero result when the debug dir does not exist 1ms
+   × cleanupOldDebugLogs > removes session logs older than the cutoff, keeping recent ones 9ms
+     → expected { removed: +0, errors: +0 } to deeply equal { removed: 2, errors: +0 }
+   × cleanupOldDebugLogs > preserves session ids listed in excludeSessionIds even if old 2ms
+     → expected { removed: +0, errors: +0 } to deeply equal { removed: 1, errors: +0 }
+   × cleanupOldDebugLogs > sweeps stale logs spanning multiple concurrency batches 2ms
+     → expected { removed: +0, errors: +0 } to deeply equal { removed: 25, errors: +0 }
+   × cleanupOldDebugLogs > leaves the latest symlink and the daemon subdir untouched 2ms
+     → expected { removed: +0, errors: +0 } to deeply equal { removed: 1, errors: +0 }
+   ✓ cleanupOldDebugLogs > ignores invalid-session-id .txt files even when old 1ms
+   × cleanupOldDebugLogs > counts errors and continues when a file cannot be unlinked 1ms
+     → expected { removed: +0, errors: +0 } to deeply equal { removed: +0, errors: 3 }
+ ❯ src/services/housekeeping/scheduler.test.ts (30 tests | 3 failed) 65ms
+   ✓ _needsCatchUpForTesting > returns true when marker does not exist 2ms
+   ✓ _needsCatchUpForTesting > returns false when marker mtime is within threshold 1ms
+   ✓ _needsCatchUpForTesting > returns true when marker mtime is older than 7 days 0ms
+   ✓ _runHousekeepingForTesting > whitelists the current session via lazy getSessionId() 5ms
+   ✓ _runHousekeepingForTesting > sweeps old subagent transcripts under <projectDir>/subagents, protecting the current session 3ms
+   ✓ _runHousekeepingForTesting > throttles the subagent sweep per project (second pass does not re-sweep) 4ms
+   ✓ _runHousekeepingForTesting > re-reads sessionId on every pass (defends against /clear) 4ms
+   ✓ _runHousekeepingForTesting > honors cleanupPeriodDays = 0 by clamping to 1 hour (active session safe) 5ms
+   ✓ _runHousekeepingForTesting > uses default 30 days when cleanupPeriodDays is unset 2ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > removes logs older than the retention and writes the per-dir marker 4ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > uses the default 7-day retention when openAILogRetentionDays is unset 2ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > honors a longer configured retention 2ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > honors retention = 0 through the scheduler 2ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > throttles OpenAI log cleanup independently for different directories 3ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > resolves the default per-CWD log dir from getWorkingDir() 2ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > uses the settings directory when content-generator config is unavailable 2ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > skips custom-directory cleanup for workspace-scoped retention 2ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > uses the system retention owner for a custom directory 2ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > uses catch-up delay when the OpenAI marker is missing 1ms
+   × _runHousekeepingForTesting (openai-logs cleanup) > uses the normal delay only when the OpenAI marker is fresh 6ms
+     → expected 60000 to be 600000 // Object.is equality
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > uses catch-up delay when the OpenAI marker is older than seven days 1ms
+   ✓ _runHousekeepingForTesting (openai-logs cleanup) > skips the sweep gracefully when the log dir cannot be resolved 2ms
+   × _runHousekeepingForTesting (debug-logs cleanup) > sweeps old session debug logs, protecting the current session 2ms
+     → expected true to be false // Object.is equality
+   ✓ _runHousekeepingForTesting (debug-logs cleanup) > throttles cleanup independently for different runtime directories 2ms
+   ✓ _runHousekeepingForTesting (debug-logs cleanup) > uses catch-up delay when the debug-logs marker is missing 0ms
+   × _runHousekeepingForTesting (debug-logs cleanup) > uses the normal delay when both markers are fresh 1ms
+     → expected 60000 to be 600000 // Object.is equality
+   ✓ _runPassForTesting (timer-chain defense) > catches errors escaping runHousekeeping so the next pass still gets scheduled 0ms
+   ✓ _runPassForTesting (timer-chain defense) > takes the defer branch when user interacted recently and never invokes the work path 0ms
+   ✓ startBackgroundHousekeeping > returns synchronously without throwing 1ms
+   ✓ startBackgroundHousekeeping > second call is a no-op (started flag) 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/services/housekeeping/scheduler.test.ts > _runHousekeepingForTesting (openai-logs cleanup) > uses the normal delay only when the OpenAI marker is fresh
+AssertionError: expected 60000 to be 600000 // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 600000[39m
+[31m+ 60000[39m
+
+ ❯ src/services/housekeeping/scheduler.test.ts:518:5
+    516|     fs.writeFileSync(_getOpenAILogsMarkerPathForTesting(qwenHome, logD…
+    517| 
+    518|     await expect(
+       |     ^
+    519|       _getFirstPassDelayForTesting(
+    520|         makeOpenAIConfig(logDir),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  src/services/housekeeping/scheduler.test.ts > _runHousekeepingForTesting (debug-logs cleanup) > sweeps old session debug logs, protecting the current session
+AssertionError: expected true to be false // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+ ❯ src/services/housekeeping/scheduler.test.ts:598:34
+    596| 
+    597|     expect(fs.existsSync(current)).toBe(true);
+    598|     expect(fs.existsSync(stale)).toBe(false);
+       |                                  ^
+    599|     expect(fs.existsSync(fresh)).toBe(true);
+    600|     expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  src/services/housekeeping/scheduler.test.ts > _runHousekeepingForTesting (debug-logs cleanup) > uses the normal delay when both markers are fresh
+AssertionError: expected 60000 to be 600000 // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 600000[39m
+[31m+ 60000[39m
+
+ ❯ src/services/housekeeping/scheduler.test.ts:651:5
+    649|     );
+    650| 
+    651|     await expect(
+       |     ^
+    652|       _getFirstPassDelayForTesting(makeConfig('s'), makeSettings(30)),
+    653|     ).resolves.toBe(10 * 60 * 1000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  src/utils/housekeeping/cleanup.test.ts > cleanupOldDebugLogs > removes session logs older than the cutoff, keeping recent ones
+AssertionError: expected { removed: +0, errors: +0 } to deeply equal { removed: 2, errors: +0 }
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[2m    "errors": 0,[22m
+[32m-   "removed": 2,[39m
+[31m+   "removed": 0,[39m
+[2m  }[22m
+
+ ❯ src/utils/housekeeping/cleanup.test.ts:560:15
+    558| 
+    559|     const r = await cleanupDebugLogs({ cutoffDate: cutoff });
+    560|     expect(r).toEqual({ removed: 2, errors: 0 });
+       |               ^
+    561|     expect(fs.existsSync(old)).toBe(false);
+    562|     expect(fs.existsSync(agent)).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  src/utils/housekeeping/cleanup.test.ts > cleanupOldDebugLogs > preserves session ids listed in excludeSessionIds even if old
+AssertionError: expected { removed: +0, errors: +0 } to deeply equal { removed: 1, errors: +0 }
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[2m    "errors": 0,[22m
+[32m-   "removed": 1,[39m
+[31m+   "removed": 0,[39m
+[2m  }[22m
+
+ ❯ src/utils/housekeeping/cleanup.test.ts:582:15
+    580|       excludeSessionIds: new Set([UUID_A]),
+    581|     });
+    582|     expect(r).toEqual({ removed: 1, errors: 0 });
+       |               ^
+    583|     expect(fs.existsSync(current)).toBe(true);
+    584|     expect(fs.existsSync(other)).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  src/utils/housekeeping/cleanup.test.ts > cleanupOldDebugLogs > sweeps stale logs spanning multiple concurrency batches
+AssertionError: expected { removed: +0, errors: +0 } to deeply equal { removed: 25, errors: +0 }
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[2m    "errors": 0,[22m
+[32m-   "removed": 25,[39m
+[31m+   "removed": 0,[39m
+[2m  }[22m
+
+ ❯ src/utils/housekeeping/cleanup.test.ts:603:15
+    601|       isValidSessionId: (sessionId) => ids.has(sessionId),
+    602|     });
+    603|     expect(r).toEqual({ removed: 25, errors: 0 });
+       |               ^
+    604|     expect(fs.readdirSync(debugRoot)).toEqual([]);
+    605|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  src/utils/housekeeping/cleanup.test.ts > cleanupOldDebugLogs > leaves the latest symlink and the daemon subdir untouched
+AssertionError: expected { removed: +0, errors: +0 } to deeply equal { removed: 1, errors: +0 }
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[2m    "errors": 0,[22m
+[32m-   "removed": 1,[39m
+[31m+   "removed": 0,[39m
+[2m  }[22m
+
+ ❯ src/utils/housekeeping/cleanup.test.ts:627:15
+    625| 
+    626|     const r = await cleanupDebugLogs({ cutoffDate: cutoff });
+    627|     expect(r).toEqual({ removed: 1, errors: 0 });
+       |               ^
+    628|     expect(fs.existsSync(old)).toBe(false);
+    629|     expect(fs.lstatSync(latest).isSymbolicLink()).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  src/utils/housekeeping/cleanup.test.ts > cleanupOldDebugLogs > counts errors and continues when a file cannot be unlinked
+AssertionError: expected { removed: +0, errors: +0 } to deeply equal { removed: +0, errors: 3 }
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[32m-   "errors": 3,[39m
+[31m+   "errors": 0,[39m
+[2m    "removed": 0,[22m
+[2m  }[22m
+
+ ❯ src/utils/housekeeping/cleanup.test.ts:664:19
+    662|       try {
+    663|         const r = await cleanupDebugLogs({ cutoffDate: cutoff });
+    664|         expect(r).toEqual({ removed: 0, errors: 3 });
+       |                   ^
+    665|         expect(fs.existsSync(good)).toBe(true);
+    666|       } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  8 failed | 56 passed (64)
+   Start at  23:45:51
+   Duration  5.19s (transform 3.48s, setup 168ms, collect 9.49s, tests 169ms, environment 0ms, prepare 123ms)
+
+npm notice
+npm notice New major version of npm available! 10.9.7 -> 12.0.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+npm notice To update run: npm install -g npm@12.0.2
+npm notice
