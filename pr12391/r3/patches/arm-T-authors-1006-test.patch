@@ -1,0 +1,34 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java
+index 099fb50..ce1f105 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/InMemoryRepositoryTest.java
+@@ -532,6 +532,29 @@ class InMemoryRepositoryTest {
+         assertEquals("cancelled", settled.getExecutionStatus());
+     }
+ 
++    @Test
++    void staleOwnerCannotSettleAfterReReadingAFreshVersion() {
++        MutableClock clock = new MutableClock(START);
++        InMemoryToolExecutionRepository repository =
++                new InMemoryToolExecutionRepository(clock);
++        ToolExecutionRecord created = repository.findOrCreate(
++                execution("execution"));
++        repository.claimDispatch(created.getExecutionCallId(), "owner-a",
++                Duration.ofSeconds(30));
++        clock.advance(Duration.ofSeconds(31));
++        ToolExecutionRecord takeover = repository.claimDispatch(
++                created.getExecutionCallId(), "owner-b",
++                Duration.ofSeconds(30));
++
++        // Owner A re-reads for a fresh version; its settlement must fail.
++        ToolExecutionRecord reread = repository.findByExecutionCallId(
++                created.getExecutionCallId());
++        assertNull(repository.compareAndSet(reread,
++                reread.withResult(result("error"), 0, clock.instant())));
++        assertSame(takeover, repository.findByExecutionCallId(
++                created.getExecutionCallId()));
++    }
++
+     private static ToolExecutionRecord execution(String executionCallId) {
+         return ToolExecutionRecord.prepared(executionCallId, "key",
+                 "binding", 1, "harness", "session", "turn", "tool",
