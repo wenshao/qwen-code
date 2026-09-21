@@ -1,0 +1,52 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
+index 16877de..cf3c429 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
+@@ -48,6 +48,23 @@ public final class ToolExecutionRecord {
+             long lastSequence, boolean cancelRequested,
+             String dispatchOwner, Instant dispatchLeaseUntil,
+             long dispatchGeneration, long version, Instant settledAt) {
++        this(executionCallId, idempotencyKey, bindingId, runtimeGeneration,
++                harnessSessionId, runtimeSessionId, turnId, toolCallId,
++                requestDigest, reference, state, executionStatus, result,
++                lastSequence, cancelRequested, dispatchOwner, dispatchLeaseUntil,
++                dispatchGeneration, version, settledAt, false);
++    }
++
++    private ToolExecutionRecord(String executionCallId, String idempotencyKey,
++            String bindingId, long runtimeGeneration,
++            String harnessSessionId, String runtimeSessionId, String turnId,
++            String toolCallId, String requestDigest,
++            Map<String, Object> reference, State state,
++            String executionStatus, Map<String, Object> result,
++            long lastSequence, boolean cancelRequested,
++            String dispatchOwner, Instant dispatchLeaseUntil,
++            long dispatchGeneration, long version, Instant settledAt,
++            boolean trustedPayloads) {
+         this.executionCallId = BrokerValues.requireId(executionCallId,
+                 "executionCallId");
+         this.idempotencyKey = BrokerValues.requireId(idempotencyKey,
+@@ -113,11 +130,12 @@ public final class ToolExecutionRecord {
+                     "non-settled execution must not have a result");
+         }
+         this.runtimeGeneration = runtimeGeneration;
+-        this.reference = BrokerValues.immutableMap(reference);
++        this.reference = trustedPayloads ? reference
++                : BrokerValues.immutableMap(reference);
+         this.state = state;
+         this.executionStatus = executionStatus;
+         this.result = result == null ? null
+-                : BrokerValues.immutableMap(result);
++                : (trustedPayloads ? result : BrokerValues.immutableMap(result));
+         this.lastSequence = lastSequence;
+         this.cancelRequested = cancelRequested;
+         this.dispatchOwner = dispatchOwner;
+@@ -323,6 +341,7 @@ public final class ToolExecutionRecord {
+                 runtimeSessionId, turnId, toolCallId, requestDigest,
+                 reference, nextState, nextStatus, nextResult, sequence,
+                 requested, owner, leaseUntil, nextDispatchGeneration,
+-                nextVersion, completionTime);
++                nextVersion, completionTime,
++                nextResult == null || nextResult == result);
+     }
+ }

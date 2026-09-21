@@ -1,0 +1,48 @@
+java 21.0.10 / OpenJDK 64-Bit Server VM / Linux amd64
+
+[R1-4] compareAndSet authenticates no actor
+  t=0   A claimed   : DISPATCHING v1 owner=owner-a gen=1 cancel=false seq=0
+  t=31  B took over : DISPATCHING v2 owner=owner-b gen=2 cancel=false seq=0
+  CONTROL A stale-snapshot write -> null
+  t=32  A re-read (DISPATCHING v2 owner=owner-b gen=2 cancel=false seq=0), B lease live=true ; A settles -> ACCEPTED SETTLED v3 owner=owner-b gen=2 cancel=false seq=0
+  B writes after that -> null / null ; hasActiveByRuntimeSession=false ; findByIdempotencyKey -> error SETTLED
+  => R1-4 REPRODUCED stale owner re-read+settle accepted, B locked out, session drains | observed: ctl=null; settle=ACCEPTED; active=false
+
+[R1-5] compareAndSet accepts a replacement that drops a live claim
+  route 1 (public ctor): CAS(claim-drop) at T0+5s -> ACCEPTED EXECUTING v3 owner=null gen=1 cancel=false seq=0
+          claimDispatch(dispatcher-b) with 25s of A's lease left -> DISPATCHING v4 owner=dispatcher-b gen=2 cancel=false seq=0
+  route 2 (with*() only): withUnknown -> UNKNOWN v2 owner=null gen=1 cancel=false seq=0 ; withState(EXECUTING) -> EXECUTING v3 owner=null gen=1 cancel=false seq=0 ; claim(b) -> DISPATCHING v4 owner=dispatcher-b gen=2 cancel=false seq=0
+  => R1-5 REPRODUCED both routes elect a 2nd owner while A's lease is unexpired | observed: route1=true route2=true
+
+[R1-1] compareAndSet does not fence the claim fields
+  stored before: DISPATCHING v3 owner=owner-c gen=3 cancel=false seq=0 ; hijack CAS -> ACCEPTED DISPATCHING v4 owner=owner-a gen=1 cancel=false seq=0
+  renewDispatch(owner-c, gen=3) -> null ; renewDispatch(owner-a, gen=1) -> non-null
+  k1b: owner-a's lease expired 1s ago, nobody took over; settle -> ACCEPTED SETTLED v2 owner=owner-a gen=1 cancel=false seq=0
+  => R1-1 REPRODUCED generation regressed 3->1, two owners renew; expired owner settles | observed: k1a=ACCEPTED rc=null ra=true k1b=ACCEPTED
+
+[R1-3] compareAndSet applies no transition policy
+  k3a: UNKNOWN UNKNOWN v2 owner=null gen=1 cancel=false seq=0 ; claim while UNKNOWN -> null ; escape to PREPARED -> ACCEPTED PREPARED v3 owner=null gen=1 cancel=false seq=0 ; re-claim -> DISPATCHING v4 owner=owner-b gen=2 cancel=false seq=0
+  k3b1: CANCEL_REQUESTED v3 owner=owner-a gen=1 cancel=true seq=0 -> withState(EXECUTING,false) -> ACCEPTED EXECUTING v4 owner=owner-a gen=1 cancel=false seq=0
+  k3b2: withState(CANCEL_REQUESTED,false) -> ACCEPTED CANCEL_REQUESTED v2 owner=owner-a gen=1 cancel=false seq=0 ; after expiry claim(b) -> DISPATCHING v3 owner=owner-b gen=2 cancel=false seq=0
+  => R1-3 REPRODUCED UNKNOWN->PREPARED escape+re-claim; cancel erased; incoherent state accepted | observed: k3a=ACCEPTED k3b1=ACCEPTED k3b2=ACCEPTED->DISPATCHING
+
+[R1-2] claimDispatch rewrites EXECUTING to DISPATCHING on takeover
+  before expiry: EXECUTING v2 owner=owner-a gen=1 cancel=false seq=0 ; after takeover: DISPATCHING v3 owner=owner-b gen=2 cancel=false seq=0
+  instance fields: 20 ; any attempt/dispatchedAt/previous-owner field: false
+  control (cancelRequested=true): CANCEL_REQUESTED v3 owner=owner-a gen=1 cancel=true seq=0 -> takeover -> CANCEL_REQUESTED v4 owner=owner-b gen=2 cancel=true seq=0
+  => R1-2 REPRODUCED EXECUTING -> DISPATCHING on takeover, 20 fields, no dispatch evidence | observed: EXECUTING->DISPATCHING, fields=20, control->CANCEL_REQUESTED
+
+[R1-8] immutableValue keeps any Number by reference
+  settled SETTLED v2 owner=owner-a gen=1 cancel=false seq=0 ; tokens before=1 alias-of-caller-object=true ; after caller mutates: 1000 (version 2) ; map writable=false
+  rebuilt-from-identical-values CAS: AtomicLong -> THREW IllegalArgumentException: replacement must preserve execution identity and version
+                                     Long (control) -> ACCEPTED EXECUTING v2 owner=owner-a gen=1 cancel=false seq=0
+  same record via withState() (reuses the stored instance) -> ACCEPTED EXECUTING v2 owner=owner-a gen=1 cancel=false seq=0
+  => R1-8 REPRODUCED caller mutates a settled result; rebuilt AtomicLong identity refused | observed: after=1000 atomicCas=THREW IllegalArgumentException longCas=ACCEPTED
+
+[R1-9] compareAndSet lets lastSequence move backwards
+  STEP1 findOrCreate -> PREPARED v0 owner=null gen=0 cancel=false seq=5 ; STEP2 claim -> DISPATCHING v1 owner=owner-a gen=1 cancel=false seq=5
+  CONTROL withResult(seq=1) on seq=5 -> throws: result sequence must not move backwards
+  STEP3 CAS(seq 5 -> 0) -> ACCEPTED DISPATCHING v2 owner=owner-a gen=1 cancel=false seq=0 ; STEP4 settle seq=1 -> ACCEPTED SETTLED v3 owner=owner-a gen=1 cancel=false seq=1
+  => R1-9 REPRODUCED seq regressed 5->0, then settles at 1 although 5 was recorded | observed: s3=ACCEPTED s4=ACCEPTED
+
+SUMMARY reproduced=7 not-reproduced=0
