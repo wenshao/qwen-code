@@ -1,0 +1,82 @@
+
+[1;36m━━ PR #12254 real-daemon E2E — head 021f3228 vs base af4e3b29 ━━[0m
+
+[1;36m━━ 0. Seed workspace-local groups through the real REST API (head daemon, then stop) ━━[0m
+  [1;32mPASS[0m [1mseed-A[0m create group "Backend" in ws-A  [2mHTTP 201 id=d2b017d6-a68a-4623-bf8c-94b500c58e45[0m
+  [1;32mPASS[0m [1mseed-B[0m create group "Backend" in ws-B  [2mHTTP 201 id=c143285a-ea62-4a2e-aaf6-e9ab7c4bcdcb[0m
+  [1;32mPASS[0m [1massign-A1[0m assign A-active-1 → Backend  [2mHTTP 200[0m
+  [1;32mPASS[0m [1massign-A3[0m assign A-active-3 → Backend  [2mHTTP 200[0m
+  [1;32mPASS[0m [1massign-A6[0m assign A-active-6 → Docs  [2mHTTP 200[0m
+  [1;32mPASS[0m [1massign-B2[0m assign B-active-2 → Backend  [2mHTTP 200[0m
+  [1;32mPASS[0m [1mpin-A7[0m pin A-active-7  [2mHTTP 200[0m
+
+[1;36m━━ 1. BEFORE — base daemon (merge-base af4e3b29) ━━[0m
+  [1;32mPASS[0m [1mB1[0m capability session_catalog_batch is NOT advertised
+  [1;32mPASS[0m [1mB2[0m POST /sessions/catalog → 404  [2mHTTP 404[0m
+  [2mrecorded 35 legacy responses for the A/B diff[0m
+
+[1;36m━━ 2. AFTER — head daemon (021f3228): capability + one-request catalog ━━[0m
+  [1;32mPASS[0m [1mH1[0m capability session_catalog_batch IS advertised
+  [1;32mPASS[0m [1mH2[0m one request returns 3 members in registration order  [2mHTTP 200 5661B 22ms[0m
+  [1;32mPASS[0m [1mH3[0m every member carries canonical workspaceId + cwd
+  [1;32mPASS[0m [1mH4-A[0m ws-A: exactly its 7 active sessions, newest first  [2m07,06,05,04,03,02,01[0m
+  [1;32mPASS[0m [1mH4-B[0m ws-B: exactly its 5 active sessions, newest first  [2m05,04,03,02,01[0m
+  [1;32mPASS[0m [1mH4-C[0m ws-C: exactly its 3 active sessions, newest first  [2m03,02,01[0m
+  [1;32mPASS[0m [1mH5[0m every session row's workspaceCwd equals its member cwd (no cross-workspace leak)
+  [1;32mPASS[0m [1mH6[0m group catalogs are workspace-local (A: Backend+Docs, B: Backend with a different id, C: none)  [2mA=d2b017d6,98399b79 B=c143285a[0m
+
+[1;36m━━ 3. Parity — every batch view equals the existing qualified GET (same daemon) ━━[0m
+  [1;32mPASS[0m [1mP1[0m default (unfiltered, active)  [2mA:7 B:5 C:3[0m
+  [1;32mPASS[0m [1mP2[0m archiveState=archived  [2mA:2 B:1 C:0[0m
+  [1;32mPASS[0m [1mP3[0m view=organized group=all  [2mA:7 B:5 C:3[0m
+  [1;32mPASS[0m [1mP4[0m view=organized group=ungrouped  [2mA:4 B:4 C:3[0m
+  [1;32mPASS[0m [1mP5[0m view=organized group=pinned  [2mA:1 B:0 C:0[0m
+  [1;32mPASS[0m [1mP6[0m sourceType=channel  [2mA:3 B:1 C:0[0m
+  [1;32mPASS[0m [1mP7[0m sourceType=channel sourceId=dingtalk:room-1  [2mA:2 B:1 C:0[0m
+  [1;32mPASS[0m [1mP8[0m ws-A's group id pages in A and is an isolated 404 group_not_found member in B  [2mA=2 rows, B=group_not_found/404[0m
+  [1;32mPASS[0m [1mP9[0m includeGroups catalog equals GET /workspaces/:ws/session-groups
+
+[1;36m━━ 4. Independent continuation — no missing / repeated rows ━━[0m
+  [1;32mPASS[0m [1mG1[0m size=2 drained in 4 batch requests: each workspace returns every session exactly once, in order  [2mA=7 B=5 C=3[0m
+  [1;32mPASS[0m [1mG2[0m short workspaces drop out while longer ones keep paging (cursors are independent)
+  [1;32mPASS[0m [1mG3[0m organized view size=2 drains to the same ordered set as one size=100 page  [2mrequests=4[0m
+  [1;32mPASS[0m [1mG4[0m sourceType=channel size=1 drains to A:{5,4,2} B:{1} C:{}
+
+[1;36m━━ 5. Subset selection by workspace id and by cwd ━━[0m
+  [1;32mPASS[0m [1mS1[0m selection order preserved (C by id, then A by cwd); B absent
+  [1;32mPASS[0m [1mS2[0m member.workspace echoes the ORIGINAL selector; cwd/workspaceId are canonical
+  [1;32mPASS[0m [1mS3[0m non-canonical cwd spellings ("/x/", "/x/./") resolve to the canonical owner  [2mok,ok[0m
+
+[1;36m━━ 6. Partial failure, bounds, auth ━━[0m
+  [1;32mPASS[0m [1mE1[0m unknown cwd / unknown id / relative selector → 404 member errors, valid member still paged, HTTP 200
+  [1;32mPASS[0m [1mE2[0m a bad cursor fails only its own member (400 invalid_cursor)  [2mInvalid cursor: "not-a-cursor" is not a valid metadata cursor[0m
+  [1;32mPASS[0m [1mE3[0m 12 malformed envelopes all → HTTP 400
+  [1;32mPASS[0m [1mE4[0m missing / wrong bearer token → 401  [2m401/401[0m
+  [1;32mPASS[0m [1mE5[0m GET /sessions/catalog is not a route (POST only)  [2mHTTP 404[0m
+
+[1;36m━━ 7. Cursor family + pagination-mode binding (round-2 fix R2-3) ━━[0m
+  [1;32mPASS[0m [1mK1[0m legacy-GET organized cursor replayed in the batch → invalid_cursor
+  [1;32mPASS[0m [1mK2[0m batch organized cursor replayed on the legacy GET → 400  [2mHTTP 400 invalid_cursor[0m
+  [1;32mPASS[0m [1mK3[0m organized cursor replayed on the default (metadata) family → invalid_cursor
+  [1;32mPASS[0m [1mK4[0m default cursor replayed on the organized family → invalid_cursor
+  [1;32mPASS[0m [1mK5[0m legacy numeric cursor in a batch member → invalid_cursor (documented: not interchangeable)  [2mnumeric=1788221162000[0m
+  [1;32mPASS[0m [1mK6[0m legacy-GET source cursor (paginateMerged:false) replayed in the batch → invalid_cursor
+  [1;32mPASS[0m [1mK7[0m cursors minted by the BASE daemon still continue on the head legacy GET (rolling upgrade)  [2morganized=200 source=200[0m
+
+[1;36m━━ 8. No regression — existing single-workspace endpoints, base vs head ━━[0m
+  [1;32mPASS[0m [1mN1[0m 35 legacy responses identical between base and head (cursor bytes scrubbed — new cursors carry family markers)
+  [1;32mPASS[0m [1mN2[0m legacy unfiltered numeric cursor is byte-identical across arms
+
+[1;36m━━ 9. Secondaries stay cold — runtime status + /proc process tree ━━[0m
+  [1;32mPASS[0m [1mC-B[0m ws-B after 47 batch requests: runtimeLive=false runtimeEpoch=0, status byte-identical to before  [2mstate=cold live=false epoch=0[0m
+  [1;32mPASS[0m [1mC-C[0m ws-C after 47 batch requests: runtimeLive=false runtimeEpoch=0, status byte-identical to before  [2mstate=cold live=false epoch=0[0m
+  [1;32mPASS[0m [1mC-proc[0m process tree: the only ACP child belongs to the primary (boot preheat); none has cwd ws-B / ws-C, and no new pid appeared while browsing  [2mchildren: before=1 after=1 (A=1 B=0 C=0)[0m
+
+[1;36m━━ 10. Runtime-registered workspace: appears in "all", then removed ━━[0m
+  [1;32mPASS[0m [1mX0[0m POST /workspaces {cwd: ws-delta} → 201; "all" now has 4 members and ws-delta pages its own 2 sessions
+  [1;32mPASS[0m [1mX0c[0m the runtime-registered workspace is still cold after being browsed  [2mstate=cold[0m
+  [1;32mPASS[0m [1mX1[0m DELETE /workspaces/:delta → 200; selecting it by cwd or by id → 404 workspace_not_found member (no empty success page), ws-B still paged
+  [1;32mPASS[0m [1mX2[0m "all" no longer enumerates the removed workspace
+  [1;32mPASS[0m [1mZ1[0m daemon stderr has no unhandled rejection / crash  [2m74 stderr lines[0m
+
+[1;32m55/55 checks passed[0m
