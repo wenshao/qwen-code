@@ -1,0 +1,42 @@
+--- dist/chunks/chunk-UEQTRY2E.js	2026-09-21 21:27:43
++++ dist-obs/chunks/chunk-UEQTRY2E.js	2026-09-21 21:36:07
+@@ -1438,6 +1438,7 @@
+       } : request;
+     },
+     changeSessionCwd(channel, sessionId, req) {
++      process.stderr.write("[probe-dispatch] cd -> child sessionId=" + sessionId + "\n");
+       return channel.connection.extMethod(SERVE_CONTROL_EXT_METHODS.sessionCd, {
+         sessionId,
+         path: req.path,
+@@ -4854,6 +4855,7 @@
+       return { messages: [], items: [], hasQueuedPrompt: false };
+     }
+     const promptId = requestedPromptId ?? currentTurnMetadata(entry).promptId;
++    process.stderr.write("[probe-drain] " + JSON.stringify({ sessionId, requestedPromptId: requestedPromptId ?? null, resolvedPromptId: promptId ?? null, promptActive: entry.promptActive === true, backgroundTurnId: entry.backgroundTurn?.turnId ?? null, activePromptId: entry.activePromptId ?? null, queued: entry.midTurnMessageQueue.length }) + "\n");
+     const drained = entry.midTurnMessageQueue.splice(0);
+     if (drained.length > 0) {
+       for (const item of drained) {
+@@ -15528,6 +15530,7 @@
+         }, "releaseAdmissionOnce");
+         harness.reserveRuntimeOperation();
+         try {
++          process.stderr.write("[probe-dispatch] branch -> child sessionId=" + sessionId + "\n");
+           const mutation = entry.connection.extMethod(
+             isSideTask ? SERVE_CONTROL_EXT_METHODS.sessionSideTask : SERVE_CONTROL_EXT_METHODS.sessionBranch,
+             {
+@@ -17570,6 +17573,7 @@
+         );
+         let response;
+         try {
++          process.stderr.write("[probe-dispatch] fork -> child sessionId=" + sessionId + "\n");
+           response = await Promise.race([
+             withTimeout(
+               entry.connection.extMethod(
+@@ -17774,6 +17778,7 @@
+         }
+         let response;
+         try {
++          process.stderr.write("[probe-dispatch] rewind -> child sessionId=" + sessionId + "\n");
+           response = await Promise.race([
+             entry.connection.extMethod(
+               SERVE_CONTROL_EXT_METHODS.sessionRewind,
