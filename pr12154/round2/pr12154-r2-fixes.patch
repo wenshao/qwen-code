@@ -1,0 +1,399 @@
+diff --git a/packages/cli/src/serve/routes/workspace-git-worktrees.test.ts b/packages/cli/src/serve/routes/workspace-git-worktrees.test.ts
+index 3414948b9b..51d5d9c0fd 100644
+--- a/packages/cli/src/serve/routes/workspace-git-worktrees.test.ts
++++ b/packages/cli/src/serve/routes/workspace-git-worktrees.test.ts
+@@ -334,7 +334,9 @@ describe('workspace git worktree routes', () => {
+     // checkout, so it is never a cacheable answer.
+     expect(ok.headers['cache-control']).toBe('no-store');
+     expect(ok.headers['x-content-type-options']).toBe('nosniff');
+-    expect(statusMock).toHaveBeenCalledWith(LINKED.path);
++    expect(statusMock).toHaveBeenCalledWith(LINKED.path, {
++      env: expect.objectContaining({ LC_ALL: 'C' }),
++    });
+ 
+     const unknown = await request(app).get(
+       '/workspaces/primary/git/worktrees/status?path=%2Fnot%2Fa%2Fworktree',
+@@ -433,6 +435,44 @@ describe('workspace git worktree routes', () => {
+     expect(forced.status).toBe(200);
+   });
+ 
++  it('counts a live session the checkout names as its owner', async () => {
++    // A session that entered the worktree itself (enter_worktree) names itself
++    // in the checkout's marker; only daemon routes record `worktree` on the
++    // bridge entry, so the marker is where its occupancy shows.
++    fs.writeFileSync(path.join(LINKED_PATH, '.qwen-session'), 'entered');
++    const app = mount([
++      runtime('primary', ROOT, true, [
++        { sessionId: 'entered' },
++        { sessionId: 'elsewhere' },
++      ]),
++    ]);
++
++    const refused = await request(app)
++      .post('/workspaces/primary/git/worktrees/remove')
++      .send({ path: LINKED.path });
++
++    expect(refused.status).toBe(409);
++    expect(refused.body).toMatchObject({
++      code: 'worktree_in_use',
++      sessions: 1,
++    });
++  });
++
++  it('does not count a marker whose owner is not live in this daemon', async () => {
++    // The marker outlives its session, and a CLI session is not one this
++    // daemon can vouch for: only a live session here makes it evidence.
++    fs.writeFileSync(path.join(LINKED_PATH, '.qwen-session'), 'long-gone');
++    const app = mount([
++      runtime('primary', ROOT, true, [{ sessionId: 'elsewhere' }]),
++    ]);
++
++    const removed = await request(app)
++      .post('/workspaces/primary/git/worktrees/remove')
++      .send({ path: LINKED.path });
++
++    expect(removed.status).toBe(200);
++  });
++
+   it('counts a session that belongs to another registered workspace', async () => {
+     // The worktree is not itself a registered workspace, so the
+     // `worktree_is_workspace` refusal does not fire; only the cross-runtime
+@@ -1296,9 +1336,42 @@ describe('workspace git worktree routes', () => {
+     // this gate has to override it or the files are destroyed unannounced.
+     expect(statusMock).toHaveBeenCalledWith(LINKED.path, {
+       countHiddenUntracked: true,
++      env: expect.objectContaining({ LC_ALL: 'C' }),
+     });
+   });
+ 
++  it("reads the working tree without the daemon's repository variables", async () => {
++    // Every other git call here goes through the scrubbed environment; the
++    // one that decides whether uncommitted work is destroyed cannot be the
++    // one that follows an inherited GIT_DIR to some other repository.
++    const base = runtime('primary', ROOT, true);
++    const app = mount([
++      {
++        ...base,
++        env: {
++          mode: 'parent-process',
++          overlayKeys: [],
++          effectiveEnv: {
++            PATH: '/usr/bin',
++            GIT_DIR: '/elsewhere/.git',
++            GIT_WORK_TREE: '/elsewhere',
++            GIT_INDEX_FILE: '/elsewhere/.git/index',
++          },
++        },
++      } as unknown as WorkspaceRuntime,
++    ]);
++
++    await request(app)
++      .post('/workspaces/primary/git/worktrees/remove')
++      .send({ path: LINKED.path });
++
++    const env = statusMock.mock.calls[0]?.[1]?.env;
++    expect(env).toMatchObject({ PATH: '/usr/bin' });
++    expect(env).not.toHaveProperty('GIT_DIR');
++    expect(env).not.toHaveProperty('GIT_WORK_TREE');
++    expect(env).not.toHaveProperty('GIT_INDEX_FILE');
++  });
++
+   it('says a nested repository goes with the removal it is refusing', async () => {
+     listMock.mockResolvedValue([MAIN, LINKED]);
+     submodulesMock.mockResolvedValue(true);
+@@ -1755,6 +1828,28 @@ describe('workspace git worktree routes', () => {
+     expect(pruneTurnsHeld()).toBe(before);
+   });
+ 
++  it('refuses a workspace whose directory name starts with two dots', async () => {
++    // `..data` is a name inside the worktree — Kubernetes mounts one — not a
++    // step out of it, so a prefix test would let the workspace go with it.
++    const dotted = path.join(LINKED_PATH, '..data');
++    fs.mkdirSync(dotted);
++    const app = mount([
++      runtime('primary', ROOT, true),
++      runtime('dotted', dotted, true),
++    ]);
++
++    const response = await request(app)
++      .post('/workspaces/primary/git/worktrees/remove')
++      .send({ path: LINKED_PATH, force: true });
++
++    expect(response.status).toBe(409);
++    expect(response.body).toMatchObject({
++      code: 'worktree_is_workspace',
++      workspaceCwd: dotted,
++    });
++    expect(removeMock).not.toHaveBeenCalled();
++  });
++
+   it('refuses a workspace registered under another spelling of the path', async () => {
+     // A daemon that canonicalises an added workspace through the platform
+     // records the spelling the disk has; git records the one it was given.
+diff --git a/packages/cli/src/serve/routes/workspace-git-worktrees.ts b/packages/cli/src/serve/routes/workspace-git-worktrees.ts
+index b767a03739..b20cc638c3 100644
+--- a/packages/cli/src/serve/routes/workspace-git-worktrees.ts
++++ b/packages/cli/src/serve/routes/workspace-git-worktrees.ts
+@@ -7,7 +7,11 @@
+ import * as fs from 'node:fs';
+ import * as path from 'node:path';
+ import type { Application, RequestHandler, Response } from 'express';
+-import { GitWorktreeService } from '@qwen-code/qwen-code-core/services/gitWorktreeService.js';
++import {
++  GitWorktreeService,
++  readWorktreeSessionMarkerStrict,
++} from '@qwen-code/qwen-code-core/services/gitWorktreeService.js';
++import { gitEnv } from '@qwen-code/qwen-code-core/utils/git-branches.js';
+ import { getGitWorkingTreeStatus } from '@qwen-code/qwen-code-core/utils/gitDiff.js';
+ import {
+   commitIsReachable,
+@@ -197,6 +201,14 @@ function checkoutIsUnseeable(entry: GitWorktreeEntry): boolean {
+   }
+ }
+ 
++/**
++ * Whether a `path.relative` result climbs out of its base. A segment test,
++ * not a prefix test: `..data` is a name inside the base, `..` and `../x` leave.
++ */
++function escapesUpward(relative: string): boolean {
++  return relative === '..' || relative.startsWith(`..${path.sep}`);
++}
++
+ function managedSlug(
+   entry: GitWorktreeEntry,
+   managedDir: string,
+@@ -205,7 +217,7 @@ function managedSlug(
+     realpathOnDiskOrSelf(managedDir),
+     realpathOnDiskOrSelf(entry.path),
+   );
+-  return relative && !relative.startsWith('..') && !path.isAbsolute(relative)
++  return relative && !escapesUpward(relative) && !path.isAbsolute(relative)
+     ? relative.split(path.sep)[0]
+     : undefined;
+ }
+@@ -273,11 +285,19 @@ function sendError(
+  * and those are the sessions a removal would strand. Ids key the set so the
+  * number the user is shown counts each session once.
+  */
+-function countLiveSessionsIn(
++async function countLiveSessionsIn(
+   registry: WorkspaceRegistry,
+   worktreePath: string,
+-): number {
++): Promise<number> {
+   const target = realpathOnDiskOrSelf(worktreePath);
++  // A session that entered this checkout itself (enter_worktree) names itself
++  // in the checkout's marker, while only daemon routes record `worktree` on
++  // the bridge entry. The marker alone says nothing about liveness; a live
++  // session in one of this daemon's runtimes carrying that id does.
++  const marker = await readWorktreeSessionMarkerStrict(worktreePath).catch(
++    () => null,
++  );
++  const markerOwner = marker?.state === 'valid' ? marker.sessionId : null;
+   const sessionIds = new Set<string>();
+   for (const runtime of registry.listManaged()) {
+     for (const session of runtime.bridge.listWorkspaceSessions(
+@@ -286,9 +306,10 @@ function countLiveSessionsIn(
+       // Sessions usually carry the very path git listed, so compare the
+       // strings before spending a `realpath` syscall on each one.
+       if (
+-        session.worktree !== undefined &&
+-        (session.worktree.path === worktreePath ||
+-          realpathOnDiskOrSelf(session.worktree.path) === target)
++        (session.worktree !== undefined &&
++          (session.worktree.path === worktreePath ||
++            realpathOnDiskOrSelf(session.worktree.path) === target)) ||
++        (markerOwner !== null && session.sessionId === markerOwner)
+       ) {
+         sessionIds.add(session.sessionId);
+       }
+@@ -416,7 +437,9 @@ export function registerWorkspaceQualifiedGitWorktreeRoutes(
+       // it would answer about the main worktree instead — see
+       // {@link isReadableCheckout}.
+       const status = isReadableCheckout(entry)
+-        ? await getGitWorkingTreeStatus(entry.path)
++        ? await getGitWorkingTreeStatus(entry.path, {
++            env: gitEnv(runtime.env.effectiveEnv),
++          })
+         : null;
+       runtime.generationGuard?.assertOpen();
+       res.status(200).json(
+@@ -548,7 +571,7 @@ export function registerWorkspaceQualifiedGitWorktreeRoutes(
+         );
+         return (
+           relative === '' ||
+-          (!relative.startsWith('..') && !path.isAbsolute(relative))
++          (!escapesUpward(relative) && !path.isAbsolute(relative))
+         );
+       };
+       const blockingWorkspace = deps.workspaceRegistry
+@@ -593,6 +616,7 @@ export function registerWorkspaceQualifiedGitWorktreeRoutes(
+             // own safety check as well, and this gate is what is left.
+             const status = await getGitWorkingTreeStatus(entry.path, {
+               countHiddenUntracked: true,
++              env: gitEnv(runtime.env.effectiveEnv),
+             });
+             if (!status) statusUnknown = true;
+             else {
+@@ -675,7 +699,7 @@ export function registerWorkspaceQualifiedGitWorktreeRoutes(
+           };
+           // Reads every registered workspace's bridge, so a forced removal
+           // never pays for an answer it would ignore.
+-          const liveSessions = countLiveSessionsIn(
++          const liveSessions = await countLiveSessionsIn(
+             deps.workspaceRegistry,
+             entry.path,
+           );
+diff --git a/packages/core/src/utils/git-worktrees.test.ts b/packages/core/src/utils/git-worktrees.test.ts
+index fbc1e92e0d..02a3ac4625 100644
+--- a/packages/core/src/utils/git-worktrees.test.ts
++++ b/packages/core/src/utils/git-worktrees.test.ts
+@@ -320,6 +320,32 @@ describe('worktreeHoldsSubmodules, on what a gitlink path holds', () => {
+   }, 30_000);
+ });
+ 
++describe('worktreeHoldsSubmodules, on a path it cannot decode', () => {
++  it('treats a gitlink whose path is not UTF-8 as a repository', async () => {
++    // The index holds bytes and the stream decodes them as UTF-8, so a
++    // Latin-1 name comes back with a replacement character that names
++    // nothing on disk — and "not found" must not read as "no repository".
++    if (process.platform === 'win32') return;
++    const outer = makeRepo();
++    const wt = path.join(path.dirname(outer), 'wt');
++    git(outer, 'worktree', 'add', '-q', wt, '-b', 'side');
++    const target = Buffer.concat([
++      Buffer.from(`${wt}${path.sep}`),
++      Buffer.from([0x76, 0x65, 0x6e, 0x64, 0xe9]), // "vend\xe9"
++    ]);
++    try {
++      fs.renameSync(makeRepo(), target);
++    } catch (err) {
++      // A volume that only stores valid UTF-8 names cannot hold this shape.
++      if ((err as NodeJS.ErrnoException).code === 'EILSEQ') return;
++      throw err;
++    }
++    git(wt, '-c', 'advice.addEmbeddedRepo=false', 'add', '-A');
++    git(wt, 'commit', '-q', '-m', 'gitlink');
++    expect(await worktreeHoldsSubmodules(wt)).toBe(true);
++  }, 30_000);
++});
++
+ describe('worktreeHoldsSubmodules, on an index it cannot hold', () => {
+   /** Add a gitlink to the index without checking anything out. */
+   function gitlink(repo: string, at: string, sha: string): void {
+diff --git a/packages/core/src/utils/git-worktrees.ts b/packages/core/src/utils/git-worktrees.ts
+index d8aebc327f..2e2aaf2ead 100644
+--- a/packages/core/src/utils/git-worktrees.ts
++++ b/packages/core/src/utils/git-worktrees.ts
+@@ -270,7 +270,12 @@ export function worktreeHoldsSubmodules(
+       if (!entry.startsWith('160000 ')) return false;
+       const tab = entry.indexOf('\t');
+       if (tab === -1) return false;
+-      const at = path.resolve(worktreePath, entry.slice(tab + 1));
++      const name = entry.slice(tab + 1);
++      // The index holds bytes and this reads them as UTF-8. A path that did
++      // not survive decoding cannot be looked for, and a gitlink is a
++      // repository until shown otherwise.
++      if (name.includes('\uFFFD')) return true;
++      const at = path.resolve(worktreePath, name);
+       // A gitlink with nothing at its path — never checked out, or
+       // deinitialised — has no repository here to lose.
+       return pathHoldsRepository(at);
+diff --git a/packages/core/src/utils/gitDiff.ts b/packages/core/src/utils/gitDiff.ts
+index b83feb0031..5c474877b8 100644
+--- a/packages/core/src/utils/gitDiff.ts
++++ b/packages/core/src/utils/gitDiff.ts
+@@ -1133,7 +1133,11 @@ async function mapWithConcurrency<T, R>(
+   return results;
+ }
+ 
+-async function runGit(args: string[], cwd: string): Promise<string | null> {
++async function runGit(
++  args: string[],
++  cwd: string,
++  env?: NodeJS.ProcessEnv,
++): Promise<string | null> {
+   // `core.quotepath=false` keeps non-ASCII filenames as UTF-8 in git's output
+   // instead of octal-escaping them (`\346\226\207.txt`), which would otherwise
+   // end up as literal keys in `perFileStats`. The guard rides along here because
+@@ -1149,6 +1153,7 @@ async function runGit(args: string[], cwd: string): Promise<string | null> {
+       maxBuffer: 64 * 1024 * 1024,
+       windowsHide: true,
+       encoding: 'utf8',
++      ...(env ? { env } : {}),
+     });
+     return stdout;
+   } catch {
+@@ -1206,7 +1211,11 @@ export interface GitWorkingTreeStatus {
+ 
+ export async function getGitWorkingTreeStatus(
+   cwd: string,
+-  options: { countHiddenUntracked?: boolean } = {},
++  options: {
++    countHiddenUntracked?: boolean;
++    /** An already scrubbed environment; the process's own when omitted. */
++    env?: NodeJS.ProcessEnv;
++  } = {},
+ ): Promise<GitWorkingTreeStatus | null> {
+   const gitRoot = findGitRoot(cwd);
+   if (!gitRoot) return null;
+@@ -1227,6 +1236,7 @@ export async function getGitWorkingTreeStatus(
+       '-z',
+     ],
+     gitRoot,
++    options.env,
+   );
+   if (stdout == null) return null;
+ 
+diff --git a/packages/web-shell/client/components/dialogs/GitWorktreesDialog.test.tsx b/packages/web-shell/client/components/dialogs/GitWorktreesDialog.test.tsx
+index b3954bb084..787a10c90d 100644
+--- a/packages/web-shell/client/components/dialogs/GitWorktreesDialog.test.tsx
++++ b/packages/web-shell/client/components/dialogs/GitWorktreesDialog.test.tsx
+@@ -1480,6 +1480,30 @@ describe('GitWorktreesContent', () => {
+     expect(workspaceGitWorktrees).toHaveBeenCalledTimes(3);
+   });
+ 
++  it('says a removal failed when the daemon gives no words for it', async () => {
++    workspaceGitWorktrees.mockResolvedValue(listPayload([MAIN, FEATURE]));
++    listWorkspaceSessions.mockResolvedValue([]);
++    workspaceGitWorktreeStatus.mockResolvedValue(status('/x'));
++    // git killed with nothing on either stream reaches the client as an
++    // empty `error`; an empty sentence must not read as a fresh confirmation.
++    workspaceGitRemoveWorktree.mockRejectedValueOnce(rejection({ error: '' }));
++    mount();
++    await flush();
++
++    await act(async () => {
++      button('Remove worktree swift-fox').click();
++    });
++    await act(async () => {
++      button('Remove').click();
++    });
++    await flush();
++
++    expect(document.body.textContent).toContain(
++      'Failed to remove the worktree',
++    );
++    expect(document.body.textContent).not.toContain('Remove this worktree?');
++  });
++
+   it('filters by path, branch, or slug and offers a new worktree session', async () => {
+     workspaceGitWorktrees.mockResolvedValue(
+       listPayload([MAIN, FEATURE, STALE]),
+diff --git a/packages/web-shell/client/components/dialogs/GitWorktreesDialog.tsx b/packages/web-shell/client/components/dialogs/GitWorktreesDialog.tsx
+index c9f00cdc8a..df68e0ac99 100644
+--- a/packages/web-shell/client/components/dialogs/GitWorktreesDialog.tsx
++++ b/packages/web-shell/client/components/dialogs/GitWorktreesDialog.tsx
+@@ -670,7 +670,11 @@ export function GitWorktreesContent({
+               : typeof body?.['error'] === 'string'
+                 ? body['error']
+                 : t('gitWorktrees.removeFailed');
+-          settle({ path, error: message, busy: false });
++          settle({
++            path,
++            error: message || t('gitWorktrees.removeFailed'),
++            busy: false,
++          });
+         });
+     },
+     [client, workspaceCwd, removal, removing, t],
