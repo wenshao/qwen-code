@@ -23,6 +23,15 @@ MUTANTS = [
  ('M15', "for (let i = 0; i < logFiles.length; i += SWEEP_CONCURRENCY) {",
          "for (let i = 0; i < logFiles.length; i += 1000000) {",
   'batching stride made effectively unbounded'),
+ ('M17', "const batch = logFiles.slice(i, i + SWEEP_CONCURRENCY);",
+         "const batch = logFiles.slice(i, i + SWEEP_CONCURRENCY - 1);",
+  'each batch drops its last candidate'),
+ ('M18', "for (let i = 0; i < logFiles.length; i += SWEEP_CONCURRENCY) {",
+         "for (let i = 0; i < logFiles.length - SWEEP_CONCURRENCY; i += SWEEP_CONCURRENCY) {",
+  'trailing partial batch never visited'),
+ ('M19', "for (let i = 0; i < logFiles.length; i += SWEEP_CONCURRENCY) {",
+         "for (let i = 0; i < logFiles.length; i += SWEEP_CONCURRENCY + 1) {",
+  'stride off by one (one candidate skipped per batch boundary)'),
  ('M16', "if (!opts.isValidSessionId(sessionId) || excludes.has(sessionId)) {",
          "if (!opts.isValidSessionId(sessionId) && excludes.has(sessionId)) {",
   '|| becomes && in the skip predicate'),
@@ -57,4 +66,4 @@ for mid, old, new, desc in MUTANTS:
 print('\n=== SUMMARY2 ===')
 for r in results: print(' | '.join(str(x)[:140] for x in r))
 print(f"\nkilled {sum(1 for r in results if r[1]=='KILLED')}/{len(results)}")
-json.dump(results, open(os.path.join(os.path.dirname(__file__),'mutation-results2.json'),'w'), indent=2)
+json.dump(results, open(os.path.join(os.path.dirname(__file__),os.environ.get('MUT_OUT2','mutation-results2.json')),'w'), indent=2)
