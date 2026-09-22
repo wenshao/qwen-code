@@ -1,0 +1,57 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
+index f55a7c872e..56d6b1739a 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
+@@ -141,6 +141,14 @@ final class BrokerValues {
+     }
+ 
+     private static boolean sameJsonNumber(Number first, Number second) {
++        // fastjson2's text for a float or double reads back to the same binary
++        // value but need not match Float/Double.toString digit for digit.
++        if (first instanceof Float || second instanceof Float) {
++            return first.floatValue() == second.floatValue();
++        }
++        if (first instanceof Double || second instanceof Double) {
++            return first.doubleValue() == second.doubleValue();
++        }
+         return new BigDecimal(first.toString())
+                 .compareTo(new BigDecimal(second.toString())) == 0;
+     }
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
+index 2d65797197..6872623f3c 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
+@@ -1,8 +1,8 @@
+ package com.alibaba.qwen.code.runtimebroker;
+ 
+ import com.alibaba.fastjson2.JSON;
++import com.alibaba.fastjson2.JSONReader;
+ import com.alibaba.fastjson2.JSONWriter;
+-import com.alibaba.fastjson2.TypeReference;
+ import java.sql.Connection;
+ import java.sql.PreparedStatement;
+ import java.sql.ResultSet;
+@@ -24,9 +24,6 @@ public final class JdbcToolExecutionRepository
+             "last_sequence", "cancel_requested", "dispatch_owner",
+             "dispatch_lease_until", "dispatch_generation", "record_version",
+             "settled_at");
+-    private static final TypeReference<Map<String, Object>> MAP_TYPE =
+-            new TypeReference<>() {
+-            };
+ 
+     private final DataSource dataSource;
+ 
+@@ -425,7 +422,12 @@ public final class JdbcToolExecutionRepository
+     }
+ 
+     private static Map<String, Object> fromJson(String value) {
+-        return value == null ? null : JSON.parseObject(value, MAP_TYPE);
++        // Payloads are opaque Tool data: "$ref" (JSON Schema, OpenAPI) and
++        // "@type" (JSON-LD) members must stay data. The untyped reader keeps
++        // "@type" as a plain member; the flag keeps "$ref" from becoming a
++        // fastjson2 back-reference.
++        return value == null ? null : JSON.parseObject(value,
++                JSONReader.Feature.DisableReferenceDetect);
+     }
+ 
+     private static void requireCandidate(ToolExecutionRecord candidate) {
