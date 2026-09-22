@@ -1,0 +1,12 @@
+import json, pathlib, copy, sys
+src = json.loads(pathlib.Path(sys.argv[1]).read_text())
+def w(name, fx): pathlib.Path(f'{name}.json').write_text(json.dumps(fx, indent=2))
+def case(fx, cid): return next(c for c in fx['cases'] if c['id'] == cid)
+d = copy.deepcopy(src); d['route']['path'] += '/'; w('J1-route-path-trailing-slash', d)
+d = copy.deepcopy(src); case(d, 'wrong-lease')['expected']['status'] = 400; w('J2-status-class-mismatch', d)
+d = copy.deepcopy(src); d['cases'] = [c for c in d['cases'] if c['expected']['classification'] != 'credentials']; w('J3-credentials-class-dropped', d)
+d = copy.deepcopy(src); case(d, 'wrong-epoch')['id'] = 'wrong-lease'; w('J4-duplicate-id', d)
+d = copy.deepcopy(src); case(d, 'success')['expected']['body']['token'] = 'fixture-token'; w('J5-response-leaks-token', d)
+d = copy.deepcopy(src); b = case(d, 'success')['request']['body']; b['workspacePath'] = b.pop('workspaceCwd'); w('J6-request-field-renamed', d)
+d = copy.deepcopy(src); d['route']['requestBodyLimitBytes'] = 32768; w('J7-request-limit-32k', d)
+d = copy.deepcopy(src); case(d, 'wrong-lease')['request']['replaceHeader']['value'] = 'lease-01'; w('J8-negative-case-made-positive', d)

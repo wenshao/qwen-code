@@ -1,0 +1,492 @@
+diff --git a/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.fixtures.json b/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.fixtures.json
+index 08112f73c7..9f20cac6d0 100644
+--- a/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.fixtures.json
++++ b/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.fixtures.json
+@@ -71,7 +71,8 @@
+       },
+       "expected": {
+         "status": 401,
+-        "classification": "credentials"
++        "classification": "credentials",
++        "code": "managed_runtime_unauthorized"
+       }
+     },
+     {
+@@ -81,7 +82,8 @@
+       },
+       "expected": {
+         "status": 400,
+-        "classification": "protocol"
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
+       }
+     },
+     {
+@@ -94,7 +96,8 @@
+       },
+       "expected": {
+         "status": 409,
+-        "classification": "identity"
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
+       }
+     },
+     {
+@@ -107,7 +110,8 @@
+       },
+       "expected": {
+         "status": 409,
+-        "classification": "identity"
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
+       }
+     },
+     {
+@@ -120,7 +124,8 @@
+       },
+       "expected": {
+         "status": 409,
+-        "classification": "identity"
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
+       }
+     },
+     {
+@@ -133,7 +138,8 @@
+       },
+       "expected": {
+         "status": 400,
+-        "classification": "protocol"
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
+       }
+     },
+     {
+@@ -146,7 +152,8 @@
+       },
+       "expected": {
+         "status": 400,
+-        "classification": "protocol"
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
+       }
+     },
+     {
+@@ -156,7 +163,8 @@
+       },
+       "expected": {
+         "status": 400,
+-        "classification": "protocol"
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
+       }
+     },
+     {
+@@ -169,7 +177,8 @@
+       },
+       "expected": {
+         "status": 400,
+-        "classification": "protocol"
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
+       }
+     },
+     {
+@@ -182,7 +191,8 @@
+       },
+       "expected": {
+         "status": 400,
+-        "classification": "protocol"
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
+       }
+     },
+     {
+@@ -195,7 +205,8 @@
+       },
+       "expected": {
+         "status": 400,
+-        "classification": "protocol"
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
+       }
+     },
+     {
+@@ -205,7 +216,8 @@
+       },
+       "expected": {
+         "status": 413,
+-        "classification": "protocol"
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_too_large"
+       }
+     },
+     {
+@@ -247,6 +259,280 @@
+         "status": 404,
+         "classification": "incompatible"
+       }
++    },
++    {
++      "id": "wrong-token",
++      "request": {
++        "replaceHeader": {
++          "name": "authorization",
++          "value": "Bearer fixture-tokeX"
++        }
++      },
++      "expected": {
++        "status": 401,
++        "classification": "credentials",
++        "code": "managed_runtime_unauthorized"
++      }
++    },
++    {
++      "id": "wrong-token-length",
++      "request": {
++        "replaceHeader": {
++          "name": "authorization",
++          "value": "Bearer x"
++        }
++      },
++      "expected": {
++        "status": 401,
++        "classification": "credentials",
++        "code": "managed_runtime_unauthorized"
++      }
++    },
++    {
++      "id": "wrong-auth-scheme",
++      "request": {
++        "replaceHeader": {
++          "name": "authorization",
++          "value": "Digest fixture-token"
++        }
++      },
++      "expected": {
++        "status": 401,
++        "classification": "credentials",
++        "code": "managed_runtime_unauthorized"
++      }
++    },
++    {
++      "id": "wrong-provision-request",
++      "request": {
++        "replaceBody": {
++          "name": "provisionRequestId",
++          "value": "provision-02"
++        }
++      },
++      "expected": {
++        "status": 409,
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
++      }
++    },
++    {
++      "id": "wrong-tenant",
++      "request": {
++        "replaceBody": {
++          "name": "tenantId",
++          "value": "tenant-b"
++        }
++      },
++      "expected": {
++        "status": 409,
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
++      }
++    },
++    {
++      "id": "wrong-workspace",
++      "request": {
++        "replaceBody": {
++          "name": "workspaceId",
++          "value": "workspace-b"
++        }
++      },
++      "expected": {
++        "status": 409,
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
++      }
++    },
++    {
++      "id": "wrong-workspace-cwd",
++      "request": {
++        "replaceBody": {
++          "name": "workspaceCwd",
++          "value": "/runtime/other"
++        }
++      },
++      "expected": {
++        "status": 409,
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
++      }
++    },
++    {
++      "id": "wrong-capability-digest",
++      "request": {
++        "replaceBody": {
++          "name": "capabilityDigest",
++          "value": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
++        }
++      },
++      "expected": {
++        "status": 409,
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
++      }
++    },
++    {
++      "id": "wrong-isolation-class",
++      "request": {
++        "replaceBody": {
++          "name": "isolationClass",
++          "value": "workspace"
++        }
++      },
++      "expected": {
++        "status": 409,
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
++      }
++    },
++    {
++      "id": "empty-provision-request",
++      "request": {
++        "replaceBody": {
++          "name": "provisionRequestId",
++          "value": ""
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "empty-tenant",
++      "request": {
++        "replaceBody": {
++          "name": "tenantId",
++          "value": ""
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "empty-workspace",
++      "request": {
++        "replaceBody": {
++          "name": "workspaceId",
++          "value": ""
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "numeric-workspace-generation",
++      "request": {
++        "replaceBody": {
++          "name": "workspaceGeneration",
++          "value": 7
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "empty-workspace-cwd",
++      "request": {
++        "replaceBody": {
++          "name": "workspaceCwd",
++          "value": ""
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "array-capability-digest",
++      "request": {
++        "replaceBody": {
++          "name": "capabilityDigest",
++          "value": [
++            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++          ]
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "unknown-isolation-class",
++      "request": {
++        "replaceBody": {
++          "name": "isolationClass",
++          "value": "tenant"
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "non-json-content-type",
++      "request": {
++        "replaceHeader": {
++          "name": "content-type",
++          "value": "text/plain"
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "gzip-content-encoding",
++      "request": {
++        "replaceHeader": {
++          "name": "content-encoding",
++          "value": "gzip"
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "case-variant-route",
++      "request": {
++        "pathOverride": "/INTERNAL/MANAGED-RUNTIME/V2/ATTEST"
++      },
++      "expected": {
++        "status": 404,
++        "classification": "incompatible"
++      }
++    },
++    {
++      "id": "options-method",
++      "request": {
++        "method": "OPTIONS"
++      },
++      "expected": {
++        "status": 404,
++        "classification": "incompatible"
++      }
+     }
+   ]
+ }
+diff --git a/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.schema.json b/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.schema.json
+index 865b562782..a0f7e96ac5 100644
+--- a/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.schema.json
++++ b/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.schema.json
+@@ -188,7 +188,15 @@
+                 "incompatible"
+               ]
+             },
+-            "body": { "$ref": "#/$defs/responseBody" }
++            "body": { "$ref": "#/$defs/responseBody" },
++            "code": {
++              "enum": [
++                "managed_runtime_attestation_invalid",
++                "managed_runtime_attestation_too_large",
++                "managed_runtime_identity_conflict",
++                "managed_runtime_unauthorized"
++              ]
++            }
+           }
+         }
+       }
+diff --git a/packages/cli/src/serve/managed-runtime-attestation-contract.test.ts b/packages/cli/src/serve/managed-runtime-attestation-contract.test.ts
+index 1c04e73bb2..08f0c0425d 100644
+--- a/packages/cli/src/serve/managed-runtime-attestation-contract.test.ts
++++ b/packages/cli/src/serve/managed-runtime-attestation-contract.test.ts
+@@ -41,6 +41,7 @@ interface FixtureCase {
+   readonly expected: {
+     readonly status: number;
+     readonly classification: string;
++    readonly code?: string;
+     readonly body?: Readonly<Record<string, unknown>>;
+   };
+ }
+@@ -203,6 +204,14 @@ describe('Managed Runtime attestation contract', () => {
+       expect(response.headers.get('cache-control')).toBe(
+         fixtures.route.cacheControl,
+       );
++      if (fixture.expected.code) {
++        expect(response.headers.get('content-type')).toMatch(
++          /^application\/json/u,
++        );
++        expect(await response.clone().json()).toMatchObject({
++          code: fixture.expected.code,
++        });
++      }
+       if (fixture.expected.body) {
+         const text = await response.text();
+         expect(Buffer.byteLength(text)).toBeLessThanOrEqual(
+@@ -294,6 +303,21 @@ describe('Managed Runtime attestation contract', () => {
+     expect(await response.json()).toEqual(successResponseBody);
+   });
+ 
++  it.each([
++    ['empty token', { token: '' }],
++    ['zero epoch', { epoch: 0 }],
++    ['fractional epoch', { epoch: 1.5 }],
++    ['uppercase digest', { capabilityDigest: `sha256:${'A'.repeat(64)}` }],
++    ['unknown isolation class', { isolationClass: 'tenant' }],
++  ])('rejects an invalid identity at registration: %s', (_label, patch) => {
++    expect(() =>
++      registerManagedRuntimeAttestationRoute(express(), {
++        ...fixtures.identity,
++        ...(patch as Partial<ManagedRuntimeAttestationIdentity>),
++      }),
++    ).toThrow('Managed Runtime attestation identity is invalid.');
++  });
++
+   it('keeps request and response objects closed in the shared schema', () => {
+     const definitions = schema['$defs'] as Record<
+       string,
+diff --git a/packages/cli/src/serve/managed-runtime-attestation-contract.ts b/packages/cli/src/serve/managed-runtime-attestation-contract.ts
+index 41b1a1e9a3..1eb3bb73dd 100644
+--- a/packages/cli/src/serve/managed-runtime-attestation-contract.ts
++++ b/packages/cli/src/serve/managed-runtime-attestation-contract.ts
+@@ -265,6 +265,12 @@ export function registerManagedRuntimeAttestationRoute(
+     noStore,
+     authorize(identitySnapshot),
+     express.json({
++      // A 16 KiB private request gains nothing from compression. Refusing
++      // any non-identity Content-Encoding keeps the limit a wire-byte limit
++      // and sends it through the encoding.unsupported mapping below; with
++      // inflation on, a corrupt gzip/deflate/br body fails inside zlib with
++      // no body-parser type and reaches Express' HTML error page.
++      inflate: false,
+       limit: ATTEST_ROUTE.requestBodyLimitBytes,
+       strict: true,
+       type: 'application/json',
