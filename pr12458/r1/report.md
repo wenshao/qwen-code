@@ -1,17 +1,17 @@
 ## Verification round 1 on #12458 (round 3 for this change) — @ `ed64b223`
 
-**Verdict: findings** — assertions 32/32 executed as scripted (0 unexpected). Verified head: `ed64b2233afb34ce59d6d748ba0cc6d740b5366c`.
+**Verdict: findings** — assertions 56/56 executed as scripted (0 unexpected). Verified head: `ed64b2233afb34ce59d6d748ba0cc6d740b5366c`.
 
 The `ed64b223` fixes for review round 1 are verified load-bearing: the write-side BigDecimal codec, the ten new fence witnesses, and the fail-closed hash guards each survived mutation testing, and the gates are green (63/63 tests, 0 Checkstyle violations, gate liveness proven). But two codec findings from the round-2 report on twin #12445 **stand at this head**, re-measured on both arms: the read side still resolves `$ref` and rewrites `@type`, and the payload comparison still miscompares some Float/Double values. A two-hunk patch (round 2's reader + comparison change, adapted to this tree) takes the repository-level probe from 6 failing scenarios to 11/11 OK with the suite unchanged at 63/63 — ship it with its fixture, because the suite currently pins nothing on those two axes.
 
 <details>
 <summary>中文摘要</summary>
 
-**结论：findings** —— 脚本断言 32/32 全部符合预期（0 个意外失败）。验证 head：`ed64b2233afb`。
+**结论：findings** —— 脚本断言 56/56 全部符合预期（0 个意外失败）。验证 head：`ed64b2233afb`。
 
 `ed64b223` 对 review 第 1 轮（R1-1..R1-3）的修复经变异测试证明是有效的：写入侧 BigDecimal 编解码、十个新增的 fencing 见证、fail-closed 哈希守卫都有测试钉住，门禁全绿（63/63 测试、Checkstyle 0 违规、并已证明门禁本身有效）。但孪生 PR #12445 第 2 轮报告中的两个编解码发现**在当前 head 仍然存在**（双臂复测）：读取侧仍会解析 `$ref`、改写 `@type`；载荷比较仍会误判部分 Float/Double 值。一个两处补丁（第 2 轮的 reader 改动 + 比较改动，适配到本树）可以把仓库级探针从 6 个失败场景修到 11/11 全过，且测试套件保持 63/63 不变——请连同固件一起提交，因为目前套件在这两个轴上没有任何钉住。
 
-A/B 结论见下表：S7/S8（BigDecimal 指数精度、1E+400 溢出）从 prev 的失败翻转为 head 的 OK；S1–S6（`$ref`/`@type`）与 S9/S10（Float/Double）在双臂上结果逐字节一致，即缺陷未修。未覆盖：真实 MySQL/MariaDB IT（本机无法访问 Docker Hub；第 2 轮已在同一血脉上覆盖）、Windows、根仓库 npm build/typecheck（本 PR 不含 TS/JS 改动）。
+A/B 结论见下表：S7/S8（BigDecimal 指数精度、1E+400 溢出）从 prev 的失败翻转为 head 的 OK；S1–S6（`$ref`/`@type`）与 S9/S10（Float/Double）在双臂上结果逐字节一致，即缺陷未修。以上编解码单元在真实 MariaDB 10.11.18 上复测结果完全相同（head 6 个失败场景，加补丁后 11/11 OK），`mysql-integration` 契约在真实 MariaDB 上 head 与 head+fix 均通过（63 单测 + 1 IT）。未覆盖：Windows、根仓库 npm build/typecheck（本 PR 不含 TS/JS 改动）。
 
 </details>
 
@@ -84,13 +84,24 @@ The service-level consequences of F1 (a raw `StackOverflowError` out of `createE
 - Gate liveness: a planted unused import makes `checkstyle:check` fail with `UnusedImports … You have 1 Checkstyle violation`; removed afterwards.
 - Head+fix tree: same gate, 63/63, 0 violations.
 
+### Real-server confirmation (MariaDB 10.11.18)
+
+Docker Hub is unreachable from this host, but the host already ships MariaDB 10.11.18 (Debian 12 package) — so the real-server gap closed locally instead: a disposable instance (`mariadb-install-db` datadir inside the artifact dir, TCP 127.0.0.1:3399, fresh `qwen_it_verify` schema per run).
+
+![06-mysql-integration-it-mariadb.png](06-mysql-integration-it-mariadb.png)
+
+- **`mysql-integration` contract IT on real MariaDB**: `JdbcRuntimeBrokerMySqlIT` passes on head and on head+fix (fresh schema each; the full 63-test unit suite also ran in both runs).
+- **Codec probe on real MariaDB** (`harness/CodecProbeMysql.java`, Connector/J 8.4.0): every cell reproduces the H2 result exactly — at head S1–S6 and S9/S10 fail identically (F1 and F2b stand on a real MySQL-protocol server, not only on H2), and with the suggested fix all 11 scenarios are OK.
+
+![05-mysql-codec-ab-mariadb.png](05-mysql-codec-ab-mariadb.png)
+
 ### Not covered
 
-- **Real MySQL/MariaDB IT** — Docker Hub is unreachable from this host (`docker pull mysql:8.4` times out). Round 2 ran the contract on MySQL 8.4.11 / 8.0.46 / MariaDB 11.4.13 on the same lineage; the paths measured this round are DB-independent string↔map handling exercised on H2 in MySQL mode, the contract's own database.
+- **MySQL 8.x specifically** — the real-server runs above are MariaDB 10.11.18; round 2 covered MySQL 8.4.11 / 8.0.46 / MariaDB 11.4.13 on the same lineage in Docker.
 - **6-JVM dispatch race at this head** — run in round 2; the race-relevant production code is unchanged since `4a84a9c` except the R1-3 ordering hunk (verified above).
 - **Windows**; **root `npm run build && npm run typecheck`** (no TS/JS in the diff — java/pom/docs only).
 - Twin status: #12445 has since moved to `15d395bc` ("Preserve opaque JDBC tool payloads"), which reads like the F1 fix landing there; not verified in this round.
 
 ### Methodology
 
-Orange Pi 6 Plus (aarch64), JDK 21 (`/root/Install/jdk21`), Maven 3.9.0 offline against a warm `~/.m2`, H2 2.3.232 (`MODE=MySQL`), fastjson2 2.0.60. Arms: detached worktrees at `ed64b223` (head) and `4a84a9c` (control), each built with `mvn -o compile`; the probe is one Java file compiled against each arm's `target/classes` and run over a real `JdbcDataSource` — no mocks anywhere in the unit under test. Mutations were applied one at a time to the head tree, each followed by `mvn -o test -Dtest=JdbcRepositoryTest`, then reverted with `git checkout` (tree verified clean after every cell). Harness, raw logs, the A/B transcript, and the patch are in `tmp/pr12458-verify-20260922-201313/` (harness/, logs/, evidence/).
+Orange Pi 6 Plus (aarch64), JDK 21 (`/root/Install/jdk21`), Maven 3.9.0 offline against a warm `~/.m2`, H2 2.3.232 (`MODE=MySQL`), fastjson2 2.0.60, Connector/J 8.4.0, MariaDB 10.11.18 (disposable instance on 127.0.0.1:3399, fresh schema per run). Arms: detached worktrees at `ed64b223` (head) and `4a84a9c` (control), each built with `mvn -o compile`; the probes are Java files compiled against each arm's `target/classes` and run over a real `JdbcDataSource` (H2) or `DriverManager` (MariaDB) — no mocks anywhere in the unit under test. Mutations were applied one at a time to the head tree, each followed by `mvn -o test -Dtest=JdbcRepositoryTest`, then reverted with `git checkout` (tree verified clean after every cell). Harnesses, raw logs, the A/B transcripts, and the patch are in `tmp/pr12458-verify-20260922-201313/` (harness/, logs/, evidence/).
