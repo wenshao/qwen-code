@@ -2,7 +2,7 @@
 
 **Verdict: the direction is right and the fix works for the default single-session CLI. The Windows test gate is now fixed at `27ebb4b4`. I'd still land two small production changes before merging, both verified in the patch below:**
 1. **The guard reads HEAD in the wrong directory.** When the tool call carries no `directory`, the AUTO guard checks `process.cwd()`, but the commit is registered in `getTargetDir()`. So in ACP sessions or worktrees where the two differ, the PR's fix does nothing, **and** an amend in one repo can be exempted by a commit made in another.
-2. **"HEAD moved" is treated as "the agent made HEAD".** The PR's own `trackSessionCommit` registers whatever HEAD points to after a commit-shaped chain. So `git commit … && git checkout main` registers a human commit, and the next plain amend rewrites it.
+2. **"HEAD moved" is treated as "the agent made HEAD".** The PR's own `trackSessionCommit` registers whatever HEAD points to after a commit-shaped chain. So `git commit … && git checkout main` registers a human commit, and the next plain amend rewrites it. This has the same root cause as the Critical in the latest CHANGES_REQUESTED review (5277658032), which found it through a leading `git pull` instead. I ran that shape through the real CLI too; the same patch closes both.
 
 There are also consumer-side holes: a checkout or `cd` inside the amend command, and two parallel tool calls. They are real, and this PR makes them reachable for the canonical spelling. But fixing them means parsing what the command does, and on `main` the deterministic guard never matches spellings like `git commit -q --amend` anyway; those already go straight to the classifier. So I'd track them in a follow-up rather than block this PR.
 
@@ -44,15 +44,17 @@ I did the full verification at `0cf69caf`. The head moved to `27ebb4b4` while I 
 - **Fix:** `input.ctx.cwd ?? input.config.getTargetDir?.()`. The `?.` is only there for test mocks. This `cwd` is only consulted by the amend check.
 
 ### F2: "HEAD moved" is not "the agent made HEAD" (in the PR's own `trackSessionCommit`; should-fix in this PR)
+Same root cause as the `[Critical]` in review 5277658032. That review replicated the criterion in a standalone driver and did not drive `ShellToolInvocation`. The rows below go through the real bundled CLI.
 - **Chains that register a human commit:**
   - `git add … && git commit -m "wip" && git checkout main` registers `main`'s tip.
   - `git commit -m "wip" && git reset --soft HEAD~2` registers `HEAD~2`.
+  - **The review's shape:** `git pull -q origin main && git commit -q -m "agent work"`. Nothing is staged, so the commit fails, but the pull already fast-forwarded HEAD onto `upstream: human work [Upstream Author]`. On head, the next amend rewrote that upstream commit. Base and patch both blocked it.
 - **Effect:** the next plain `git commit --amend` rewrites that human commit. Base blocked, head executed, patch blocked (figure 2).
 - **Real classifier:** with natural wording, first *"Commit what you have on this branch as a WIP commit, then switch me back to main."* and then *"…fold it into that WIP commit."*:
   - The classifier approved **5/5**.
   - Each time, `user: main release notes` on `main` was rewritten with `NOTES.md` folded in, while the agent's WIP commit on `feature` was left untouched.
 - **Also contradicts the PR body's own bound:** "the exempted commit is still one the agent itself created".
-- **Fix:** register `postHead` only if the last HEAD reflog entry is a commit that landed on it. That means `git log -g -1 --no-show-signature --format='%H %gs' HEAD` must read `<postHead> commit[ (amend|initial|merge|cherry-pick)]:…`.
+- **Fix:** register `postHead` only if the newest HEAD reflog entry is a commit that points at it. This is a concrete, one-subprocess form of that review's options 2 and 3, and it covers leading and trailing HEAD moves alike. Concretely, `git log -g -1 --no-show-signature --format='%H %gs' HEAD` must read `<postHead> commit[ (amend|initial|merge|cherry-pick)]:…`.
   - It costs one extra `execFile`, and it fails closed when there is no reflog.
   - Reflog subjects are not localized (checked under German and zh_CN).
   - `--no-show-signature` keeps signed commits working under `log.showSignature=true`.
@@ -63,11 +65,9 @@ I did the full verification at `0cf69caf`. The head moved to `27ebb4b4` while I 
 ### F3: the Windows test gate, resolved at `27ebb4b4`
 At `0cf69caf`, pointing `spawnSync` at a nonexistent shell (to simulate a runner without `/bin/bash`) gave `5 failed | 2 passed (7)`. At `27ebb4b4`, the same simulation with the gate forced on gives `7 skipped`. ✅
 
-### About the approving review and the "last hop" argument
-Both argue from code reading. The runs above contradict three of their premises:
-- **"A human's commit is never registered … a pull, rebase, reset or checkout has no `commit` subcommand, so `attributableInCwd` is false."** That holds for a command that contains *only* those. But a chain containing both, such as `git commit … && git checkout main`, has a `commit` subcommand, so `attributableInCwd` is true and the human's `main` tip gets registered (F2, 5/5 with the real classifier). The new docblock asks the right question ("is HEAD a commit this session's agent produced"), but "HEAD moved" doesn't answer it.
-- **"Composing those leaves no untested logic in between: same `isDestructiveCommand(command, userPrompt, ctx.cwd)` call."** The untested logic is `ctx.cwd` itself. In production it's `undefined` unless the call passes `directory`, so the guard reads `process.cwd()`. The witness tests always pass `repoDir` explicitly (F1).
-- **"Ordering against attribution is load-bearing."** It isn't; see the nit below (mutants M3 and M4 stay green).
+### Two premises in the thread that the runs contradict
+- **The "last hop" argument** (the author's reply above: *"composing those leaves no untested logic in between: same `isDestructiveCommand(command, userPrompt, ctx.cwd)` call"*). The untested logic is `ctx.cwd` itself. In production it's `undefined` unless the call passes `directory`, so the guard reads `process.cwd()`. The witness tests always pass `repoDir` explicitly (F1).
+- **"Ordering against attribution is deliberate and load-bearing"** (from the earlier approving review; its author has since voided only the registration claim, in 5776112023). It isn't load-bearing; see the nit below (mutants M3 and M4 stay green).
 
 The E2E the author asked `/tmux` to capture is covered here: the agent's own commit and amend (figure 1), plus an amend of a commit the agent did not make staying blocked (matrix, negative controls).
 
@@ -102,8 +102,8 @@ With the real classifier, the first shape was approved **5/5**.
 
 ![/clear keeps the registry](./04-clear-keeps-registry.png)
 
-### Suggested patch (verified on top of `27ebb4b4`; +86/−2 across 3 files)
-- **Unit tests:** 9/9 in the witness file (2 new tests). 1851/1851 across `coreToolScheduler`, `autoMode`, `destructive-commands`, `shell`, `shell.backgroundStatus`, `config`, `speculationToolGate`, `InProcessBackend` and the witness file. CLI `acp-integration/session/Session.test.ts` passes 1048/1048. `tsc --noEmit` exit 0, eslint 0.
+### Suggested patch (verified on top of `27ebb4b4`; +104/−2 across 3 files)
+- **Unit tests:** 9/9 in the witness file. The 2 new tests sit beside test 3. The F2 test covers trailing `checkout` and `reset --soft` plus a leading `merge --ff-only` with a failing commit; the leading-move assertion discriminates on its own. 1851/1851 across `coreToolScheduler`, `autoMode`, `destructive-commands`, `shell`, `shell.backgroundStatus`, `config`, `speculationToolGate`, `InProcessBackend` and the witness file. CLI `acp-integration/session/Session.test.ts` passes 1048/1048. `tsc --noEmit` exit 0, eslint 0.
 - **Discrimination:** reverting `shell.ts` to `27ebb4b4` fails the F2 test; reverting `autoMode.ts` fails the F1 test.
 - **E2E:** last matrix column. Every legitimate row executes, including the ACP session whose cwd ≠ the process cwd. The F1 and F2 rows are blocked. With the real classifier, the legitimate amend still executes and F2 is blocked.
 

@@ -162,4 +162,13 @@ module.exports = {
     setup: initRepo(),
     steps: ['git commit -q --amend -m "agent rewrote the user commit"'],
   },
+  // qqqys R2 shape: an EARLIER segment moves HEAD (fast-forward pull of a
+  // human upstream commit) and the agent's own commit never lands.
+  'probe-pull-then-failed-commit': {
+    setup: `${initRepo('up')} && git clone -q up repo && cd repo && ${ID} && cd ../up && echo u > u.txt && git add u.txt && git -c user.name="Upstream Author" -c user.email=upstream@example.com commit -q -m "upstream: human work"`,
+    steps: [
+      'git pull -q origin main && git commit -q -m "agent work"',
+      'git commit --amend -q -m "agent rewrote the upstream commit"',
+    ],
+  },
 };

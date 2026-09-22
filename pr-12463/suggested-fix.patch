@@ -20,7 +20,7 @@ index e8106e07d9..4789ee3e44 100644
      if (destructiveResult?.blocked) {
        return {
 diff --git a/packages/core/src/tools/shell.session-commit-tracking.test.ts b/packages/core/src/tools/shell.session-commit-tracking.test.ts
-index db4d58884b..3cacc54d1a 100644
+index db4d58884b..a56aef7d52 100644
 --- a/packages/core/src/tools/shell.session-commit-tracking.test.ts
 +++ b/packages/core/src/tools/shell.session-commit-tracking.test.ts
 @@ -44,6 +44,8 @@ import {
@@ -32,7 +32,7 @@ index db4d58884b..3cacc54d1a 100644
  
  /**
   * Runs the command for real in the requested cwd and shapes the result
-@@ -256,6 +258,62 @@ describe.skipIf(process.platform === 'win32')(
+@@ -256,6 +258,80 @@ describe.skipIf(process.platform === 'win32')(
        expect(amendVerdict()?.blocked).toBe(true);
      });
  
@@ -59,6 +59,24 @@ index db4d58884b..3cacc54d1a 100644
 +          encoding: 'utf-8',
 +        }).trim(),
 +      ).toBe('user main work');
++      expect(amendVerdict()?.blocked).toBe(true);
++
++      // An EARLIER segment moving HEAD while the agent's own commit never
++      // lands (nothing staged) must not register the moved-to commit either.
++      rawGit('checkout -q -b upstream main');
++      fs.writeFileSync(path.join(repoDir, 'u.txt'), 'u\n');
++      rawGit('add u.txt');
++      rawGit('commit -q -m "user upstream work"');
++      rawGit('checkout -q main');
++      await runShellCommand(
++        'git merge -q --ff-only upstream && git commit -q -m "agent work"',
++      );
++      expect(
++        execSync('git log -1 --pretty=%s', {
++          cwd: repoDir,
++          encoding: 'utf-8',
++        }).trim(),
++      ).toBe('user upstream work');
 +      expect(amendVerdict()?.blocked).toBe(true);
 +
 +      // ...and `git commit && git reset --soft HEAD~2` likewise.

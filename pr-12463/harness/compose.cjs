@@ -6,7 +6,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const img = (f) => 'data:image/png;base64,' + fs.readFileSync(`${SH}/${f}`).toString('base64');
 const css = `body{margin:0;background:#0d1117;font:14px/1.45 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#e6edf3}
 .wrap{display:inline-block;padding:18px 20px}
-h1{font-size:17px;margin:0 0 4px}.sub{color:#8b949e;margin:0 0 12px;font-size:13px}
+h1{font-size:17px;margin:0 0 4px}.sub{color:#8b949e;margin:0 0 12px;font-size:13px;max-width:1090px}
 .grid{display:flex;gap:14px;align-items:flex-start}
 .pane{border:1px solid #30363d;border-radius:8px;overflow:hidden;background:#282a36}
 .cap{padding:7px 10px;font-weight:600;font-size:13px;background:#161b22;border-bottom:1px solid #30363d}
@@ -46,7 +46,7 @@ async function shoot(page, html, out) {
     'user-commit-amend': 'HEAD is a human commit → amend', 'failed-commit-amend': 'agent commit fails (nothing staged) → amend',
     'cwd-shifted-commit': '<code>git -C "$PWD" commit</code> (disclosed) → amend', 'mode-switch-clears': 'commit → set_permission_mode default → auto → amend',
     'probe-commit-then-checkout': '<b>F2</b> <code>git commit … &amp;&amp; git checkout main</code> → amend', 'probe-commit-then-reset-soft': "<b>F2</b> <code>git commit … &amp;&amp; git reset --soft HEAD~2</code> → amend",
-    'acp-cwd-cross': '<b>F1</b> ACP: session A commits in repoA, session B amends repoB', 'probe-checkout-inside-amend': '<b>FU</b> commit → <code>git checkout main &amp;&amp; git commit --amend</code>',
+    'probe-pull-then-failed-commit': '<b>F2</b> <code>git pull &amp;&amp; git commit</code> (commit fails, pull moved HEAD) → amend', 'acp-cwd-cross': '<b>F1</b> ACP: session A commits in repoA, session B amends repoB', 'probe-checkout-inside-amend': '<b>FU</b> commit → <code>git checkout main &amp;&amp; git commit --amend</code>',
     'probe-cd-other-repo-amend': '<b>FU</b> commit → <code>cd ../other &amp;&amp; git commit --amend</code>', 'tui-par': '<b>FU</b> commit → one response with two calls: <code>git checkout main</code> | <code>git commit --amend</code> (TUI)',
     'acp-bleed': 'ACP, same repo: session B amends session A\'s commit (disclosed)', 'preexisting-flag-before-amend': 'pre-existing: <code>git commit -q --amend</code> on a human HEAD',
     'preexisting-git-C-amend': 'pre-existing: <code>git -C ../other commit --amend</code>' };
@@ -54,8 +54,8 @@ async function shoot(page, html, out) {
   const cell = (v, want) => { const c = v === 'BLOCKED' ? 'b' : 'e'; const wrong = c !== want; return `<td class="${c}${wrong ? ' w' : ''}">${v === 'BLOCKED' ? 'blocked' : 'executed'}${wrong ? ' ⚠' : ''}</td>`; };
   const body = rows.map(([s, want, b, h, f]) => (group[s] ? `<tr><th colspan="5" style="text-align:left;color:#8b949e;font-weight:600">${group[s]}</th></tr>` : '') + `<tr><td>${label[s]}</td><td style="color:#8b949e">${want === 'e' ? 'executed' : 'blocked'}</td>${cell(b, want)}${cell(h, want)}${cell(f, want)}</tr>`).join('');
   await shoot(page, `<h1>End-to-end matrix — real bundled CLI, <code>--approval-mode auto</code>, one process per row</h1>
-<p class="sub">SDK stream-json unless marked ACP / TUI. Verdict of the <b>last</b> amend. Classifier stubbed to allow, so every "blocked" is the deterministic destructive-command guard. ⚠ = differs from intended.</p>
-<table><tr><th>scenario</th><th>intended</th><th>base c822995d</th><th>PR head 0cf69caf</th><th>head + suggested patch</th></tr>${body}</table>`, '03-e2e-matrix.png');
+<p class="sub">SDK stream-json unless marked ACP / TUI. Verdict of the <b>last</b> amend. Classifier stubbed to allow, so every "blocked" is the deterministic destructive-command guard. ⚠ = differs from intended. PR head = <code>0cf69caf</code>; the key rows and the pull row were re-run at <code>27ebb4b4</code> (production code identical apart from a docblock).</p>
+<table><tr><th>scenario</th><th>intended</th><th>base c822995d</th><th>PR head</th><th>head + suggested patch</th></tr>${body}</table>`, '03-e2e-matrix.png');
   await page.close(); page = await mk();
   await shoot(page, `<h1><code>/clear</code> starts a new session, but the registry survives it</h1>
 <p class="sub">PR head, real TUI: commit in session 1 → <code>/clear</code> (new session id; two chat files on disk) → amend in session 2 is still exempt.</p>
