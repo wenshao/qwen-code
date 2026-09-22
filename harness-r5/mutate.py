@@ -1,5 +1,5 @@
 import subprocess, shutil, sys, os, json
-R='/root/verify/pr12267-r5'
+R=os.environ.get('MUT_ROOT','/root/verify/pr12267-r5')
 S='packages/cli/src/commands/sandbox.ts'; E='packages/cli/src/config/execution-sandbox-settings.ts'
 X='packages/core/src/services/shellExecutionService.ts'; P='packages/core/src/core/prompts.ts'; C='packages/core/src/core/client.ts'
 cli=('packages/cli',['src/commands/sandbox.test.ts','src/config/execution-sandbox-settings.test.ts'])
