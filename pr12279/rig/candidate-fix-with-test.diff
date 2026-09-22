@@ -1,0 +1,121 @@
+diff --git a/packages/web-shell/client/hooks/useQueuedPrompts.midTurnReconcile.test.tsx b/packages/web-shell/client/hooks/useQueuedPrompts.midTurnReconcile.test.tsx
+index 81963594b5..4e2f5865c1 100644
+--- a/packages/web-shell/client/hooks/useQueuedPrompts.midTurnReconcile.test.tsx
++++ b/packages/web-shell/client/hooks/useQueuedPrompts.midTurnReconcile.test.tsx
+@@ -13520,6 +13520,79 @@ describe('useQueuedPrompts mid-turn reconciliation (session_mid_turn_message_que
+     }
+   });
+ 
++  it('echoes a payload-bearing resubmission that a later snapshot already lists as running', async () => {
++    let resolveFirst: ((value: { promptId: string }) => void) | undefined;
++    sdkMock.actions.enqueueMidTurnMessage.mockImplementation(
++      (_message: string, opts?: { onAdmissionStarted?: () => void }) => {
++        opts?.onAdmissionStarted?.();
++        return Promise.resolve({ accepted: false, reason: 'session_idle' });
++      },
++    );
++    sdkMock.actions.submitPrompt
++      .mockImplementationOnce(
++        () =>
++          new Promise((resolve) => {
++            resolveFirst = resolve;
++          }),
++      )
++      .mockImplementation(() => new Promise(() => {}));
++    const image = { data: 'aGVsbG8=', media_type: 'image/png' } as const;
++    // The resubmission started at once: the daemon lists it as running and,
++    // because it never queued, publishes no pending_prompt_started for it.
++    const snapshot = [
++      {
++        promptId: 'prompt-1',
++        text: 'describe this',
++        content: [{ type: 'image', data: 'aGVsbG8=', mimeType: 'image/png' }],
++        queuedAt: Date.now(),
++        state: 'running' as const,
++        originatorClientId: CLIENT_ID,
++      },
++    ];
++    const harness = createHarness();
++    try {
++      await harness.render({
++        streamingState: 'responding',
++        sessionHasActivePrompt: true,
++      });
++      await act(async () => {
++        sdkMock.actions.getPendingPrompts
++          .mockRejectedValueOnce(new Error('pending snapshot unavailable'))
++          .mockResolvedValue({ pendingPrompts: snapshot });
++        harness.result().enqueuePrompt('describe this', [image]);
++        for (let i = 0; i < 6; i++) await Promise.resolve();
++      });
++      expect(sdkMock.actions.submitPrompt).toHaveBeenCalledTimes(1);
++      await act(async () => {
++        resolveFirst?.({ promptId: 'prompt-1' });
++        for (let i = 0; i < 16; i++) await Promise.resolve();
++      });
++      expect(harness.store.appendLocalUserMessage).toHaveBeenCalledOnce();
++      expect(harness.store.appendLocalUserMessage).toHaveBeenCalledWith(
++        'describe this',
++        [{ data: 'aGVsbG8=', mimeType: 'image/png' }],
++        { promptId: 'prompt-1' },
++        undefined,
++      );
++      expect(harness.result().queuedPrompts).toEqual([]);
++      await act(async () => {
++        sdkMock.publishPendingEvents([
++          {
++            type: 'turn_complete',
++            promptId: 'prompt-1',
++            data: { sessionId: 'session-a', promptId: 'prompt-1' },
++          },
++        ]);
++        for (let i = 0; i < 8; i++) await Promise.resolve();
++      });
++      expect(harness.store.appendLocalUserMessage).toHaveBeenCalledOnce();
++      expect(harness.result().queuedPrompts).toEqual([]);
++      expect(sdkMock.actions.submitPrompt).toHaveBeenCalledTimes(1);
++    } finally {
++      await harness.dispose();
++    }
++  });
++
+   it('echoes a resubmission whose ambiguous start settled inside its confirmation', async () => {
+     let rejectConfirmation: ((error: Error) => void) | undefined;
+     sdkMock.actions.enqueueMidTurnMessage.mockImplementation(
+diff --git a/packages/web-shell/client/hooks/useQueuedPrompts.ts b/packages/web-shell/client/hooks/useQueuedPrompts.ts
+index bfee150169..0bfbecea2d 100644
+--- a/packages/web-shell/client/hooks/useQueuedPrompts.ts
++++ b/packages/web-shell/client/hooks/useQueuedPrompts.ts
+@@ -747,6 +747,9 @@ export function useQueuedPrompts({
+     [],
+   );
+ 
++  const appendLocalQueuedPromptRef = useRef<
++    (prompt: QueuedPrompt, promptId: string) => void
++  >(() => {});
+   const syncServerQueuedPrompts = useCallback(
+     (
+       serverQueued: DaemonPendingPromptSummary[],
+@@ -859,6 +862,14 @@ export function useQueuedPrompts({
+             // Spent: the row now carries the id itself, so neither the
+             // settle's still-unbound drop nor a later pass can claim it.
+             returnedUnboundPromptIdsRef.current.delete(serverPrompt.promptId);
++            if (serverPrompt.state === 'running') {
++              // The daemon publishes no started event for a prompt that never
++              // queued, so do what the body's own confirmation does for a
++              // running prompt: echo the held payload and drop the row.
++              const [row] = next.splice(existingIndex, 1);
++              appendLocalQueuedPromptRef.current(row!, serverPrompt.promptId);
++              continue;
++            }
+           }
+           next[existingIndex] = {
+             ...next[existingIndex]!,
+@@ -1031,6 +1042,7 @@ export function useQueuedPrompts({
+     },
+     [store],
+   );
++  appendLocalQueuedPromptRef.current = appendLocalQueuedPrompt;
+ 
+   // The removal failed, so a started event parked on the removing-set guard
+   // was real after all: echo what it carried. The stash holds the payload for
