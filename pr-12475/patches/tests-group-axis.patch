@@ -1,0 +1,344 @@
+--- a/packages/channels/base/src/ChannelBase.test.ts
++++ b/packages/channels/base/src/ChannelBase.test.ts
+@@ -1317,6 +1317,24 @@
+       expect(bridge.prompt).not.toHaveBeenCalled();
+     });
+ 
++    it('treats an explicit groupSenderPolicy=inherit like an unset axis', async () => {
++      const ch = createChannel({
++        senderPolicy: 'allowlist',
++        allowedUsers: ['admin'],
++        groupPolicy: 'open',
++        groupSenderPolicy: 'inherit',
++      });
++      await ch.handleInbound(
++        envelope({ isGroup: true, isMentioned: true, senderId: 'admin' }),
++      );
++      expect(bridge.prompt).toHaveBeenCalledTimes(1);
++
++      await ch.handleInbound(
++        envelope({ isGroup: true, isMentioned: true, senderId: 'stranger' }),
++      );
++      expect(bridge.prompt).toHaveBeenCalledTimes(1);
++    });
++
+     it('gates group members with allowedGroupUsers', async () => {
+       const ch = createChannel({
+         senderPolicy: 'allowlist',
+@@ -3633,6 +3651,55 @@
+       );
+     });
+ 
++    it('records and replays group history on the decoupled group sender axis', async () => {
++      const ch = createChannel(
++        {
++          senderPolicy: 'allowlist',
++          allowedUsers: ['admin'],
++          groupPolicy: 'open',
++          groupSenderPolicy: 'allowlist',
++          allowedGroupUsers: ['member1', 'member2'],
++          groupHistoryLimit: 10,
++          groups: { '*': { requireMention: true } },
++        },
++        { groupHistoryPath: groupHistoryPath() },
++      );
++
++      await ch.handleInbound(
++        envelope({
++          isGroup: true,
++          isMentioned: false,
++          senderId: 'member1',
++          senderName: 'Member',
++          text: 'group-axis background',
++        }),
++      );
++      await ch.handleInbound(
++        envelope({
++          isGroup: true,
++          isMentioned: false,
++          senderId: 'admin',
++          senderName: 'Admin',
++          text: 'dm-axis background',
++        }),
++      );
++      await ch.handleInbound(
++        envelope({
++          isGroup: true,
++          isMentioned: true,
++          senderId: 'member2',
++          senderName: 'Other',
++          text: '@bot summarize',
++        }),
++      );
++
++      const prompt = (bridge.prompt as ReturnType<typeof vi.fn>).mock
++        .calls[0][1] as string;
++      expect(prompt).toBe(
++        '[Chat messages since your last reply - for context]\n- [Member] group-axis background\n\n[Current message - respond to this]\n[Other] @bot summarize',
++      );
++    });
++
+     it('backfills messages from members of an approved paired group', async () => {
+       const previousQwenHome = process.env['QWEN_HOME'];
+       const qwenHome = mkdtempSync(join(tmpdir(), 'qwen-group-pairing-'));
+@@ -22852,6 +22919,55 @@
+           createdAt: '2026-06-30T01:00:00.000Z',
+           consecutiveFailures: 0,
+           runCount: 0,
++        }),
++      ).rejects.toThrow('no longer authorized');
++
++      expect(disable).toHaveBeenCalledWith('job-1');
++      expect(bridge.prompt).not.toHaveBeenCalled();
++    });
++
++    it('authorizes a stored group job on the decoupled group sender axis', async () => {
++      const disable = vi.fn().mockResolvedValue(true);
++      const ch = createChannel(
++        {
++          senderPolicy: 'allowlist',
++          allowedUsers: ['alice'],
++          groupPolicy: 'open',
++          groupSenderPolicy: 'allowlist',
++          allowedGroupUsers: ['bob'],
++        },
++        {
++          loopController: {
++            create: vi.fn(),
++            listForTarget: vi.fn(),
++            disable,
++            validateCron: vi.fn(),
++          },
++        },
++      );
++      ch.proactiveSupported = true;
++
++      // Alice is on the DM axis only, so her group job must not keep firing.
++      await expect(
++        ch.runLoopPrompt({
++          id: 'job-1',
++          channelName: 'test-chan',
++          target: {
++            channelName: 'test-chan',
++            senderId: 'alice',
++            chatId: 'group1',
++            isGroup: true,
++          },
++          cwd: '/tmp',
++          cron: '0 9 * * *',
++          prompt: 'post summary',
++          label: 'daily summary',
++          recurring: true,
++          enabled: true,
++          createdBy: 'Alice',
++          createdAt: '2026-06-30T01:00:00.000Z',
++          consecutiveFailures: 0,
++          runCount: 0,
+         }),
+       ).rejects.toThrow('no longer authorized');
+ 
+--- a/packages/channels/dws/src/dws-channel.test.ts
++++ b/packages/channels/dws/src/dws-channel.test.ts
+@@ -699,6 +699,52 @@
+ }
+ 
+ describe('DwsChannel', () => {
++  it('judges persisted group deliveries on the decoupled group sender axis', () => {
++    const channel = new TestableDwsChannel(
++      'group-axis-dws',
++      makeConfig({
++        senderPolicy: 'pairing',
++        allowedUsers: ['dm-user'],
++        groupSenderPolicy: 'allowlist',
++        allowedGroupUsers: ['member'],
++      }),
++      makeBridge(),
++      undefined,
++      new FakeDwsClient(),
++    );
++    channels.push(channel);
++    const authorize = (senderId: string, isGroup: boolean) =>
++      (
++        channel as unknown as {
++          imDeliveryAuthorization(delivery: {
++            conversationId: string;
++            messageId: string;
++            senderId: string;
++            content: string;
++            idempotencyKey: string;
++            isGroup: boolean;
++            attempts: number;
++            nextRetryAt: number;
++          }): 'allowed' | 'denied' | 'unknown';
++        }
++      ).imDeliveryAuthorization({
++        conversationId: isGroup ? 'cid-group' : 'cid-direct',
++        messageId: `msg-${senderId}`,
++        senderId,
++        content: 'hello',
++        idempotencyKey: `key-${senderId}`,
++        isGroup,
++        attempts: 0,
++        nextRetryAt: 0,
++      });
++
++    expect(authorize('member', true)).toBe('allowed');
++    // Group pairing is not offered, so a non-member is final, not pending.
++    expect(authorize('stranger', true)).toBe('denied');
++    expect(authorize('dm-user', true)).toBe('denied');
++    expect(authorize('stranger', false)).toBe('unknown');
++  });
++
+   it('reprocesses document notifications after a DWS profile switch', async () => {
+     const name = 'profile-scoped-notification-dws';
+     const card = documentMentionCard('doc-shared', 'comment-shared');
+--- a/packages/channels/github/src/GithubAdapter.test.ts
++++ b/packages/channels/github/src/GithubAdapter.test.ts
+@@ -1061,6 +1061,28 @@
+       channel.disconnect();
+     });
+ 
++    it('normalizes allowedGroupUsers to lowercase for the group sender gate', async () => {
++      const config = makeConfig({
++        senderPolicy: 'allowlist',
++        allowedUsers: ['operator'],
++        groupSenderPolicy: 'allowlist',
++        allowedGroupUsers: ['Alice'],
++      });
++      channel = new TestableGithubChannel('test-github', config, makeBridge());
++      mockOctokit.paginate.mockResolvedValue([]);
++      await channel.connect();
++
++      const groupSenderGate = (
++        channel as unknown as {
++          groupSenderGate: { isAllowed: (senderId: string) => boolean };
++        }
++      ).groupSenderGate;
++      expect(groupSenderGate.isAllowed('alice')).toBe(true);
++      expect(groupSenderGate.isAllowed('operator')).toBe(false);
++      expect(config.allowedGroupUsers).toEqual(['alice']);
++      channel.disconnect();
++    });
++
+     it('rejects an allowlist containing only the authenticated GitHub account', async () => {
+       const config = makeConfig({
+         senderPolicy: 'allowlist',
+@@ -1805,6 +1827,37 @@
+       expect(channel.inboundEnvelopes[0]!.text).not.toContain('not allowed');
+     });
+ 
++    it('aggregates comments on the decoupled group sender axis', async () => {
++      await initWithoutLoop({
++        senderPolicy: 'allowlist',
++        allowedUsers: ['alice'],
++        groupSenderPolicy: 'allowlist',
++        allowedGroupUsers: ['bob'],
++      });
++      mockOctokit.paginate
++        .mockResolvedValueOnce([
++          makeNotification({
++            reason: 'comment',
++            last_read_at: '2026-07-01T12:00:00.000Z',
++          }),
++        ])
++        .mockResolvedValueOnce([
++          makeComment({ body: 'dm-axis only' }),
++          makeComment({
++            id: 1002,
++            body: 'group-axis member',
++            user: { login: 'bob' },
++          }),
++        ]);
++
++      await pollOnce();
++
++      expect(channel.inboundEnvelopes[0]!.text).toContain(
++        '@bob: group-axis member',
++      );
++      expect(channel.inboundEnvelopes[0]!.text).not.toContain('dm-axis only');
++    });
++
+     it('dispatches directed follow-ups from approved pairing users without a mention', async () => {
+       await initWithoutLoop({
+         senderPolicy: 'pairing',
+@@ -3589,6 +3642,51 @@
+       expect(bodyEnvelope!.senderId).toBe('bob');
+     });
+ 
++    it('suppresses first-contact body when the group sender axis admits the mention author', async () => {
++      channel = new TestableGithubChannel(
++        'test-github',
++        makeConfig({
++          senderPolicy: 'allowlist',
++          allowedUsers: ['bob'],
++          groupSenderPolicy: 'open',
++        }),
++        makeBridge(),
++      );
++      mockOctokit.paginate.mockResolvedValueOnce([]);
++      await channel.connect();
++      channel.disconnect();
++      channel.cursor = { lastProcessedAt: '2026-07-01T00:00:00.000Z' };
++
++      mockOctokit.paginate
++        .mockResolvedValueOnce([
++          makeNotification({ last_read_at: null, reason: 'subscribed' }),
++        ])
++        .mockResolvedValueOnce([
++          makeComment({
++            body: '@test-bot help',
++            user: { id: 10001, login: 'alice' },
++          }),
++        ]);
++      mockOctokit.rest.issues.get.mockResolvedValue({
++        data: {
++          body: '@test-bot implement this',
++          created_at: '2026-07-02T08:00:00.000Z',
++          user: { id: 10002, login: 'bob' },
++        },
++      });
++
++      await pollOnce();
++
++      expect(
++        channel.inboundEnvelopes.some((e) =>
++          e.messageId.startsWith('issue-body-'),
++        ),
++      ).toBe(false);
++      expect(channel.inboundEnvelopes.map((e) => e.senderId)).toEqual([
++        'alice',
++      ]);
++    });
++
+     it('does not suppress first-contact body after a non-mention comment', async () => {
+       await initWithoutLoop();
+       mockOctokit.paginate
+--- a/packages/channels/gitlab/src/GitlabAdapter.test.ts
++++ b/packages/channels/gitlab/src/GitlabAdapter.test.ts
+@@ -231,6 +231,26 @@
+       ch.disconnect();
+     });
+ 
++    it('normalizes allowedGroupUsers to lowercase', async () => {
++      const config = makeConfig({
++        senderPolicy: 'allowlist',
++        allowedUsers: ['operator'],
++        groupSenderPolicy: 'allowlist',
++        allowedGroupUsers: ['Alice'],
++      });
++      const ch = new TestableGitlabChannel('test-gl', config, makeBridge());
++      await ch.connect();
++      expect(ch.config.allowedGroupUsers).toEqual(['alice']);
++      expect(
++        (
++          ch as unknown as {
++            groupSenderGate: { isAllowed: (senderId: string) => boolean };
++          }
++        ).groupSenderGate.isAllowed('alice'),
++      ).toBe(true);
++      ch.disconnect();
++    });
++
+     it('does not warn about groupPolicy when pairing is configured', async () => {
+       const stderr = vi
+         .spyOn(process.stderr, 'write')

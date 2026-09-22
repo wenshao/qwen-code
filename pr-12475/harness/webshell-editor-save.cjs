@@ -1,0 +1,26 @@
+const { chromium } = require('playwright-core');
+const fs = require('fs');
+(async () => {
+  const out = process.argv[2];
+  const b = await chromium.launch({ executablePath: '/root/.cache/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-linux64/chrome-headless-shell' });
+  const p = await b.newPage({ viewport: { width: 1300, height: 950 }, deviceScaleFactor: 2 });
+  const reqs = [];
+  p.on('request', (r) => { if (r.method() !== 'GET' && /channels/.test(r.url())) reqs.push({ method: r.method(), url: r.url().replace(/\?.*/, ''), body: r.postData() }); });
+  await p.goto('http://127.0.0.1:28299/?token=T0ken12475');
+  await p.waitForTimeout(3000);
+  await p.getByRole('button', { name: 'Channels', exact: true }).click();
+  await p.waitForTimeout(1500);
+  await p.getByRole('button', { name: /Edit team-bot/i }).click();
+  await p.waitForTimeout(1200);
+  const dlg = p.getByRole('dialog');
+  await dlg.locator('textarea').first().fill('Answer briefly.');
+  await dlg.screenshot({ path: out + '/editor-dialog.png' });
+  await dlg.getByRole('button', { name: 'Save', exact: true }).click();
+  await p.waitForTimeout(2500);
+  await p.getByRole('button', { name: 'Start', exact: true }).first().click();
+  await p.waitForTimeout(6000);
+  await p.screenshot({ path: out + '/channels-running.png' });
+  fs.writeFileSync(out + '/editor-requests.json', JSON.stringify(reqs, null, 2));
+  for (const r of reqs) console.log(r.method, r.url, r.body ? JSON.stringify(JSON.parse(r.body).config ?? JSON.parse(r.body)) : '');
+  await b.close();
+})();

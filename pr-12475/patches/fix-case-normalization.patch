@@ -1,0 +1,33 @@
+--- a/packages/channels/github/src/GithubAdapter.ts
++++ b/packages/channels/github/src/GithubAdapter.ts
+@@ -618,6 +618,14 @@
+       );
+     }
+     this.gate.replaceAllowedUsers(allowed);
++    // The decoupled group axis is matched against the same lowercased login.
++    if (this.config.allowedGroupUsers) {
++      const allowedGroup = this.config.allowedGroupUsers.map((u) =>
++        u.toLowerCase(),
++      );
++      this.config.allowedGroupUsers = allowedGroup;
++      this.groupSenderGate?.replaceAllowedUsers(allowedGroup);
++    }
+     this.migrateLegacyPublicationState();
+     this.inboundPersistenceBlocked = false;
+     this.inboundRecoveryPending = true;
+--- a/packages/channels/gitlab/src/GitlabAdapter.ts
++++ b/packages/channels/gitlab/src/GitlabAdapter.ts
+@@ -99,6 +99,13 @@
+     );
+     this.config.allowedUsers = allowed;
+     this.gate.replaceAllowedUsers(allowed);
++    if (this.config.allowedGroupUsers) {
++      const allowedGroup = this.config.allowedGroupUsers.map((u) =>
++        u.toLowerCase(),
++      );
++      this.config.allowedGroupUsers = allowedGroup;
++      this.groupSenderGate?.replaceAllowedUsers(allowedGroup);
++    }
+ 
+     this.startPollLoop();
+   }
