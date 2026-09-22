@@ -124,7 +124,7 @@ Prettier 和 ESLint 干净。
 | --- | --- |
 | 本 PR 改动的 9 个测试文件 | **1012 通过，2 跳过** |
 | `packages/cli` 的 `src/commands/review` + `services/review-worktree-lease` + `config` | **7299 通过，21 跳过（127 个文件）** |
-| `scripts/tests/review-worktree-cleanup-workflow.test.js` | **23 通过（11 跳过）**——此前的阻塞项已关闭 |
+| `scripts/tests/review-worktree-cleanup-workflow.test.js` | **23 个用例，11 跳过，无失败**——此前的阻塞项已关闭 |
 | `npm run test:scripts` | 2579 通过，32 跳过，5 失败——**这 5 个在 base arm 上一模一样地失败**（它们断言基于 `chmod` 的拒绝，而我是 uid 0） |
 | Prettier、ESLint `--max-warnings 0`、`tsc --noEmit`（core + cli） | **干净** |
 

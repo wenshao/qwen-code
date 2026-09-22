@@ -138,7 +138,7 @@ M8 both killed with it applied, Prettier and ESLint clean.
 | --- | --- |
 | The 9 test files this PR touches | **1012 passed, 2 skipped** |
 | `packages/cli` `src/commands/review` + `services/review-worktree-lease` + `config` | **7299 passed, 21 skipped (127 files)** |
-| `scripts/tests/review-worktree-cleanup-workflow.test.js` | **23 passed (11 skipped)** — the earlier blocker is closed |
+| `scripts/tests/review-worktree-cleanup-workflow.test.js` | **23 tests, 11 skipped, no failures** — the earlier blocker is closed |
 | `npm run test:scripts` | 2579 passed, 32 skipped, 5 failed — **the same 5 fail identically on the base arm** (they assert `chmod`-based refusals and I run as uid 0) |
 | Prettier, ESLint `--max-warnings 0`, `tsc --noEmit` (core + cli) | **clean** |
 
