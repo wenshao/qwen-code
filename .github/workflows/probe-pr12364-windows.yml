@@ -19,7 +19,7 @@ jobs:
       - name: 'Record environment'
         run: |
           node -v; npm -v; echo "TEMP=$TEMP"; node -e "console.log('tmpdir', require('os').tmpdir(), '->', require('fs').realpathSync(require('os').tmpdir()))"
-          git rev-parse HEAD HEAD^
+          git log -1 --format='%H parent=%P'
           sha256sum packages/web-shell/scripts/verify-publish-artifacts.mjs probe/base-verifier.mjs
       - name: 'Install (frozen lockfile, no scripts)'
         run: |
@@ -35,6 +35,7 @@ jobs:
         run: |
           set -o pipefail
           T="$RUNNER_WORKSPACE/qwen-code-temp"; mkdir -p "$T"
+          TEMP="$T" TMP="$T" node -e "console.log('tmpdir', require('os').tmpdir())"
           TEMP="$T" TMP="$T" npx vitest run --config ./scripts/tests/vitest.config.ts scripts/tests/web-shell-publish-artifacts.test.js 2>&1 | tee head-noalias.log
       - name: 'Suite: base (main) verifier swapped in'
         continue-on-error: true
