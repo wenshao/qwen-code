@@ -69,7 +69,7 @@ At `0cf69caf`, pointing `spawnSync` at a nonexistent shell (to simulate a runner
 - **The "last hop" argument** (the author's reply above: *"composing those leaves no untested logic in between: same `isDestructiveCommand(command, userPrompt, ctx.cwd)` call"*). The untested logic is `ctx.cwd` itself. In production it's `undefined` unless the call passes `directory`, so the guard reads `process.cwd()`. The witness tests always pass `repoDir` explicitly (F1).
 - **"Ordering against attribution is deliberate and load-bearing"** (from the earlier approving review; its author has since voided only the registration claim, in 5776112023). It isn't load-bearing; see the nit below (mutants M3 and M4 stay green).
 
-The E2E the author asked `/tmux` to capture is covered here: the agent's own commit and amend (figure 1), plus an amend of a commit the agent did not make staying blocked (matrix, negative controls).
+The author's own local TUI run with a real model (5776195865) matches figure 1 and the negative controls here. Both of its "after" rows are shapes the patch keeps working; neither exercises F1 or F2.
 
 ### Follow-up, not blocking: the consumer side reads HEAD before the command runs
 `isAmendOfSessionCommit` checks the pre-command HEAD. Once the agent has any registered commit, the following are exempt on head:
