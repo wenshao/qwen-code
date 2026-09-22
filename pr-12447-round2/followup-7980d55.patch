@@ -1,0 +1,121 @@
+diff --git a/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.fixtures.json b/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.fixtures.json
+index 9f20cac..ace488a 100644
+--- a/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.fixtures.json
++++ b/packages/cli/src/serve/contracts/managed-runtime-attestation-v2.fixtures.json
+@@ -533,6 +533,70 @@
+         "status": 404,
+         "classification": "incompatible"
+       }
++    },
++    {
++      "id": "wrong-cache-control",
++      "request": {
++        "replaceHeader": {
++          "name": "cache-control",
++          "value": "no-cache"
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "uppercase-capability-digest",
++      "request": {
++        "replaceBody": {
++          "name": "capabilityDigest",
++          "value": "sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
++        }
++      },
++      "expected": {
++        "status": 400,
++        "classification": "protocol",
++        "code": "managed_runtime_attestation_invalid"
++      }
++    },
++    {
++      "id": "non-canonical-epoch",
++      "request": {
++        "replaceHeader": {
++          "name": "x-qwen-managed-lease-epoch",
++          "value": "04"
++        }
++      },
++      "expected": {
++        "status": 409,
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
++      }
++    },
++    {
++      "id": "missing-lease-id",
++      "request": {
++        "omitHeader": "x-qwen-managed-lease-id"
++      },
++      "expected": {
++        "status": 409,
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
++      }
++    },
++    {
++      "id": "missing-lease-epoch",
++      "request": {
++        "omitHeader": "x-qwen-managed-lease-epoch"
++      },
++      "expected": {
++        "status": 409,
++        "classification": "identity",
++        "code": "managed_runtime_identity_conflict"
++      }
+     }
+   ]
+ }
+diff --git a/packages/cli/src/serve/managed-runtime-attestation-contract.test.ts b/packages/cli/src/serve/managed-runtime-attestation-contract.test.ts
+index 08f0c04..579e4dc 100644
+--- a/packages/cli/src/serve/managed-runtime-attestation-contract.test.ts
++++ b/packages/cli/src/serve/managed-runtime-attestation-contract.test.ts
+@@ -213,6 +213,9 @@ describe('Managed Runtime attestation contract', () => {
+         });
+       }
+       if (fixture.expected.body) {
++        expect(response.headers.get('content-type')).toMatch(
++          /^application\/json/u,
++        );
+         const text = await response.text();
+         expect(Buffer.byteLength(text)).toBeLessThanOrEqual(
+           fixtures.route.responseBodyLimitBytes,
+@@ -260,14 +263,14 @@ describe('Managed Runtime attestation contract', () => {
+     const workspaceCwd = `/${'x'.repeat(
+       MANAGED_RUNTIME_ATTESTATION_BODY_LIMIT_BYTES -
+         Buffer.byteLength(emptyPathResponse) -
+-        33,
++        1,
+     )}`;
+     const expectedResponse = JSON.stringify({
+       ...successResponseBody,
+       workspaceCwd,
+     });
+     expect(Buffer.byteLength(expectedResponse)).toBe(
+-      MANAGED_RUNTIME_ATTESTATION_BODY_LIMIT_BYTES - 32,
++      MANAGED_RUNTIME_ATTESTATION_BODY_LIMIT_BYTES,
+     );
+     const origin = await startServer({
+       identity: { ...fixtures.identity, workspaceCwd },
+@@ -305,6 +308,14 @@ describe('Managed Runtime attestation contract', () => {
+ 
+   it.each([
+     ['empty token', { token: '' }],
++    ['empty runtime instance', { runtimeInstanceId: '' }],
++    ['empty runtime incarnation', { runtimeIncarnation: '' }],
++    ['empty lease', { leaseId: '' }],
++    ['empty provision request', { provisionRequestId: '' }],
++    ['empty tenant', { tenantId: '' }],
++    ['empty workspace', { workspaceId: '' }],
++    ['empty workspace generation', { workspaceGeneration: '' }],
++    ['empty workspace cwd', { workspaceCwd: '' }],
+     ['zero epoch', { epoch: 0 }],
+     ['fractional epoch', { epoch: 1.5 }],
+     ['uppercase digest', { capabilityDigest: `sha256:${'A'.repeat(64)}` }],
