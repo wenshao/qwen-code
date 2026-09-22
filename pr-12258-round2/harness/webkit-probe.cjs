@@ -1,0 +1,20 @@
+const pw = require('playwright'); const fs = require('fs');
+const [BROWSER, DP, SID, OUT] = process.argv.slice(2);
+(async () => {
+  const b = await pw[BROWSER].launch(); const page = await (await b.newContext({ viewport: { width: 1360, height: 1000 }, deviceScaleFactor: 2 })).newPage();
+  const errs = []; page.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 200)); });
+  await page.goto(`http://127.0.0.1:${DP}/session/${SID}?token=tok-head`);
+  const card = page.locator('[data-testid="mcp-app"]').first(); await card.waitFor({ timeout: 60000 });
+  await page.waitForTimeout(6000);
+  const fr = await (await card.locator('iframe').elementHandle()).contentFrame();
+  const proxy = { url: fr?.url() };
+  const inner = fr?.childFrames()[0];
+  let app = null;
+  if (inner) app = await inner.evaluate(() => ({ origin: self.origin, ready: !!window.__ready, caps: window.__hostCaps ?? null, vendor: null })).catch(e => ({ error: String(e) }));
+  const vendor = inner?.childFrames()[0] ? await inner.childFrames()[0].evaluate(() => ({ origin: self.origin, status: document.getElementById('s')?.textContent })).catch(e => ({ error: String(e) })) : null;
+  const res = { browser: BROWSER, version: b.version(), proxy, app, vendor, cardText: (await card.innerText()).slice(0, 200), errs: errs.slice(-8) };
+  console.log(JSON.stringify(res, null, 1));
+  fs.writeFileSync(OUT + '.json', JSON.stringify(res, null, 1));
+  await card.screenshot({ path: OUT + '.png' });
+  await b.close();
+})().catch(e => { console.log('FATAL', String(e).slice(0, 800)); process.exit(1); });

@@ -1,0 +1,12 @@
+const [DP, TOKEN, WS] = process.argv.slice(2); const base = `http://127.0.0.1:${DP}`;
+const H = (cid) => ({ 'content-type': 'application/json', authorization: `Bearer ${TOKEN}`, ...(cid ? { 'x-qwen-client-id': cid } : {}) });
+const j = async (m, p, b, cid) => { const r = await fetch(base + p, { method: m, headers: H(cid), body: b ? JSON.stringify(b) : undefined }); const t = await r.text(); let x; try { x = JSON.parse(t); } catch { x = t; } return { status: r.status, body: x }; };
+const s = await j('POST', '/session', { cwd: WS, sessionScope: 'thread' });
+const sid = s.body.sessionId, cid = s.body.clientId;
+await j('POST', `/session/${sid}/prompt`, { prompt: [{ type: 'text', text: 'hello' }] }, cid);
+await new Promise(r => setTimeout(r, 6000));
+const call = (serverName, name) => j('POST', `/session/${sid}/mcp-app/tools/call`, { serverName, resourceUri: `ui://${serverName}/dashboard`, name, arguments: {} }, cid);
+console.log('excluded fixture.get_embed_token:', JSON.stringify(await call('fixture', 'get_embed_token')));
+const ctl = new AbortController(); setTimeout(() => ctl.abort(), 3000);
+const r = await fetch(`${base}/session/${sid}/mcp-app/tools/call`, { method: 'POST', headers: H(cid), body: JSON.stringify({ serverName: 'other', resourceUri: 'ui://other/dashboard', name: 'get_embed_token', arguments: {} }), signal: ctl.signal }).then(r => 'HTTP ' + r.status).catch(e => 'pending until abort (' + e.name + ') → reached permission stage');
+console.log('control other.get_embed_token (not excluded):', r);
