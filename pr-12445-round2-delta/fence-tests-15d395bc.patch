@@ -1,0 +1,185 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java
+index c7b30bc28d..670874b4d2 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java
+@@ -19,6 +19,7 @@ import java.util.ArrayList;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+ import java.util.Map;
++import java.util.Objects;
+ import java.util.Set;
+ import java.util.concurrent.Callable;
+ import java.util.concurrent.ExecutorService;
+@@ -40,6 +41,8 @@ final class JdbcRepositoryContract {
+         verifyBinding(dataSource, prefix);
+         verifySession(dataSource, prefix);
+         verifyExecution(dataSource, prefix);
++        verifyExecutionFences(dataSource, prefix);
++        verifyExecutionPayloadShapes(dataSource, prefix);
+     }
+ 
+     private static void verifySchema(DataSource dataSource)
+@@ -585,6 +588,163 @@ final class JdbcRepositoryContract {
+                 prefix + "-collision-runtime-session"));
+     }
+ 
++    private static void verifyExecutionFences(DataSource dataSource,
++            String prefix) throws Exception {
++        JdbcToolExecutionRepository first =
++                new JdbcToolExecutionRepository(dataSource);
++        JdbcToolExecutionRepository second =
++                new JdbcToolExecutionRepository(dataSource);
++        String owner = prefix + "-dispatcher-a";
++
++        // A live DISPATCHING claim fences every other owner, also under a
++        // race through two instances (row lock plus live-lease check).
++        for (int round = 0; round < 6; round++) {
++            String raced = first.findOrCreate(execution(
++                    prefix + "-race-execution-" + round,
++                    prefix + "-race-" + round + "-idempotency",
++                    prefix + "-race-digest")).getExecutionCallId();
++            List<ToolExecutionRecord> claims = invokeConcurrently(32,
++                    index -> (index % 2 == 0 ? first : second).claimDispatch(
++                            raced, prefix + "-racer-" + index,
++                            Duration.ofMinutes(30)));
++            List<ToolExecutionRecord> granted = claims.stream()
++                    .filter(Objects::nonNull).collect(Collectors.toList());
++            assertEquals(1, granted.size());
++            assertEquals(1, granted.get(0).getDispatchGeneration());
++            assertNull(second.claimDispatch(raced, prefix + "-dispatcher-z",
++                    Duration.ofMinutes(30)));
++            assertEquals(granted.get(0).getVersion(),
++                    second.findByExecutionCallId(raced).getVersion());
++        }
++
++        // The same owner id re-claims after expiry; a writer still holding
++        // generation 1 that re-reads the fresh row must be refused.
++        String zombie = first.findOrCreate(execution(
++                prefix + "-zombie-execution", prefix + "-zombie-idempotency",
++                prefix + "-zombie-digest")).getExecutionCallId();
++        ToolExecutionRecord generationOne = first.claimDispatch(zombie, owner,
++                Duration.ofMinutes(30));
++        expire(dataSource, "qwen_tool_execution", "dispatch_lease_until",
++                "execution_call_id", zombie);
++        assertNull(first.renewDispatch(zombie, owner,
++                generationOne.getDispatchGeneration(),
++                Duration.ofMinutes(30)));
++        ToolExecutionRecord generationTwo = second.claimDispatch(zombie,
++                owner, Duration.ofMinutes(30));
++        assertEquals(2, generationTwo.getDispatchGeneration());
++        ToolExecutionRecord fresh = first.findByExecutionCallId(zombie);
++        assertNull(first.compareAndSet(fresh,
++                fresh.withState(ToolExecutionRecord.State.EXECUTING, false),
++                owner, generationOne.getDispatchGeneration()));
++
++        // A settled result is final for its own owner too.
++        ToolExecutionRecord settled = second.compareAndSet(generationTwo,
++                generationTwo.withResult(result("success"), 0, START), owner,
++                2);
++        assertEquals(generationTwo.getVersion() + 1,
++                first.findByExecutionCallId(zombie).getVersion());
++        assertNull(second.compareAndSet(settled,
++                settled.withResult(result("error"), 0, START), owner, 2));
++        assertNull(second.requestCancel(zombie, settled.getVersion()));
++        assertEquals("success",
++                first.findByExecutionCallId(zombie).getExecutionStatus());
++        assertNull(second.renewDispatch(zombie, owner, 2,
++                Duration.ofMinutes(30)));
++        assertNull(second.resolveUnknown(first.findByExecutionCallId(zombie),
++                result("cancelled"), START));
++
++        // An owner that parks its own call in UNKNOWN keeps the claim but
++        // can leave only through resolveUnknown at the current version.
++        String parked = first.findOrCreate(execution(
++                prefix + "-parked-execution", prefix + "-parked-idempotency",
++                prefix + "-parked-digest")).getExecutionCallId();
++        ToolExecutionRecord parkedClaim = first.claimDispatch(parked, owner,
++                Duration.ofMinutes(30));
++        ToolExecutionRecord requested = first.requestCancel(parked,
++                parkedClaim.getVersion());
++        assertEquals(requested.getVersion(),
++                first.requestCancel(parked, requested.getVersion())
++                        .getVersion());
++        ToolExecutionRecord parkedExecuting = first.compareAndSet(requested,
++                requested.withState(
++                        ToolExecutionRecord.State.CANCEL_REQUESTED, true),
++                owner, 1);
++        ToolExecutionRecord unknown = first.compareAndSet(parkedExecuting,
++                parkedExecuting.withUnknown(), owner, 1);
++        assertEquals(ToolExecutionRecord.State.UNKNOWN, unknown.getState());
++        assertNull(first.compareAndSet(unknown,
++                unknown.withResult(result("success"), 0, START), owner, 1));
++        assertNull(first.renewDispatch(parked, owner, 1,
++                Duration.ofMinutes(30)));
++        ToolExecutionRecord stale = unknown.withVersion(
++                unknown.getVersion() - 1);
++        assertNull(second.resolveUnknown(stale, result("cancelled"), START));
++        assertEquals("cancelled", second.resolveUnknown(unknown,
++                result("cancelled"), START).getExecutionStatus());
++
++        // Creation boundary: a reused executionCallId is refused loudly and
++        // only a fresh PREPARED candidate is accepted.
++        assertThrows(IllegalArgumentException.class,
++                () -> first.findOrCreate(execution(zombie,
++                        prefix + "-reused-idempotency",
++                        prefix + "-reused-digest")));
++        assertThrows(IllegalArgumentException.class,
++                () -> first.findOrCreate(execution(
++                        prefix + "-versioned-execution",
++                        prefix + "-versioned-idempotency",
++                        prefix + "-versioned-digest").withVersion(1)));
++        assertThrows(IllegalArgumentException.class,
++                () -> first.findOrCreate(execution(
++                        prefix + "-stated-execution",
++                        prefix + "-stated-idempotency",
++                        prefix + "-stated-digest").withState(
++                                ToolExecutionRecord.State.EXECUTING, false)));
++    }
++
++    private static void verifyExecutionPayloadShapes(DataSource dataSource,
++            String prefix) {
++        JdbcToolExecutionRepository writer =
++                new JdbcToolExecutionRepository(dataSource);
++        String key = prefix + "-shape-idempotency";
++        Map<String, Object> nested = new LinkedHashMap<>();
++        nested.put("attempt", 1L);
++        nested.put("note", null);
++        Map<String, Object> shape = new LinkedHashMap<>();
++        shape.put("nested", nested);
++        shape.put("list", java.util.Arrays.asList(1L, null, "x"));
++        ToolExecutionRecord candidate = shaped(prefix, key, shape);
++        writer.findOrCreate(candidate);
++        ToolExecutionRecord reread = new JdbcToolExecutionRepository(
++                dataSource).findByIdempotencyKey(key);
++        assertTrue(reread.sameRequest(candidate));
++
++        Map<String, Object> extra = new LinkedHashMap<>(shape);
++        extra.put("extra", "x");
++        assertFalse(reread.sameRequest(shaped(prefix, key, extra)));
++        Map<String, Object> renamed = new LinkedHashMap<>(shape);
++        renamed.put("renamed", null);
++        Map<String, Object> renamedTwin = new LinkedHashMap<>(shape);
++        renamedTwin.put("other", null);
++        assertFalse(shaped(prefix, key, renamed).sameRequest(
++                shaped(prefix, key, renamedTwin)));
++        Map<String, Object> shorter = new LinkedHashMap<>(shape);
++        shorter.put("list", java.util.Arrays.asList(1L, null));
++        assertFalse(reread.sameRequest(shaped(prefix, key, shorter)));
++    }
++
++    private static ToolExecutionRecord shaped(String prefix, String key,
++            Map<String, Object> extra) {
++        Map<String, Object> reference = new LinkedHashMap<>(extra);
++        reference.put("sessionId", prefix + "-shape-runtime-session");
++        reference.put("promptId", prefix + "-shape-turn");
++        reference.put("callId", prefix + "-shape-tool");
++        reference.put("argsDigest", prefix + "-shape-digest");
++        return ToolExecutionRecord.prepared(key + "-execution", key,
++                prefix + "-shape-binding", 1, prefix + "-shape-harness",
++                prefix + "-shape-runtime-session", prefix + "-shape-turn",
++                prefix + "-shape-tool", prefix + "-shape-digest", reference);
++    }
++
+     private static ToolExecutionRecord execution(String executionCallId,
+             String idempotencyKey, String digest) {
+         String prefix = idempotencyKey.substring(0,

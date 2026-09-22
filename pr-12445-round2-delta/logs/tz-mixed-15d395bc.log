@@ -1,0 +1,12 @@
+wall clock            : 2026-09-22T12:11:43.336610808Z
+pool A databaseNow()  : 2026-09-22T12:11:43Z   (session time_zone SYSTEM)
+pool B databaseNow()  : 2026-09-22T20:11:43Z   (session time_zone Asia/Shanghai)
+
+[1] A claims            : gen 1, lease until 2026-09-22T12:41:43Z
+[1] B claims right after: GRANTED gen 2 to dispatcher-B  <- A's 30-minute claim is still live: a healthy claim is taken over
+[1] A moves to EXECUTING: null (A is fenced out; B now owns the call)
+
+[2] A is EXECUTING (30 min lease); B claims -> null, row is now UNKNOWN
+[2] A settles           : null  <- a healthy, running execution was forced to UNKNOWN; its result is refused
+
+[3] B claims with a 1 s lease (until 2026-09-22T20:11:44Z), dies; A claims 2.5 s later -> null: lease still looks live for 479 more minutes
