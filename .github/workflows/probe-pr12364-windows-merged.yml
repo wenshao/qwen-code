@@ -1,0 +1,58 @@
+name: 'probe pr12364 windows (merged tree)'
+on:
+  push:
+    branches: ['probe/pr12364-windows-merged']
+permissions:
+  contents: 'read'
+jobs:
+  suite:
+    runs-on: 'windows-2022'
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: 'bash'
+    steps:
+      - uses: 'actions/checkout@v4'
+      - uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+      - name: 'Record environment'
+        run: |
+          node -v; npm -v; echo "TEMP=$TEMP"; node -e "console.log('tmpdir', require('os').tmpdir(), '->', require('fs').realpathSync(require('os').tmpdir()))"
+          git log -1 --format='%H parent=%P'
+          sha256sum packages/web-shell/scripts/verify-publish-artifacts.mjs probe/base-verifier.mjs
+      - name: 'Install (frozen lockfile, no scripts)'
+        run: |
+          corepack enable
+          corepack pnpm install --frozen-lockfile --ignore-scripts
+      - name: 'Suite: head verifier, default TEMP (8.3 alias)'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npx vitest run --config ./scripts/tests/vitest.config.ts scripts/tests/web-shell-publish-artifacts.test.js 2>&1 | tee head-alias.log
+      - name: 'Suite: head verifier, alias-free TEMP (as ci.yml does)'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          T="$RUNNER_WORKSPACE/qwen-code-temp"; mkdir -p "$T"
+          TEMP="$T" TMP="$T" node -e "console.log('tmpdir', require('os').tmpdir())"
+          TEMP="$T" TMP="$T" npx vitest run --config ./scripts/tests/vitest.config.ts scripts/tests/web-shell-publish-artifacts.test.js 2>&1 | tee head-noalias.log
+      - name: 'Suite: pre-merge main verifier swapped in'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cp packages/web-shell/scripts/verify-publish-artifacts.mjs head-verifier.bak
+          cp probe/base-verifier.mjs packages/web-shell/scripts/verify-publish-artifacts.mjs
+          sha256sum packages/web-shell/scripts/verify-publish-artifacts.mjs
+          npx vitest run --config ./scripts/tests/vitest.config.ts scripts/tests/web-shell-publish-artifacts.test.js 2>&1 | tee base.log || true
+          cp head-verifier.bak packages/web-shell/scripts/verify-publish-artifacts.mjs
+          sha256sum packages/web-shell/scripts/verify-publish-artifacts.mjs
+      - name: 'Summary'
+        run: |
+          for f in head-alias head-noalias base; do echo "PROBE $f: $(sed 's/\x1b\[[0-9;]*m//g' $f.log | grep -E '^\s+Tests ' | tr -s ' ')"; done
+          sed 's/\x1b\[[0-9;]*m//g' base.log | grep -E '^\s+(×|✗)' || true
+      - uses: 'actions/upload-artifact@v4'
+        if: always()
+        with:
+          name: 'pr12364-windows-merged-logs'
+          path: '*.log'
