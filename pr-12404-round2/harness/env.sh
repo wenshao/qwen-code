@@ -1,0 +1,9 @@
+export WT=/root/verify/pr12404-r2
+export H=/root/verify/pr12404-r2-e2e
+export PORT=4414
+export TOKEN=T0KEN12404R2
+export MOCK_PORT=18414
+export WS=$H/ws/demo-app
+export QWEN_RUNTIME_DIR=${RT:-$H/runtime}
+export HOME_QWEN=${HQ:-$H/home}
+export BASE_URL="http://127.0.0.1:$PORT"
