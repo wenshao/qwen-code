@@ -1,0 +1,14 @@
+[1;36m== R2-A cancel after the dispatch lease lapsed, execute still running in this process[0m
+  [1;32mok   [0m R2-A live  lease live  : cancel#1 -> CANCEL_REQUESTED cancelRequested, transport.cancel calls=1; cancel#2 -> CANCEL_REQUESTED cancelRequested, calls=2
+  [2m        then execute completes -> SETTLED/success cancelRequested; same-key retry -> SETTLED/success cancelRequested; execute calls 1[0m
+  [1;32mok   [0m R2-A lapse lease lapsed: cancel#1 -> CANCEL_REQUESTED cancelRequested, transport.cancel calls=1; cancel#2 -> CANCEL_REQUESTED cancelRequested, calls=2
+  [2m        then execute completes -> CANCEL_REQUESTED cancelRequested; same-key retry -> UNKNOWN cancelRequested; execute calls 1[0m
+[1;36m== R2-B one transient renewDispatch exception while execute runs longer than the lease (real clock, lease 300 ms)[0m
+  [1;32mok   [0m R2-B       after the result arrived: SETTLED/success; renewDispatch calls=9 (first threw)
+[1;36m== R2-C lapse detected by the renewal task itself, no caller retry (lease 300 ms of wall cadence, clock jumps 2 min)[0m
+  [1;32mok   [0m R2-C       400 ms after the jump: UNKNOWN; late success -> UNKNOWN; claimDispatch calls from renewal=1
+[1;36m== R2-D Runtime confirms settled/cancelled after the dispatch lease lapsed (R1-2 third symptom)[0m
+  [1;32mok   [0m R2-D       cancel -> ok; stored UNKNOWN cancelRequested
+  [2m        cancel again -> ok UNKNOWN cancelRequested; execute completes, same-key retry -> UNKNOWN cancelRequested[0m
+[1;36m== R2-E one transient renewOperation exception while the provisioner runs longer than the lease (real clock, operation lease 300 ms, provisioning 1000 ms)[0m
+  [1;31mBUG  [0m R2-E       warm -> async RuntimeBrokerException(503 runtime_provision_fenced, retryable=true); after the lease: warm -> ok; provisioner calls=2

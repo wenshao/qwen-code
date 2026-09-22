@@ -1,0 +1,77 @@
+[1;36m== S1  concurrent acquire across the PROVISIONING -> READY edge[0m
+  [2mT2 has read the binding while it is PROVISIONING; provisioning #1 now completes[0m
+  [1;32mok   [0m S1-a       provisioner calls for one workspace binding = 1
+  [1;32mok   [0m S1-b       both Sessions on binding 3b6394e1-cc04-4b33-93bb-c868e03140e7 generation 1
+  [1;32mok   [0m S1-c       durable binding lease after the race = lease-1 (state READY, version 2)
+  [1;32mok   [0m S1-d       control routes: [control rs-1 via lease-1, control rs-2 via lease-1]
+[1;36m== S2  repository fault between claimDispatch and EXECUTING[0m
+  [2mcreateExecution #1 -> async RuntimeBrokerException(503 runtime_execution_dispatch_failed, retryable=true)[0m
+  [2mstored: DISPATCHING owner=broker gen=1[0m
+  [2mcreateExecution #2 (same key) -> ok, state SETTLED[0m
+  [2mafter the dispatch lease expired, createExecution #3 -> SETTLED[0m
+  [2mcancelExecution -> SETTLED cancelRequested=false, transport.cancel calls=0[0m
+  [2mrelease -> ok[0m
+  [1;32mok   [0m S2-a       after retry + lease expiry + cancel: state SETTLED, execute calls 1
+  [1;32mok   [0m S2-b       Session release -> ok
+[1;36m== S2b same class without a repository fault, and the other exits[0m
+  [1;32mok   [0m S2b-stall  stall > dispatch lease after claimDispatch (no exception), then retry
+  [2m        first call ok; then SETTLED/success, execute calls 1, release ok[0m
+  [1;32mok   [0m S2b-cancel repository fault before EXECUTING, then the client cancels instead of retrying
+  [2m        first call async RBE(503 runtime_execution_dispatch_failed, retryable=true); then SETTLED/cancelled, execute calls 0, release ok[0m
+  [1;32mok   [0m S2b-late   execute result arrives after the dispatch lease lapsed, then retry
+  [2m        first call ok; then UNKNOWN, execute calls 1, release RBE(409 runtime_session_busy, retryable=false)[0m
+  [1;32mok   [0m S2b-commit EXECUTING write commits, then the repository throws; retry after lease expiry
+  [2m        first call async RBE(503 runtime_execution_dispatch_failed, retryable=true); then UNKNOWN, execute calls 0, release RBE(409 runtime_session_busy, retryable=false)[0m
+[1;36m== S3  error surface of the public service API[0m
+  [1;33mthrow/untyped[0m acquire(harnessSessionId="")                     IllegalArgumentException(harnessSessionId must be a bounded non-empty string)
+  [1;33mstage/untyped[0m acquire(turnKind="resume")                       IllegalArgumentException(turnKind must be bootstrap or continuation)
+  [1;33mthrow/typed  [0m control(kind="shell")                            RuntimeBrokerException(400 runtime_control_operation_invalid, retryable=false)
+  [1;33mthrow/typed  [0m control(operation=null)                          RuntimeBrokerException(400 runtime_payload_invalid, retryable=false)
+  [1;33mthrow/untyped[0m createExecution(idempotencyKey="")               IllegalArgumentException(idempotencyKey must be a bounded non-empty string)
+  [1;32mstage/typed  [0m createExecution(reference w/o argsDigest)        RuntimeBrokerException(400 runtime_reference_invalid, retryable=false)
+  [1;33mthrow/untyped[0m getExecution(executionCallId="")                 IllegalArgumentException(executionCallId must be a bounded non-empty string)
+  [1;32mstage/typed  [0m getExecution(unknown id)                         RuntimeBrokerException(404 runtime_execution_not_found, retryable=false)
+  [1;32mstage/typed  [0m cancelExecution -> Runtime says settled/"stopped" RuntimeBrokerException(503 runtime_execution_cancel_failed, retryable=true)
+  [2mrecord after the invalid settled cancel: CANCEL_REQUESTED cancelRequested=true[0m
+  [2mafter close(): acquire -> sync IllegalStateException(Runtime Broker is closed)[0m
+[1;36m== S4  cancellation ordering and settlement evidence[0m
+  [1;32mok   [0m S4-a       state persisted when transport.cancel ran = CANCEL_REQUESTED
+  [1;32mok   [0m S4-b       non-terminal ack leaves CANCEL_REQUESTED
+  [1;32mok   [0m S4-c       settled evidence wins over a late success: SETTLED/cancelled
+  [1;32mok   [0m S4-d       release after settle -> ok
+[1;36m== S5  32 threads x same key, then 32 distinct keys[0m
+  [1;32mok   [0m S5-a       32 concurrent acquire: provision 1, Runtime acquire 1
+  [1;32mok   [0m S5-b       same key: distinct records 1, physical execute 1
+  [1;32mok   [0m S5-c       32 distinct keys: physical execute total 33 (expect 33)
+  [1;32mok   [0m S5-d       release while 33 in flight -> async RuntimeBrokerException(409 runtime_session_busy, retryable=false)
+  [1;32mok   [0m S5-e       release after all settle -> ok
+[1;36m== S6  ambiguous execute -> UNKNOWN, then release[0m
+  [1;32mok   [0m S6-a       transport failure -> UNKNOWN (execute calls 1, no replay)
+  [1;32mok   [0m S6-b       retry of the same key -> UNKNOWN, execute calls 1
+  [2mrelease one day later -> async RuntimeBrokerException(409 runtime_session_busy, retryable=false)  (design: UNKNOWN waits for the reconciliation slice)[0m
+[1;36m== S7  Harness Session B against Harness Session A's objects[0m
+        acquire(B, rs-a)                     async RuntimeBrokerException(409 runtime_session_conflict, retryable=false)
+        control(B, rs-a)                     async RuntimeBrokerException(409 runtime_session_conflict, retryable=false)
+        createExecution(B, rs-a)             async RuntimeBrokerException(409 runtime_session_conflict, retryable=false)
+        createExecution(B, rs-b, key-a)      async RuntimeBrokerException(409 runtime_idempotency_conflict, retryable=false)
+        getExecution(B, rs-b, A's id)        async RuntimeBrokerException(409 runtime_execution_conflict, retryable=false)
+        getExecution(B, rs-b, missing id)    async RuntimeBrokerException(404 runtime_execution_not_found, retryable=false)
+        cancelExecution(B, rs-b, A's id)     async RuntimeBrokerException(409 runtime_execution_conflict, retryable=false)
+        release(B, rs-a)                     async RuntimeBrokerException(409 runtime_session_conflict, retryable=false)
+  [1;32mok   [0m S7-a       every cross-Session call refused
+  [1;32mok   [0m S7-b       Runtime calls caused by B: 0; A's execution EXECUTING cancelRequested=false
+[1;36m== S8  provisioning failure, null lease, and claim loss[0m
+  [1;32mok   [0m S8-a       provisioner error -> async RuntimeBrokerException(503 runtime_provision_failed, retryable=true); binding-1 FAILED
+  [1;32mok   [0m S8-b       retry -> generation 2; null lease -> async RuntimeBrokerException(503 runtime_provision_failed, retryable=true); FAILED
+  [1;32mok   [0m S8-c       claim expired and taken by other-broker (gen 2): late lease -> async RuntimeBrokerException(503 runtime_provision_fenced, retryable=true); stored PROVISIONING lease=null owner=other-broker
+[1;36m== S9  release: negative ack, retry, repeat, re-acquire[0m
+  [1;32mok   [0m S9-a       negative ack -> false, RELEASING, control -> async RuntimeBrokerException(409 runtime_session_not_ready, retryable=false)
+  [1;32mok   [0m S9-b       retry -> true, repeat -> true without another Runtime call (2 total)
+  [1;32mok   [0m S9-c       re-acquire a RELEASED id -> async RuntimeBrokerException(409 runtime_session_not_acquirable, retryable=false)
+[1;36m== S10 a transport whose execute() blocks before returning its stage[0m
+  [2mcancel issued while EXECUTING; it returned after 0 ms with CANCEL_REQUESTED/null, transport.cancel calls=1[0m
+[1;36m== S11 what warm() returns to the embedding caller[0m
+  [2mwarm(h).getLease() -> endpoint=http://127.0.0.1:4001/ token=token-1 leaseId=lease-1[0m
+[1;36m== S12 stale dispatch owner: lease expires, another owner claims, late result arrives[0m
+  [1;32mok   [0m S12        takeover by broker-2 -> claim null, record UNKNOWN; late success from the old dispatch -> UNKNOWN result=null
+[1;32mALL PROBES OK[0m

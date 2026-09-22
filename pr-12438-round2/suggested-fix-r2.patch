@@ -1,0 +1,105 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index 38db0ec..ff0c5d9 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -220,7 +220,11 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                                             == ToolExecutionRecord.State
+                                                     .CANCEL_REQUESTED
+                                     && !requested.hasLiveDispatchAt(
+-                                            clock.instant()))) {
++                                            clock.instant())
++                                    && !dispatches.containsKey(executionId))) {
++                        // Fence only a claim nothing here is serving; an
++                        // invocation still running in this process gets the
++                        // physical cancel below.
+                         beginDispatch(context, requested);
+                         ToolExecutionRecord latest = executionRepository
+                                 .findByExecutionCallId(executionId);
+@@ -820,6 +824,19 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             throw unavailable("runtime_execution_cancel_failed",
+                     "Runtime cancellation returned an invalid result",
+                     exception);
++        } catch (RuntimeBrokerException exception) {
++            ToolExecutionRecord latest = executionRepository
++                    .findByExecutionCallId(requested.getExecutionCallId());
++            if (!"runtime_execution_state_conflict".equals(
++                    exception.getCode()) || latest == null
++                    || latest.hasLiveDispatchAt(clock.instant())) {
++                throw exception;
++            }
++            // The Runtime settled the call after this claim lapsed; fence it
++            // for reconciliation instead of reporting a state conflict.
++            executionRepository.claimDispatch(
++                    requested.getExecutionCallId(), brokerOwnerId,
++                    dispatchLeaseDuration);
+         }
+     }
+ 
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+index e974f71..61de5cd 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+@@ -601,6 +601,63 @@ class RuntimeBrokerServiceTest {
+         }
+     }
+ 
++    @Test
++    void cancellationAfterALapseStillReachesTheRunningInvocation() {
++        MutableClock clock = new MutableClock(START);
++        try (Fixture fixture = new Fixture(WORKSPACE_SCOPE, clock,
++                Duration.ofMinutes(1))) {
++            CompletableFuture<Map<String, Object>> result =
++                    new CompletableFuture<>();
++            fixture.transport.executeResult = result;
++            join(fixture.service.acquire("harness", "runtime",
++                    "bootstrap"));
++            ToolExecutionRecord created = join(
++                    fixture.service.createExecution("harness", "runtime",
++                            "idempotency",
++                            reference("runtime", "digest")));
++
++            // Renewal ticks every 20 s of wall time, so the lease lapses
++            // while this process still serves the invocation.
++            clock.advance(Duration.ofMinutes(2));
++            join(fixture.service.cancelExecution("harness", "runtime",
++                    created.getExecutionCallId()));
++
++            assertEquals(1, fixture.transport.cancelCalls.get());
++            result.complete(Map.of("executionStatus", "success"));
++        }
++    }
++
++    @Test
++    void settledCancellationAfterALapseIsFencedInsteadOfConflicting() {
++        MutableClock clock = new MutableClock(START);
++        try (Fixture fixture = new Fixture(WORKSPACE_SCOPE, clock,
++                Duration.ofMinutes(1))) {
++            CompletableFuture<Map<String, Object>> result =
++                    new CompletableFuture<>();
++            CompletableFuture<Map<String, Object>> acknowledgement =
++                    new CompletableFuture<>();
++            fixture.transport.executeResult = result;
++            fixture.transport.cancelResult = acknowledgement;
++            join(fixture.service.acquire("harness", "runtime",
++                    "bootstrap"));
++            ToolExecutionRecord created = join(
++                    fixture.service.createExecution("harness", "runtime",
++                            "idempotency",
++                            reference("runtime", "digest")));
++            CompletionStage<ToolExecutionRecord> cancelled =
++                    fixture.service.cancelExecution("harness", "runtime",
++                            created.getExecutionCallId());
++
++            clock.advance(Duration.ofMinutes(2));
++            acknowledgement.complete(Map.of("state", "settled", "result",
++                    Map.of("executionStatus", "cancelled")));
++
++            assertEquals(ToolExecutionRecord.State.UNKNOWN,
++                    join(cancelled).getState());
++            result.complete(Map.of("executionStatus", "cancelled"));
++        }
++    }
++
+     @Test
+     void invalidExecutionInputsUseTheCodedErrorChannel() {
+         try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {

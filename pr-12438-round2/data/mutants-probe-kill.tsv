@@ -1,0 +1,30 @@
+M01	still-survives	requireLiveBinding: generation must match
+M03	PROBE-KILLED	provision: expired claim never publishes (fenced)	| BUG   R2-E       warm -> async NullPointerException(Cannot invoke "com.alibaba.qwen.code.runtimebroker.RuntimeBindingRecord.withState(com.alibaba.qwen
+M05	PROBE-KILLED	provision: READY CAS failure is fenced	| BUG   S8-c       claim expired and taken by other-broker (gen 2): late lease -> async NullPointerException(Cannot invoke "com.alibaba.qwen.code.runtim || 1 PROBE ROW(S) FLAGGED
+M06	still-survives	ensureBinding: FAILED/DRAINING binding refused
+M08	still-survives	acquire: stored READY skips Runtime acquire
+M09	PROBE-KILLED	acquire: non-ACQUIRING refused	| BUG   S9-c       re-acquire a RELEASED id -> async IllegalArgumentException(terminal Session cannot be reactivated) || 1 PROBE ROW(S) FLAGGED
+M11	PROBE-KILLED	requireSession: Harness Session must match	| control(B, rs-a)                     ok || createExecution(B, rs-a)             ok
+M12	still-survives	control: re-check READY under lock
+M19	still-survives	release: only READY/RELEASING may release
+M20	still-survives	releasedSession: Harness Session must match
+M24	still-survives	dispatch: missing result is ambiguous
+M25	still-survives	dispatch: invalid result -> UNKNOWN
+M28	still-survives	settle: this dispatch must still own it
+M29	still-survives	requestCancel: already-requested short-circuit
+M32	still-survives	cancel: status must be a known Runtime state
+M33	still-survives	requireExecution: Runtime Session must match
+M34	still-survives	requireExecution: Harness Session must match
+M35	still-survives	requireExecution: binding generation must match
+M36	PROBE-KILLED	renewal cadence is one third of the lease	| BUG   R2-B       after the result arrived: EXECUTING; renewDispatch calls=1 (first threw) || BUG   R2-C       400 ms after the jump: EXECUTING; late success -> EXECUTING; claimDispatch calls from renewal=0
+M37	still-survives	close() stops the renewal scheduler
+M21	still-survives	create: reference sessionId must match
+M23	still-survives	create: live EXECUTING claim is not re-driven
+M30	still-survives	cancel: physical cancel only for CANCEL_REQUESTED
+N05	PROBE-KILLED	renewal: transient exception keeps renewing (R1-2)	| BUG   R2-B       after the result arrived: EXECUTING; renewDispatch calls=1 (first threw)
+N07	PROBE-KILLED	create: expired EXECUTING is fenced on retry (R1-2)	| BUG   S2b-late   execute result arrives after the dispatch lease lapsed, then retry || first call ok; then EXECUTING, execute calls 1, release RBE(409 runtime_session_busy, retryable=false)
+N09	PROBE-KILLED	cancel: expired CANCEL_REQUESTED is fenced (R1-2)	| ok    R2-A lapse lease lapsed: cancel#1 -> CANCEL_REQUESTED cancelRequested, transport.cancel calls=1; cancel#2 -> CANCEL_REQUESTED cancelRequested, c || cancel again -> async RuntimeBrokerException(409 runtime_execution_state_conflict, retryable=false) CANCEL_REQUESTED cancelRequested; execute complete
+N10	still-survives	control: sync transport throw releases the slot (R1-3)
+N15	still-survives	dispatch: only a DISPATCHING claim is executed
+N16	still-survives	create: READY re-checked under the Session lock
+# probes kill 8/29 PR-test survivors

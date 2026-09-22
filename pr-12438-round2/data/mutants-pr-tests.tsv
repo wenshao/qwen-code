@@ -1,0 +1,55 @@
+M01	binding	SURVIVED	requireLiveBinding: generation must match	
+M02	binding	KILLED	requireLiveBinding: lease must match	changedDurableLeaseRequiresReconciliation
+M03	binding	SURVIVED	provision: expired claim never publishes (fenced)	
+M04	binding	KILLED	provision failure writes FAILED	failedProvisioningUsesTheCodedChannelAndMarksTheBindingFailed
+M05	binding	SURVIVED	provision: READY CAS failure is fenced	
+M06	binding	SURVIVED	ensureBinding: FAILED/DRAINING binding refused	
+M07	binding	KILLED	provision: renewal of operation claim	provisioningLeaseIsRenewedUntilProvisionerCompletes
+M08	session	SURVIVED	acquire: stored READY skips Runtime acquire	
+M09	session	SURVIVED	acquire: non-ACQUIRING refused	
+M10	session	KILLED	acquire: same Harness/turnKind/scope	runtimeSessionIdentityCannotMoveBetweenHarnessSessions
+M11	session	SURVIVED	requireSession: Harness Session must match	
+M12	session	SURVIVED	control: re-check READY under lock	
+M13	session	KILLED	control: count in-flight control	inFlightControlBlocksRelease
+M14	session	KILLED	control: operation allowlist	controlUsesTheExistingPrivateOperationAllowlist
+M15	release	KILLED	release: in-flight control blocks	inFlightControlBlocksRelease
+M16	release	KILLED	release: unsettled execution blocks	releaseWaitsForActiveExecutionAndThenRemovesSession
+M17	release	KILLED	release: negative ack is not success	negativeReleaseAcknowledgementCanBeRetried
+M18	release	KILLED	release: persist RELEASED	negativeReleaseAcknowledgementCanBeRetried,releaseWaitsForActiveExecutionAndThenRemovesSession
+M19	release	SURVIVED	release: only READY/RELEASING may release	
+M20	release	SURVIVED	releasedSession: Harness Session must match	
+M22	exec	KILLED	create: same idempotency request	changedRequestCannotReuseAnIdempotencyKey
+M24	exec	SURVIVED	dispatch: missing result is ambiguous	
+M25	exec	SURVIVED	dispatch: invalid result -> UNKNOWN	
+M26	exec	KILLED	dispatch: renew dispatch lease	dispatchLeaseIsRenewedUntilExecutionCompletes,lapsedDispatchIsFencedAsUnknown
+M27	exec	KILLED	enterExecuting: sticky cancel settles	interruptedDispatchIsDrivenOnRetryAndCancellation
+M28	exec	SURVIVED	settle: this dispatch must still own it	
+M29	exec	SURVIVED	requestCancel: already-requested short-circuit	
+M31	cancel	KILLED	cancel: only settled evidence settles	cancellationIntentSurvivesUntilPhysicalExecutionSettles,lambda$blockingControlDoesNotBlockCancellation$11
+M32	cancel	SURVIVED	cancel: status must be a known Runtime state	
+M33	exec	SURVIVED	requireExecution: Runtime Session must match	
+M34	exec	SURVIVED	requireExecution: Harness Session must match	
+M35	exec	SURVIVED	requireExecution: binding generation must match	
+M36	misc	SURVIVED	renewal cadence is one third of the lease	
+M37	misc	SURVIVED	close() stops the renewal scheduler	
+M38	misc	KILLED	closed service rejects new work	closeFencesPendingProvisioningAndRejectsNewWork
+M21	exec	SURVIVED	create: reference sessionId must match	
+M23	exec	SURVIVED	create: live EXECUTING claim is not re-driven	
+M30	cancel	SURVIVED	cancel: physical cancel only for CANCEL_REQUESTED	
+N01	r2-binding	KILLED	ensureBinding: READY still finishing here is joined (finding 1b)	readyBindingStillFinishingInThisProcessIsJoined
+N02	r2-binding	KILLED	provisionBinding: published binding never re-provisioned (finding 1a)	staleProvisioningReadDoesNotReprovisionAReadyBinding
+N03	r2-binding	KILLED	stopAndGet: shutdown is a lost claim (R1-8)	closeFencesPendingProvisioningAndRejectsNewWork
+N04	r2-exec	KILLED	renewal: lapsed claim fenced via claimDispatch (R1-2)	lapsedDispatchIsFencedAsUnknown
+N05	r2-exec	SURVIVED	renewal: transient exception keeps renewing (R1-2)	
+N06	r2-exec	KILLED	create: unsent DISPATCHING is re-driven (R1-2)	interruptedDispatchIsDrivenOnRetryAndCancellation
+N07	r2-exec	SURVIVED	create: expired EXECUTING is fenced on retry (R1-2)	
+N08	r2-cancel	KILLED	cancel: DISPATCHING is driven to settle (R1-2)	interruptedDispatchIsDrivenOnRetryAndCancellation
+N09	r2-cancel	SURVIVED	cancel: expired CANCEL_REQUESTED is fenced (R1-2)	
+N10	r2-control	SURVIVED	control: sync transport throw releases the slot (R1-3)	
+N11	r2-errors	KILLED	cancel: invalid settled result is coded (R1-6)	invalidSettledCancellationKeepsTheStickyIntent
+N12	r2-errors	KILLED	referenceString: invalid id is coded (R1-4)	invalidExecutionInputsUseTheCodedErrorChannel
+N13	r2-errors	KILLED	create: reference normalised before use (R1-5)	invalidExecutionInputsUseTheCodedErrorChannel
+N14	r2-errors	KILLED	safeStage: Error becomes a failed stage (R1-3)	synchronousControlFailureReleasesItsSessionSlot
+N15	r2-exec	SURVIVED	dispatch: only a DISPATCHING claim is executed	
+N16	r2-exec	SURVIVED	create: READY re-checked under the Session lock	
+# killed 25/54
