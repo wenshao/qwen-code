@@ -1,0 +1,21 @@
+const L = require('./lib.cjs');
+(async () => {
+  const { browser, page } = await L.launch('chromium');
+  await L.openTrajectory(page, 'http://127.0.0.1:17434', process.argv[2]);
+  await L.scrollGridTo(page, 0.5);
+  const a = await L.pickAnchor(page);
+  const row = page.locator('[data-testid="trajectory-rows"] [role="row"]').filter({ hasText: a.text.slice(3, 33) }).first();
+  await row.click();
+  const sel = () => page.evaluate(() => { const g = document.querySelector('[data-testid="trajectory-rows"]'); const s = g.querySelector('[aria-selected="true"]'); const ad = g.getAttribute('aria-activedescendant'); const adEl = ad ? document.getElementById(ad) : null; return { selectedText: s?.textContent?.slice(0, 40) ?? null, activeDesc: ad, activeDescText: adEl?.textContent?.slice(0, 40) ?? null, focused: document.activeElement === g }; });
+  const before = await sel();
+  const n = (await L.gridState(page)).rowcount;
+  await page.getByTestId('trajectory-load-older').click();
+  await L.waitPageLanded(page, n);
+  await page.waitForTimeout(300);
+  const after = await sel();
+  await page.keyboard.press('ArrowDown');
+  await page.waitForTimeout(200);
+  const afterArrow = await sel();
+  console.log(JSON.stringify({ before, after, afterArrow }, null, 1));
+  await browser.close();
+})();
