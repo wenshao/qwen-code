@@ -97,7 +97,7 @@ base 报成功，在宿主上建出真实 worktree 和分支，然后把 lease �
   `canonicalReviewRepositoryRoot` 把规则应用了两次，两遍下来双层嵌套会被折平；但
   「第一次出现的才是最外层」正是整个 re-root 存在的理由，而现在没有任何测试钉住它。
 
-两个存活变异都被 [`suggested-tests.diff`](./suggested-tests.diff) 补上（+28 行，两个文件，
+两个存活变异都被 [`suggested-tests.diff`](./suggested-tests.diff) 补上（+29 行，两个文件，
 不动生产代码）。已验证：在干净 head 上全绿（88 passed | 2 skipped），加上后 M4 和 M8 都被杀掉，
 Prettier 和 ESLint 干净。
 

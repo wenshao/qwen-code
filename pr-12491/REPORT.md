@@ -107,7 +107,7 @@ survived:
   passes collapse a doubly-nested path anyway; still, "the FIRST occurrence is the outermost layer"
   is the property the whole re-root exists for and nothing pins it.
 
-Both survivors are closed by [`suggested-tests.diff`](./suggested-tests.diff) (+28 lines, two
+Both survivors are closed by [`suggested-tests.diff`](./suggested-tests.diff) (+29 lines, two
 files, no production change). Verified: green on the pristine head (88 passed | 2 skipped), M4 and
 M8 both killed with it applied, Prettier and ESLint clean.
 
