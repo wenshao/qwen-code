@@ -1,0 +1,515 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index 360a9c8..d625f77 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -207,6 +207,17 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                                 context, executionId);
+                         ToolExecutionRecord requested =
+                                 requestCancel(current);
++                        if (requested.getState()
++                                == ToolExecutionRecord.State.DISPATCHING) {
++                            // Nothing was sent yet; settle the sticky
++                            // cancellation now instead of waiting for a
++                            // dispatcher that may no longer exist.
++                            beginDispatch(context, requested);
++                            ToolExecutionRecord latest = executionRepository
++                                    .findByExecutionCallId(executionId);
++                            return CompletableFuture.completedFuture(
++                                    latest == null ? requested : latest);
++                        }
+                         if (requested.isSettled()
+                                 || requested.getState()
+                                         != ToolExecutionRecord.State
+@@ -305,7 +316,11 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             throw conflict("runtime_idempotency_conflict",
+                     "idempotency key belongs to another request");
+         }
+-        if (record.getState() == ToolExecutionRecord.State.PREPARED) {
++        if (!record.isSettled()
++                && record.getState() != ToolExecutionRecord.State.UNKNOWN) {
++            // Drive any claim no dispatcher in this process is serving:
++            // DISPATCHING was never sent, and claimDispatch fences an
++            // expired EXECUTING claim as UNKNOWN instead of re-sending it.
+             beginDispatch(context, record);
+         }
+         ToolExecutionRecord current = executionRepository
+@@ -460,6 +475,13 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             RuntimeProvisionRequest request) {
+         RuntimeBindingRecord record = bindingRepository.findOrCreate(request);
+         if (record.getState() == RuntimeBindingRecord.State.READY) {
++            // READY becomes durable before this process records the lease;
++            // join a provisioning that is still finishing here.
++            CompletableFuture<BindingContext> finishing =
++                    bindingOperations.get(record.getBindingId());
++            if (finishing != null) {
++                return finishing;
++            }
+             return CompletableFuture.completedFuture(
+                     requireLiveBinding(record));
+         }
+@@ -497,6 +519,15 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             return failed(unavailable("runtime_provisioning_in_progress",
+                     "another Broker owns Runtime provisioning"));
+         }
++        if (claimed.getState() != RuntimeBindingRecord.State.PROVISIONING) {
++            // The caller read PROVISIONING before an earlier operation
++            // published the binding; never provision a published binding.
++            return claimed.getState() == RuntimeBindingRecord.State.READY
++                    ? CompletableFuture.completedFuture(
++                            requireLiveBinding(claimed))
++                    : failed(unavailable("runtime_binding_unavailable",
++                            "Runtime binding is not available"));
++        }
+         BindingRenewal renewal = new BindingRenewal(claimed);
+         renewal.start();
+         return safeStage(() -> provisioner.provision(claimed.getRequest()))
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceRaceTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceRaceTest.java
+new file mode 100644
+index 0000000..eea5c81
+--- /dev/null
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceRaceTest.java
+@@ -0,0 +1,444 @@
++package com.alibaba.qwen.code.runtimebroker;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertThrows;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++import java.net.URI;
++import java.time.Clock;
++import java.time.Duration;
++import java.time.Instant;
++import java.time.ZoneId;
++import java.time.ZoneOffset;
++import java.util.List;
++import java.util.Map;
++import java.util.concurrent.CompletableFuture;
++import java.util.concurrent.CompletionException;
++import java.util.concurrent.CompletionStage;
++import java.util.concurrent.atomic.AtomicInteger;
++import java.util.concurrent.atomic.AtomicReference;
++import org.junit.jupiter.api.Test;
++
++class RuntimeBrokerServiceRaceTest {
++    private static final RuntimeScope SCOPE = new RuntimeScope("tenant",
++            "workspace", "generation", "/workspace", "capability",
++            "workspace");
++    private static final Duration LEASE = Duration.ofMinutes(1);
++
++    @Test
++    void staleProvisioningReadDoesNotProvisionAPublishedBinding() {
++        StaleBindingRepository bindings = new StaleBindingRepository();
++        Provisioner provisioner = new Provisioner();
++        try (RuntimeBrokerService service = service(bindings, provisioner,
++                new InMemoryToolExecutionRepository())) {
++            RuntimeBindingRecord stale = bindings.findOrCreate(
++                    new RuntimeProvisionRequest(SCOPE, null));
++            RuntimeBindingRecord ready = join(service.warm("harness-a"));
++            bindings.nextRead = stale;
++
++            RuntimeBindingRecord second = join(service.warm("harness-b"));
++
++            assertEquals(1, provisioner.calls.get());
++            assertEquals(ready.getBindingId(), second.getBindingId());
++            assertEquals("lease-1", bindings.findById(ready.getBindingId())
++                    .getLease().getLeaseId());
++        }
++    }
++
++    @Test
++    void readyBindingStillFinishingInThisProcessIsJoined() {
++        StaleBindingRepository bindings = new StaleBindingRepository();
++        Provisioner provisioner = new Provisioner();
++        try (RuntimeBrokerService service = service(bindings, provisioner,
++                new InMemoryToolExecutionRepository())) {
++            AtomicReference<CompletionStage<RuntimeBindingRecord>> joined =
++                    new AtomicReference<>();
++            bindings.afterReady = () -> joined.set(
++                    service.warm("harness-b"));
++
++            RuntimeBindingRecord first = join(service.warm("harness-a"));
++
++            assertEquals(first.getBindingId(),
++                    join(joined.get()).getBindingId());
++            assertEquals(1, provisioner.calls.get());
++        }
++    }
++
++    @Test
++    void interruptedDispatchIsDrivenAgainOnRetry() {
++        FailingExecutionRepository executions =
++                new FailingExecutionRepository();
++        Transport transport = new Transport();
++        try (RuntimeBrokerService service = new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(SCOPE),
++                new Provisioner(), transport,
++                new InMemoryRuntimeBindingRepository(),
++                new InMemoryRuntimeSessionRepository(), executions,
++                "broker", LEASE, LEASE)) {
++            join(service.acquire("harness", "runtime", "bootstrap"));
++            executions.failNextCompareAndSet = true;
++            Map<String, Object> reference = Map.of("sessionId", "runtime",
++                    "promptId", "prompt", "callId", "call",
++                    "argsDigest", "digest");
++            assertThrows(CompletionException.class, () -> join(
++                    service.createExecution("harness", "runtime", "key",
++                            reference)));
++            assertEquals(ToolExecutionRecord.State.DISPATCHING,
++                    executions.findByIdempotencyKey("key").getState());
++
++            ToolExecutionRecord retried = join(service.createExecution(
++                    "harness", "runtime", "key", reference));
++
++            assertEquals(ToolExecutionRecord.State.SETTLED,
++                    retried.getState());
++            assertEquals(1, transport.executeCalls.get());
++            assertTrue(join(service.release("harness", "runtime")));
++        }
++    }
++
++    @Test
++    void cancellationSettlesAnInterruptedDispatch() {
++        FailingExecutionRepository executions =
++                new FailingExecutionRepository();
++        Transport transport = new Transport();
++        try (RuntimeBrokerService service = new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(SCOPE),
++                new Provisioner(), transport,
++                new InMemoryRuntimeBindingRepository(),
++                new InMemoryRuntimeSessionRepository(), executions,
++                "broker", LEASE, LEASE)) {
++            join(service.acquire("harness", "runtime", "bootstrap"));
++            executions.failNextCompareAndSet = true;
++            assertThrows(CompletionException.class, () -> join(
++                    service.createExecution("harness", "runtime", "key",
++                            reference("runtime"))));
++            String executionId = executions.findByIdempotencyKey("key")
++                    .getExecutionCallId();
++
++            ToolExecutionRecord cancelled = join(service.cancelExecution(
++                    "harness", "runtime", executionId));
++
++            assertEquals(ToolExecutionRecord.State.SETTLED,
++                    cancelled.getState());
++            assertEquals("cancelled", cancelled.getExecutionStatus());
++            assertEquals(0, transport.executeCalls.get());
++            assertTrue(join(service.release("harness", "runtime")));
++        }
++    }
++
++    @Test
++    void resultAfterTheDispatchLeaseLapsedIsFencedAsUnknown() {
++        MutableClock clock = new MutableClock();
++        FailingExecutionRepository executions =
++                new FailingExecutionRepository(clock);
++        CompletableFuture<Map<String, Object>> late =
++                new CompletableFuture<>();
++        Transport transport = new Transport();
++        transport.executeResult = late;
++        try (RuntimeBrokerService service = new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(SCOPE),
++                new Provisioner(), transport,
++                new InMemoryRuntimeBindingRepository(clock,
++                        () -> "binding"),
++                new InMemoryRuntimeSessionRepository(), executions,
++                "broker", Duration.ofHours(1), LEASE, clock,
++                () -> "execution")) {
++            join(service.acquire("harness", "runtime", "bootstrap"));
++            join(service.createExecution("harness", "runtime", "key",
++                    reference("runtime")));
++            clock.advance(Duration.ofMinutes(2));
++            late.complete(Map.of("executionStatus", "success"));
++
++            ToolExecutionRecord retried = join(service.createExecution(
++                    "harness", "runtime", "key", reference("runtime")));
++
++            assertEquals(ToolExecutionRecord.State.UNKNOWN,
++                    retried.getState());
++            assertEquals(1, transport.executeCalls.get());
++        }
++    }
++
++    @Test
++    void anotherHarnessSessionCannotDriveARuntimeSession() {
++        Transport transport = new Transport();
++        InMemoryToolExecutionRepository executions =
++                new InMemoryToolExecutionRepository();
++        try (RuntimeBrokerService service = new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(SCOPE),
++                new Provisioner(), transport,
++                new InMemoryRuntimeBindingRepository(),
++                new InMemoryRuntimeSessionRepository(), executions,
++                "broker", LEASE, LEASE)) {
++            join(service.acquire("harness-a", "runtime-a", "bootstrap"));
++            join(service.acquire("harness-b", "runtime-b", "bootstrap"));
++            Map<String, Object> reference = Map.of("sessionId", "runtime-a",
++                    "promptId", "prompt", "callId", "call",
++                    "argsDigest", "digest");
++            int calls = transport.calls.get();
++
++            for (CompletionStage<?> stage : List.of(
++                    service.control("harness-b", "runtime-a",
++                            Map.of("kind", "history")),
++                    service.createExecution("harness-b", "runtime-a", "key",
++                            reference),
++                    service.release("harness-b", "runtime-a"))) {
++                CompletionException error = assertThrows(
++                        CompletionException.class, () -> join(stage));
++                assertEquals("runtime_session_conflict",
++                        ((RuntimeBrokerException) error.getCause())
++                                .getCode());
++            }
++            assertEquals(calls, transport.calls.get());
++            assertEquals(null, executions.findByIdempotencyKey("key"));
++        }
++    }
++
++    private static RuntimeBrokerService service(
++            RuntimeBindingRepository bindings, RuntimeProvisioner provisioner,
++            ToolExecutionRepository executions) {
++        return new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(SCOPE),
++                provisioner, new Transport(), bindings,
++                new InMemoryRuntimeSessionRepository(), executions, "broker",
++                LEASE, LEASE);
++    }
++
++    private static Map<String, Object> reference(String runtimeSessionId) {
++        return Map.of("sessionId", runtimeSessionId, "promptId", "prompt",
++                "callId", "call", "argsDigest", "digest");
++    }
++
++    private static <T> T join(CompletionStage<T> stage) {
++        return stage.toCompletableFuture().join();
++    }
++
++    private static RuntimeLease lease(int index) {
++        return new RuntimeLease("runtime-" + index,
++                URI.create("http://127.0.0.1:" + (4000 + index)),
++                "token-" + index, "lease-" + index, index);
++    }
++
++    private static final class Provisioner implements RuntimeProvisioner {
++        final AtomicInteger calls = new AtomicInteger();
++
++        @Override
++        public CompletionStage<RuntimeLease> provision(
++                RuntimeProvisionRequest request) {
++            return CompletableFuture.completedFuture(
++                    lease(calls.incrementAndGet()));
++        }
++    }
++
++    private static final class Transport implements RuntimeTransport {
++        final AtomicInteger calls = new AtomicInteger();
++        final AtomicInteger executeCalls = new AtomicInteger();
++        volatile CompletableFuture<Map<String, Object>> executeResult =
++                CompletableFuture.completedFuture(
++                        Map.of("executionStatus", "success"));
++
++        @Override
++        public CompletionStage<Void> acquire(RuntimeLease lease,
++                RuntimeSession session) {
++            calls.incrementAndGet();
++            return CompletableFuture.completedFuture(null);
++        }
++
++        @Override
++        public CompletionStage<Object> control(RuntimeLease lease,
++                RuntimeSession session, Map<String, Object> operation) {
++            calls.incrementAndGet();
++            return CompletableFuture.completedFuture("ok");
++        }
++
++        @Override
++        public CompletionStage<Map<String, Object>> execute(
++                RuntimeLease lease, RuntimeSession session,
++                Map<String, Object> reference) {
++            calls.incrementAndGet();
++            executeCalls.incrementAndGet();
++            return executeResult;
++        }
++
++        @Override
++        public CompletionStage<Map<String, Object>> cancel(
++                RuntimeLease lease, RuntimeSession session,
++                Map<String, Object> reference) {
++            calls.incrementAndGet();
++            return CompletableFuture.completedFuture(
++                    Map.of("state", "cancel_requested"));
++        }
++
++        @Override
++        public CompletionStage<Boolean> release(RuntimeLease lease,
++                RuntimeSession session) {
++            calls.incrementAndGet();
++            return CompletableFuture.completedFuture(true);
++        }
++    }
++
++    /** Replays one earlier read, or runs a hook right after READY lands. */
++    private static final class StaleBindingRepository
++            implements RuntimeBindingRepository {
++        private final InMemoryRuntimeBindingRepository delegate =
++                new InMemoryRuntimeBindingRepository();
++        volatile RuntimeBindingRecord nextRead;
++        volatile Runnable afterReady;
++
++        @Override
++        public RuntimeBindingRecord findOrCreate(
++                RuntimeProvisionRequest request) {
++            RuntimeBindingRecord stale = nextRead;
++            nextRead = null;
++            return stale != null ? stale : delegate.findOrCreate(request);
++        }
++
++        @Override
++        public RuntimeBindingRecord findActive(
++                RuntimeProvisionRequest request) {
++            return delegate.findActive(request);
++        }
++
++        @Override
++        public List<RuntimeBindingRecord> findActiveByIsolationKey(
++                RuntimeScope scope, String isolationKey) {
++            return delegate.findActiveByIsolationKey(scope, isolationKey);
++        }
++
++        @Override
++        public RuntimeBindingRecord findById(String bindingId) {
++            return delegate.findById(bindingId);
++        }
++
++        @Override
++        public RuntimeBindingRecord compareAndSet(
++                RuntimeBindingRecord expected,
++                RuntimeBindingRecord replacement) {
++            RuntimeBindingRecord updated = delegate.compareAndSet(expected,
++                    replacement);
++            Runnable hook = afterReady;
++            if (updated != null && hook != null && updated.getState()
++                    == RuntimeBindingRecord.State.READY) {
++                afterReady = null;
++                hook.run();
++            }
++            return updated;
++        }
++
++        @Override
++        public RuntimeBindingRecord claimOperation(String bindingId,
++                String owner, Duration leaseDuration) {
++            return delegate.claimOperation(bindingId, owner, leaseDuration);
++        }
++
++        @Override
++        public RuntimeBindingRecord renewOperation(String bindingId,
++                String owner, long operationGeneration,
++                Duration leaseDuration) {
++            return delegate.renewOperation(bindingId, owner,
++                    operationGeneration, leaseDuration);
++        }
++    }
++
++    /** Fails one compare-and-set as a lost database connection would. */
++    private static final class FailingExecutionRepository
++            implements ToolExecutionRepository {
++        private final InMemoryToolExecutionRepository delegate;
++        volatile boolean failNextCompareAndSet;
++
++        FailingExecutionRepository() {
++            this(Clock.systemUTC());
++        }
++
++        FailingExecutionRepository(Clock clock) {
++            delegate = new InMemoryToolExecutionRepository(clock);
++        }
++
++        @Override
++        public ToolExecutionRecord findOrCreate(
++                ToolExecutionRecord candidate) {
++            return delegate.findOrCreate(candidate);
++        }
++
++        @Override
++        public ToolExecutionRecord findByExecutionCallId(
++                String executionCallId) {
++            return delegate.findByExecutionCallId(executionCallId);
++        }
++
++        @Override
++        public ToolExecutionRecord findByIdempotencyKey(
++                String idempotencyKey) {
++            return delegate.findByIdempotencyKey(idempotencyKey);
++        }
++
++        @Override
++        public ToolExecutionRecord compareAndSet(ToolExecutionRecord expected,
++                ToolExecutionRecord replacement, String owner,
++                long dispatchGeneration) {
++            if (failNextCompareAndSet) {
++                failNextCompareAndSet = false;
++                throw new IllegalStateException("connection reset");
++            }
++            return delegate.compareAndSet(expected, replacement, owner,
++                    dispatchGeneration);
++        }
++
++        @Override
++        public ToolExecutionRecord claimDispatch(String executionCallId,
++                String owner, Duration leaseDuration) {
++            return delegate.claimDispatch(executionCallId, owner,
++                    leaseDuration);
++        }
++
++        @Override
++        public ToolExecutionRecord renewDispatch(String executionCallId,
++                String owner, long dispatchGeneration,
++                Duration leaseDuration) {
++            return delegate.renewDispatch(executionCallId, owner,
++                    dispatchGeneration, leaseDuration);
++        }
++
++        @Override
++        public ToolExecutionRecord requestCancel(String executionCallId,
++                long expectedVersion) {
++            return delegate.requestCancel(executionCallId, expectedVersion);
++        }
++
++        @Override
++        public ToolExecutionRecord resolveUnknown(
++                ToolExecutionRecord expected,
++                Map<String, Object> resolutionResult,
++                Instant resolutionTime) {
++            return delegate.resolveUnknown(expected, resolutionResult,
++                    resolutionTime);
++        }
++
++        @Override
++        public boolean hasActiveByRuntimeSession(String runtimeSessionId) {
++            return delegate.hasActiveByRuntimeSession(runtimeSessionId);
++        }
++    }
++
++    private static final class MutableClock extends Clock {
++        private volatile Instant now = Instant.parse("2026-09-22T00:00:00Z");
++
++        void advance(Duration duration) {
++            now = now.plus(duration);
++        }
++
++        @Override
++        public ZoneId getZone() {
++            return ZoneOffset.UTC;
++        }
++
++        @Override
++        public Clock withZone(ZoneId zone) {
++            return this;
++        }
++
++        @Override
++        public Instant instant() {
++            return now;
++        }
++    }
++}
