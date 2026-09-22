@@ -10,4 +10,4 @@ for a in r6pre r6; do for i in 1 2; do r=$($Q $a ww-closed sandbox -- cat text50
 echo; hdr "still open: short tail after a drain  (1 MiB, pause 1 s, then T bytes; reader stalls 3 s after 1 MiB)"
 for a in r6 r6flush; do for t in 70000 81919 90000 200000; do exp=$((1048576+t)); r=$($Q $a ww-closed sandbox -- sh -c "head -c 1048576 text50m.txt; sleep 1; head -c $t text50m.txt" 2>/dev/null | python3 burst-reader.py 1048576 3)
   if [ "$r" = "$exp" ]; then ok "$a T=$t: $r / $exp"; else bad "$a T=$t: $r / $exp   lost $((exp-r)) bytes"; fi; done; done
-note "cause: only writes that returned false are awaited; a queued tail below highWaterMark is dropped by process.exit() (config.ts:948)"
+note "cause: only writes that returned false are awaited; a queued tail below highWaterMark is dropped by process.exit() (config.ts:950)"
