@@ -1,0 +1,133 @@
+diff -ru dist/chunks/acpAgent-BODWB6AE.js dist-mut-ur/chunks/acpAgent-BODWB6AE.js
+--- dist/chunks/acpAgent-BODWB6AE.js	2026-09-22 18:57:23
++++ dist-mut-ur/chunks/acpAgent-BODWB6AE.js	2026-09-22 19:09:40
+@@ -5847,6 +5847,7 @@
+    */
+   collectActiveWorkHolds() {
+     if (this.disposed) return [];
++    if (this.backgroundTurn) return [];
+     const holds = [];
+     for (const agentId of this.config.getBackgroundTaskRegistry().listUnfinalizedBackgroundAgentIds()) {
+       holds.push({ category: "agent", id: agentId });
+diff -ru dist/chunks/chunk-M5CWI5SA.js dist-mut-ur/chunks/chunk-M5CWI5SA.js
+--- dist/chunks/chunk-M5CWI5SA.js	2026-09-22 18:57:23
++++ dist-mut-ur/chunks/chunk-M5CWI5SA.js	2026-09-22 19:09:40
+@@ -1440,6 +1440,7 @@
+       } : request;
+     },
+     changeSessionCwd(channel, sessionId, req) {
++      process.stderr.write("[probe-dispatch] cd -> child sessionId=" + sessionId + "\n");
+       return channel.connection.extMethod(SERVE_CONTROL_EXT_METHODS.sessionCd, {
+         sessionId,
+         path: req.path,
+@@ -10223,7 +10224,7 @@
+   }
+   __name(touchActivity, "touchActivity");
+   function entryHasLocalWork(entry) {
+-    return entry.pendingPromptCount > 0 || entry.pendingAgentNotificationCount > 0 || !!entry.backgroundTurn;
++    return entry.pendingPromptCount > 0 || entry.pendingAgentNotificationCount > 0 || false;
+   }
+   __name(entryHasLocalWork, "entryHasLocalWork");
+   function childHoldsAreFresh(entry, capability) {
+@@ -10281,6 +10282,7 @@
+     if (entry.promptSettledAt !== null && sessionPromptSettledCloseGraceMs > 0 && Date.now() - entry.promptSettledAt < sessionPromptSettledCloseGraceMs) {
+       return false;
+     }
++    process.stderr.write("[probe-autoclose] " + JSON.stringify({ sessionId: entry.sessionId, reachedFinalCheck: true, backgroundTurn: entry.backgroundTurn?.turnId ?? null, childReportsHeldWork: childReportsHeldWork(entry), childHolds: [...(entry.childHolds?.values?.() ?? [])] }) + "\n");
+     return !childReportsHeldWork(entry);
+   }
+   __name(entryIsAutoCloseCandidate, "entryIsAutoCloseCandidate");
+@@ -10385,6 +10387,8 @@
+     if (channelIsCondemned(info)) {
+       return true;
+     }
++    const __probeT0 = Date.now();
++    process.stderr.write("[probe-close-if-unheld-send] " + JSON.stringify({ sessionId: entry.sessionId, backgroundTurn: entry.backgroundTurn?.turnId ?? null, at: __probeT0 }) + "\n");
+     try {
+       const response = await withTimeout(
+         entry.connection.extMethod(SERVE_CONTROL_EXT_METHODS.sessionClose, {
+@@ -10397,6 +10401,7 @@
+         ACTIVE_WORK_CLOSE_TIMEOUT_MS,
+         SERVE_CONTROL_EXT_METHODS.sessionClose
+       );
++      process.stderr.write("[probe-close-if-unheld-answer] " + JSON.stringify({ sessionId: entry.sessionId, closed: response["closed"] ?? null, holds: response["holds"] ?? null, ms: Date.now() - __probeT0 }) + "\n");
+       entry.activeWorkCloseFailures = 0;
+       entry.activeWorkCloseRetryAt = null;
+       if (response["closed"] === true) {
+@@ -15499,7 +15504,7 @@
+       }
+       assertSessionResetNotPending(sessionId);
+       const concurrentSideTask = isSideTask && (entry.promptActive || !!entry.backgroundTurn);
+-      if (!isSideTask && (entry.pendingPromptCount > 0 || entry.promptActive || !!entry.backgroundTurn)) {
++      if (!isSideTask && (entry.pendingPromptCount > 0 || entry.promptActive || false)) {
+         throw new BranchWhilePromptActiveError(sessionId);
+       }
+       const branchResult = (concurrentSideTask ? Promise.resolve() : entry.promptQueue).then(async () => {
+@@ -15507,7 +15512,7 @@
+         if (isClosingOrAuthorizingClose(entry)) {
+           throw new SessionNotFoundError(sessionId, "The session is closing");
+         }
+-        if ((entry.promptActive || entry.backgroundTurn) && !isSideTask) {
++        if ((entry.promptActive || false) && !isSideTask) {
+           throw new BranchWhilePromptActiveError(sessionId);
+         }
+         assertFreshSessionsAvailable();
+@@ -15530,6 +15535,7 @@
+         }, "releaseAdmissionOnce");
+         harness.reserveRuntimeOperation();
+         try {
++          process.stderr.write("[probe-dispatch] branch -> child sessionId=" + sessionId + "\n");
+           const mutation = entry.connection.extMethod(
+             isSideTask ? SERVE_CONTROL_EXT_METHODS.sessionSideTask : SERVE_CONTROL_EXT_METHODS.sessionBranch,
+             {
+@@ -15773,7 +15779,7 @@
+         const ci = assertLivePromptEntry(sessionId, entry);
+         harness.reserveRuntimeOperation();
+         try {
+-          if (entry.promptActive || entry.backgroundTurn) {
++          if (entry.promptActive || false) {
+             throw new CdWhilePromptActiveError(sessionId);
+           }
+           const raw = await harness.withWorkspaceControl(
+@@ -17553,14 +17559,14 @@
+         throw new Error("Fork directive is required");
+       }
+       assertSessionResetNotPending(sessionId);
+-      if (entry.pendingPromptCount > 0 || entry.promptActive || !!entry.backgroundTurn) {
++      if (entry.pendingPromptCount > 0 || entry.promptActive || false) {
+         throw new SessionBusyError(
+           sessionId,
+           "Cannot fork while a response or tool call is in progress"
+         );
+       }
+       return entry.promptQueue.then(async () => {
+-        if (entry.pendingPromptCount > 0 || entry.promptActive || !!entry.backgroundTurn) {
++        if (entry.pendingPromptCount > 0 || entry.promptActive || false) {
+           throw new SessionBusyError(
+             sessionId,
+             "Cannot fork while a response or tool call is in progress"
+@@ -17572,6 +17578,7 @@
+         );
+         let response;
+         try {
++          process.stderr.write("[probe-dispatch] fork -> child sessionId=" + sessionId + "\n");
+           response = await Promise.race([
+             withTimeout(
+               entry.connection.extMethod(
+@@ -17764,7 +17771,7 @@
+         context?.clientId
+       );
+       assertSessionResetNotPending(sessionId);
+-      if (entry.pendingPromptCount > 0 || entry.promptActive || !!entry.backgroundTurn) {
++      if (entry.pendingPromptCount > 0 || entry.promptActive || false) {
+         throw new SessionBusyError(
+           sessionId,
+           "Cannot rewind while a prompt is running"
+@@ -17776,6 +17783,7 @@
+         }
+         let response;
+         try {
++          process.stderr.write("[probe-dispatch] rewind -> child sessionId=" + sessionId + "\n");
+           response = await Promise.race([
+             entry.connection.extMethod(
+               SERVE_CONTROL_EXT_METHODS.sessionRewind,

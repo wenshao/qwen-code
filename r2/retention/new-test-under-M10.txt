@@ -1,0 +1,1002 @@
+
+ RUN  v3.2.7 /Users/wenshao/git/qwen-12250-r2/packages/acp-bridge
+
+qwen serve: session reaper started (interval 10ms, idle threshold 10ms)
+qwen serve: closing session "sess:/work/a" (reason: last_client_detached)
+qwen serve: channel exited (code=none, signal=none, transport=ok, 0 session(s) torn down)
+ ❯ src/bridge.test.ts (966 tests | 1 failed | 965 skipped) 100ms
+   ↓ sessionCloseDrainBudgetMs > stays strictly under the outer wait and clamps to >=1ms
+   ↓ activeWorkCloseRetryDelayMs > keeps the first retry immediate, then backs off to a ceiling
+   ↓ createAcpSessionBridge > rejects a fractional initialization timeout with restore timeout undefined
+   ↓ createAcpSessionBridge > rejects a fractional initialization timeout with restore timeout 60000
+   ↓ createAcpSessionBridge > active work > reports task execution independently of prompts and pending completion holds
+   ↓ createAcpSessionBridge > active work > rejects 'branch' while an admitted background turn is running
+   ↓ createAcpSessionBridge > active work > rejects 'rewind' while an admitted background turn is running
+   ↓ createAcpSessionBridge > active work > rejects 'fork' while an admitted background turn is running
+   ↓ createAcpSessionBridge > active work > rejects 'cd' while an admitted background turn is running
+   × createAcpSessionBridge > active work > retains a detached session whose only work is an admitted background turn 90ms
+     → expected 1 to be +0 // Object.is equality
+   ↓ createAcpSessionBridge > active work > negotiates the capability and counts accepted prompts locally
+   ↓ createAcpSessionBridge > active work > grades a child that never acknowledges the capability as none
+   ↓ createAcpSessionBridge > active work > applies a snapshot received before session registration
+   ↓ createAcpSessionBridge > active work > retains sessions reported by a negotiated but incomplete child
+   ↓ createAcpSessionBridge > active work > honors a deferred spawn-owner kill for an incomplete child
+   ↓ createAcpSessionBridge > active work > defers a tombstoned kill while a conditional close probe is in flight
+   ↓ createAcpSessionBridge > active work > does not escalate a deferred kill while a force close is in flight
+   ↓ createAcpSessionBridge > active work > spares the channel when a kill meets a definitive close refusal
+   ↓ createAcpSessionBridge > active work > logs the child close-refusal detail on the explicit-close and kill paths
+   ↓ createAcpSessionBridge > active work > accepts the aggregate shell hold as active work
+   ↓ createAcpSessionBridge > active work > keeps explicit close and kill forceful while shell holds are reported
+   ↓ createAcpSessionBridge > active work > ignores reordered snapshots and foreign sessions
+   ↓ createAcpSessionBridge > active work > rejects a malformed snapshot outright instead of applying part of it
+   ↓ createAcpSessionBridge > active work > keeps a detached session until the child reports it unheld
+   ↓ createAcpSessionBridge > active work > does not close when the child refuses because work appeared
+   ↓ createAcpSessionBridge > active work > logs the child error detail when a conditional close fails
+   ↓ createAcpSessionBridge > active work > defers further probes after a run of unanswered conditional closes
+   ↓ createAcpSessionBridge > active work > probes again once the deferral expires
+   ↓ createAcpSessionBridge > active work > reconciles a dropped session at once rather than waiting out the deferral
+   ↓ createAcpSessionBridge > active work > keeps the deferred-close detail readable and the failure run reset
+   ↓ createAcpSessionBridge > active work > quiets the reaper while a deferral is armed
+   ↓ createAcpSessionBridge > active work > probes again at once once the child reports held work
+   ↓ createAcpSessionBridge > active work > clears the failure run on a refusal answer, not only on a grant
+   ↓ createAcpSessionBridge > active work > still reclaims through a condemned channel while a deferral is armed
+   ↓ createAcpSessionBridge > active work > bounds close-refusal adoption at 1024 holds
+   ↓ createAcpSessionBridge > active work > bounds close-refusal adoption at 1025 holds
+   ↓ createAcpSessionBridge > active work > retains a stale non-empty cache after an oversized close refusal
+   ↓ createAcpSessionBridge > active work > leaves the session in place when the close request never resolves
+   ↓ createAcpSessionBridge > active work > keeps a session the child drops while a client is still registered
+   ↓ createAcpSessionBridge > active work > does not tear down a dropped session while an SSE subscriber watches
+   ↓ createAcpSessionBridge > active work > recovers a lost close response once nothing local holds the session
+   ↓ createAcpSessionBridge > active work > asks the child about a session it has never reported on
+   ↓ createAcpSessionBridge > active work > keeps an unreported session when the child says it holds work
+   ↓ createAcpSessionBridge > active work > treats a snapshot aged past the freshness window as no evidence
+   ↓ createAcpSessionBridge > active work > refuses new prompts while a conditional close is in flight
+   ↓ createAcpSessionBridge > active work > refuses a restore-path attach while a conditional close is in flight
+   ↓ createAcpSessionBridge > active work > rejects a queued branch when a conditional close starts before dispatch
+   ↓ createAcpSessionBridge > active work > discards an oversized snapshot whole rather than applying part of it
+   ↓ createAcpSessionBridge > active work > asks the child before reaping an idle session
+   ↓ createAcpSessionBridge > streams workspace content without requiring a session
+   ↓ createAcpSessionBridge > starts a workspace channel for MCP management without a session
+   ↓ createAcpSessionBridge > starts a workspace channel when reconnecting an MCP server
+   ↓ createAcpSessionBridge > setUserLanguage > rejects with SessionNotFoundError when no channel is live
+   ↓ createAcpSessionBridge > setUserLanguage > forwards the sync over the live channel without a session id
+   ↓ createAcpSessionBridge > wraps a Goal control request in the envelope the agent reads
+   ↓ createAcpSessionBridge > serves completed MCP status without restarting an idle channel
+   ↓ createAcpSessionBridge > does not reuse completed MCP status after the runtime epoch changes
+   ↓ createAcpSessionBridge > serializes MCP authentication across workspace bridges
+   ↓ createAcpSessionBridge > keeps MCP authentication admission after a timed-out RPC until its channel exits
+   ↓ createAcpSessionBridge > does not reuse other MCP states after disabling in a fresh child
+   ↓ createAcpSessionBridge > does not reuse other MCP states while polling in a fresh child
+   ↓ createAcpSessionBridge > does not reuse other MCP states after restarting in a fresh child
+   ↓ createAcpSessionBridge > serves discovered MCP tools after an idle workspace channel is reaped
+   ↓ createAcpSessionBridge > reaps a workspace channel when MCP discovery is never polled again
+   ↓ createAcpSessionBridge > emits lifecycle events when a fresh session is registered and closed
+   ↓ createAcpSessionBridge > forwards the Live managed relocation capability to the ACP child
+   ↓ createAcpSessionBridge > holds standalone prompts until the exact managed binding is released
+   ↓ createAcpSessionBridge > rejects a standalone managed relocation when the child reports another cwd
+   ↓ createAcpSessionBridge > rechecks a standalone binding when a queued prompt reaches dispatch
+   ↓ createAcpSessionBridge > releases a queued cwd change when its session transport fails
+   ↓ createAcpSessionBridge > does not emit another registration for attach-only spawnOrAttach calls
+   ↓ createAcpSessionBridge > does not fail session lifecycle when the lifecycle callback throws
+   ↓ createAcpSessionBridge > memoizes shutdown and keeps the first workspace-removal reason
+   ↓ createAcpSessionBridge > publishes the shutdown promise before lifecycle callbacks can re-enter
+   ↓ createAcpSessionBridge > accepts a valid BridgeOptions.eventRingSize at construction time
+   ↓ createAcpSessionBridge > rejects an invalid eventRingSize at construction time
+   ↓ createAcpSessionBridge > accepts and rejects BridgeOptions.compactedReplayMaxBytes at construction time
+   ↓ createAcpSessionBridge > sanitizes client artifact provenance fields
+   ↓ createAcpSessionBridge > keeps client artifacts owned by the issuing client
+   ↓ createAcpSessionBridge > rejects invalid client artifact records instead of dropping them
+   ↓ createAcpSessionBridge > uses bridge telemetry for channel/session/prompt dispatch and prompt metadata injection
+   ↓ createAcpSessionBridge > marks worktree session creation to defer MCP discovery
+   ↓ createAcpSessionBridge > does not fail initialization when span enrichment throws
+   ↓ createAcpSessionBridge > profiles Session channel waits as joined or reused
+   ↓ createAcpSessionBridge > ends the channel wait span and propagates channel spawn failures
+   ↓ createAcpSessionBridge > forwards childEnvOverrides to the channelFactory at spawn time (#4247 R6 line 216)
+   ↓ createAcpSessionBridge > rejects a required Guard channel whose child does not acknowledge enforcement
+   ↓ createAcpSessionBridge > accepts a required Guard channel only after the child acknowledges enforcement
+   ↓ createAcpSessionBridge > spawns a session and returns the agent-assigned id
+   ↓ createAcpSessionBridge > forces caller-supplied session ids into fresh thread admission and ACP meta
+   ↓ createAcpSessionBridge > reuses the existing session under sessionScope:single
+   ↓ createAcpSessionBridge > requests session status through the existing ACP channel
+   ↓ createAcpSessionBridge > requests session tasks status without waiting for the prompt queue
+   ↓ createAcpSessionBridge > runs workspace memory remember without creating a session
+   ↓ createAcpSessionBridge > rejects malformed workspace memory remember responses
+   ↓ createAcpSessionBridge > runs workspace memory forget without creating a session
+   ↓ createAcpSessionBridge > derives workspace memory forget scopes for legacy responses
+   ↓ createAcpSessionBridge > rejects malformed workspace memory forget responses
+   ↓ createAcpSessionBridge > runs workspace memory dream without creating a session
+   ↓ createAcpSessionBridge > gets transcript pages through workspace status without creating a session
+   ↓ createAcpSessionBridge > flushes transcripts through the backward page barrier
+   ↓ createAcpSessionBridge > gets turn-index pages through workspace status without creating a session
+   ↓ createAcpSessionBridge > times out transcript page status requests
+   ↓ createAcpSessionBridge > times out turn-index page status requests
+   ↓ createAcpSessionBridge > rejects transcript page status requests when the channel closes
+   ↓ createAcpSessionBridge > maps a missing transcript session (resourceNotFound) to SessionNotFoundError
+   ↓ createAcpSessionBridge > maps a missing turn-index session (resourceNotFound) to SessionNotFoundError
+   ↓ createAcpSessionBridge > rejects malformed workspace memory dream responses
+   ↓ createAcpSessionBridge > keeps the channel alive when availability probes overlap a remember run
+   ↓ createAcpSessionBridge > keeps the channel alive when availability probes overlap session creation
+   ↓ createAcpSessionBridge > allows client MCP discovery during session pre-registration only
+   ↓ createAcpSessionBridge > redacts client request errors before the ACP SDK logs them
+   ↓ createAcpSessionBridge > keeps legacy ACP error text on an unbounded public bridge
+   ↓ createAcpSessionBridge > fails the bounded channel when active ACP handlers reach the cap
+   ↓ createAcpSessionBridge > fails the bounded channel before an ACP handler exceeds its byte cap
+   ↓ createAcpSessionBridge > bounds outbound operations before they enter the ACP SDK write queue
+   ↓ createAcpSessionBridge > refreshes extensions across live sessions and broadcasts merged results
+   ↓ createAcpSessionBridge > separates concurrent skill-only and full refreshes for every session
+   ↓ createAcpSessionBridge > bounds a hung session extension refresh
+   ↓ createAcpSessionBridge > does not refresh or broadcast extensions when no sessions are live
+   ↓ createAcpSessionBridge > skips dying sessions when refreshing extensions
+   ↓ createAcpSessionBridge > rejects session status requests for unknown sessions
+   ↓ createAcpSessionBridge > reuses an echoed daemon-issued client id on attach
+   ↓ createAcpSessionBridge > detachClient unregisters only the detached client id
+   ↓ createAcpSessionBridge > detachClient preserves an echoed client id owned by an earlier attach
+   ↓ createAcpSessionBridge > recordHeartbeat > updates the per-session timestamp for an anonymous heartbeat
+   ↓ createAcpSessionBridge > recordHeartbeat > records per-client timestamps when a trusted client id is supplied
+   ↓ createAcpSessionBridge > recordHeartbeat > throws SessionNotFoundError on unknown sessions
+   ↓ createAcpSessionBridge > recordHeartbeat > rejects an unknown client id without bumping any timestamp
+   ↓ createAcpSessionBridge > recordHeartbeat > drops per-client last-seen on detach but preserves the session watermark
+   ↓ createAcpSessionBridge > recordHeartbeat > returns a snapshot map that callers cannot use to mutate live state
+   ↓ createAcpSessionBridge > loads an existing ACP session and registers it for daemon routes
+   ↓ createAcpSessionBridge > surfaces replayDegraded on loadSession when compaction fails
+   ↓ createAcpSessionBridge > restores artifact snapshots that omit marker arrays after fork remap
+   ↓ createAcpSessionBridge > normalizes artifact snapshots returned by session restore
+   ↓ createAcpSessionBridge > clears durable artifacts but keeps live ephemerals when rewind returns an empty artifact snapshot
+   ↓ createAcpSessionBridge > keeps durable artifacts when rewind cannot rebuild an artifact snapshot
+   ↓ createAcpSessionBridge > keeps durable artifacts when rewind omits artifact snapshot metadata
+   ↓ createAcpSessionBridge > restores and persists artifact snapshots returned by rewind
+   ↓ createAcpSessionBridge > surfaces rewind artifact snapshot persistence warnings
+   ↓ createAcpSessionBridge > loads history replay from response metadata when requested
+   ↓ createAcpSessionBridge > refreshes an attached load from a bounded persisted page
+   ↓ createAcpSessionBridge > serves the in-memory journal on refreshed load while a 'question' is pending
+   ↓ createAcpSessionBridge > serves the in-memory journal on refreshed load while a 'tool permission' is pending
+   ↓ createAcpSessionBridge > stops refetching the persisted page when a 'question' arrives mid-fetch
+   ↓ createAcpSessionBridge > stops refetching the persisted page when a 'tool permission' arrives mid-fetch
+   ↓ createAcpSessionBridge > keeps the current turn error when refreshing from persisted history
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when queue bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when model_switch_failed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when language_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when session_metadata_updated bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when session_cwd_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when artifact_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when settings_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when extensions_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when mcp_server_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when mcp_server_added bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when mcp_server_removed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when approval_mode_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when model_switched bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when prompt_cancelled bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when tool_toggled bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when workspace_initialized bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when mcp_server_restarted bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when mcp_server_restart_refused bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when settings_reloaded bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when trust_change_requested bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when memory_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when agent_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when git_status_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when git_branch_changed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when github_setup_completed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when auth_device_flow_started bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when auth_device_flow_throttled bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when auth_device_flow_authorized bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when auth_device_flow_failed bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when auth_device_flow_cancelled bookkeeping lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when an idle user-shell command streams output after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when journal truncation marks the idle tail
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when an idle available_commands_update session_update lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when an idle current_mode_update session_update lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when an idle session_info_update session_update lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when a queued deadline terminal lands after it
+   ↓ createAcpSessionBridge > keeps the turn error on refresh when a queued prompt is removed after it
+   ↓ createAcpSessionBridge > drops the stale turn error when a queued terminal folds newer automatic-turn content
+   ↓ createAcpSessionBridge > drops the turn error on refresh after a subsequent successful interactive turn
+   ↓ createAcpSessionBridge > drops the stale turn error on refresh after newer automatic-turn content
+   ↓ createAcpSessionBridge > skips empty persisted pages when refreshing an attached load
+   ↓ createAcpSessionBridge > falls back to live replay when an empty-page cursor repeats
+   ↓ createAcpSessionBridge > bounds empty persisted pages with unique cursors
+   ↓ createAcpSessionBridge > propagates partial and replayError from a bounded refresh
+   ↓ createAcpSessionBridge > falls back to the live replay when a bounded refresh stays unstable
+   ↓ createAcpSessionBridge > falls back to the live replay when a bounded refresh read fails
+   ↓ createAcpSessionBridge > preserves session_closing when bounded refresh overlaps channel teardown
+   ↓ createAcpSessionBridge > restores artifacts from response-mode load replay when no snapshot is available
+   ↓ createAcpSessionBridge > bounds response-mode load replay and emits a history_truncated marker
+   ↓ createAcpSessionBridge > attributes live journal markers across queued prompts to the active prompt
+   ↓ createAcpSessionBridge > selects summary live replay without changing the default full replay
+   ↓ createAcpSessionBridge > adaptive live-journal growth pool > grows a breaching session from the pool instead of truncating
+   ↓ createAcpSessionBridge > adaptive live-journal growth pool > keeps granting across repeated doublings for one runaway turn
+   ↓ createAcpSessionBridge > adaptive live-journal growth pool > refuses growth for a second session once the first consumes the pool
+   ↓ createAcpSessionBridge > adaptive live-journal growth pool > charges a mid-restore session for growth granted before registration
+   ↓ createAcpSessionBridge > adaptive live-journal growth pool > releases granted growth when the mid-restore session fails
+   ↓ createAcpSessionBridge > adaptive live-journal growth pool > accounts concurrent in-flight restores against the shared pool
+   ↓ createAcpSessionBridge > adaptive live-journal growth pool > returns granted headroom to the pool when the grown session is closed
+   ↓ createAcpSessionBridge > adaptive live-journal growth pool > reports the growth pool and grown caps on the daemon status snapshot
+   ↓ createAcpSessionBridge > accounts growth across bridges sharing one daemon-wide pool
+   ↓ createAcpSessionBridge > does not mischarge an untouched sibling baseline against the shared pool
+   ↓ createAcpSessionBridge > backfills historyAnchorRecordId from the transcript when the truncation marker carries no recordId
+   ↓ createAcpSessionBridge > skips transcript backfill when the truncation marker already carries a recordId
+   ↓ createAcpSessionBridge > rejects oversized response-mode load replay payloads
+   ↓ createAcpSessionBridge > removes a response-mode restore entry if replay seeding throws
+   ↓ createAcpSessionBridge > reports the bad index when response-mode load replay is invalid
+   ↓ createAcpSessionBridge > orders response-mode replay before restore-time buffered events
+   ↓ createAcpSessionBridge > buffers load replay events until the restored session is registered
+   ↓ createAcpSessionBridge > keeps streamed load replay if response mode returns no bulk payload
+   ↓ createAcpSessionBridge > resumes an existing ACP session without calling session/load
+   ↓ createAcpSessionBridge > attaches to an already live session and returns the cached restore state
+   ↓ createAcpSessionBridge > propagates the original ACP state to coalesced restore waiters
+   ↓ createAcpSessionBridge > preserves summary replay when a restore loses the registration race
+   ↓ createAcpSessionBridge > coalesces response restores with the same history page
+   ↓ createAcpSessionBridge > rejects invalid response history page 0 before restore
+   ↓ createAcpSessionBridge > rejects invalid response history page 501 before restore
+   ↓ createAcpSessionBridge > rejects invalid response history page 1.5 before restore
+   ↓ createAcpSessionBridge > rejects invalid live replay mode "sumary" before restore
+   ↓ createAcpSessionBridge > rejects invalid live replay mode null before restore
+   ↓ createAcpSessionBridge > rejects invalid live replay mode 0 before restore
+   ↓ createAcpSessionBridge > rejects invalid live replay mode false before restore
+   ↓ createAcpSessionBridge > rejects an invalid live replay mode on resume
+   ↓ createAcpSessionBridge > rejects response restore coalescing with a different explicit page
+   ↓ createAcpSessionBridge > rejects response restore coalescing with an omitted page
+   ↓ createAcpSessionBridge > ignores history pages when coalescing streamed loads
+   ↓ createAcpSessionBridge > ignores history pages when coalescing resumes
+   ↓ createAcpSessionBridge > rejects restore coalescing with different inherited-history policies
+   ↓ createAcpSessionBridge > rejects coalescing load requests with incompatible replay modes
+   ↓ createAcpSessionBridge > lets a summary load coalesce onto an in-flight full restore
+   ↓ createAcpSessionBridge > rejects a full load joining an in-flight summary restore
+   ↓ createAcpSessionBridge > coalesces a summary load onto an in-flight summary restore
+   ↓ createAcpSessionBridge > re-projects a history-paged coalesced waiter from its own replay mode
+   ↓ createAcpSessionBridge > rejects a coalesced summary waiter when the channel dies during its replay recompute
+   ↓ createAcpSessionBridge > survives spawn-owner disconnect kill while a coalesced restore is mid-flight
+   ↓ createAcpSessionBridge > does not kill the channel when the last live session leaves while a restore is pending
+   ↓ createAcpSessionBridge > does not kill the channel when restore fails while a spawn is pending
+   ↓ createAcpSessionBridge > reaps a sole failed restore even with a positive idle timeout
+   ↓ createAcpSessionBridge > keeps a shared channel usable when restore fails beside a live session
+   ↓ createAcpSessionBridge > does not promote a restored session into the omitted-id attach default
+   ↓ createAcpSessionBridge > maps a missing persisted session and arms idle channel reaping
+   ↓ createAcpSessionBridge > rejects load while a resume for the same session is in flight
+   ↓ createAcpSessionBridge > rejects resume while a load for the same session is in flight (mirror of load-on-resume)
+   ↓ createAcpSessionBridge > does not kill a shared channel when one of multiple pending restores fails
+   ↓ createAcpSessionBridge > does not surface an unhandledRejection when the channel exits after a successful restore
+   ↓ createAcpSessionBridge > shutdown awaits in-flight restores before resolving
+   ↓ createAcpSessionBridge > times out an empty restore channel without stopping the bridge
+   ↓ createAcpSessionBridge > traces and injects context into session/load
+   ↓ createAcpSessionBridge > traces and injects context into session/resume
+   ↓ createAcpSessionBridge > lets transport close win when it settles before the restore deadline
+   ↓ createAcpSessionBridge > does not reap a timed-out restore channel during workspace control
+   ↓ createAcpSessionBridge > fences a shared timed-out restore until one late close settles
+   ↓ createAcpSessionBridge > drains a settlement-overdue channel without waiting on its wedged child
+   ↓ createAcpSessionBridge > refuses a caller-supplied id that a restore still owns
+   ↓ createAcpSessionBridge > reserves a caller-supplied id against concurrent restores until spawn settles
+   ↓ createAcpSessionBridge > hands a settled abandoned id to a caller-supplied spawn before newSession events
+   ↓ createAcpSessionBridge > purges requested-id startup events when the child registers another id
+   ↓ createAcpSessionBridge > never closes or fences an id a live session has reclaimed
+   ↓ createAcpSessionBridge > closes a channel to fresh sessions when an abandoned restore outlives its grace
+   ↓ createAcpSessionBridge > clears overdue state per restore while another remains within grace
+   ↓ createAcpSessionBridge > stops condemning a channel once its abandoned restore settles cleanly
+   ↓ createAcpSessionBridge > reaps a channel that drains while an abandoned restore is still unsettled
+   ↓ createAcpSessionBridge > scales the abandoned-restore retry hint with the configured budget
+   ↓ createAcpSessionBridge > cleans a late restore failure exactly once before releasing its fence
+   ↓ createAcpSessionBridge > allows a different restore id while an abandoned id remains fenced
+   ↓ createAcpSessionBridge > cancels the deadline timer once a restore succeeds
+   ↓ createAcpSessionBridge > does not reap a timed-out restore while another restore is pending
+   ↓ createAcpSessionBridge > does not reap a timed-out restore while a session spawn is pending
+   ↓ createAcpSessionBridge > quarantines fresh work when late restore cleanup is refused
+   ↓ createAcpSessionBridge > quarantines only fresh work when late restore cleanup fails
+   ↓ createAcpSessionBridge > lets shutdown break a permanently hanging abandoned restore
+   ↓ createAcpSessionBridge > rejects cross-workspace requests with WorkspaceMismatchError (#3803 §02)
+   ↓ createAcpSessionBridge > WorkspaceMismatchError truncates oversized `requested` to MAX_WORKSPACE_PATH_LENGTH (defense-in-depth)
+   ↓ createAcpSessionBridge > WorkspaceMismatchError passes through `requested` shorter than MAX_WORKSPACE_PATH_LENGTH untouched
+   ↓ createAcpSessionBridge > creates fresh session per call under sessionScope:thread (Stage 1.5 multi-session: shares channel)
+   ↓ createAcpSessionBridge > per-request sessionScope:thread overrides daemon-wide single (#4175 PR 5)
+   ↓ createAcpSessionBridge > per-request sessionScope:single overrides daemon-wide thread (#4175 PR 5)
+   ↓ createAcpSessionBridge > thread-scope first call does NOT pollute the single-scope attach slot (#4175 PR 5 mixed-scope leak)
+   ↓ createAcpSessionBridge > symmetric mixed-scope leak: single-first does NOT trap a later thread call into the single slot
+   ↓ createAcpSessionBridge > concurrent mixed-scope spawns don't collide on the in-flight tracker (#4175 PR 5)
+   ↓ createAcpSessionBridge > rejects an invalid per-request sessionScope with InvalidSessionScopeError
+   ↓ createAcpSessionBridge > rejects relative workspace paths
+   ↓ createAcpSessionBridge > canonicalizes the workspace key (single-scope reuses normalized paths)
+   ↓ createAcpSessionBridge > waits for custom channel teardown when connection construction fails
+   ↓ createAcpSessionBridge > reports both construction and custom channel teardown failures
+   ↓ createAcpSessionBridge > kills the spawned channel and rejects when initialize fails
+   ↓ createAcpSessionBridge > times out a stuck initialize
+   ↓ createAcpSessionBridge > shutdown kills the live channel and its multiplexed sessions
+   ↓ createAcpSessionBridge > keeps a channel kill failure as the stable shutdown result
+   ↓ createAcpSessionBridge > waits for every live channel before reporting a shutdown failure
+   ↓ createAcpSessionBridge > killAllSync force-kills the live channel mid-shutdown (BkUyD)
+   ↓ createAcpSessionBridge > killAllSync force-kills the channel during the initialize handshake (tanzhenxin cold-spawn-window)
+   ↓ createAcpSessionBridge > killSession marks the channel dying so concurrent spawnOrAttach gets a fresh channel
+   ↓ createAcpSessionBridge > channel liveness > advertises v1 but stays disabled when the child does not acknowledge it
+   ↓ createAcpSessionBridge > channel liveness > fails the transport after two unanswered channel probes
+   ↓ createAcpSessionBridge > transport failure marks the channel dying before process exit
+   ↓ createAcpSessionBridge > records which budget fired on a transport-guard channel exit
+   ↓ createAcpSessionBridge > does not publish a channel whose transport fails during initialize
+   ↓ createAcpSessionBridge > keeps a planned teardown expected when the pipe fails secondarily
+   ↓ createAcpSessionBridge > does not register a session whose transport fails with newSession
+   ↓ createAcpSessionBridge > doSpawn newSession-failure marks the empty channel dying so the next spawn gets a fresh one
+   ↓ createAcpSessionBridge > reaps an empty failed channel after overlapping thread spawns drain
+   ↓ createAcpSessionBridge > closes a session created after the public newSession deadline
+   ↓ createAcpSessionBridge > reports and reaps a timed-out newSession on an empty channel
+   ↓ createAcpSessionBridge > returns an empty-channel timeout without waiting for channel kill
+   ↓ createAcpSessionBridge > treats a missing late newSession as conclusively cleaned up
+   ↓ createAcpSessionBridge > holds a requested id until an abandoned newSession settles
+   ↓ createAcpSessionBridge > does not close a late newSession id owned by an in-flight restore
+   ↓ createAcpSessionBridge > does not close a late newSession id owned by an in-flight spawn
+   ↓ createAcpSessionBridge > keeps the public timeout contract when the agent enforces the deadline
+   ↓ createAcpSessionBridge > refuses fresh sessions when late newSession close is refused
+   ↓ createAcpSessionBridge > refuses fresh sessions when an abandoned newSession does not settle
+   ↓ createAcpSessionBridge > reopens fresh admission when an overdue newSession settles cleanly
+   ↓ createAcpSessionBridge > tracks settlement overdue state per abandoned newSession
+   ↓ createAcpSessionBridge > counts an abandoned newSession against load admission capacity
+   ↓ createAcpSessionBridge > counts an abandoned newSession against resume admission capacity
+   ↓ createAcpSessionBridge > killAllSync force-kills BOTH the dying channel AND the fresh attach-target (BkUyD overwrite race)
+   ↓ createAcpSessionBridge > sendPrompt > forwards a prompt and returns the agent response
+   ↓ createAcpSessionBridge > sendPrompt > rebuilds authoritative invocation metadata after client validation
+   ↓ createAcpSessionBridge > sendPrompt > ignores client retry when no turn_error made the session retryable
+   ↓ createAcpSessionBridge > sendPrompt > strips client-spoofed retry metadata without a turn_error
+   ↓ createAcpSessionBridge > sendPrompt > strips a client-spoofed continue meta key (only continueSession may set it)
+   ↓ createAcpSessionBridge > sendPrompt > strips a client-spoofed restoreAskUserQuestion meta key
+   ↓ createAcpSessionBridge > sendPrompt > does not auto-restore ask_user_question when the switch is off
+   ↓ createAcpSessionBridge > sendPrompt > fires a tracked restore prompt when load hints and the switch is on
+   ↓ createAcpSessionBridge > sendPrompt > defers a tracked restore prompt until the daemon integrity gate admits it
+   ↓ createAcpSessionBridge > sendPrompt > discards a deferred restore prompt rejected by the daemon integrity gate
+   ↓ createAcpSessionBridge > sendPrompt > defers a tracked resume prompt until the daemon integrity gate admits it
+   ↓ createAcpSessionBridge > sendPrompt > discards a deferred resume prompt rejected by the daemon integrity gate
+   ↓ createAcpSessionBridge > sendPrompt > does not fire a restore prompt without an attached client
+   ↓ createAcpSessionBridge > sendPrompt > strips channel display metadata from non-channel sessions
+   ↓ createAcpSessionBridge > sendPrompt > strips spoofed delivery metadata and injects only trusted context
+   ↓ createAcpSessionBridge > sendPrompt > forwards only explicitly declared submission text from trusted context
+   ↓ createAcpSessionBridge > sendPrompt > strips spoofed channel-prompt classification and injects only trusted context
+   ↓ createAcpSessionBridge > sendPrompt > only grants Goal proposal approval to an attached prompt originator
+   ↓ createAcpSessionBridge > sendPrompt > strips both spoofed retry and continue meta keys from one prompt
+   ↓ createAcpSessionBridge > sendPrompt > does not admit a continuation cancelled during precheck
+   ↓ createAcpSessionBridge > sendPrompt > rejects a continuation when closing overtakes its precheck
+   ↓ createAcpSessionBridge > sendPrompt > rejects a continuation when authorizing-close overtakes its precheck
+   ↓ createAcpSessionBridge > sendPrompt > rejects continueSession for a nonexistent session
+   ↓ createAcpSessionBridge > sendPrompt > returns the accepted decision even if the dispatched continuation turn rejects
+   ↓ createAcpSessionBridge > sendPrompt > routes an accepted continueSession through sendPrompt with the trusted continue meta
+   ↓ createAcpSessionBridge > sendPrompt > admits only one continuation when concurrent pre-checks both accept
+   ↓ createAcpSessionBridge > sendPrompt > does not dispatch a continuation turn when continueSession is rejected
+   ↓ createAcpSessionBridge > sendPrompt > rejects continueSession with an unregistered client id before running the pre-check
+   ↓ createAcpSessionBridge > sendPrompt > tracks a continuation as a busy prompt and queues a racing prompt behind it (no idle window, no abort)
+   ↓ createAcpSessionBridge > sendPrompt > honors retry once after a turn_error
+   ↓ createAcpSessionBridge > sendPrompt > adds structured errorKind when a turn ends with terminated
+   ↓ createAcpSessionBridge > sendPrompt > preserves structured loop detection details on turn_error
+   ↓ createAcpSessionBridge > sendPrompt > echoes user_message_chunk to ALL session subscribers (cross-client sync)
+   ↓ createAcpSessionBridge > sendPrompt > echoes only channel display text while forwarding full model context
+   ↓ createAcpSessionBridge > sendPrompt > reserves an echo slot for channel display text after the block cap
+   ↓ createAcpSessionBridge > sendPrompt > does not sacrifice an echo block for an empty display projection after the cap
+   ↓ createAcpSessionBridge > sendPrompt > ignores promptDisplayText for non-channel sessions
+   ↓ createAcpSessionBridge > sendPrompt > hides every text block for an intentionally empty display projection
+   ↓ createAcpSessionBridge > sendPrompt > does not leak a prompt slot for a malformed null block
+   ↓ createAcpSessionBridge > sendPrompt > echoes one user_message_chunk per content block (multi-modal)
+   ↓ createAcpSessionBridge > sendPrompt > keeps attachment references on the event bus and resolves bytes for ACP
+   ↓ createAcpSessionBridge > sendPrompt > reads attachments from the fallback root when the primary misses
+   ↓ createAcpSessionBridge > sendPrompt > deleteSessionAttachments clears both roots for a non-live session
+   ↓ createAcpSessionBridge > sendPrompt > resolves text and binary file attachment references for ACP
+   ↓ createAcpSessionBridge > sendPrompt > lists every attachment stored for a session
+   ↓ createAcpSessionBridge > sendPrompt > keeps inline media bytes in echoes for legacy clients
+   ↓ createAcpSessionBridge > sendPrompt > retains uploaded attachments across last-client detach and session load
+   ↓ createAcpSessionBridge > sendPrompt > deletes persisted attachments only when session cleanup requests it
+   ↓ createAcpSessionBridge > sendPrompt > releases uploaded media when killSession falls back to a force kill
+   ↓ createAcpSessionBridge > sendPrompt > broadcasts prompt_cancelled with originator attribution on cancelSession
+   ↓ createAcpSessionBridge > sendPrompt > deduplicates repeated cancellation broadcasts while idle
+   ↓ createAcpSessionBridge > sendPrompt > allows a new idle cancellation after another prompt starts
+   ↓ createAcpSessionBridge > sendPrompt > broadcasts prompt_cancelled to peers when the originator SSE aborts mid-prompt
+   ↓ createAcpSessionBridge > sendPrompt > emits prompt_cancelled at most once when cancelSession races the SSE abort (D2)
+   ↓ createAcpSessionBridge > sendPrompt > resets the cancel-broadcast latch per prompt (a second prompt re-broadcasts)
+   ↓ createAcpSessionBridge > sendPrompt > emits a compensating prompt_cancelled{forward_failed} when the prompt forward rejects (C3)
+   ↓ createAcpSessionBridge > sendPrompt > stamps envelope originatorClientId on session_closed
+   ↓ createAcpSessionBridge > sendPrompt > stamps envelope originatorClientId on session_metadata_updated
+   ↓ createAcpSessionBridge > sendPrompt > overrides a stale sessionId in the body with the routing id
+   ↓ createAcpSessionBridge > sendPrompt > signals prompt admission only after the pending queue owns the prompt
+   ↓ createAcpSessionBridge > sendPrompt > FIFO-serializes concurrent prompts on the same session
+   ↓ createAcpSessionBridge > sendPrompt > rejects prompts past the default per-session pending cap synchronously
+   ↓ createAcpSessionBridge > sendPrompt > does not cap pending prompts when maxPendingPromptsPerSession is 0
+   ↓ createAcpSessionBridge > sendPrompt > does not cap pending prompts when maxPendingPromptsPerSession is Infinity
+   ↓ createAcpSessionBridge > sendPrompt > releases a pending prompt slot after a failed prompt settles
+   ↓ createAcpSessionBridge > sendPrompt > keeps a removed queued prompt counted until its FIFO node drains
+   ↓ createAcpSessionBridge > sendPrompt > does not count pre-aborted prompts against the pending cap
+   ↓ createAcpSessionBridge > sendPrompt > does not count queued branchSession work against the prompt cap
+   ↓ createAcpSessionBridge > sendPrompt > serializes 'rewind' behind an admitted 'branch'
+   ↓ createAcpSessionBridge > sendPrompt > serializes 'branch' behind an admitted 'rewind'
+   ↓ createAcpSessionBridge > sendPrompt > rejects a queued 'branch' when the source starts closing
+   ↓ createAcpSessionBridge > sendPrompt > rejects a queued 'rewind' when the source starts closing
+   ↓ createAcpSessionBridge > sendPrompt > rejects 'branch' while a prompt is 'active'
+   ↓ createAcpSessionBridge > sendPrompt > rejects 'branch' while a prompt is 'admitted'
+   ↓ createAcpSessionBridge > sendPrompt > rejects 'rewind' while a prompt is 'active'
+   ↓ createAcpSessionBridge > sendPrompt > rejects 'rewind' while a prompt is 'admitted'
+   ↓ createAcpSessionBridge > sendPrompt > waits for a dispatched 'branch' instead of timing out and committing later
+   ↓ createAcpSessionBridge > sendPrompt > waits for a dispatched 'rewind' instead of timing out and committing later
+   ↓ createAcpSessionBridge > sendPrompt > rejects a dispatched 'qwen/control/session/branch' when its transport closes
+   ↓ createAcpSessionBridge > sendPrompt > rejects a dispatched 'qwen/control/session/rewind' when its transport closes
+   ↓ createAcpSessionBridge > sendPrompt > does not poison the prompt queue after a failed 'qwen/control/session/branch'
+   ↓ createAcpSessionBridge > sendPrompt > does not poison the prompt queue after a failed 'qwen/control/session/rewind'
+   ↓ createAcpSessionBridge > sendPrompt > maps an agent-side branch busy response to SessionBusyError
+   ↓ createAcpSessionBridge > sendPrompt > logs the child close-refusal detail when branchSession cleanup fails
+   ↓ createAcpSessionBridge > sendPrompt > dispatches a historical branch on the source channel without restoring it
+   ↓ createAcpSessionBridge > sendPrompt > creates a persisted branch even when live session capacity is full
+   ↓ createAcpSessionBridge > sendPrompt > restores a latest-state branch for v1 callers
+   ↓ createAcpSessionBridge > sendPrompt > a failed prompt does not poison the queue for subsequent prompts
+   ↓ createAcpSessionBridge > sendPrompt > rejects launchSessionForkAgent while a prompt is active
+   ↓ createAcpSessionBridge > sendPrompt > throws SessionNotFoundError for unknown session ids
+   ↓ createAcpSessionBridge > turn_complete promptCancelled > validates cancelled cancellation metadata {"cancelledAt":4500,"elapsedMs":3500}
+   ↓ createAcpSessionBridge > turn_complete promptCancelled > validates end_turn cancellation metadata {"cancelledAt":4500,"elapsedMs":3500}
+   ↓ createAcpSessionBridge > turn_complete promptCancelled > validates cancelled cancellation metadata {"cancelledAt":null,"elapsedMs":3500}
+   ↓ createAcpSessionBridge > turn_complete promptCancelled > validates cancelled cancellation metadata {"cancelledAt":4500,"elapsedMs":-1}
+   ↓ createAcpSessionBridge > turn_complete promptCancelled > validates cancelled cancellation metadata {"cancelledAt":4500,"elapsedMs":null}
+   ↓ createAcpSessionBridge > turn_complete branchPoint > publishes a validated completed-turn branch point
+   ↓ createAcpSessionBridge > turn_complete branchPoint > retains a completed-turn branch point in ring replay and compaction
+   ↓ createAcpSessionBridge > turn_complete branchPoint > drops branch metadata with an invalid 'assistant UUID'
+   ↓ createAcpSessionBridge > turn_complete branchPoint > drops branch metadata with an invalid 'checkpoint UUID'
+   ↓ createAcpSessionBridge > turn_complete branchPoint > drops branch metadata with an invalid 'stop reason'
+   ↓ createAcpSessionBridge > pendingPromptList > tracks a single prompt without publishing a pending_prompt_added event
+   ↓ createAcpSessionBridge > pendingPromptList > publishes pending_prompt_added only for queued prompts
+   ↓ createAcpSessionBridge > pendingPromptList > clears the Guard wait owner when a queued prompt is promoted
+   ↓ createAcpSessionBridge > pendingPromptList > removePendingPrompt aborts a queued prompt and removes it from the list
+   ↓ createAcpSessionBridge > pendingPromptList > keeps uploaded attachments after deleting a queued prompt
+   ↓ createAcpSessionBridge > pendingPromptList > skips an accepted queued prompt when its caller aborts before it starts
+   ↓ createAcpSessionBridge > pendingPromptList > removePendingPrompt aborts a running prompt and triggers cancel
+   ↓ createAcpSessionBridge > pendingPromptList > keeps later prompts queued while a removed running prompt is still settling
+   ↓ createAcpSessionBridge > pendingPromptList > removePendingPrompt throws SessionNotFoundError for unknown sessions
+   ↓ createAcpSessionBridge > pendingPromptList > getPendingPrompts throws SessionNotFoundError for unknown sessions
+   ↓ createAcpSessionBridge > getSessionTurnStatus > does not report startedAt before FIFO dispatch begins
+   ↓ createAcpSessionBridge > getSessionTurnStatus > reports the running turn from the live pending list
+   ↓ createAcpSessionBridge > getSessionTurnStatus > caps live promptText at TURN_RESULT_TEXT_MAX_CHARS
+   ↓ createAcpSessionBridge > getSessionTurnStatus > rejects a foreign clientId like /prompt does
+   ↓ createAcpSessionBridge > getSessionTurnStatus > reports queued prompts behind a running turn
+   ↓ createAcpSessionBridge > getSessionTurnStatus > falls back to persisted turn_result records once settled
+   ↓ createAcpSessionBridge > getSessionTurnStatus > serves repeated settled polls from the enriched overlay without rescanning
+   ↓ createAcpSessionBridge > getSessionTurnStatus > keeps rescanning a non-enriched terminal until the transcript record is visible
+   ↓ createAcpSessionBridge > getSessionTurnStatus > defaults resultCode for truncated persisted records missing it
+   ↓ createAcpSessionBridge > getSessionTurnStatus > resolves undefined for unknown promptId and idle for empty current
+   ↓ createAcpSessionBridge > getSessionTurnStatus > prefers live queue state over persisted records
+   ↓ createAcpSessionBridge > getSessionTurnStatus > keeps a completed turn pollable before its transcript record appears
+   ↓ createAcpSessionBridge > getSessionTurnStatus > observes a terminal published while persisted lookup is pending
+   ↓ createAcpSessionBridge > getSessionTurnStatus > observes an exact live turn admitted while persisted lookup is pending
+   ↓ createAcpSessionBridge > getSessionTurnStatus > uses a terminal published while persisted lookup rejects
+   ↓ createAcpSessionBridge > getSessionTurnStatus > observes a current live turn admitted while persisted lookup rejects
+   ↓ createAcpSessionBridge > getSessionTurnStatus > does not resurrect an overlay cleared by rewind while a read fails
+   ↓ createAcpSessionBridge > getSessionTurnStatus > does not resurrect a rewound-away result when a scan resolves late
+   ↓ createAcpSessionBridge > getSessionTurnStatus > keeps a removed running prompt visible until it settles
+   ↓ createAcpSessionBridge > getSessionTurnStatus > projects a removed queued prompt as cancelled instead of queued
+   ↓ createAcpSessionBridge > getSessionTurnStatus > keeps terminal outcome authoritative while persisted text enriches it
+   ↓ createAcpSessionBridge > getSessionTurnStatus > prefers the settled transcript outcome over a deadline error overlay
+   ↓ createAcpSessionBridge > getSessionTurnStatus > keeps the deadline error poll until the child settles
+   ↓ createAcpSessionBridge > getSessionTurnStatus > keeps the overlay error when the persisted record is also an error
+   ↓ createAcpSessionBridge > getSessionTurnStatus > keeps the trusted prompt projection when a persisted result supersedes a deadline error
+   ↓ createAcpSessionBridge > getSessionTurnStatus > keeps the trusted prompt display projection after persistence
+   ↓ createAcpSessionBridge > getSessionTurnStatus > keeps only the latest 64 in-memory terminal statuses
+   ↓ createAcpSessionBridge > getSessionTurnStatus > clears terminal overlays only after a successful rewind
+   ↓ createAcpSessionBridge > getSessionTurnStatus > throws SessionNotFoundError for unknown sessions
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > publishes exactly one cancelled terminal when a queued prompt is removed (DAEMON-004)
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > publishes a deadline turn_error, unlocks the FIFO, and clears active state when the agent wedges (DAEMON-003)
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > does not publish a stale deadline terminal for a prompt that completed in time (DAEMON-003)
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > publishes a deadline terminal for a prompt that expires while still queued (DAEMON-003)
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > keeps a detached session draining until the last pending prompt settles (DAEMON-005)
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > flushes error terminals for active and queued prompts before session_closed (DAEMON-005)
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > still publishes a terminal for a removed RUNNING prompt when the session closes before the agent cooperates
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > does not publish a duplicate completed event when a promoted-then-removed running prompt settles
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > flushes error terminals for active and queued prompts before session_died on killSession (DAEMON-005)
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > publishes exactly one terminal per prompt under cancel + remove + deadline races (DAEMON-002)
+   ↓ createAcpSessionBridge > prompt terminal exactly-once (DAEMON-002/003/004/005) > publishes exactly one turn_error per pending prompt when the channel crashes
+   ↓ createAcpSessionBridge > live activity watermark (summary updatedAt) > is absent until a running prompt settles, then advances per running terminal
+   ↓ createAcpSessionBridge > live activity watermark (summary updatedAt) > stays strictly increasing under a pinned clock and tracks wall time once it advances
+   ↓ createAcpSessionBridge > live activity watermark (summary updatedAt) > floors the first watermark at createdAt under a wall-clock rollback
+   ↓ createAcpSessionBridge > live activity watermark (summary updatedAt) > does not advance for a queued-only terminal or a heartbeat
+   ↓ createAcpSessionBridge > live activity watermark (summary updatedAt) > advances exactly once when a running prompt is cancelled
+   ↓ createAcpSessionBridge > live activity watermark (summary updatedAt) > advances once when a running prompt fails
+   ↓ createAcpSessionBridge > live activity watermark (summary updatedAt) > advances exactly once for a deadline terminal despite its duplicate publish
+   ↓ createAcpSessionBridge > live activity watermark (summary updatedAt) > never decreases when a forward clock jump is later corrected
+   ↓ createAcpSessionBridge > live activity watermark (summary updatedAt) > keeps turn activity out of the session catalog version
+   ↓ createAcpSessionBridge > cancelSession > cancels an admitted prompt before agent dispatch
+   ↓ createAcpSessionBridge > cancelSession > keeps cancelling while the child admits the prompt
+   ↓ createAcpSessionBridge > cancelSession > drains a late cancel retry before dispatching the queued successor
+   ↓ createAcpSessionBridge > cancelSession > releases cancellation and queued work when the channel exits during the handshake
+   ↓ createAcpSessionBridge > cancelSession > falls back once to standard ACP cancellation for custom agents
+   ↓ createAcpSessionBridge > cancelSession > broadcasts immediate cancellation once for each prompt
+   ↓ createAcpSessionBridge > cancelSession > forwards a cancel notification with the routing id
+   ↓ createAcpSessionBridge > cancelSession > throws SessionNotFoundError for unknown session ids
+   ↓ createAcpSessionBridge > cancelSession > treats idle agent cancel as success
+   ↓ createAcpSessionBridge > cancelSession > treats idle agent cancel wording variants as success
+   ↓ createAcpSessionBridge > permission flow > disables the permission timer by default and honors an explicit timeout
+   ↓ createAcpSessionBridge > permission flow > publishes a permission_request event with a generated requestId and awaits a vote
+   ↓ createAcpSessionBridge > permission flow > forwards permission vote metadata back to the agent response
+   ↓ createAcpSessionBridge > permission flow > forwards only a string expected Plan execution policy (yolo)
+   ↓ createAcpSessionBridge > permission flow > forwards only a string expected Plan execution policy (123)
+   ↓ createAcpSessionBridge > permission flow > forwards only a string expected Plan execution policy (undefined)
+   ↓ createAcpSessionBridge > permission flow > forwards session-scoped permission answers without arbitrary metadata
+   ↓ createAcpSessionBridge > permission flow > returns false (not InvalidClientIdError) when session exists but requestId is unknown and clientId is unregistered (#4335 / 3271978329 / 3272493792 / 3273077272)
+   ↓ createAcpSessionBridge > permission flow > rejects cancel sentinel injection via {selected,"__cancelled__"} (#4335 / 3271420267)
+   ↓ createAcpSessionBridge > permission flow > rejects votes whose optionId was not in the agent-offered set (BkwQI)
+   ↓ createAcpSessionBridge > permission flow > first-responder wins: a second vote returns false
+   ↓ createAcpSessionBridge > permission flow > publishes a permission_resolved event when a vote lands
+   ↓ createAcpSessionBridge > permission flow > publishes permission_already_resolved when a scoped vote loses the race
+   ↓ createAcpSessionBridge > permission flow > session-scoped permission votes cannot resolve another session request
+   ↓ createAcpSessionBridge > permission flow > session-scoped duplicate votes do not validate clients against another session
+   ↓ createAcpSessionBridge > permission flow > respondToSessionPermission throws SessionNotFoundError for unknown sessions
+   ↓ createAcpSessionBridge > permission flow > rejects scoped votes whose optionId was not in the agent-offered set
+   ↓ createAcpSessionBridge > permission flow > rejects permission votes with unregistered client ids
+   ↓ createAcpSessionBridge > permission flow > respondToPermission returns false for unknown requestId
+   ↓ createAcpSessionBridge > permission flow > returns false uniformly for unknown permission votes regardless of clientId registration (#4335 / 3272493777)
+   ↓ createAcpSessionBridge > permission flow > cancelSession resolves outstanding permissions as cancelled
+   ↓ createAcpSessionBridge > permission flow > shutdown resolves outstanding permissions as cancelled
+   ↓ createAcpSessionBridge > permission flow > sendPrompt abort resolves pending permissions as cancelled (A-UsU)
+   ↓ createAcpSessionBridge > modelServiceId honored at session create > applies modelServiceId via unstable_setSessionModel after newSession
+   ↓ createAcpSessionBridge > modelServiceId honored at session create > does NOT call setSessionModel when modelServiceId is omitted
+   ↓ createAcpSessionBridge > modelServiceId honored at session create > marks a scheduled-task run model as transient
+   ↓ createAcpSessionBridge > modelServiceId honored at session create > keeps the session alive on model-switch failure and publishes model_switch_failed
+   ↓ createAcpSessionBridge > modelServiceId honored at session create > attaches to the existing session on retry after a model-switch failure
+   ↓ createAcpSessionBridge > channel exit cleanup (child-crash recovery) > removes the SessionEntry when the channel terminates unexpectedly
+   ↓ createAcpSessionBridge > channel exit cleanup (child-crash recovery) > exit fired on planned shutdown does NOT trigger the unexpected-cleanup path
+   ↓ createAcpSessionBridge > model-change FIFO + failure recovery > publishes model_switch_failed and surfaces the error when the agent rejects
+   ↓ createAcpSessionBridge > model-change FIFO + failure recovery > does NOT reconcile when applyModelServiceId roundtrip fails on attach
+   ↓ createAcpSessionBridge > model-change FIFO + failure recovery > serializes concurrent model-change calls (FIFO)
+   ↓ createAcpSessionBridge > attach honors modelServiceId on existing session > applies modelServiceId on attach via unstable_setSessionModel
+   ↓ createAcpSessionBridge > attach honors modelServiceId on existing session > attach without modelServiceId does NOT issue setSessionModel
+   ↓ createAcpSessionBridge > sendPrompt fail-fast on transport close > rejects in-flight prompt when channel.exited fires
+   ↓ createAcpSessionBridge > sendPrompt fail-fast on transport close > does not promote mid-turn messages after channel exit removes the session
+   ↓ createAcpSessionBridge > opts validation > rejects an invalid sessionScope
+   ↓ createAcpSessionBridge > opts validation > rejects a non-positive initializeTimeoutMs
+   ↓ createAcpSessionBridge > opts validation > rejects NaN maxSessions (BRApy: silent fail-OPEN guard)
+   ↓ createAcpSessionBridge > opts validation > rejects invalid maxPendingPromptsPerSession (negative)
+   ↓ createAcpSessionBridge > opts validation > rejects invalid maxPendingPromptsPerSession (float)
+   ↓ createAcpSessionBridge > opts validation > rejects invalid maxPendingPromptsPerSession (NaN)
+   ↓ createAcpSessionBridge > opts validation > accepts disabled maxPendingPromptsPerSession sentinels
+   ↓ createAcpSessionBridge > concurrent spawn coalescing (single scope) > two parallel calls for the same workspace spawn ONE channel
+   ↓ createAcpSessionBridge > concurrent spawn coalescing (single scope) > clears the in-flight slot on rejection so the next call can retry
+   ↓ createAcpSessionBridge > BridgeClient file proxy (Stage 1: same-host trust) > writeTextFile writes to local fs
+   ↓ createAcpSessionBridge > BridgeClient file proxy (Stage 1: same-host trust) > writeTextFile leaves no .tmp turd in the target directory (BSA0D)
+   ↓ createAcpSessionBridge > BridgeClient file proxy (Stage 1: same-host trust) > readTextFile rejects files past the size cap (BSA0E)
+   ↓ createAcpSessionBridge > BridgeClient file proxy (Stage 1: same-host trust) > readTextFile rejects non-regular files even when size=0 (BX8YO)
+   ↓ createAcpSessionBridge > BridgeClient file proxy (Stage 1: same-host trust) > writeTextFile preserves symlinks (BX8Yw)
+   ↓ createAcpSessionBridge > BridgeClient file proxy (Stage 1: same-host trust) > writeTextFile preserves dangling symlinks (BfFvO)
+   ↓ createAcpSessionBridge > BridgeClient file proxy (Stage 1: same-host trust) > readTextFile returns full content by default
+   ↓ createAcpSessionBridge > BridgeClient file proxy (Stage 1: same-host trust) > readTextFile slices via line/limit (ACP 1-based line)
+   ↓ createAcpSessionBridge > listWorkspaceSessions > returns sessions matching the bound workspace cwd
+   ↓ createAcpSessionBridge > listWorkspaceSessions > canonicalizes the lookup path
+   ↓ createAcpSessionBridge > listWorkspaceSessions > returns empty for relative paths instead of throwing
+   ↓ createAcpSessionBridge > session catalog version clock > starts stable at revision zero and differs across bridge instances
+   ↓ createAcpSessionBridge > session catalog version clock > returns immutable value snapshots
+   ↓ createAcpSessionBridge > session catalog version clock > advances on live registration and removal
+   ↓ createAcpSessionBridge > session catalog version clock > advances through the lifecycle choke point even when the host callback throws
+   ↓ createAcpSessionBridge > session catalog version clock > advances on an actual rename but not on a no-op rename
+   ↓ createAcpSessionBridge > session catalog version clock > advances on child automatic title notifications for known sessions only
+   ↓ createAcpSessionBridge > session catalog version clock > advances on live worktree updates for existing entries only
+   ↓ createAcpSessionBridge > session catalog version clock > advances on a persisted-only branch without a live registration
+   ↓ createAcpSessionBridge > session catalog version clock > still advances when a committed branch fails to restore
+   ↓ createAcpSessionBridge > session catalog version clock > does not advance on a failed branch mutation
+   ↓ createAcpSessionBridge > session catalog version clock > does not advance on prompt start/settle, attach/detach, or heartbeat
+   ↓ createAcpSessionBridge > session catalog version clock > does not advance on permission-wait transitions
+   ↓ createAcpSessionBridge > getSessionSummary > returns the live summary for a known session id
+   ↓ createAcpSessionBridge > getSessionSummary > throws SessionNotFoundError for an unknown session id
+   ↓ createAcpSessionBridge > getSessionSummary > keeps exact current-cwd inspection separate from the public summary
+   ↓ createAcpSessionBridge > session source metadata > durably anchors a source-less default session on demand
+   ↓ createAcpSessionBridge > session source metadata > rejects when the child cannot persist the default session anchor
+   ↓ createAcpSessionBridge > session source metadata > rejects the reserved standalone source before spawning a child
+   ↓ createAcpSessionBridge > session source metadata > rejects the reserved standalone source before generic load restore
+   ↓ createAcpSessionBridge > session source metadata > rejects the reserved standalone source before generic resume restore
+   ↓ createAcpSessionBridge > session source metadata > restores standalone sessions only through the daemon-owned load surface
+   ↓ createAcpSessionBridge > session source metadata > restores standalone sessions only through the daemon-owned resume surface
+   ↓ createAcpSessionBridge > session source metadata > creates standalone sessions only through the daemon-owned surface
+   ↓ createAcpSessionBridge > session source metadata > persists standalone parent lineage through the daemon-owned child surface
+   ↓ createAcpSessionBridge > session source metadata > rejects generic standalone branch, cwd, and persistent approval mutations before ACP dispatch
+   ↓ createAcpSessionBridge > session source metadata > keeps a standalone model selection session-scoped
+   ↓ createAcpSessionBridge > session source metadata > reports whether standalone creation reached newSession dispatch
+   ↓ createAcpSessionBridge > session source metadata > rejects the reserved standalone source before branching
+   ↓ createAcpSessionBridge > session source metadata > persists and returns source metadata in status and list summaries
+   ↓ createAcpSessionBridge > session source metadata > creates a side task with hidden inherited replay
+   ↓ createAcpSessionBridge > session source metadata > releases side-task admission when restore failure is false
+   ↓ createAcpSessionBridge > session source metadata > releases side-task admission when restore failure is true
+   ↓ createAcpSessionBridge > session source metadata > rejects a side task when live session capacity is full
+   ↓ createAcpSessionBridge > session source metadata > creates a side task while the parent prompt is active
+   ↓ createAcpSessionBridge > session source metadata > waits for a dispatched side-task fork instead of timing out
+   ↓ createAcpSessionBridge > session source metadata > carries persisted source metadata into ACP session restore
+   ↓ createAcpSessionBridge > session source metadata > backfills missing source metadata when restoring an existing entry
+   ↓ createAcpSessionBridge > session source metadata > rejects an existing-entry restore when the channel exits during source persistence
+   ↓ createAcpSessionBridge > session source metadata > rejects a cold restore when the channel exits during source persistence
+   ↓ createAcpSessionBridge > session source metadata > does not replace the source when single scope attaches
+   ↓ createAcpSessionBridge > session source metadata > does not replace an existing source when restore requests a new one
+   ↓ createAcpSessionBridge > session source metadata > keeps restore live-only when source persistence fails
+   ↓ createAcpSessionBridge > session source metadata > persists source metadata after resume restores a session
+   ↓ createAcpSessionBridge > Live transcript persistence > forwards direct dialogue to the owning ACP child
+   ↓ createAcpSessionBridge > parentSessionId > carries parentSessionId from a spawn into the session summary
+   ↓ createAcpSessionBridge > parentSessionId > leaves parentSessionId undefined when the spawn omits it
+   ↓ createAcpSessionBridge > parentSessionId > sends the sessionParent ext-method to the child when spawned with a parent
+   ↓ createAcpSessionBridge > parentSessionId > does not send the sessionParent ext-method when spawned without a parent
+   ↓ createAcpSessionBridge > parentSessionId > still succeeds when the child reports the parent link was not persisted
+   ↓ createAcpSessionBridge > parentSessionId > still succeeds when the sessionParent ext-method throws
+   ↓ createAcpSessionBridge > parentSessionId > reports parentSessionPersisted:true when the child confirms the write
+   ↓ createAcpSessionBridge > parentSessionId > reports parentSessionPersisted:false and does NOT retry a definitive persisted:false
+   ↓ createAcpSessionBridge > parentSessionId > retries a throwing sessionParent (MAX_PARENT_PERSIST_ATTEMPTS) then reports false
+   ↓ createAcpSessionBridge > parentSessionId > reports parentSessionPersisted:true when a retry finally succeeds
+   ↓ createAcpSessionBridge > parentSessionId > treats a sessionParent withTimeout timeout as terminal — reports false without retrying
+   ↓ createAcpSessionBridge > parentSessionId > omits parentSessionPersisted and never calls sessionParent for a parentless spawn
+   ↓ createAcpSessionBridge > setSessionModel > forwards modelId to the agent and overrides body sessionId
+   ↓ createAcpSessionBridge > setSessionModel > publishes a model_switched event on success
+   ↓ createAcpSessionBridge > setSessionModel > stamps model events with the trusted originator client id
+   ↓ createAcpSessionBridge > setSessionModel > rejects unregistered client ids on session-scoped requests
+   ↓ createAcpSessionBridge > setSessionModel > throws SessionNotFoundError for unknown session ids
+   ↓ createAcpSessionBridge > executeShellCommand permission policy > rejects direct shell by default before executing the command
+   ↓ createAcpSessionBridge > executeShellCommand permission policy > requires a client id before checking whether the session exists
+   ↓ createAcpSessionBridge > executeShellCommand permission policy > rejects unregistered client ids when direct shell is enabled
+   ↓ createAcpSessionBridge > executeShellCommand permission policy > executes and stamps events when the client id belongs to the session
+   ↓ createAcpSessionBridge > executeShellCommand permission policy > does not hang a completed shell on transport-failed history injection
+   ↓ createAcpSessionBridge > executeShellCommand permission policy > executes direct shell in each session effective cwd
+   ↓ createAcpSessionBridge > executeShellCommand permission policy > waits for a pending cwd change before executing direct shell
+   ↓ createAcpSessionBridge > executeShellCommand permission policy > executes direct shell in previous cwd when a pending cd fails
+   ↓ createAcpSessionBridge > executeShellCommand permission policy > returns an aborted direct shell without waiting for a hung cwd change
+   ↓ createAcpSessionBridge > preserves DAC plan policies through controls, notifications and reconnect snapshots
+   ↓ createAcpSessionBridge > keeps peer Plan and execution state unchanged when persisting DAC planMode=true
+   ↓ createAcpSessionBridge > keeps peer Plan and execution state unchanged when persisting DAC planMode=false
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > reaps a fresh session when approval-mode initialization fails
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > does not publish a failing approval-mode spawn as the default session
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > rolls back attach bookkeeping when approval-mode initialization fails
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > restores approval mode when an attach loses a close race
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > rolls back restored sessions when approval-mode initialization fails
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > reaps a tombstoned session when approval-mode attach rollback removes the last attach
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > throws BEFORE the ACP roundtrip when persist:true but no callback wired
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > persist:false bypasses the guard regardless of callback wiring
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > serializes concurrent approval-mode changes through the per-session queue (A3)
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > serializes persist + publish too, not just the extMethod (A3, persist:true)
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > a failed approval-mode change does not poison the queue (A3 tail-swallow)
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > echoPromptToSessionBus tolerates a non-array prompt (D6 guard)
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > broadcasts approval_mode_changed to peer sessions when persisted (#4282 fold-in 4 S2)
+   ↓ createAcpSessionBridge > setSessionApprovalMode (#4175 Wave 4 PR 17) > does NOT broadcast to peers when persisted is false
+   ↓ createAcpSessionBridge > generateSessionRecap (#4175 follow-up) > forwards through the ACP child and returns the recap verbatim
+   ↓ createAcpSessionBridge > generateSessionRecap (#4175 follow-up) > preserves a null recap (best-effort failure surface)
+   ↓ createAcpSessionBridge > generateSessionRecap (#4175 follow-up) > throws SessionNotFoundError for unknown sessionId
+   ↓ createAcpSessionBridge > addRuntimeMcpServer (T2.8 #4514) > returns the success shape and broadcasts mcp_server_added
+   ↓ createAcpSessionBridge > addRuntimeMcpServer (T2.8 #4514) > does not emit event when result is skipped (budget_warning_only)
+   ↓ createAcpSessionBridge > addRuntimeMcpServer (T2.8 #4514) > throws with errorKind acp_channel_unavailable when no ACP channel is live
+   ↓ createAcpSessionBridge > addRuntimeMcpServer (T2.8 #4514) > stamps mcp_server_added with the originator clientId
+   ↓ createAcpSessionBridge > session-scoped runtime MCP servers > routes add and remove to the selected live session only
+   ↓ createAcpSessionBridge > session-scoped runtime MCP servers > rejects an unknown session without falling back to a live channel
+   ↓ createAcpSessionBridge > session-scoped runtime MCP servers > allows session MCP mutations to outlive the initialize timeout
+   ↓ createAcpSessionBridge > removeRuntimeMcpServer (T2.8 #4514) > returns the removed shape and broadcasts mcp_server_removed
+   ↓ createAcpSessionBridge > removeRuntimeMcpServer (T2.8 #4514) > does not emit event when result is skipped (not_present)
+   ↓ createAcpSessionBridge > removeRuntimeMcpServer (T2.8 #4514) > throws with errorKind acp_channel_unavailable when no ACP channel is live
+   ↓ createAcpSessionBridge > subscribeEvents > throws SessionNotFoundError for unknown session ids
+   ↓ createAcpSessionBridge > subscribeEvents > publishes ACP usage updates to subscribers unchanged
+   ↓ createAcpSessionBridge > subscribeEvents > splits a2ui tool updates and publishes a sanitized original frame
+   ↓ createAcpSessionBridge > subscribeEvents > shutdown closes live event subscriptions
+   ↓ createAcpSessionBridge > extNotification — MCP budget events (PR 14b) > publishes mcp_budget_warning when the child fires the warning event
+   ↓ createAcpSessionBridge > extNotification — MCP budget events (PR 14b) > publishes mcp_child_refused_batch when the child fires the refused-batch event
+   ↓ createAcpSessionBridge > extNotification — MCP budget events (PR 14b) > publishes terminal_sequence when the child fires terminalSequence notification
+   ↓ createAcpSessionBridge > extNotification — MCP budget events (PR 14b) > stamps terminal_sequence with the active promptId
+   ↓ createAcpSessionBridge > extNotification — MCP budget events (PR 14b) > drops unknown extNotification methods, kinds, and missing sessionIds silently
+   ↓ createAcpSessionBridge > extNotification — MCP budget events (PR 14b) > buffers events for a not-yet-registered sessionId, drains them on registration (codex fix #1)
+   ↓ createAcpSessionBridge > extNotification — MCP budget events (PR 14b) > tombstones closed sessionIds so late notifications cannot leak into a future load of the same id (codex round 5 fix)
+   ↓ createAcpSessionBridge > extNotification — MCP budget events (PR 14b) > purges buffered guardrail events when restore fails so retry-success does not replay stale frames (codex round 7 fix)
+   ↓ createAcpSessionBridge > extNotification — in-session model update (A1, #4511) > promotes current_model_update to model_switched when no bridge roundtrip is in flight
+   ↓ createAcpSessionBridge > extNotification — in-session model update (A1, #4511) > suppresses current_model_update while a bridge model roundtrip is in flight
+   ↓ createAcpSessionBridge > extNotification — in-session model update (A1, #4511) > drops malformed model-update params (non-string ids) without throwing or emitting
+   ↓ createAcpSessionBridge > extNotification — in-session model update (A1, #4511) > drops a model-update for an unknown sessionId (no entry, no buffer)
+   ↓ createAcpSessionBridge > extNotification — in-session model update (A1, #4511) > stamps originatorClientId from the active prompt on the promoted model_switched
+   ↓ createAcpSessionBridge > extNotification — followup_suggestion > publishes followup_suggestion when the child fires a prompt-suggestion notification
+   ↓ createAcpSessionBridge > extNotification — followup_suggestion > drops malformed prompt-suggestion payloads
+   ↓ createAcpSessionBridge > extNotification — followup_suggestion > drops prompt-suggestion after session is closed
+   ↓ createAcpSessionBridge > extNotification — session title update > rebroadcasts a child title-update as session_metadata_updated
+   ↓ createAcpSessionBridge > extNotification — session title update > drops malformed title-update payloads
+   ↓ createAcpSessionBridge > extNotification — session pr binding > marks the session catalog when a child reports a shell PR binding
+   ↓ createAcpSessionBridge > extNotification — session pr binding > drops malformed pr-binding payloads without marking the catalog
+   ↓ createAcpSessionBridge > extNotification — recording degradation > publishes the live event and persists it in session snapshots
+   ↓ createAcpSessionBridge > extNotification — recording degradation > drops malformed recording degradation notifications
+   ↓ createAcpSessionBridge > extNotification — recording degradation > drains an early recording event into both replay and snapshot state
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > refuses NEW spawns past the cap with SessionLimitExceededError
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > per-request thread overrides cannot bypass the cap (#4175 PR 5 amplification guard)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > attach to an existing session under single scope is NOT counted toward the cap
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > killSession({requireZeroAttaches:true}) skips reap when another client attached (BQ9tV)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > in-flight coalescing race: B attaches via inFlight before A reaps (BRSCi)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > detachClient does NOT reap when spawn owner is still alive (BkwQP)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > detachClient completes deferred reap when spawn owner ALSO disconnected (BkwQP+tanzhenxin issue 2)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > duplicate detach with same clientId decrements attachCount only once (DAEMON-006)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > detach with unknown clientId does not decrement attachCount (DAEMON-006)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > anonymous detach (no clientId) does not decrement attachCount (DAEMON-006)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > spawn owner detaching itself does not steal an attacher ref (DAEMON-006)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > deferred reap fires exactly on the real last attacher detach (DAEMON-006 regression)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > repeated attach under one clientId detaches ref-by-ref (DAEMON-006)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > detachClient does NOT reap when an SSE subscriber is live (tanzhenxin issue 2)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > killSession({requireZeroAttaches:true}) DOES reap when no other client attached (BQ9tV)
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > maxSessions: 0 disables the cap
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > Stage 1.5 multi-session: N sessions on same workspace share ONE channel
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > calls freshSessionAdmission for fresh spawns and releases after registration
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > releases fresh spawn admission once the session is live
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > reports freshSessionAdmission release failures without failing fresh spawns
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > does not call freshSessionAdmission for single-scope attaches
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > fails fresh spawns closed and releases the requested id when admission rejects
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > calls freshSessionAdmission for load and resume restores
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > does not reserve live capacity for a persisted branch
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > does not acquire live admission when persisted branch creation fails
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > releases branch admission when transport fails during restore cleanup
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > Stage 1.5: killSession on one of N sessions does NOT kill the shared channel
+   ↓ createAcpSessionBridge > maxSessions cap (chiga0 Rec 3) > Stage 1.5: channel.exited tears down ALL multiplexed sessions
+   ↓ createAcpSessionBridge > closeSession > publishes session_closed and removes session from maps
+   ↓ createAcpSessionBridge > closeSession > throws SessionNotFoundError for unknown session
+   ↓ createAcpSessionBridge > closeSession > continues closing the session when attachment close fails
+   ↓ createAcpSessionBridge > closeSession > preserves bridge state when required agent close fails so retry can flush
+   ↓ createAcpSessionBridge > closeSession > resolves pending permissions as cancelled
+   ↓ createAcpSessionBridge > closeSession > tracks a stuck final cancel and retires its channel at the deadline
+   ↓ createAcpSessionBridge > closeSession > resolves pending permissions before waiting for agent close during kill
+   ↓ createAcpSessionBridge > closeSession > force-kills the channel when kill follows a stuck acknowledged close
+   ↓ createAcpSessionBridge > closeSession > keeps multiplexed siblings live while one close is still draining
+   ↓ createAcpSessionBridge > closeSession > routes per-entry channel bookkeeping via channelInfoForEntry, not the module-scoped channelInfo (#4325)
+   ↓ createAcpSessionBridge > closeSession > killSession routes per-entry channel bookkeeping via channelInfoForEntry (#4325 symmetric)
+   ↓ createAcpSessionBridge > updateSessionMetadata > publishes session_metadata_updated event
+   ↓ createAcpSessionBridge > updateSessionMetadata > uses automatic provenance for programmatic renames
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects an empty displayName instead of clearing only the live entry
+   ↓ createAcpSessionBridge > updateSessionMetadata > keeps the optimistic update and logs a generic persistence failure
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects displayName values with control characters
+   ↓ createAcpSessionBridge > updateSessionMetadata > stores a pr binding, exposes it in summaries, and publishes an event
+   ↓ createAcpSessionBridge > updateSessionMetadata > publishes the full seeded binding history in the reply and event after an entry re-creation
+   ↓ createAcpSessionBridge > updateSessionMetadata > keeps this-daemon-lifetime bindings over a late seed
+   ↓ createAcpSessionBridge > updateSessionMetadata > replaces this-daemon-lifetime bindings on setSessionPrs
+   ↓ createAcpSessionBridge > updateSessionMetadata > logs a stderr audit record when a pr binding is added
+   ↓ createAcpSessionBridge > updateSessionMetadata > accumulates multiple bindings and re-binding moves a number to latest
+   ↓ createAcpSessionBridge > updateSessionMetadata > does not republish when the same pr is bound again
+   ↓ createAcpSessionBridge > updateSessionMetadata > republishes when the same binding returns with a new state
+   ↓ createAcpSessionBridge > updateSessionMetadata > preserves the known state on a stateless re-bind
+   ↓ createAcpSessionBridge > updateSessionMetadata > does not carry state across a cross-repository re-bind
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects a pr state outside the enum and names the constraint
+   ↓ createAcpSessionBridge > updateSessionMetadata > propagates state through seedSessionPrs
+   ↓ createAcpSessionBridge > updateSessionMetadata > keeps the seeded issue snapshot on a re-bind of the same pr
+   ↓ createAcpSessionBridge > updateSessionMetadata > drops client-supplied issues from a bind
+   ↓ createAcpSessionBridge > updateSessionMetadata > bumps the catalog revision when a pr is bound
+   ↓ createAcpSessionBridge > updateSessionMetadata > republishes and bumps the catalog when only the latest state changes
+   ↓ createAcpSessionBridge > updateSessionMetadata > does not inherit the prior state when re-binding a number to another URL
+   ↓ createAcpSessionBridge > updateSessionMetadata > re-bind of the same PR moves it to latest with the new state
+   ↓ createAcpSessionBridge > updateSessionMetadata > echoes the current displayName on the pr metadata event
+   ↓ createAcpSessionBridge > updateSessionMetadata > caps the binding list at MAX_SESSION_PRS, dropping the oldest
+   ↓ createAcpSessionBridge > updateSessionMetadata > reconciles the live list to the authoritative persisted list
+   ↓ createAcpSessionBridge > updateSessionMetadata > does not apply displayName when the combined pr is invalid
+   ↓ createAcpSessionBridge > updateSessionMetadata > does not apply the pr binding when the combined displayName is invalid
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects an invalid pr: non-integer number
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects an invalid pr: missing url
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects an invalid pr: empty url
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects an invalid pr: non-http url
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects an invalid pr: url with a control character
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects an invalid pr: url over 2048 characters
+   ↓ createAcpSessionBridge > updateSessionMetadata > rejects an invalid pr: null
+   ↓ createAcpSessionBridge > updateSessionMetadata > throws SessionNotFoundError for unknown session
+   ↓ createAcpSessionBridge > enriched listWorkspaceSessions > retains a turn error until the next prompt begins
+   ↓ createAcpSessionBridge > enriched listWorkspaceSessions > reports active prompt state when attaching to an existing session
+   ↓ createAcpSessionBridge > enriched listWorkspaceSessions > includes createdAt and metadata fields
+   ↓ createAcpSessionBridge > publishWorkspaceEvent + knownClientIds (issue #4175 PR 16) > fans out a workspace event onto every active session bus
+   ↓ createAcpSessionBridge > publishWorkspaceEvent + knownClientIds (issue #4175 PR 16) > returns an empty knownClientIds set when no clients are attached
+   ↓ createAcpSessionBridge > publishWorkspaceEvent + knownClientIds (issue #4175 PR 16) > aggregates clientIds across sessions in knownClientIds()
+   ↓ createAcpSessionBridge — F3 multi-client permission coordination > exposes the active permission policy through bridge.permissionPolicy (default first-responder)
+   ↓ createAcpSessionBridge — F3 multi-client permission coordination > reflects the configured policy when BridgeOptions.permissionPolicy is set
+   ↓ createAcpSessionBridge — F3 multi-client permission coordination > throws on non-positive-integer permissionConsensusQuorum
+   ↓ onDiagnosticLine > receives writeServeDebugLine output when QWEN_SERVE_DEBUG=1
+   ↓ onDiagnosticLine > does not invoke callback when QWEN_SERVE_DEBUG is off
+   ↓ extractErrorMessage > extracts message from Error instance
+   ↓ extractErrorMessage > extracts details from JSON-RPC error object
+   ↓ extractErrorMessage > extracts provider messages from JSON-RPC error data
+   ↓ extractErrorMessage > extracts nested provider messages from data.error.message
+   ↓ extractErrorMessage > extracts string data.error from JSON-RPC error data
+   ↓ extractErrorMessage > prefers top-level data.details over nested data.error.message
+   ↓ extractErrorMessage > prefers top-level data.message over nested data.error.message
+   ↓ extractErrorMessage > falls back to message when data.error has no usable string
+   ↓ extractErrorMessage > falls back to message when data.error is an empty string
+   ↓ extractErrorMessage > falls back to message when data.error.message is an empty string
+   ↓ extractErrorMessage > extracts details from Error subclasses with JSON-RPC data
+   ↓ extractErrorMessage > extracts string data from Error subclasses with JSON-RPC data
+   ↓ extractErrorMessage > extracts string data from JSON-RPC error object
+   ↓ extractErrorMessage > falls back to message when data.details is missing
+   ↓ extractErrorMessage > falls back to message when data.details is empty string
+   ↓ extractErrorMessage > converts string to itself
+   ↓ extractErrorMessage > converts null via String()
+   ↓ extractErrorMessage > converts undefined via String()
+   ↓ extractErrorMessage > extracts message from plain object with message property
+   ↓ extractErrorMessage > converts object without message via String()
+   ↓ extractErrorCode > returns string code as-is
+   ↓ extractErrorCode > converts numeric code to string
+   ↓ extractErrorCode > returns undefined for non-object
+   ↓ extractErrorCode > returns undefined for null
+   ↓ extractErrorCode > returns undefined when code is missing
+   ↓ extractErrorCode > returns undefined when code is not string or number
+   ↓ classifyTurnErrorKind > classifies bare terminated errors as model stream interruptions
+   ↓ classifyTurnErrorKind > leaves unrelated turn errors unclassified
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > publish helpers cache + generation > publishModelSwitched updates cache and publishes model_switched
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > publish helpers cache + generation > publishModelSwitched stamps the active promptId
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > publish helpers cache + generation > publishApprovalModeChanged publishes approval_mode_changed on setSessionApprovalMode
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > publish helpers cache + generation > publishApprovalModeChanged stamps the active promptId
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > extNotification — in-session mode update (A2) > promotes current_mode_update to approval_mode_changed when no bridge roundtrip is in flight
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > extNotification — in-session mode update (A2) > suppresses current_mode_update while a bridge approval-mode roundtrip is in flight
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > extNotification — in-session mode update (A2) > drops malformed mode-update params without throwing
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > extNotification — in-session mode update (A2) > drops a current_mode_update with an unknown mode id (enum guard)
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > extNotification — in-session mode update (A2) > dual-emits a legacy session_update on the setMode path (no legacyFrameSent)
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > extNotification — in-session mode update (A2) > suppresses the legacy dual-emit when legacyFrameSent is true (exit_plan_mode path)
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > A5 — session snapshot on attach > yields session_snapshot after replay_complete when snapshot=true
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > A5 — session snapshot on attach > carries currentApprovalMode in the snapshot when an approval-mode change was promoted
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > A5 — session snapshot on attach > does NOT yield session_snapshot when snapshot is not set
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > A5 — session snapshot on attach > yields session_snapshot up front on a fresh connection (no Last-Event-ID)
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > A5 — session snapshot on attach > seeds snapshot from newSession response without any intermediate notification (cold attach)
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > §2.2 — post-roundtrip reconciliation > publishes a corrective model_switched when the agent state drifted from cache
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > §2.2 — post-roundtrip reconciliation > does NOT publish a corrective event when agent state matches cache
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > §2.2 — post-roundtrip reconciliation > swallows a failed status read without crashing or masking the original change
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > §2.2 — post-roundtrip reconciliation > does NOT reconcile when the model roundtrip itself fails
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > §2.2 — post-roundtrip reconciliation > re-runs reconcile when a newer change publishes during the status read (generation rerun)
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > §2.2 — post-roundtrip reconciliation > publishes a corrective approval_mode_changed when the agent mode drifted from cache
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > §2.2 — post-roundtrip reconciliation > does NOT reconcile when the approval-mode roundtrip itself fails
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > §2.2 — post-roundtrip reconciliation > drops unknown agent-returned approval mode without publishing a corrective event
+   ↓ createHttpAcpBridge — side-channel state layer (#4511) > §2.2 — post-roundtrip reconciliation > syncs peer session cache on persisted approval-mode change (snapshot reflects new mode)
+   ↓ channelIdleTimeoutMs > kills the channel immediately when timeout is 0 (default)
+   ↓ channelIdleTimeoutMs > reuses warm channel during idle window when timeout > 0
+   ↓ channelIdleTimeoutMs > kills channel after idle timeout expires (fake timers)
+   ↓ channelIdleTimeoutMs > cancels idle timer when new session arrives
+   ↓ preheat > reports cold, starting, and idle from one atomic lifecycle snapshot
+   ↓ preheat > keeps an outer runtime reservation after channel startup completes
+   ↓ preheat > rejects a channel that exits before initialization can publish it
+   ↓ preheat > clears a timed-out physical spawn so a later preheat can retry
+   ↓ preheat > kills a channel returned after its factory deadline without publishing it
+   ↓ preheat > keeps runtime epochs monotonic across bridge replacement
+   ↓ preheat > reaps an idle-timeout-zero preheat after workspace status settles
+   ↓ preheat > tags live Skills status with its runtime epoch
+   ↓ preheat > reaps an idle-timeout-zero channel whose session is removed mid-initialization
+   ↓ preheat > aborts the startup signal when channel initialization fails
+   ↓ preheat > aborts the startup signal when the runtime epoch regresses
+   ↓ preheat > aborts the startup signal when the channel factory times out
+   ↓ preheat > retires a kept-alive channel when 'MCP initialization' exceeds its physical lease
+   ↓ preheat > retires a kept-alive channel when 'MCP authentication' exceeds its physical lease
+   ↓ preheat > retires a kept-alive channel when MCP detail discovery times out
+   ↓ preheat > defers MCP detail timeout retirement until active sessions drain
+   ↓ preheat > defers a workspace status timeout until active sessions drain
+   ↓ preheat > keeps a shared channel while a timed-out new session RPC settles
+   ↓ preheat > transfers an outer reservation before an idle workspace call drains
+   ↓ preheat > terminates the owning channel when MCP discovery exceeds its lease
+   ↓ preheat > defers an MCP discovery timeout until active sessions drain
+   ↓ preheat > defers missing MCP auth retirement until active sessions drain
+   ↓ preheat > rechecks MCP auth before its deadline can terminate active sessions
+   ↓ preheat > does not let a superseded MCP auth timer terminate the renewed channel
+   ↓ preheat > honors the longest keep-alive from concurrent preheats
+   ↓ preheat > arms a keep-alive when a concurrent plain preheat finishes last
+   ↓ preheat > renews an explicitly ensured runtime warm window
+   ↓ preheat > keeps the longer explicit keep-alive over a configured idle timeout
+   ↓ preheat > clamps explicit keep-alive to the setTimeout maximum
+   ↓ preheat > preserves the preheated channel with an omitted timeout
+   ↓ preheat > preserves the preheated channel with an explicit zero timeout
+   ↓ preheat > spawns channel that is reused by first session
+   ↓ preheat > rejects after shutdown without spawning a channel
+   ↓ preheat > arms idle timer on preheated channel when channelIdleTimeoutMs > 0
+   ↓ session idle reaper > reaps an orphaned session whose client crashed (no detach sent)
+   ↓ session idle reaper > does NOT reap a session with an active prompt and client
+   ↓ session idle reaper > does NOT reap a session with a live SSE subscriber
+   ↓ session idle reaper > does NOT reap a session with an active prompt (no SSE, no heartbeat)
+   ↓ session idle reaper > is disabled when sessionReapIntervalMs is 0
+   ↓ session idle reaper > does not reap active sessions when sessionIdleTimeoutMs is 0
+   ↓ session idle reaper > publishes session_closed with reason idle_timeout via closeSession opts
+   ↓ session idle reaper > closeSession defaults to reason client_close
+   ↓ session idle reaper > does not cancel a session the agent already closed
+   ↓ session idle reaper > cancels a session the agent did not close
+   ↓ session idle reaper > reaps multiple orphaned sessions in one tick
+   ↓ session idle reaper > session with recent heartbeat survives reaper
+   ↓ session idle reaper > reaper is stopped on shutdown (no post-shutdown errors)
+   ↓ session idle reaper > triggers channel idle timer after reaping the last session
+   ↓ close on last client detach > closes the session when the last client detaches
+   ↓ close on last client detach > does NOT close when other clients remain
+   ↓ close on last client detach > closes immediately on last detach (session removed from byId)
+   ↓ activePromptCount and lastActivityAt > activePromptCount is 0 and lastActivityAt is null before any activity
+   ↓ activePromptCount and lastActivityAt > lastActivityAt is set after spawning a session
+   ↓ activePromptCount and lastActivityAt > activePromptCount increments during prompt and decrements after
+   ↓ activePromptCount and lastActivityAt > activePromptCount tracks multiple concurrent sessions
+   ↓ activePromptCount and lastActivityAt > lastActivityAt updates on prompt start and end
+   ↓ activePromptCount and lastActivityAt > activePromptCount does not go negative when closeSession cancels an active prompt
+   ↓ activePromptCount and lastActivityAt > activePromptCount does not go negative when killSession cancels an active prompt
+   ↓ activePromptCount and lastActivityAt > activePromptCount returns to 0 when channel crashes during a hung prompt
+   ↓ activePromptCount and lastActivityAt > queued prompt rejects when the channel crashes before it starts
+   ↓ createAcpSessionBridge — background notifications > counts a notification while the child is accepting it
+   ↓ createAcpSessionBridge — background notifications > forwards a daemon-owned worker completion to the live parent session
+   ↓ createAcpSessionBridge — background notifications > propagates a parent that did not accept the completion
+   ↓ createAcpSessionBridge — background notifications > rejects a worker completion for an unknown parent session
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > owns and promotes a request without a caller-supplied id
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > rejects admission while the session is closing
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > never promotes a queued mid-turn message once the session is closing
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > promotes a stable-id request that reaches an idle session
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > accepts a rejectIfIdle insert while a child-driven Goal turn runs
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > promotes what the ending Goal turn never drained
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > rejects a whitespace-only message even while busy
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > throws SessionNotFoundError for an unknown session
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > lets another attached client remove an undrained session message
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > keeps uploaded attachments after deleting a mid-turn message
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > acks a same-id retry whose attachment reference is dead
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > declines a dead attachment reference before the idle verdict
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > does not recreate a deleted stable id when its admission is retried
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > mints distinct stable ids so two same-text messages remove independently
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > drains the queue through the child connection; a second drain is empty
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > drains media blocks as structured items alongside the text
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > promotes a media message into the prompt FIFO with its blocks
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > ignores legacy audio when matching a promoted mid-turn retry
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > promotes an undrained media message at settle with its blocks
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > degrades expired media at settle without skipping later messages
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > keeps resolvable siblings when one reference is removed before settle
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > keeps a resolvable sibling when one reference dies between admission and dispatch
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > degrades media removed between admission and dispatch in place, keeping FIFO order and one terminal
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > degrades in place on a fully detached session instead of racing the deferred close
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > promotes every undrained message at settle
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > promotes messages after their client detaches without reapplying the cap
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > removes a promoted message through the shared mid-turn API
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > does not remove an ordinary pending prompt through the mid-turn API
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > keeps the queue across a back-to-back prompt FIFO, clearing only at true idle
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > switches session-update attribution between queued turns and clears it at idle
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > rejects a non-member client id (mirrors /prompt and /btw authorization)
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > publishes a session-wide injection frame
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > rejects past MAX_MID_TURN_QUEUE_DEPTH (20) — the DoS bound
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > uses a caller message id idempotently
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > trims the message before queuing (drain returns the trimmed text)
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > getMidTurnMessages returns every shared message
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > getMidTurnMessages returns attachment blocks so a refresh keeps them
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > rejects queued inline attachments past the session byte budget
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > getPendingPrompts returns attachment blocks for refresh
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > getMidTurnMessages moves drained stable ids into the settled ring
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > getMidTurnMessages throws for unknown sessions and unbound client ids
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > answers a retry from the promoted ring after the promoted prompt completes
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > answers an image-only retry from the promoted ring without running it twice
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > promotes multiple undrained messages at settle in FIFO order
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > bounds the settled ring across many removals
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > bounds the promoted ring across many idle promotions
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > rejects mid-turn admission while a conditional close is being confirmed
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > publishes pending_prompt_started for a promoted message that starts immediately
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > rejects a queueOnly enqueue on an idle session instead of promoting
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > rejects a public enqueue on idle only when rejectIfIdle is set
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > still queues a queueOnly enqueue while the session is busy
+   ↓ createAcpSessionBridge — mid-turn message queue (enqueueMidTurnMessage) > keeps anonymous enqueues off the shared queue surface
+   ↓ createAcpSessionBridge — child-resource refresh > single-flights the refresh so a slow child cannot pile up concurrent polls
+   ↓ createAcpSessionBridge — child-resource refresh > ages the snapshot, and drops it entirely once past the staleness window
+   ↓ createAcpSessionBridge — child-resource refresh > caches a well-formed child heap report
+   ↓ createAcpSessionBridge — child-resource refresh > leaves heap absent rather than zeroed when the child reports none
+   ↓ createAcpSessionBridge — child-resource refresh > rejects a malformed heap report whole, keeping the last good one
+   ↓ DAEMON-005: sessionPromptSettledCloseGraceMs — deferred prompt-settled close > keeps session alive during grace window after prompt settles with no subscriber
+   ↓ DAEMON-005: sessionPromptSettledCloseGraceMs — deferred prompt-settled close > cancels deferred close when a poll-based client re-subscribes within grace window
+   ↓ DAEMON-005: sessionPromptSettledCloseGraceMs — deferred prompt-settled close > closes session immediately after prompt settles when grace is 0 (default)
+   ↓ DAEMON-005: sessionPromptSettledCloseGraceMs — deferred prompt-settled close > re-arms remaining grace after subscribe → Abort churn
+   ↓ DAEMON-005: sessionPromptSettledCloseGraceMs — deferred prompt-settled close > preserves deferred close when subscribeEvents throws
+   ↓ DAEMON-005: sessionPromptSettledCloseGraceMs — deferred prompt-settled close > does not orphan the timer across two prompt settles inside one grace window
+   ↓ DAEMON-005: sessionPromptSettledCloseGraceMs — deferred prompt-settled close > preserves the grace hold when killSession is refused by the agent
+   ↓ background notification admission > rejects a reset barrier armed while waiting for a prompt: false
+   ↓ background notification admission > rejects a reset barrier armed while waiting for a prompt: true
+   ↓ background notification admission > orders start after the preceding RPC terminal and exposes silent activity
+   ↓ background notification admission > rejects queueOnly steering during a background turn but queues ordinary input
+   ↓ background notification admission > resolves the terminal record installed after the terminal was published
+   ↓ background notification admission > rejects a start behind a newer RPC instead of waiting for it
+   ↓ background notification admission > restores running task state true without treating it as an active prompt
+   ↓ background notification admission > restores running task state false without treating it as an active prompt
+   ↓ background notification admission > restores activity from the live child snapshot without a historical start event
+   ↓ background notification admission > rejects delayed starts after explicit stop until a new user prompt
+   ↓ background notification admission > promotes undrained steering only after the background terminal
+   ↓ background execution recovery > recovers a lost end using heartbeat without clearing a newer execution
+   ↓ background execution recovery > recovers a lost end using RPC without clearing a newer execution
+   ↓ background execution recovery > acknowledges a repeated start without duplicating the start marker
+   ↓ background execution recovery > keeps the preceding execution until its normal end while the RPC drains it
+   ↓ background admission ownership boundaries > keeps the previous turn error when a background turn is admitted
+   ↓ background admission ownership boundaries > keeps new RPC permission and text ownership when old background completion is missing
+   ↓ background admission ownership boundaries > cancel while start awaits the preceding RPC terminal rejects admission
+   ↓ background admission ownership boundaries > a different background turn is refused while the admitted turn remains active
+   ↓ background handoff cancellation > cancels only the admitted RPC during background handoff
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/bridge.test.ts > createAcpSessionBridge > active work > retains a detached session whose only work is an admitted background turn
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ src/bridge.test.ts:612:37
+    610|       await bridge.detachClient(session.sessionId, session.clientId);
+    611|       await new Promise((resolve) => setTimeout(resolve, 40));
+    612|       expect(conditionalCloseCalls).toBe(0);
+       |                                     ^
+    613|       expect(bridge.sessionCount).toBe(1);
+    614| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 965 skipped (966)
+   Start at  19:18:49
+   Duration  6.35s (transform 3.65s, setup 0ms, collect 5.92s, tests 100ms, environment 0ms, prepare 56ms)
+
