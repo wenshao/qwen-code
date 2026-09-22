@@ -1,0 +1,27 @@
+payload (value of output)                    PR codec               fixed codec           
+{"$ref":"#/definitions/User"}                same                   same                  
+{"$ref":"#/$defs/User"}                      same                   same                  
+{"$ref":"./common.yaml#/components/schemas/Error"} THROWS JSONException   same                  
+{"$ref":"definitions.json"}                  same                   same                  
+{"$ref":"https://example.com/schema.json"}   same                   same                  
+{"$ref":"$defs/User"}                        THROWS JSONException   same                  
+{"$ref":"$.a"}                               CHANGED                same                  
+{"$ref":"$['a']"}                            CHANGED                same                  
+{"$ref":"$"}                                 THROWS StackOverflowError same                  
+{"$ref":"@"}                                 THROWS StackOverflowError same                  
+{"$ref":".."}                                THROWS StackOverflowError same                  
+{"$ref":"../x"}                              THROWS JSONException   same                  
+{"$ref":"$.a[0]"}                            CHANGED                same                  
+{"$ref":"$.missing"}                         CHANGED                same                  
+{"description":"d","$ref":"$"}               same                   same                  
+BigDecimal 1E+3                              same                   same                  
+BigDecimal 1.2345678901234567890123E+30      CHANGED                CHANGED               
+BigDecimal 1E+400                            THROWS IllegalArgumentException same                  
+BigDecimal -7.5E-20                          same                   same                  
+BigDecimal 123.456                           same                   same                  
+
+fuzz seed=12458 trees=200000
+  PR codec    : {CHANGED=8443, THROWS JSONException=3018, same=188539}
+  fixed codec : {CHANGED=6829, same=193171}
+  first PR CHANGED: {"executionStatus":"success","output":1.34928694268557797E+46}
+  first PR THROWS JSONException: {"executionStatus":"success","output":[true,{"$ref":"$.k0","k0":null}]}

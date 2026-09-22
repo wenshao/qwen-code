@@ -1,0 +1,172 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
+index f55a7c872e..56d6b1739a 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
+@@ -141,6 +141,14 @@ final class BrokerValues {
+     }
+ 
+     private static boolean sameJsonNumber(Number first, Number second) {
++        // fastjson2's text for a float or double reads back to the same binary
++        // value but need not match Float/Double.toString digit for digit.
++        if (first instanceof Float || second instanceof Float) {
++            return first.floatValue() == second.floatValue();
++        }
++        if (first instanceof Double || second instanceof Double) {
++            return first.doubleValue() == second.doubleValue();
++        }
+         return new BigDecimal(first.toString())
+                 .compareTo(new BigDecimal(second.toString())) == 0;
+     }
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
+index 3b9cdfdd55..cf45bbbcaf 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
+@@ -1,8 +1,8 @@
+ package com.alibaba.qwen.code.runtimebroker;
+ 
+ import com.alibaba.fastjson2.JSON;
++import com.alibaba.fastjson2.JSONReader;
+ import com.alibaba.fastjson2.JSONWriter;
+-import com.alibaba.fastjson2.TypeReference;
+ import java.sql.Connection;
+ import java.sql.PreparedStatement;
+ import java.sql.ResultSet;
+@@ -24,9 +24,6 @@ public final class JdbcToolExecutionRepository
+             "last_sequence", "cancel_requested", "dispatch_owner",
+             "dispatch_lease_until", "dispatch_generation", "record_version",
+             "settled_at");
+-    private static final TypeReference<Map<String, Object>> MAP_TYPE =
+-            new TypeReference<>() {
+-            };
+ 
+     private final DataSource dataSource;
+ 
+@@ -419,12 +416,20 @@ public final class JdbcToolExecutionRepository
+     }
+ 
+     private static String toJson(Map<String, Object> value) {
++        // Plain BigDecimal text keeps an exponent out of the column: the
++        // reader would otherwise parse it as a double (overflow, lost digits).
+         return value == null ? null
+-                : JSON.toJSONString(value, JSONWriter.Feature.WriteNulls);
++                : JSON.toJSONString(value, JSONWriter.Feature.WriteNulls,
++                        JSONWriter.Feature.WriteBigDecimalAsPlain);
+     }
+ 
+     private static Map<String, Object> fromJson(String value) {
+-        return value == null ? null : JSON.parseObject(value, MAP_TYPE);
++        // Payloads are opaque Tool data: "$ref" (JSON Schema, OpenAPI) and
++        // "@type" (JSON-LD) members must stay data. The untyped reader keeps
++        // "@type" as a plain member; the flag keeps "$ref" from becoming a
++        // fastjson2 back-reference.
++        return value == null ? null : JSON.parseObject(value,
++                JSONReader.Feature.DisableReferenceDetect);
+     }
+ 
+     private static void requireCandidate(ToolExecutionRecord candidate) {
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java
+index eb739c6e5f..b34e628434 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java
+@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
+ import static org.junit.jupiter.api.Assertions.assertThrows;
+ import static org.junit.jupiter.api.Assertions.assertTrue;
+ 
++import java.math.BigDecimal;
+ import java.net.URI;
+ import java.sql.Connection;
+ import java.sql.PreparedStatement;
+@@ -18,6 +19,7 @@ import java.util.ArrayList;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+ import java.util.Map;
++import java.util.Objects;
+ import java.util.Set;
+ import java.util.concurrent.Callable;
+ import java.util.concurrent.ExecutorService;
+@@ -265,6 +267,15 @@ final class JdbcRepositoryContract {
+         assertEquals(ownerA.getDispatchGeneration(),
+                 reclaimedA.getDispatchGeneration());
+         assertEquals(ownerA.getVersion(), reclaimedA.getVersion());
++        // A live claim held by another dispatcher is refused without
++        // touching the row: no takeover and no early UNKNOWN.
++        assertNull(second.claimDispatch(executionId,
++                prefix + "-dispatcher-b", Duration.ofMinutes(30)));
++        ToolExecutionRecord stillOwnedByA = second.findByExecutionCallId(
++                executionId);
++        assertEquals(ToolExecutionRecord.State.DISPATCHING,
++                stillOwnedByA.getState());
++        assertEquals(ownerA.getVersion(), stillOwnedByA.getVersion());
+         ToolExecutionRecord renewedA = first.renewDispatch(executionId,
+                 prefix + "-dispatcher-a", ownerA.getDispatchGeneration(),
+                 Duration.ofMinutes(30));
+@@ -512,6 +523,69 @@ final class JdbcRepositoryContract {
+                         prefix + "-dispatcher-a",
+                         stickyForged.getDispatchGeneration()));
+ 
++        // Payloads are opaque Tool data: "$ref" members (JSON Schema, OpenAPI),
++        // exponent-form decimals and floats must read back unchanged.
++        String opaqueKey = prefix + "-opaque-idempotency";
++        Map<String, Object> opaqueReference = new LinkedHashMap<>();
++        opaqueReference.put("sessionId", prefix + "-opaque-runtime-session");
++        opaqueReference.put("promptId", prefix + "-opaque-turn");
++        opaqueReference.put("callId", prefix + "-opaque-tool");
++        opaqueReference.put("argsDigest", prefix + "-opaque-digest");
++        opaqueReference.put("schema", Map.of("$ref", "$"));
++        opaqueReference.put("scale",
++                new BigDecimal("1.2345678901234567890123E+30"));
++        opaqueReference.put("ratio", 162544.13f);
++        opaqueReference.put("weight", -1363683.0538119469d);
++        ToolExecutionRecord opaque = ToolExecutionRecord.prepared(
++                prefix + "-opaque-execution", opaqueKey,
++                prefix + "-opaque-binding", 1, prefix + "-opaque-harness",
++                prefix + "-opaque-runtime-session", prefix + "-opaque-turn",
++                prefix + "-opaque-tool", prefix + "-opaque-digest",
++                opaqueReference);
++        first.findOrCreate(opaque);
++        assertTrue(new JdbcToolExecutionRepository(dataSource)
++                .findByIdempotencyKey(opaqueKey).sameRequest(opaque));
++        ToolExecutionRecord opaqueClaim = first.claimDispatch(
++                opaque.getExecutionCallId(), prefix + "-dispatcher-a",
++                Duration.ofMinutes(30));
++        Map<String, Object> jsonLd = new LinkedHashMap<>();
++        jsonLd.put("@type", List.of("Product", "Thing"));
++        jsonLd.put("name", "widget");
++        Map<String, Object> untyped = new LinkedHashMap<>();
++        untyped.put("@type", null);
++        untyped.put("name", "widget");
++        Map<String, Object> opaqueResult = Map.of("executionStatus",
++                "success", "output", Map.of(
++                        "copied", Map.of("$ref", "$.executionStatus"),
++                        "external", Map.of("$ref",
++                                "./common.yaml#/components/schemas/Error")),
++                "jsonLd", jsonLd, "untyped", untyped,
++                "limit", new BigDecimal("1E+400"));
++        assertNotNull(first.compareAndSet(opaqueClaim,
++                opaqueClaim.withResult(opaqueResult, 1, START),
++                prefix + "-dispatcher-a",
++                opaqueClaim.getDispatchGeneration()));
++        assertTrue(BrokerValues.sameJsonMap(opaqueResult,
++                new JdbcToolExecutionRepository(dataSource)
++                        .findByExecutionCallId(opaque.getExecutionCallId())
++                        .getResult()));
++
++        // Concurrent dispatchers on one PREPARED execution: the row lock
++        // lets exactly one of them take generation 1.
++        for (int round = 0; round < 4; round++) {
++            ToolExecutionRecord race = first.findOrCreate(execution(
++                    prefix + "-race-execution-" + round,
++                    prefix + "-race" + round + "-idempotency",
++                    prefix + "-race-digest"));
++            List<ToolExecutionRecord> raceClaims = invokeConcurrently(32,
++                    index -> (index % 2 == 0 ? first : second)
++                            .claimDispatch(race.getExecutionCallId(),
++                                    prefix + "-racer-" + index,
++                                    Duration.ofMinutes(30)));
++            assertEquals(1, raceClaims.stream().filter(Objects::nonNull)
++                    .count());
++        }
++
+         // Forge a session-key collision: the full-id comparison must still
+         // exclude a row whose hash matches the queried session.
+         try (Connection connection = dataSource.getConnection();

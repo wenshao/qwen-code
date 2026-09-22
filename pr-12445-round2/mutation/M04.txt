@@ -1,0 +1,17 @@
+suite.exit=0
+DIVERGENCE seed=1001 at op #34
+  #29 findOrCreate(E1,K1,D1)                   mem=E1 key=K1 PREPARED status=null seq=0 cancel=false owner=null lease=none gen=0 v=0 settled=false
+                                                jdbc=E1 key=K1 PREPARED status=null seq=0 cancel=false owner=null lease=none gen=0 v=0 settled=false
+  #30 hasActiveByRuntimeSession                mem=bool true
+                                                jdbc=bool true
+  #31 findOrCreate(E2,K1,D0)                   mem=E1 key=K1 PREPARED status=null seq=0 cancel=false owner=null lease=none gen=0 v=0 settled=false
+                                                jdbc=E1 key=K1 PREPARED status=null seq=0 cancel=false owner=null lease=none gen=0 v=0 settled=false
+  #32 findByIdempotencyKey                     mem=E3 key=K2 EXECUTING status=null seq=0 cancel=false owner=O2 lease=live gen=1 v=2 settled=false
+                                                jdbc=E3 key=K2 EXECUTING status=null seq=0 cancel=false owner=O2 lease=live gen=1 v=2 settled=false
+  #33 findOrCreate(E3,K2,D0)                   mem=E3 key=K2 EXECUTING status=null seq=0 cancel=false owner=O2 lease=live gen=1 v=2 settled=false
+                                                jdbc=E3 key=K2 EXECUTING status=null seq=0 cancel=false owner=O2 lease=live gen=1 v=2 settled=false
+  #34 findOrCreate(E3,K0,D0)                   mem=THROWS IllegalArgumentException: executionCallId already belongs to another request
+...
+db=h2 sequences=1500 ops/seq=60 seeds=1000..2499 ops executed=57067 divergent sequences=996
+  ops     : {claimDispatch=9716, compareAndSet=11688, expireAllLeases=2851, findByExecutionCallId=3380, findByIdempotencyKey=2802, findOrCreate=7966, hasActiveByRuntimeSession=7874, renewDispatch=3748, requestCancel=4159, resolveUnknown=2883}
+  outcomes: {bool false=6401, bool true=1473, exception=1244, null=34880, record=13069}
