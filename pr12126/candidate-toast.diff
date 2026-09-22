@@ -1,0 +1,28 @@
+diff --git a/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/NativeFilePicker.kt b/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/NativeFilePicker.kt
+index af404574b2..f511dfca22 100644
+--- a/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/NativeFilePicker.kt
++++ b/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/NativeFilePicker.kt
+@@ -82,7 +82,10 @@ internal class NativeFilePicker(
+     private fun validateResult(data: Intent?, multiple: Boolean): Array<Uri>? {
+         if (data == null || data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION == 0) return null
+         val clip = data.clipData
+-        if (clip != null && clip.itemCount > 100) return null
++        if (clip != null && clip.itemCount > 100) {
++            Toast.makeText(context, R.string.file_picker_too_many, Toast.LENGTH_LONG).show()
++            return null
++        }
+         val uris = buildList {
+             data.data?.let(::add)
+             if (clip != null) for (index in 0 until clip.itemCount) {
+diff --git a/packages/mobile-shell/app/src/main/res/values/strings.xml b/packages/mobile-shell/app/src/main/res/values/strings.xml
+index 90d81ecde3..5bcfd8043c 100644
+--- a/packages/mobile-shell/app/src/main/res/values/strings.xml
++++ b/packages/mobile-shell/app/src/main/res/values/strings.xml
+@@ -1,6 +1,7 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <resources>
+     <string name="app_name">Qwen Code</string>
++    <string name="file_picker_too_many">Select up to 100 files at a time. Nothing was added.</string>
+     <string name="file_picker_unavailable">No document picker is available. Enable a file manager and try again.</string>
+     <string name="retry">Retry</string>
+     <string name="connections">Connections</string>
