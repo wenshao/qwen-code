@@ -1,0 +1,156 @@
+=== fix / own-commit-amend  (cli exit 0)
+  step 1: EXECUTED               $ echo feat > feature.txt && git add feature.txt && git commit -q -m "agent: add feature"
+  step 2: EXECUTED               $ git commit --amend -q -m "agent: add feature (amended)"
+  git before:
+    * 5933de5 user: initial [Human User]
+  git after:
+    * c129147 agent: add feature (amended) [Human User]
+    * 5933de5 user: initial [Human User]
+=== fix / user-commit-amend  (cli exit 0)
+  step 1: BLOCKED by amend guard $ git commit --amend -q -m "agent rewrote the user commit"
+           -> Blocked "git commit --amend": the target commit was not made by the agent in this session. To proceed, use manual approval. Do not try to complete the denied action through another tool, shell indirec
+  git before:
+    * 689ef74 user: initial [Human User]
+  git after:
+    * 689ef74 user: initial [Human User]
+=== fix / failed-commit-amend  (cli exit 0)
+  step 1: ERROR                  $ git commit -q -m "nothing staged"
+           -> Command: git commit -q -m "nothing staged" Directory: (root) Output: On branch main nothing to commit, working tree clean Error: (none) Exit Code: 1 Signal: (none) Process Group PGID: 2763604
+  step 2: BLOCKED by amend guard $ git commit --amend -q -m "agent rewrote the user commit"
+           -> Blocked "git commit --amend": the target commit was not made by the agent in this session. To proceed, use manual approval. Do not try to complete the denied action through another tool, shell indirec
+  git before:
+    * b18fbe1 user: initial [Human User]
+  git after:
+    * b18fbe1 user: initial [Human User]
+=== fix / amend-of-amend  (cli exit 0)
+  step 1: EXECUTED               $ echo feat > feature.txt && git add feature.txt && git commit -q -m "agent: add feature"
+  step 2: EXECUTED               $ echo v2 >> feature.txt && git add feature.txt && git commit --amend -q --no-edit
+  step 3: EXECUTED               $ git commit --amend -q -m "agent: add feature (final)"
+  git before:
+    * c75b09e user: initial [Human User]
+  git after:
+    * c34db4a agent: add feature (final) [Human User]
+    * c75b09e user: initial [Human User]
+=== fix / attribution-off  (cli exit 0)
+  step 1: EXECUTED               $ echo feat > feature.txt && git add feature.txt && git commit -q -m "agent: add feature"
+  step 2: EXECUTED               $ git commit --amend -q -m "agent: add feature (amended)"
+  git before:
+    * 6577bd3 user: initial [Human User] trailer=
+  git after:
+    * dcc094e agent: add feature (amended) [Human User] trailer=
+    * 6577bd3 user: initial [Human User] trailer=
+=== fix / commit-then-chain-fails  (cli exit 0)
+  step 1: ERROR                  $ echo feat > feature.txt && git add feature.txt && git commit -q -m "agent: add feature" && false
+           -> Command: echo feat > feature.txt && git add feature.txt && git commit -q -m "agent: add feature" && false Directory: (root) Output: (empty) Error: (none) Exit Code: 1 Signal: (none) Process Group PGID
+  step 2: EXECUTED               $ git commit --amend -q -m "agent: add feature (amended)"
+  git before:
+    * 186f80a user: initial [Human User]
+  git after:
+    * ac77b42 agent: add feature (amended) [Human User]
+    * 186f80a user: initial [Human User]
+=== fix / cwd-shifted-commit  (cli exit 0)
+  step 1: EXECUTED               $ echo feat > feature.txt && git add feature.txt && git -C "$PWD" commit -q -m "agent: add feature"
+  step 2: BLOCKED by amend guard $ git commit --amend -q -m "agent: add feature (amended)"
+           -> Blocked "git commit --amend": the target commit was not made by the agent in this session. To proceed, use manual approval. Do not try to complete the denied action through another tool, shell indirec
+  git before:
+    * 9ffe815 user: initial [Human User]
+  git after:
+    * 2255147 agent: add feature [Human User]
+    * 9ffe815 user: initial [Human User]
+=== fix / probe-commit-then-checkout  (cli exit 0)
+  step 1: EXECUTED               $ echo a > agent.txt && git add agent.txt && git commit -q -m "agent: wip on feature" && git checkout -q main
+  step 2: BLOCKED by amend guard $ git commit --amend -q -m "agent rewrote the user main commit"
+           -> Blocked "git commit --amend": the target commit was not made by the agent in this session. To proceed, use manual approval. Do not try to complete the denied action through another tool, shell indirec
+  git before:
+    * b18934e user: feature work [Human User]
+    | * 97441b3 user: main release notes [Human User]
+    |/  
+    * 6b90496 user: initial [Human User]
+  git after:
+    * e2ea83a agent: wip on feature [Human User]
+    * b18934e user: feature work [Human User]
+    | * 97441b3 user: main release notes [Human User]
+    |/  
+    * 6b90496 user: initial [Human User]
+=== fix / probe-commit-then-reset-soft  (cli exit 0)
+  step 1: EXECUTED               $ echo a > agent.txt && git add agent.txt && git commit -q -m "agent: wip" && git reset -q --soft HEAD~2
+  step 2: BLOCKED by amend guard $ git commit --amend -q -m "agent rewrote user: second"
+           -> Blocked "git commit --amend": the target commit was not made by the agent in this session. To proceed, use manual approval. Do not try to complete the denied action through another tool, shell indirec
+  git before:
+    * fcc1046 user: third [Human User]
+    * 706b183 user: second [Human User]
+    * 1e2edac user: initial [Human User]
+  git after:
+    * 706b183 user: second [Human User]
+    * 1e2edac user: initial [Human User]
+=== fix / probe-checkout-inside-amend  (cli exit 0)
+  step 1: EXECUTED               $ echo a > agent.txt && git add agent.txt && git commit -q -m "agent: wip on feature"
+  step 2: EXECUTED               $ git checkout -q main && git commit --amend -q -m "agent rewrote the user main commit"
+  git before:
+    * f51c53b user: main release notes [Human User]
+    * 97938c3 user: initial [Human User]
+  git after:
+    * 703208f agent: wip on feature [Human User]
+    | * 0582ac4 agent rewrote the user main commit [Human User]
+    |/  
+    * 97938c3 user: initial [Human User]
+=== fix / probe-cd-other-repo-amend  (cli exit 0)
+  step 1: EXECUTED               $ echo a > agent.txt && git add agent.txt && git commit -q -m "agent: wip"
+  step 2: EXECUTED               $ cd ../other && git commit --amend -q -m "agent rewrote the other repo"
+  git before:
+    -- repo:
+    * 472fd0f user: initial [Human User]
+    -- other:
+    b02a8f6 user: other repo work [Human User]
+    472fd0f user: initial [Human User]
+  git after:
+    -- repo:
+    * b75e55a agent: wip [Human User]
+    * 472fd0f user: initial [Human User]
+    -- other:
+    c10408c agent rewrote the other repo [Human User]
+    472fd0f user: initial [Human User]
+=== fix / preexisting-git-C-amend  (cli exit 0)
+  step 1: EXECUTED               $ echo a > agent.txt && git add agent.txt && git commit -q -m "agent: wip"
+  step 2: EXECUTED               $ git -C ../other commit --amend -q -m "agent rewrote the other repo"
+  git before:
+    -- repo:
+    * 7505b97 user: initial [Human User]
+    -- other:
+    f5ab650 user: other repo work [Human User]
+    7505b97 user: initial [Human User]
+  git after:
+    -- repo:
+    * 8d81e87 agent: wip [Human User]
+    * 7505b97 user: initial [Human User]
+    -- other:
+    2635557 agent rewrote the other repo [Human User]
+    7505b97 user: initial [Human User]
+=== fix / mode-switch-clears  (cli exit 0)
+  [set_permission_mode default: success]
+  [set_permission_mode auto: success]
+  step 1: EXECUTED               $ echo feat > feature.txt && git add feature.txt && git commit -q -m "agent: add feature"
+  step 2: BLOCKED by amend guard $ git commit --amend -q -m "agent: add feature (amended)"
+           -> Blocked "git commit --amend": the target commit was not made by the agent in this session. To proceed, use manual approval. Do not try to complete the denied action through another tool, shell indirec
+  git before:
+    * bd3eac8 user: initial [Human User]
+  git after:
+    * 1fd64fb agent: add feature [Human User]
+    * bd3eac8 user: initial [Human User]
+=== fix / mode-reset-same-keeps  (cli exit 0)
+  [set_permission_mode auto: success]
+  step 1: EXECUTED               $ echo feat > feature.txt && git add feature.txt && git commit -q -m "agent: add feature"
+  step 2: EXECUTED               $ git commit --amend -q -m "agent: add feature (amended)"
+  git before:
+    * d69c33e user: initial [Human User]
+  git after:
+    * 1c32f93 agent: add feature (amended) [Human User]
+    * d69c33e user: initial [Human User]
+=== fix / amend-next-turn  (cli exit 0)
+  step 1: EXECUTED               $ echo feat > feature.txt && git add feature.txt && git commit -q -m "agent: add feature"
+  step 2: EXECUTED               $ git commit --amend -q -m "agent: add feature (amended)"
+  git before:
+    * 0a69e6b user: initial [Human User]
+  git after:
+    * 8bc961d agent: add feature (amended) [Human User]
+    * 0a69e6b user: initial [Human User]

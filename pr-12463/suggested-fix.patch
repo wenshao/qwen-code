@@ -1,0 +1,131 @@
+diff --git a/packages/core/src/permissions/autoMode.ts b/packages/core/src/permissions/autoMode.ts
+index e8106e07d9..4789ee3e44 100644
+--- a/packages/core/src/permissions/autoMode.ts
++++ b/packages/core/src/permissions/autoMode.ts
+@@ -824,10 +824,15 @@ export async function evaluateAutoMode(
+         ? normalizeMonitorCommand(input.ctx.command).safetyCommand
+         : input.ctx.command;
+     const userPrompt = extractLastUserPrompt(input.messages) ?? '';
++    // `ctx.cwd` is only set when the call passes `directory`; otherwise the
++    // shell runs in the session's target dir, which is also where
++    // ShellToolInvocation registers session commits. Falling back to
++    // `process.cwd()` would check a different repository whenever the two
++    // differ (ACP sessions, worktrees).
+     const destructiveResult = isDestructiveCommand(
+       command,
+       userPrompt,
+-      input.ctx.cwd,
++      input.ctx.cwd ?? input.config.getTargetDir?.(),
+     );
+     if (destructiveResult?.blocked) {
+       return {
+diff --git a/packages/core/src/tools/shell.session-commit-tracking.test.ts b/packages/core/src/tools/shell.session-commit-tracking.test.ts
+index db4d58884b..3cacc54d1a 100644
+--- a/packages/core/src/tools/shell.session-commit-tracking.test.ts
++++ b/packages/core/src/tools/shell.session-commit-tracking.test.ts
+@@ -44,6 +44,8 @@ import {
+   clearSessionCommits,
+   isDestructiveCommand,
+ } from '../permissions/destructive-commands.js';
++import { evaluateAutoMode } from '../permissions/autoMode.js';
++import { ToolNames } from './tool-names.js';
+ 
+ /**
+  * Runs the command for real in the requested cwd and shapes the result
+@@ -256,6 +258,62 @@ describe.skipIf(process.platform === 'win32')(
+       expect(amendVerdict()?.blocked).toBe(true);
+     });
+ 
++    it('does not register a HEAD the command moved to without committing it', async () => {
++      // `git commit && git checkout main` moves HEAD to main's tip — a commit
++      // the agent did not make. Registering it would exempt amending it.
++      rawGit('checkout -q -b feature');
++      fs.writeFileSync(path.join(repoDir, 'f.txt'), 'f\n');
++      rawGit('add f.txt');
++      rawGit('commit -q -m "user feature work"');
++      rawGit('checkout -q main');
++      fs.writeFileSync(path.join(repoDir, 'm.txt'), 'm\n');
++      rawGit('add m.txt');
++      rawGit('commit -q -m "user main work"');
++      rawGit('checkout -q feature');
++
++      fs.writeFileSync(path.join(repoDir, 'agent.txt'), 'a\n');
++      await runShellCommand(
++        'git add agent.txt && git commit -m "agent wip" && git checkout -q main',
++      );
++      expect(
++        execSync('git log -1 --pretty=%s', {
++          cwd: repoDir,
++          encoding: 'utf-8',
++        }).trim(),
++      ).toBe('user main work');
++      expect(amendVerdict()?.blocked).toBe(true);
++
++      // ...and `git commit && git reset --soft HEAD~2` likewise.
++      rawGit('checkout -q feature');
++      await runShellCommand(
++        'git commit -q --allow-empty -m "agent wip 2" && git reset -q --soft HEAD~2',
++      );
++      expect(amendVerdict()?.blocked).toBe(true);
++    });
++
++    it('checks the session target dir, not process.cwd(), when the call has no directory', async () => {
++      // The shell runs (and registers) in config.getTargetDir(); the AUTO
++      // guard must read HEAD there too. process.cwd() here is the qwen-code
++      // checkout, a different repository.
++      fs.writeFileSync(path.join(repoDir, 'feature.txt'), 'work\n');
++      await runShellCommand('git add feature.txt && git commit -m "feature"');
++      // Precondition: read against process.cwd(), the amend is still blocked.
++      expect(isDestructiveCommand(AMEND_COMMAND, USER_PROMPT)?.blocked).toBe(
++        true,
++      );
++      const realConfig = makeFakeConfig({ targetDir: repoDir, cwd: repoDir });
++      const decision = await evaluateAutoMode({
++        ctx: { toolName: ToolNames.SHELL, command: AMEND_COMMAND },
++        pmForcedAsk: false,
++        toolParams: { command: AMEND_COMMAND },
++        messages: [{ role: 'user', parts: [{ text: USER_PROMPT }] }],
++        config: realConfig,
++        signal: new AbortController().signal,
++        skipClassifierReason: 'total_denial',
++      });
++      expect(decision).toEqual({ via: 'fallback', reason: 'total_denial' });
++    });
++
+     it('registers the rewritten HEAD after an amend so amend-of-amend is exempt', async () => {
+       // Regression ③: an amend replaces HEAD, so the new SHA has to be
+       // registered too — otherwise the second amend in a row is blocked.
+diff --git a/packages/core/src/tools/shell.ts b/packages/core/src/tools/shell.ts
+index 49efc3ba7f..1caa958afa 100644
+--- a/packages/core/src/tools/shell.ts
++++ b/packages/core/src/tools/shell.ts
+@@ -4230,7 +4230,28 @@ export class ShellToolInvocation extends BaseToolInvocation<
+     preHead: string | null,
+   ): Promise<void> {
+     const postHead = await this.getGitHead(cwd);
+-    if (postHead !== null && postHead !== preHead) {
++    if (postHead === null || postHead === preHead) return;
++    // HEAD moving is not the same as this command creating HEAD:
++    // `git commit -m x && git checkout main` (or `&& git reset --soft
++    // HEAD~2`) ends on a commit somebody else made. Register only when
++    // the newest HEAD reflog entry is a `git commit` (plain, --amend,
++    // initial, merge / cherry-pick conclusion) that points at postHead.
++    // Anything else — including no reflog — is not registered
++    // (fail-closed).
++    const lastMove = await new Promise<string | null>((resolve) => {
++      const child = childProcess.execFile(
++        'git',
++        ['log', '-g', '-1', '--no-show-signature', '--format=%H %gs', 'HEAD'],
++        { cwd, timeout: 2000, windowsHide: true },
++        (error, stdout) => resolve(error ? null : String(stdout).trim()),
++      );
++      child.on('error', () => {});
++    });
++    if (
++      lastMove !== null &&
++      lastMove.startsWith(`${postHead} `) &&
++      /^commit(?: \([a-z-]+\))?:/.test(lastMove.slice(postHead.length + 1))
++    ) {
+       registerSessionCommit(postHead);
+     }
+   }
