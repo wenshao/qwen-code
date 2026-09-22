@@ -39,3 +39,10 @@ Head `02665c2cf7` (merge-base `97b1b252e3`), plus the merged tree `origin/main 5
   - `start.sh` / `stop.sh` / `env.sh` / `mock-llm.mjs` / `settings.json` — real `qwen serve` per arm, isolated `HOME` + `QWEN_RUNTIME_DIR`, reaper 500 ms / idle 1 s
 - `r2/runs/` — raw probe outputs, per-run timelines, and the daemon's `[probe-*]` / close / reaper lines per arm
 - `r2/bundle-diffs/` — `diff -ru dist dist-<arm>` for every arm
+
+### Round 2 addendum — the bot's re-review of `02665c2cf7` (R4-1, R4-2)
+
+`r2/retention/summary.txt` (last rows): variant `r42` = `expect(conditionalCloseCalls).toBe(1)` after the release `waitFor`;
+variant `r41` = the two "occupy the queue with a hanging `cd`, then admit the turn" cases (run with `FILTER=R41`);
+mutant `M15_release_skips_child` = `confirmChildUnheld` returns `true` without asking the child.
+`r2/ci/` — the hosted `Test (ubuntu)` `onTaskUpdate` timeout evidence (see its README).

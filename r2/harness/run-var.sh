@@ -14,7 +14,7 @@ if [ "$MID" != none ]; then python3 $H/mutate2.py "$WT" $(echo "$MID" | tr '+' '
 tag="$T-$V-$MID"
 # self-proof: hash of what is under test
 echo "$tag $(cat $PKG/src/session-control-plane.ts $PKG/src/bridgeClient.ts | shasum | cut -c1-10) $(shasum $PKG/src/bridge.test.ts | cut -c1-10)" >> $OUT/hashes.txt
-(cd "$PKG" && npx vitest run src/bridge.test.ts -t "retains a detached session whose only work" --reporter=json --outputFile="$OUT/$tag.json" > "$OUT/$tag.log" 2>&1)
+(cd "$PKG" && npx vitest run src/bridge.test.ts -t "${FILTER:-retains a detached session whose only work}" --reporter=json --outputFile="$OUT/$tag.json" > "$OUT/$tag.log" 2>&1)
 node -e '
 const r=require(process.argv[1]); let s=[];
 for (const f of r.testResults) for (const a of f.assertionResults) if (a.status!=="skipped" && a.status!=="pending") {

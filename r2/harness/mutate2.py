@@ -30,6 +30,13 @@ M['M14_unknown_retains'] = [(
     '    if (entry.events.subscriberCount > 0) return false;\n    if (entryHasLocalWork(entry)) return false;\n    if (childWorkIsUnknown(entry)) return false;\n',
 )]
 
+# the settled teardown stops asking the child: no conditional close, same local close
+M['M15_release_skips_child'] = [(
+    m1.SCP,
+    '    const info = channelInfoForEntry(entry);\n    if (!info?.harness.activeWork) return true;\n    if (info.harness.isDying) return false;',
+    '    const info = channelInfoForEntry(entry);\n    if (info) return true;\n    if (!info?.harness.activeWork) return true;\n    if (info.harness.isDying) return false;',
+)]
+
 def apply(root, mid):
     for rel, old, new in M[mid]:
         p = pathlib.Path(root) / rel

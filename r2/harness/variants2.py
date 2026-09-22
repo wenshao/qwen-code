@@ -38,6 +38,42 @@ elif v == 'reap0':
     sub("        sessionReapIntervalMs: 10,\n", "        sessionReapIntervalMs: 0,\n")
 elif v == 'legacy':
     sub("        initializeImpl: () => activeWorkInitializeResponse(),\n", "")
+elif v == 'r42':
+    sub("      await vi.waitFor(() => expect(bridge.sessionCount).toBe(0));\n\n      await bridge.shutdown();",
+        "      await vi.waitFor(() => expect(bridge.sessionCount).toBe(0));\n      expect(conditionalCloseCalls).toBe(1);\n\n      await bridge.shutdown();")
+elif v == 'r41':
+    tpl = """
+    it('R41 rejects __OP__ synchronously, not behind queued work, while an admitted background turn is running', async () => {
+      const hangingCd = deferred<unknown>();
+      const handle = makeChannel({
+        extMethodImpl: (method) =>
+          method === SERVE_CONTROL_EXT_METHODS.sessionCd ? hangingCd.promise : Promise.resolve({}),
+      });
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+      const cdPromise = bridge.changeSessionCwd(session.sessionId, { path: WS_B });
+      void cdPromise.catch(() => {});
+      await expect(
+        handle.agentConnection.extMethod('_qwencode/start_turn', {
+          sessionId: session.sessionId,
+          source: 'background_notification',
+          ...admittedBackgroundTurn,
+        }),
+      ).resolves.toEqual({ accepted: true });
+      await expect(
+        Promise.race([
+          __CALL__,
+          new Promise((r) => setTimeout(() => r('queued'), 500)),
+        ]),
+      ).rejects.toBeInstanceOf(__ERR__);
+      hangingCd.resolve({});
+      await cdPromise.catch(() => {});
+      await bridge.shutdown();
+    });
+"""
+    t1 = tpl.replace('__OP__', 'branch').replace('__CALL__', 'bridge.branchSession(session.sessionId, {})').replace('__ERR__', 'BranchWhilePromptActiveError')
+    t2 = tpl.replace('__OP__', 'fork').replace('__CALL__', "bridge.launchSessionForkAgent(session.sessionId, 'review this')").replace('__ERR__', 'SessionBusyError')
+    body = body + t1 + t2
 else:
     sys.exit('unknown variant ' + v)
 p.write_text(s[:start] + body + s[end:])
