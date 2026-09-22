@@ -56,6 +56,10 @@ This round covers only what changed since [round 1](https://github.com/QwenLM/qw
 - **The last row** shows that the replay filter alone protects sessions written by earlier builds.
 - **Model input:** `inputAnnotations` appears in none of the model requests logged this round.
 
+The round-1 core scenario, re-run at this head: real `@` picker → daemon restart → reopen → click the restored `README.md` tag.
+
+![core claim at head](03-core-after-restart.png)
+
 **Unit tests at head:**
 
 - acp-bridge: 124/124
