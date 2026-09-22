@@ -1,0 +1,58 @@
+diff --git a/packages/cli/src/commands/review/lib/paths.test.ts b/packages/cli/src/commands/review/lib/paths.test.ts
+index 81d1f138c0..a4acbdcf81 100644
+--- a/packages/cli/src/commands/review/lib/paths.test.ts
++++ b/packages/cli/src/commands/review/lib/paths.test.ts
+@@ -61,6 +61,13 @@ describe('trusted review state paths', () => {
+     const inner = join(outer, '.qwen', 'tmp', 'review-pr-1');
+     expect(reviewTrustStateDir(outer)).toBe(reviewTrustStateDir(repo));
+     expect(reviewRepositoryRootForWorktree(inner)).toBe(repo);
++    // The re-root must pick the OUTERMOST review layer: a doubly-nested
++    // review shares the outermost repository's git dir, so it shares the
++    // branch the lease guards and must share the lease namespace too.
++    const innermost = join(inner, '.qwen', 'tmp', 'review-pr-2');
++    expect(reviewTrustStateDir(inner)).toBe(reviewTrustStateDir(repo));
++    expect(reviewTrustStateDir(innermost)).toBe(reviewTrustStateDir(repo));
++    expect(reviewRepositoryRootForWorktree(innermost)).toBe(repo);
+   });
+ 
+   it('separates different repositories', () => {
+diff --git a/packages/cli/src/services/review-worktree-lease.test.ts b/packages/cli/src/services/review-worktree-lease.test.ts
+index 78f85b75b0..54bf15a17d 100644
+--- a/packages/cli/src/services/review-worktree-lease.test.ts
++++ b/packages/cli/src/services/review-worktree-lease.test.ts
+@@ -12,6 +12,7 @@ import {
+   readdirSync,
+   renameSync,
+   rmSync,
++  statSync,
+   symlinkSync,
+   utimesSync,
+   writeFileSync,
+@@ -197,6 +198,27 @@ function writeLegacyLease(lease: ReviewWorktreeLease, mtime?: Date): string {
+ }
+ 
+ describe('review worktree leases', () => {
++  it.skipIf(process.platform === 'win32')(
++    'keeps the trusted lease directory private to the user',
++    () => {
++      const root = createRepository();
++      createReviewWorktreeLease({
++        sessionId: 'session-a',
++        promptId: 'prompt-parent',
++        target: 'pr-1',
++        repositoryRoot: root,
++        worktreePath: join(root, '.qwen', 'tmp', 'review-pr-1'),
++        branch: 'qwen-review/pr-1',
++      });
++      // Host-trusted state: no other account on the machine may list or
++      // rewrite it. The mode is the only thing standing between the lease
++      // and a shared-runner neighbour.
++      expect(
++        statSync(dirname(reviewLeasePath(root, 'pr-1'))).mode & 0o777,
++      ).toBe(0o700);
++    },
++  );
++
+   it('protects a worktree created after the lease is registered', () => {
+     const root = createRepository();
+     const worktree = join(root, '.qwen', 'tmp', 'review-pr-1');
