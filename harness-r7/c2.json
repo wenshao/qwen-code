@@ -1,0 +1,14 @@
+{"title":"Named FIFO edge + non-root escape",
+ "sub":"the fix's readlink pipe: check protects host inodes; the escape is not root-specific",
+ "body":[
+ "== named FIFO (host inode) — policy read-only/closed",
+ "-- B parent   link=/root/.../myfifo      data=[fifo-payload-bytes]   chmod=ok   host FIFO mode 644 -> 666",
+ "++ A fix      link=socket:[...] (copied)  data=[fifo-payload-bytes]   chmod hits pipe   host FIFO mode still 644",
+ "== a named FIFO's readlink is a path, not 'pipe:', so the fix copies it instead of sharing the host fd.",
+ "",
+ "== uid 65534 (nobody), inherited stdin fd — policy read-only/closed",
+ "-- B parent   < user-owned host file   link=/tmp/.../owned.txt   fd0-write=ok        owned.txt = via-fd0   OVERWRITTEN",
+ "-- B parent   < host dir, walk ..       root-walk=ok              from-host-root.txt CREATED outside ws",
+ "++ A fix      < user-owned host file   link=socket:[...]         fd0-blocked (ENXIO)  owned.txt = nobody-original",
+ "++ A fix      < host dir, walk ..       Directory nonexistent     from-host-root.txt absent",
+ "== the descriptor escape and its closure both hold for a non-root user; not a privilege artifact."]}

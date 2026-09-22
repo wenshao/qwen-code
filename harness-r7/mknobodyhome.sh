@@ -1,0 +1,1 @@
+V=/root/verify/r7; mkdir -p $V/nobody/home; printf '{"tools":{"executionSandbox":{"backend":"auto","filesystem":"read-only","network":"closed"}}}\n' > $V/nobody/home/settings.json; chmod -R 777 $V/nobody

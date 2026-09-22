@@ -1,0 +1,15 @@
+{"title":"R6-1 closed — redirected stdin no longer escapes the policy",
+ "sub":"qwen sandbox -- <cmd> < file|dir   ·   A = fix 54c6407   B = parent 0b4349 (round-6 head)   ·   single variable: only dist/sandboxBwrapRelay.js differs, cli.js byte-identical",
+ "body":[
+ "== policy read-only / network closed   (host object shown after the run)",
+ "                              stdin fd seen by payload   result           host object",
+ "-- B  < host file (outside ws)   link=/root/.../victim.txt  fd0-write=ok     victim.txt = via-fd0   OVERWRITTEN",
+ "-- B  < host directory           dir-write=ok dotdot=ok     planted+escaped  files planted on host + .. walk out",
+ "-- B  < ws file (read-only)       (host path)               fd0-write=ok     ws-victim = via-fd0     OVERWRITTEN",
+ "-- B  chmod 666 /proc/self/fd/0   (host path)               chmod=ok         mode 644 -> 666         CHMOD'd",
+ "++ A  < host file (outside ws)   link=socket:[...] (relay pipe)  reopen ENXIO  victim.txt = original   unchanged",
+ "++ A  < host directory           Directory nonexistent      nothing planted  host dir untouched",
+ "++ A  < ws file (read-only)       socket, reopen ENXIO       -                ws-victim = original    unchanged",
+ "++ A  chmod 666 /proc/self/fd/0   chmods the relay pipe      chmod=ok         host mode still 644     host safe",
+ "== fix replaces the host-backed fd 0 with a relay-owned pipe endpoint; /proc/self/fd/0 no longer names a host inode.",
+ "== workspace-write/closed identical: B escapes on all four rows, A blocks all four."]}

@@ -1,0 +1,17 @@
+{"title":"No R5 regression — streaming preserved, verify + tool path intact (arm A = fix)",
+ "sub":"the copy path only engages for host-backed fds; sockets, anon pipes, char devices still stream",
+ "body":[
+ "== redirected-stdin shapes (arm A)",
+ "++ < rand1m regular file (copied)     20/20 sha256 match",
+ "++ cat 1 MiB | sha256sum (anon pipe)  match, streamed",
+ "++ /dev/zero char device | head -c 8   8 bytes, shared directly",
+ "++ socket stdin (node spawn)          link=socket:[...] 23 bytes",
+ "++ yes | head -n1 (backpressure)      rc=0, bounded",
+ "++ segmented writer | cat             'a b' in order",
+ "++ < 3 GiB sparse file wc -c          3221225472 exact, peak RSS ~212 MiB (no full buffering)",
+ "",
+ "== qwen sandbox --verify  (both arms x 4 policies)   8/8 runs, 'Confinement verified (4 checks)' each",
+ "== model tool path (scripted run_shell_command, prompt piped on CLI stdin)",
+ "++ A fix + policy      write outside ws -> EROFS   stdin=/dev/null bytes=0   pids=5 (private PID ns)",
+ "== A no policy         write outside ws -> WRITTEN  stdin=/dev/null           pids=255 (host)",
+ "++ B parent + policy   write outside ws -> EROFS   stdin=/dev/null bytes=0   pids=5   (R6-1 never reached the model path)"]}

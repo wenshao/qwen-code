@@ -1,0 +1,14 @@
+########## FIFO
+=== named FIFO edge (policy read-only/closed) ===
+A  | named FIFO | link=socket:[38237405] data=[fifo-payload-bytes] chmod=ok || host FIFO mode now: 644
+B  | named FIFO | link=/root/verify/r7/myfifo data=[fifo-payload-bytes] chmod=ok || host FIFO mode now: 666
+
+########## STREAM (arm A only, R5-1 preserved)
+A  | < rand1m file (copied) sha256sum         | 20/20 match (expect b5d6f094623eb040)
+A  | cat 1MiB | sha256sum (anon pipe)         | rc=0     1814ms | out=b5d6f094623eb040  | err=
+A  | /dev/zero char dev | head -c 8           | rc=0     1794ms | out=8  | err=
+A  | < /dev/null wc -c                        | rc=0     1815ms | out=0  | err=
+A  | < 3GiB sparse wc -c (bounded)            | rc=0       12ms | out=bash: line 1: /usr/bin/time: No such file or direc | err=
+A  | yes | head -n1 (backpressure)            | rc=0     1961ms | out=y  | err=
+A  | segmented writer | cat                   | rc=0     1924ms | out=a b  | err=
+A  | socket stdin (node spawn)                | rc=0     1882ms | out=rc=0 link=socket:[38229477] 23  | err=
