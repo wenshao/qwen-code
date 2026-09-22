@@ -1,0 +1,22 @@
+=== head / acp-cwd own (process cwd = repoA)
+  session B cwd=repoB mode=auto
+  session B: $ echo b > b.txt && git add b.txt && git commit -q -m "agent B: work"
+    stopReason=end_turn completed [{"type":"content","content":{"type":"text","text":"Command: echo b > b.txt && git add b.txt && git 
+  session B: $ git commit --amend -q -m "agent B: work (amended)"
+    stopReason=end_turn completed [{"type":"content","content":{"type":"text","text":"Command: git commit --amend -q -m \"agent B: wor
+  repoA log:
+    7b9dbe8 user: initial repoA [Human User]
+  repoB log:
+    325450f agent B: work (amended) [Human User]
+    c54c7f8 user: initial repoB [Human User]
+=== head / acp-cwd cross (process cwd = repoA)
+  A cwd=repoA mode=auto; B cwd=repoB mode=auto
+  session A: $ echo a > a.txt && git add a.txt && git commit -q -m "agent A: work"
+    stopReason=end_turn completed [{"type":"content","content":{"type":"text","text":"Command: echo a > a.txt && git add a.txt && git 
+  session B: $ git commit --amend -q -m "session B rewrote repoB human commit"
+    stopReason=end_turn failed BLOCKED by amend guard
+  repoA log:
+    9b917c0 agent A: work [Human User]
+    d5234b2 user: initial repoA [Human User]
+  repoB log:
+    8ba5a48 user: initial repoB [Human User]
