@@ -1,0 +1,83 @@
+diff --git a/packages/web-shell/client/components/artifacts/TurnCallsPanel.test.tsx b/packages/web-shell/client/components/artifacts/TurnCallsPanel.test.tsx
+index fcd5b65e83..593a1df03d 100644
+--- a/packages/web-shell/client/components/artifacts/TurnCallsPanel.test.tsx
++++ b/packages/web-shell/client/components/artifacts/TurnCallsPanel.test.tsx
+@@ -1969,3 +1969,55 @@ it('resets a vanished filter and does not restore it when that tool returns', as
+   expect(view.querySelectorAll('li')).toHaveLength(2);
+   expect(trigger.textContent).toBe('全部工具');
+ });
++
++it('adopts the provisional prompt id when the sender-local live block has no identity', async () => {
++  // The submitting client's own user block is a local echo: the daemon's
++  // record-stamped echo is suppressed, so it never gains a record or prompt id.
++  connection.sessionId = 'session';
++  prompt.status = 'streaming';
++  transcript.blocks = [userBlock('live', 1)];
++  navigation.provisionalTurns = [
++    {
++      promptId: 'prompt-live',
++      provisionalId: 'live:prompt-live',
++      blockId: 'live',
++      label: 'Running prompt',
++    },
++  ];
++  const onSelect = vi.fn();
++  await act(async () =>
++    render(<TurnCallsPanel turnId="live" onSelectPrompt={onSelect} />),
++  );
++  expect(onSelect).toHaveBeenCalledWith(
++    'live',
++    undefined,
++    'prompt-live',
++    undefined,
++  );
++  expect(client.getSessionToolCalls).not.toHaveBeenCalled();
++});
++
++it('does not retarget a tab that already has a durable identity', async () => {
++  connection.sessionId = 'session';
++  prompt.status = 'streaming';
++  transcript.blocks = [userBlock('live', 1)];
++  navigation.provisionalTurns = [
++    {
++      promptId: 'prompt-live',
++      provisionalId: 'live:prompt-live',
++      blockId: 'live',
++      label: 'Running prompt',
++    },
++  ];
++  const onSelect = vi.fn();
++  await act(async () =>
++    render(
++      <TurnCallsPanel
++        turnId="live"
++        promptId="prompt-live"
++        onSelectPrompt={onSelect}
++      />,
++    ),
++  );
++  expect(onSelect).not.toHaveBeenCalled();
++});
+diff --git a/packages/web-shell/client/components/artifacts/TurnCallsPanel.tsx b/packages/web-shell/client/components/artifacts/TurnCallsPanel.tsx
+index 3f835460e3..cd203fedc3 100644
+--- a/packages/web-shell/client/components/artifacts/TurnCallsPanel.tsx
++++ b/packages/web-shell/client/components/artifacts/TurnCallsPanel.tsx
+@@ -492,6 +492,18 @@ export function TurnCallsPanel({
+   const idle = usePromptStatus() === 'idle';
+   const navigation = useTurnNavigationState();
+   const blocks = useTranscriptBlocks();
++  // The sender's own live user block never carries a record or prompt id: its
++  // daemon echo is suppressed. Adopt the prompt id from the provisional turn
++  // bound to this block so the tab can persist, resolve and dedupe.
++  const provisionalPromptId =
++    !recordId && !promptId
++      ? navigation.provisionalTurns.find((turn) => turn.blockId === turnId)
++          ?.promptId
++      : undefined;
++  useEffect(() => {
++    if (provisionalPromptId)
++      onSelectPrompt?.(turnId, undefined, provisionalPromptId, promptLabel);
++  }, [provisionalPromptId, onSelectPrompt, turnId, promptLabel]);
+   const user = blocks.find(
+     (block) =>
+       block.kind === 'user' &&

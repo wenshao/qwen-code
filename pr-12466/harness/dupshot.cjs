@@ -1,0 +1,21 @@
+const { launch, openSession } = require('./lib.cjs');
+(async () => {
+  const [base, sid, out, label] = process.argv.slice(2);
+  const { browser, page, wire, errors } = await launch({});
+  await openSession(page, base, sid);
+  const panel = page.getByRole('region', { name: 'Tool calls' });
+  const persisted = () => page.evaluate(() => { const v = JSON.parse(localStorage.getItem('qwen-code-web-shell-right-panel-state') || '{}'); return Object.values(v).flatMap(x => (x && x.tabs) || []).filter(t => t.kind === 'turn_calls').map(t => ({ recordId: t.recordId?.slice(0, 8), promptId: t.promptId?.slice(0, 8) })); });
+  await page.locator('[data-web-shell-composer-editor] .cm-content').click(); await page.keyboard.type(label); await page.locator('[data-web-shell-composer-submit]').click();
+  await page.getByText(label).last().waitFor(); await page.waitForTimeout(1200);
+  await page.getByRole('button', { name: 'View tool calls' }).last().click(); await panel.waitFor({ state: 'visible' });
+  await page.waitForTimeout(10000);
+  await panel.getByRole('combobox', { name: 'Prompt' }).click(); await page.waitForTimeout(500);
+  const opts = await page.getByRole('option').allInnerTexts();
+  await page.screenshot({ path: out, clip: { x: 1060, y: 0, width: 500, height: 330 } });
+  await page.keyboard.press('Escape');
+  const p = await persisted();
+  const reads = wire.filter(w => w.path === '/tool-calls').length;
+  await page.reload(); await page.locator('[data-web-shell-root]:not([data-web-shell-gate])').waitFor({ state: 'visible', timeout: 60000 }); await page.waitForTimeout(3500);
+  console.log(JSON.stringify({ options: opts, persisted: p, readsBeforeReload: reads, panelAfterReload: await panel.isVisible(), errors }));
+  await browser.close();
+})().catch(e => { console.error('FAIL', e); process.exit(1); });
