@@ -1,0 +1,29 @@
+--- /root/verify/pr12353-head/packages/acp-bridge/src/child-heap-args.test.ts	2026-09-22 14:31:48.740429591 +0800
++++ child-heap-args.test.ts	2026-09-22 15:04:21.529912403 +0800
+@@ -53,6 +53,26 @@
+     },
+   );
+ 
++  it.each([
++    '--report-filename="C:\\tools\\hook.cjs"',
++    '--report-filename="C:\\\\tools\\\\hook.cjs"',
++    '--report-filename=C:\\tools\\hook.cjs',
++  ])('rewrites NODE_OPTIONS to the value Node itself reads: %s', (value) => {
++    const read = (nodeOptions: string) =>
++      execFileSync(
++        process.execPath,
++        ['-e', 'process.stdout.write(process.report.filename)'],
++        {
++          env: { ...process.env, NODE_OPTIONS: nodeOptions },
++          encoding: 'utf8',
++          timeout: 10_000,
++        },
++      );
++    const env = { NODE_OPTIONS: value };
++    applyChildHeapLimit([], env, 544);
++    expect(read(env.NODE_OPTIONS)).toBe(read(value));
++  });
++
+   it('rejects a missing split value without swallowing another option', () => {
+     expect(() =>
+       applyChildHeapLimit(['--max-old-space-size', '--require=x'], {}, 544),
