@@ -1,0 +1,45 @@
+diff --git a/packages/core/src/sandbox/bwrap-relay.ts b/packages/core/src/sandbox/bwrap-relay.ts
+index f03d80c8ad..e2b70d0d80 100644
+--- a/packages/core/src/sandbox/bwrap-relay.ts
++++ b/packages/core/src/sandbox/bwrap-relay.ts
+@@ -8,8 +8,11 @@ import { spawn } from 'node:child_process';
+ import {
+   closeSync,
+   constants,
++  createReadStream,
++  fstatSync,
+   openSync,
+   readFileSync,
++  readlinkSync,
+   unlinkSync,
+   writeFileSync,
+ } from 'node:fs';
+@@ -50,10 +53,27 @@ const env = Object.fromEntries(
+     return [key, value];
+   }),
+ );
++// A descriptor that names a host file (regular file, directory, named FIFO)
++// can be reopened for writing through /proc/self/fd/0 inside the sandbox, so
++// only sockets, anonymous pipes and character devices are shared; anything
++// else is copied through a relay-owned pipe.
++const input = fstatSync(0);
++const shareInput =
++  input.isSocket() ||
++  input.isCharacterDevice() ||
++  (input.isFIFO() && readlinkSync('/proc/self/fd/0').startsWith('pipe:'));
+ const child = spawn(bwrap, ['--json-status-fd', '3', ...args], {
+-  stdio: ['inherit', 'inherit', 'inherit', 'pipe'],
++  stdio: [shareInput ? 'inherit' : 'pipe', 'inherit', 'inherit', 'pipe'],
+   env,
+ });
++if (!shareInput && child.stdin) {
++  const sink = child.stdin;
++  const source = createReadStream('', { fd: 0, autoClose: false });
++  source.on('error', () => sink.end());
++  sink.on('error', () => source.destroy());
++  child.on('close', () => source.destroy());
++  source.pipe(sink);
++}
+ let wire = '';
+ let bytes = 0;
+ let failed = false;
