@@ -1,0 +1,44 @@
+name: probe-pr12154-windows
+on:
+  push:
+    branches: ['probe/pr12154-**']
+defaults:
+  run:
+    shell: bash
+jobs:
+  win:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Point temp at a short-alias-free directory
+        shell: powershell
+        run: |
+          $temp = Join-Path $env:RUNNER_WORKSPACE 'qwen-code-temp'
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+          "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 22
+      - run: corepack pnpm install --frozen-lockfile --reporter=append-only
+      - name: Run the worktree suites
+        env:
+          NO_COLOR: true
+          HOME: ${{ runner.temp }}/qwen-ci-home
+          USERPROFILE: ${{ runner.temp }}/qwen-ci-home
+        run: |
+          mkdir -p "$HOME"
+          git config --global core.autocrlf false
+          git --version
+          set +e
+          (cd packages/core && npx vitest run src/utils/git-worktrees.test.ts src/utils/git-branches.test.ts src/utils/gitDiff.test.ts --coverage.enabled=false) > core.txt 2>&1; echo "CORE_RC=$?" >> core.txt
+          (cd packages/cli && npx vitest run src/serve/routes/workspace-git-worktrees --coverage.enabled=false) > cli.txt 2>&1; echo "CLI_RC=$?" >> cli.txt
+          (cd packages/web-shell && npx vitest run client/components/dialogs/GitWorktreesDialog.test.tsx --config vitest.config.ts --coverage.enabled=false) > ws.txt 2>&1; echo "WS_RC=$?" >> ws.txt
+          for f in core.txt cli.txt ws.txt; do echo "===== $f"; grep -E "✓|×|FAIL|Tests |Test Files|_RC=|Error|→" "$f" | tail -120; done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: probe-out
+          path: '*.txt'
