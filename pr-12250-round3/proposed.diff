@@ -1,0 +1,60 @@
+diff --git a/packages/acp-bridge/src/bridge.test.ts b/packages/acp-bridge/src/bridge.test.ts
+index b63294350d..ce1a1af056 100644
+--- a/packages/acp-bridge/src/bridge.test.ts
++++ b/packages/acp-bridge/src/bridge.test.ts
+@@ -481,12 +481,13 @@ describe('createAcpSessionBridge', () => {
+     // admission and queue callbacks had no test — the existing busy-guard
+     // table only ever produced the busy state with an in-flight prompt. An
+     // admitted background notification turn is a different way to reach the
+-    // same guard. The pins are per-arm: rewind's admission disjunct and the
+-    // queued-cd table below pin branch and fork admission individually. The
+-    // branch/fork queue-callback disjuncts (`session-control-plane.ts:10836`,
+-    // `:13674`) remain masked by their own admission checks and are the
+-    // residual R1-17 gap. The side-task term (`concurrentSideTask` in
+-    // `session-control-plane.ts`) is a concurrent-release decision and is not
++    // same guard. The pins are per-arm: this table pins the rewind admission
++    // disjunct and the cd guard individually; the queued-cd table below pins
++    // the branch, fork and rewind admission disjuncts individually, and their
++    // placement before the queue. The branch/fork queue-callback disjuncts (in
++    // `branchSession` and `launchSessionForkAgent`) remain masked by their own
++    // admission checks and are the residual R1-17 gap. The side-task term
++    // (`concurrentSideTask`) is a concurrent-release decision and is not
+     // pinned here.
+     const admittedBackgroundTurn = {
+       turnId: 'notification-1',
+@@ -577,6 +578,12 @@ describe('createAcpSessionBridge', () => {
+           bridge.branchSession(sessionId, {}),
+         errorType: BranchWhilePromptActiveError,
+       },
++      {
++        operation: 'rewind',
++        invoke: (bridge: ReturnType<typeof makeBridge>, sessionId: string) =>
++          bridge.rewindSession(sessionId, { promptId: 'prompt-1' }),
++        errorType: SessionBusyError,
++      },
+       {
+         operation: 'fork',
+         invoke: (bridge: ReturnType<typeof makeBridge>, sessionId: string) =>
+@@ -584,8 +591,11 @@ describe('createAcpSessionBridge', () => {
+         errorType: SessionBusyError,
+       },
+     ])(
+-      'rejects $operation synchronously before a queued cd can dispatch during a background turn',
++      'rejects $operation synchronously instead of queueing behind an in-flight cd during a background turn',
+       async ({ invoke, errorType }) => {
++        // `hangingCd` must still be unresolved when the operation is invoked:
++        // with a settled queue the queue-callback guard rejects inside the
++        // race window too, and the admission-disjunct mutation goes unseen.
+         const hangingCd = deferred<Record<string, unknown>>();
+         const handle = makeChannel({
+           extMethodImpl: (method) =>
+@@ -682,6 +692,9 @@ describe('createAcpSessionBridge', () => {
+       await new Promise((resolve) => setTimeout(resolve, 40));
+       expect(conditionalCloseCalls).toBe(0);
+       expect(bridge.sessionCount).toBe(1);
++      expect(bridge.getSessionSummary(session.sessionId).activeWorkState).toBe(
++        'active',
++      );
+ 
+       await handle.agentConnection.extNotification('_qwencode/end_turn', {
+         sessionId: session.sessionId,
