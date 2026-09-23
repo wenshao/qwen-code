@@ -1,0 +1,70 @@
+diff --git a/packages/core/src/extension/extensionManager.test.ts b/packages/core/src/extension/extensionManager.test.ts
+index d75e1e1fe7..572758ea33 100644
+--- a/packages/core/src/extension/extensionManager.test.ts
++++ b/packages/core/src/extension/extensionManager.test.ts
+@@ -3034,6 +3034,37 @@ describe('extension tests', () => {
+       }
+     });
+ 
++    it.each([
++      [
++        'a non-string hook command',
++        {
++          hooks: {
++            PreToolUse: [
++              { matcher: '*', hooks: [{ type: 'command', command: 42 }] },
++            ],
++          },
++        },
++      ],
++      ['a non-string contextFileName', { contextFileName: 5 }],
++    ])(
++      'excludes a manifest with %s, matching the full load',
++      async (_label, extra) => {
++        createExtension({ extensionsDir: userExtensionsDir, name: 'good-ext' });
++        const badDir = path.join(userExtensionsDir, 'bad-ext');
++        fs.mkdirSync(badDir, { recursive: true });
++        fs.writeFileSync(
++          path.join(badDir, EXTENSIONS_CONFIG_FILENAME),
++          JSON.stringify({ name: 'bad-ext', version: '1.0.0', ...extra }),
++        );
++        const manager = createExtensionManager();
++        await manager.refreshCache();
++        const fullNames = manager.getLoadedExtensions().map((e) => e.name);
++        expect(fullNames).toEqual(['good-ext']);
++        const catalog = await createExtensionManager().refreshCatalogSnapshot();
++        expect(catalog.extensions.map((e) => e.name)).toEqual(fullNames);
++      },
++    );
++
+     it('does not create the agent plugin data root', async () => {
+       createAgentPlugin(path.join(userExtensionsDir, 'plugin-ext'), {
+         name: 'plugin-ext',
+diff --git a/packages/core/src/extension/extensionManager.ts b/packages/core/src/extension/extensionManager.ts
+index 5ca320a7ec..663bffd076 100644
+--- a/packages/core/src/extension/extensionManager.ts
++++ b/packages/core/src/extension/extensionManager.ts
+@@ -1836,6 +1836,23 @@ export class ExtensionManager {
+         // set identical to the full load — the head throws for the same
+         // manifests the full load's catch would reject, so both paths list
+         // exactly the same extensions.
++        //
++        // Two manifest-derived steps of the full load can still throw on a
++        // malformed manifest without touching subresources (a non-string
++        // `contextFileName`, a non-string hook `command`). Run them here too,
++        // pure and I/O-free, so the catalog rejects the same manifests.
++        if (head.loadedManifest.format !== 'agent-plugins-v1') {
++          getContextFileNames(extension.config).forEach((contextFileName) =>
++            path.join(extension!.path, contextFileName),
++          );
++        }
++        if (
++          head.loadedManifest.format === 'qwen' &&
++          extension.config.hooks &&
++          typeof extension.config.hooks !== 'string'
++        ) {
++          this.substituteHookVariables(extension.config.hooks, extension.path);
++        }
+         return extension;
+       }
+ 
