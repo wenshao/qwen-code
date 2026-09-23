@@ -5,7 +5,7 @@ on:
 permissions:
   contents: read
 jobs:
-  repo-context-main:
+  repo-context-trace:
     runs-on: windows-2022
     timeout-minutes: 60
     defaults:
@@ -13,6 +13,7 @@ jobs:
         shell: bash
     env:
       BASE_SHA: f8ce07463bd2251b9db6e8dae0596d3ca1bbfd3c
+      HEAD_SHA: 5ed75f8179132008b32eb2ec69a3535e653a0162
       NO_COLOR: '1'
     steps:
       - shell: powershell
@@ -24,14 +25,17 @@ jobs:
         with:
           node-version: '22.x'
       - run: corepack pnpm install --frozen-lockfile --reporter=append-only
-      - name: main same-file.ts + trace, PR tests
+      - name: trace both arms, full files, two volumes, twice
         run: |
-          git checkout $BASE_SHA -- packages/cli/src/commands/review/lib/same-file.ts
-          node probe-pr12568/debug-samefile.cjs
-          git diff --stat
-          cd packages/cli
-          for T in 'C:\probe12568\t1' "$RUNNER_TEMP\\t1"; do
-            mkdir -p "$T"
-            TEMP="$T" TMP="$T" node ../../node_modules/vitest/vitest.mjs run src/commands/review/repo-context.test.ts src/commands/review/lib/same-file.test.ts --coverage.enabled=false -t "plan/out aliases|hard-link" > out.txt 2>&1 || true
-            echo "=== TEMP=$T"; grep -E "SAMEFILE_TRACE|Tests |×|✓|Error" out.txt | head -30 || tail -40 out.txt
+          for ARM in main pr; do
+            SHA=$BASE_SHA; [ $ARM = pr ] && SHA=$HEAD_SHA
+            git checkout $SHA -- packages/cli/src/commands/review/lib/same-file.ts
+            node probe-pr12568/debug-samefile.cjs
+            for T in 'C:\probe12568' "$RUNNER_TEMP"; do
+              for REP in 1 2; do
+                D="$T\\$ARM-$REP"; mkdir -p "$D"
+                (cd packages/cli && TEMP="$D" TMP="$D" node ../../node_modules/vitest/vitest.mjs run src/commands/review/repo-context.test.ts src/commands/review/lib/same-file.test.ts --coverage.enabled=false > out.txt 2>&1 || true)
+                node probe-pr12568/trace-summary.cjs packages/cli/out.txt "$ARM $D"
+              done
+            done
           done
