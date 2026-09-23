@@ -5,19 +5,34 @@ on:
 permissions:
   contents: read
 jobs:
-  hardlink-stat:
+  repo-context-main:
     runs-on: windows-2022
-    timeout-minutes: 15
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
+    env:
+      BASE_SHA: f8ce07463bd2251b9db6e8dae0596d3ca1bbfd3c
+      NO_COLOR: '1'
+      QWEN_SKIP_PREPARE: '1'
     steps:
+      - shell: powershell
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-      - run: |
-          mkdir -p 'C:/probe12568/tmpC' "$RUNNER_TEMP/tmpC"
-          TEMP='C:\probe12568\tmpC' TMP='C:\probe12568\tmpC' node probe-pr12568/hardlink-stat.cjs C
-          TEMP="$RUNNER_TEMP\\tmpC" TMP="$RUNNER_TEMP\\tmpC" node probe-pr12568/hardlink-stat.cjs D
-          node probe-pr12568/hardlink-stat.cjs default-TEMP
+      - run: corepack pnpm install --frozen-lockfile --reporter=append-only
+      - name: main same-file.ts + trace, PR tests
+        run: |
+          git checkout $BASE_SHA -- packages/cli/src/commands/review/lib/same-file.ts
+          node probe-pr12568/debug-samefile.cjs
+          git diff --stat
+          cd packages/cli
+          for T in 'C:\probe12568\t1' "$RUNNER_TEMP\\t1"; do
+            mkdir -p "$T"
+            TEMP="$T" TMP="$T" node ../../node_modules/vitest/vitest.mjs run src/commands/review/repo-context.test.ts src/commands/review/lib/same-file.test.ts --coverage.enabled=false -t "plan/out aliases|hard-link" > out.txt 2>&1 || true
+            echo "=== TEMP=$T"; grep -E "SAMEFILE_TRACE|Tests |×|✓" out.txt | head -30
+          done
