@@ -1,0 +1,16 @@
+$ git rev-parse --short HEAD  # pristine PR head, no local changes
+341a0d67b5
+
+$ npx vitest run src/extension/extension-store.test.ts   # x10, idle box, Linux 6.12 (CONFIG_HZ=250), tmpdir on tmpfs
+     10   Tests  1 failed | 150 passed (151)
+
+$ npx vitest run … -t "falls back to mtime order when a stack claims one generation"
+ ❯ src/extension/extension-store.test.ts (151 tests | 1 failed | 150 skipped) 52ms
+   × ExtensionStore > locked extension directory > falls back to mtime order when a stack claims one generation 50ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 1790191660961.485 to be greater than 1790191660961.485
+ ❯ src/extension/extension-store.test.ts:3528:9
+
+$ git apply full-fix.patch   # pins the mtime inversion with utimes (+ the fault-window fix)
+$ npx vitest run src/extension/extension-store.test.ts   # x10
+     10   Tests  151 passed (151)

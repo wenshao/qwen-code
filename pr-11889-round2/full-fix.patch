@@ -1,0 +1,88 @@
+diff --git a/packages/core/src/extension/extension-store.test.ts b/packages/core/src/extension/extension-store.test.ts
+index d36937de12..6b09093ac8 100644
+--- a/packages/core/src/extension/extension-store.test.ts
++++ b/packages/core/src/extension/extension-store.test.ts
+@@ -3366,6 +3366,11 @@ describe('ExtensionStore', () => {
+       expect(failure).toBeInstanceOf(AggregateError);
+       // Only a lock is absorbed; anything else still stops the caller.
+       await expect(store.readSnapshot()).rejects.toMatchObject({ code: 'EIO' });
++      // Inside the fault's window nothing was restored, so a read is refused
++      // with the unresolved-transaction text instead of being served.
++      await expect(store.readSnapshot()).rejects.toBeInstanceOf(
++        ExtensionConflictError,
++      );
+     });
+ 
+     it('refuses a second transaction while one is still unresolved', async () => {
+@@ -3522,19 +3527,24 @@ describe('ExtensionStore', () => {
+       await plant('aa-intact-old', 'one', 1_000, true);
+       await plant('zz-torn-new', 'torn', 2_000, true);
+       await store.readSnapshot();
+-      expect(
+-        (await fsp.stat(path.join(transactionsDir, 'aa-intact-old.json')))
+-          .mtimeMs,
+-      ).toBeGreaterThan(
+-        (await fsp.stat(path.join(transactionsDir, 'zz-torn-new.json')))
+-          .mtimeMs,
+-      );
+-      // Written newest-first, so the rewrite leaves the marking pass's mtime
+-      // inversion in place instead of undoing the state under test.
+       await expireJournalWindow(
+         path.join(transactionsDir, 'zz-torn-new.json'),
+         path.join(transactionsDir, 'aa-intact-old.json'),
+       );
++      // The same pass stamps both journals, so only a clock tick separates
++      // their mtimes; pin the inversion instead of racing the timestamp
++      // granularity of the filesystem under test.
++      const nowSeconds = Date.now() / 1000;
++      await fsp.utimes(
++        path.join(transactionsDir, 'zz-torn-new.json'),
++        nowSeconds,
++        nowSeconds,
++      );
++      await fsp.utimes(
++        path.join(transactionsDir, 'aa-intact-old.json'),
++        nowSeconds + 10,
++        nowSeconds + 10,
++      );
+       await store.readSnapshot();
+       expect(
+         await fsp.readFile(path.join(destination, 'version'), 'utf8'),
+@@ -5175,9 +5185,12 @@ describe('ExtensionStore', () => {
+       ]);
+       expect(await fsp.stat(path.join(rollbackRoot, 'stack-t2'))).toBeDefined();
+ 
+-      // A later caller keeps reading, and does not repeat the failing restore:
+-      // the owed step waits out one window before it is attempted again.
+-      await expect(store.readSnapshot()).resolves.toBeDefined();
++      // A later caller does not repeat the failing restore - the owed step
++      // waits out one window - and is refused meanwhile: nothing was restored,
++      // so the destination is not the artifact the snapshot names.
++      await expect(store.readSnapshot()).rejects.toBeInstanceOf(
++        ExtensionConflictError,
++      );
+       expect(restoreAttempts).toBe(1);
+ 
+       // Clearing the fault is all a later pass needs to finish the unwind and
+diff --git a/packages/core/src/extension/extension-store.ts b/packages/core/src/extension/extension-store.ts
+index 7b15f1e9da..d0144a6f81 100644
+--- a/packages/core/src/extension/extension-store.ts
++++ b/packages/core/src/extension/extension-store.ts
+@@ -1873,10 +1873,15 @@ export class ExtensionStore {
+           continue;
+         }
+         if (journal.rollbackBlocked && !this.retryDue(journal)) {
+-          if (!(await this.canRetryRollback(journal))) {
++          // A fault is no evidence the restore got anywhere, so only a held
++          // step may be absorbed on the strength of its top-level entries.
++          if (
++            journal.rollbackHeld === false ||
++            !(await this.canRetryRollback(journal))
++          ) {
+             throw this.windowRefusal(journal);
+           }
+-          decided = journal.rollbackHeld ? 'held' : 'fault';
++          decided = 'held';
+           continue;
+         }
+         try {

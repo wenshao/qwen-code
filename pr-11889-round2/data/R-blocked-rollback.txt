@@ -1,0 +1,23 @@
+PASS  the installed file can be made permanently unreplaceable
+PASS  ground truth: deleting it really fails  [EPERM unlink]
+NOTE  holder: holding 3 directory handles under /root/verify/pr11889-work/br/extensions
+NOTE  update: AggregateError (-): Extension transaction failed and rollback recovery did not complete.
+NOTE  update ms: 1088
+PASS  the update is refused rather than silently half-applied  [AggregateError]
+NOTE  tree after the failed update: {"manifest":"1.0.0","keep":"keep@1.0.0","pinned":"pinned@1.0.0","journals":["eadfdf55-c772-44ea-8680-3d43425f90c4.json"],"rollback":["eadfdf55-c772-44ea-8680-3d43425f90c4"]}
+NOTE  journal: {"phase":"prepared","swapStrategy":"copy"}
+PASS  the tree a reader now sees is internally consistent  [1.0.0 / keep@1.0.0 / pinned@1.0.0]
+NOTE  next update while still obstructed: ExtensionDirectoryLockedError (extension_directory_locked): Extension directory /root/verify/pr11889-work/br/extensions/pinned is in use by a process holding it open. Exit any Qwen Code session that has this extension loaded - inc
+NOTE  reads while obstructed: still served
+NOTE  obstruction removed: chattr -i
+NOTE  read immediately after release: generation=1
+PASS  inside the retry window the owed rollback is deferred, not retried on a read  [["eadfdf55-c772-44ea-8680-3d43425f90c4.json"]]
+NOTE  read after the retry window: generation=1
+NOTE  tree after release: {"manifest":"1.0.0","keep":"keep@1.0.0","pinned":"pinned@1.0.0","journals":[],"rollback":[]}
+PASS  the store heals itself once the obstruction is gone  [{"journals":[],"rollback":[]}]
+PASS  the healed tree is consistent  [1.0.0 / keep@1.0.0 / pinned@1.0.0]
+NOTE  update after release: ok
+PASS  a later update succeeds again
+PASS  it really landed 4.0.0  [4.0.0]
+
+ RESULT:  PASS   (9/9 checks)
