@@ -8,5 +8,5 @@ harness on `wenshao/qwen-code@assets-pr11889`.
 - `03-mtime-order-test.png` — `falls back to mtime order …` red on pristine head, green with patch.
 - `04-round1-regression.png` — the round-1 arms re-run at this head.
 - `05-mutation-matrix.png` — 20 mutants on the round-2 delta.
-- `full-fix.patch` — +32/−14 against `341a0d67b5` (fault-window refusal + test pinning).
+- `full-fix.patch` — +31/−13 against `341a0d67b5` (fault-window refusal + test pinning).
 - `harness/` — `arm.mjs --arm=F|G --dist=<core dist> --work=<ext4 dir> --sp=<dir with harness/ and lockfs/>` (needs root for the bind mount); `data/` — raw logs.
