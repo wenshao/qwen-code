@@ -1,0 +1,21 @@
+const { launch, openSession } = require('./lib.cjs');
+(async () => {
+  const [base, sid] = process.argv.slice(2);
+  const { browser, page, wire, errors } = await launch({});
+  await openSession(page, base, sid);
+  const panel = page.getByRole('region', { name: 'Tool calls' });
+  await page.getByRole('button', { name: 'View tool calls' }).last().click();
+  await panel.waitFor({ state: 'visible' }); await page.waitForTimeout(2500);
+  await panel.getByRole('combobox', { name: 'Prompt' }).click(); await page.waitForTimeout(800);
+  const before = wire.filter(w => w.path === '/turn-index').length;
+  const t = Date.now();
+  await page.locator('[role=listbox]').evaluate(el => { el.scrollTop = 2000 * 32; el.dispatchEvent(new Event('scroll')); });
+  await page.waitForFunction(() => { const o = document.querySelector('[role=option][aria-posinset="2001"]'); return o && !/Loading/.test(o.textContent); }, null, { timeout: 30000 });
+  const ms = Date.now() - t;
+  const reqs = wire.filter(w => w.path === '/turn-index').slice(before).map(w => w.search);
+  const labels = await page.getByRole('option').allInnerTexts();
+  await page.screenshot({ path: 'shots-r2/listbox-r2-mid.png', clip: { x: 1060, y: 0, width: 500, height: 420 } });
+  const focusBefore = await page.locator('[role=listbox]').getAttribute('aria-activedescendant'); await page.getByRole('option', { name: 'Prompt #2005:' }).click(); await page.waitForTimeout(2500); console.log('activedescendant after wheel scroll:', focusBefore);
+  console.log(JSON.stringify({ ms, reqs, rendered: labels.length, first: labels[0], last: labels.at(-1), trigger: await panel.getByRole('combobox', { name: 'Prompt' }).innerText(), errors }));
+  await browser.close();
+})().catch(e => { console.error('FAIL', e); process.exit(1); });

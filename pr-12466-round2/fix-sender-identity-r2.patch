@@ -1,0 +1,132 @@
+diff --git a/packages/web-shell/client/components/artifacts/TurnCallsPanel.test.tsx b/packages/web-shell/client/components/artifacts/TurnCallsPanel.test.tsx
+index 9aeea31cff..7b5b0ac0bc 100644
+--- a/packages/web-shell/client/components/artifacts/TurnCallsPanel.test.tsx
++++ b/packages/web-shell/client/components/artifacts/TurnCallsPanel.test.tsx
+@@ -54,6 +54,10 @@ const {
+       blockId?: string;
+       label: string;
+     }>,
++    locations: new Map<
++      string,
++      { turnId: string; blockId: string; view: 'live' | 'historical' }
++    >(),
+   },
+ }));
+ 
+@@ -135,6 +139,7 @@ beforeEach(() => {
+       loadIndex(Math.floor(ordinal / 100) * 100),
+     );
+   navigation.provisionalTurns = [];
++  navigation.locations.clear();
+   loadCalls.mockReset().mockImplementation(realLoadTurnCalls);
+   client.getSessionToolCalls.mockReset();
+   client.getSessionTurnIndexPage.mockReset().mockResolvedValue({
+@@ -2237,3 +2242,79 @@ it('bounds large file diffs with an explicit truncation notice without serializi
+   expect(view.textContent).toContain('Diff truncated');
+   expect(toJSON).not.toHaveBeenCalled();
+ });
++
++it('adopts the prompt id of the sender-local block while it runs', async () => {
++  // The sender's own user echo is suppressed, so its block has no record or
++  // prompt id; only the provisional navigation turn knows it.
++  connection.sessionId = 'session-1';
++  prompt.status = 'responding';
++  transcript.blocks = [userBlock('local-user', 1)];
++  navigation.provisionalTurns = [
++    {
++      promptId: 'prompt-live',
++      provisionalId: 'live:prompt-live',
++      blockId: 'local-user',
++      label: 'Running prompt',
++    },
++  ];
++  const onSelect = vi.fn();
++  await act(async () =>
++    render(
++      <TurnCallsPanel
++        turnId="local-user"
++        promptLabel="Running prompt"
++        onSelectPrompt={onSelect}
++      />,
++    ),
++  );
++  expect(onSelect).toHaveBeenCalledWith(
++    'local-user',
++    undefined,
++    'prompt-live',
++    'Running prompt',
++  );
++});
++
++it('adopts the record id of a settled sender-local block', async () => {
++  connection.sessionId = 'session-1';
++  transcript.blocks = [userBlock('local-user', 1)];
++  navigation.locations.set('record-9', {
++    turnId: 'record-9',
++    blockId: 'local-user',
++    view: 'live',
++  });
++  const onSelect = vi.fn();
++  await act(async () =>
++    render(<TurnCallsPanel turnId="local-user" onSelectPrompt={onSelect} />),
++  );
++  expect(onSelect).toHaveBeenCalledWith(
++    'local-user',
++    'record-9',
++    undefined,
++    undefined,
++  );
++});
++
++it('does not retarget a tab that already has an identity', async () => {
++  connection.sessionId = 'session-1';
++  transcript.blocks = [userBlock('local-user', 1)];
++  navigation.provisionalTurns = [
++    {
++      promptId: 'other',
++      provisionalId: 'live:other',
++      blockId: 'local-user',
++      label: 'Other',
++    },
++  ];
++  const onSelect = vi.fn();
++  await act(async () =>
++    render(
++      <TurnCallsPanel
++        turnId="local-user"
++        promptId="prompt-1"
++        onSelectPrompt={onSelect}
++      />,
++    ),
++  );
++  expect(onSelect).not.toHaveBeenCalled();
++});
+diff --git a/packages/web-shell/client/components/artifacts/TurnCallsPanel.tsx b/packages/web-shell/client/components/artifacts/TurnCallsPanel.tsx
+index 61c8fef440..2846d1ca56 100644
+--- a/packages/web-shell/client/components/artifacts/TurnCallsPanel.tsx
++++ b/packages/web-shell/client/components/artifacts/TurnCallsPanel.tsx
+@@ -299,6 +299,24 @@ export function TurnCallsPanel({
+   const selectedRecordId =
+     recordId ?? user?.sourceRecordIds?.[0] ?? indexedTurn?.turnId;
+   const selectedPromptId = promptId ?? user?.promptId ?? indexedTurn?.promptId;
++  // The sender's own live user block never carries a record or prompt id: its
++  // daemon echo is suppressed. Adopt the identity navigation already tracks
++  // for that block so the tab can persist and read history once settled.
++  const adoptedPromptId =
++    recordId || promptId
++      ? undefined
++      : navigation.provisionalTurns.find((turn) => turn.blockId === turnId)
++          ?.promptId;
++  const adoptedRecordId =
++    recordId || promptId || adoptedPromptId
++      ? undefined
++      : [...navigation.locations.values()].find(
++          (location) => location.view === 'live' && location.blockId === turnId,
++        )?.turnId;
++  useEffect(() => {
++    if (adoptedPromptId || adoptedRecordId)
++      onSelectPrompt?.(turnId, adoptedRecordId, adoptedPromptId, promptLabel);
++  }, [adoptedPromptId, adoptedRecordId, onSelectPrompt, turnId, promptLabel]);
+   const latestUser = [...blocks].reverse().find(isPromptStart);
+   const latestPromptId =
+     navigation.provisionalTurns.at(-1)?.promptId ??
