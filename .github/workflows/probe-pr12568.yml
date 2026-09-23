@@ -5,68 +5,19 @@ on:
 permissions:
   contents: read
 jobs:
-  ntfs:
+  hardlink-stat:
     runs-on: windows-2022
-    timeout-minutes: 75
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
-    env:
-      BASE_SHA: f8ce07463bd2251b9db6e8dae0596d3ca1bbfd3c
-      HEAD_SHA: 5ed75f8179132008b32eb2ec69a3535e653a0162
-      NO_COLOR: '1'
     steps:
-      - shell: powershell
-        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-      - name: Install (runs prepare -> build + bundle of the PR head)
-        run: corepack pnpm install --frozen-lockfile --reporter=append-only
-      - name: Verify tree is the PR head production code
-        run: |
-          git diff --exit-code $HEAD_SHA -- packages/cli/src packages/core/src
-          grep -c 'bigint: true' packages/cli/src/commands/review/lib/same-file.ts
-          node --version; cmd //c ver; fsutil fsinfo volumeinfo C: | head -8; fsutil fsinfo volumeinfo D: | head -8
-      - name: Census of real NTFS file ids (C and D)
-        run: |
-          mkdir -p probe-out
-          node probe-pr12568/ino-census.cjs 'C:/probe12568/census' C | tee -a probe-out/probe.txt
-          node probe-pr12568/ino-census.cjs "$RUNNER_TEMP/census" D-runner-temp | tee -a probe-out/probe.txt
-      - name: E2E real CLI, PR head dist
-        run: |
-          node probe-pr12568/e2e-findings.cjs dist/cli.js 'C:/probe12568/e2e-head' head-C | tee -a probe-out/probe.txt
-          node probe-pr12568/e2e-findings.cjs dist/cli.js "$RUNNER_TEMP/e2e-head" head-D | tee -a probe-out/probe.txt
-      - name: Tests arm A = PR head as-is
-        run: |
-          bash probe-pr12568/run-tests.sh A-pr-C 'C:\probe12568\tmpA'
-          bash probe-pr12568/run-tests.sh A-pr-D "$RUNNER_TEMP\\tmpA"
-      - name: Tests arm B = PR head + candidate test fix
-        run: |
-          git apply probe-pr12568/candidate-test-fix.patch
-          bash probe-pr12568/run-tests.sh B-pr+candidate-C 'C:\probe12568\tmpB'
-          bash probe-pr12568/run-tests.sh B-pr+candidate-D "$RUNNER_TEMP\\tmpB"
-      - name: Tests arm C = main production + candidate tests
-        run: |
-          git checkout $BASE_SHA -- packages/cli/src/commands/review/lib/same-file.ts packages/cli/src/serve/conversations/standalone-deletion-journal.ts
-          git status --short
-          bash probe-pr12568/run-tests.sh C-main+candidate-C 'C:\probe12568\tmpC'
-          bash probe-pr12568/run-tests.sh C-main+candidate-D "$RUNNER_TEMP\\tmpC"
-      - name: E2E real CLI, main production rebundled
-        run: |
-          rm -rf dist/chunks
-          node esbuild.config.js > probe-out/rebundle.txt 2>&1 || tail -20 probe-out/rebundle.txt
-          true
-          echo "bundle carries bigint tryStat: $(grep -rl 'leftStat.ino !== 0n' dist | wc -l)"
-          node probe-pr12568/e2e-findings.cjs dist/cli.js 'C:/probe12568/e2e-base' base-C | tee -a probe-out/probe.txt
-          node probe-pr12568/e2e-findings.cjs dist/cli.js "$RUNNER_TEMP/e2e-base" base-D | tee -a probe-out/probe.txt
-      - if: always()
-        run: grep -h PROBE_JSON probe-out/probe.txt || true
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: probe-pr12568
-          path: probe-out/
+      - run: |
+          mkdir -p 'C:/probe12568/tmpC' "$RUNNER_TEMP/tmpC"
+          TEMP='C:\probe12568\tmpC' TMP='C:\probe12568\tmpC' node probe-pr12568/hardlink-stat.cjs C
+          TEMP="$RUNNER_TEMP\\tmpC" TMP="$RUNNER_TEMP\\tmpC" node probe-pr12568/hardlink-stat.cjs D
+          node probe-pr12568/hardlink-stat.cjs default-TEMP
