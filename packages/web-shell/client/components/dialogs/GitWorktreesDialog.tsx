@@ -69,6 +69,8 @@ interface RemoveState {
     unmergedHead?: string;
     /** The checkout holds an initialised submodule with its own repository. */
     submodules?: boolean;
+    /** Whether it does could not be checked, which is its own warning. */
+    submodulesUnknown?: boolean;
   };
   error?: string;
   busy: boolean;
@@ -110,7 +112,12 @@ function refusalSentence(
   t: (key: string, vars?: Record<string, string | number>) => string,
   removal: RemoveState,
 ): string | null {
-  if (removal.error) return removal.error;
+  // Tested for presence, like the panel's shape is: an error is never empty
+  // (the handler fills one in), but reading one field two ways in one render
+  // is how the panel came to show the first-click wording under a failure.
+  if (removal.error !== undefined) {
+    return removal.error || t('gitWorktrees.removeFailed');
+  }
   const blocked = removal.blocked;
   if (!blocked) return null;
   if (blocked.code === 'worktree_dirty') {
@@ -123,7 +130,11 @@ function refusalSentence(
     return t('gitWorktrees.blockedLocked', { reason: blocked.detail ?? '' });
   }
   if (blocked.code === 'worktree_nested_repository') {
-    return t('gitWorktrees.blockedSubmodules');
+    return t(
+      blocked.submodulesUnknown
+        ? 'gitWorktrees.blockedSubmodulesUnknown'
+        : 'gitWorktrees.blockedSubmodules',
+    );
   }
   if (blocked.code === 'worktree_unmerged_commits') {
     return t('gitWorktrees.blockedUnmerged', {
@@ -165,6 +176,7 @@ const WorktreeRow = memo(function WorktreeRow({
 }) {
   const { t } = useI18n();
   const confirmRef = useRef<HTMLDivElement | null>(null);
+  const rowRef = useRef<HTMLDivElement | null>(null);
   // Not just open or shut: the panel swaps its own buttons as a confirmation
   // becomes a refusal and a refusal becomes an error, and the keyboard falls
   // out of it each time one it was on is unmounted.
@@ -172,16 +184,21 @@ const WorktreeRow = memo(function WorktreeRow({
     removal === null
       ? null
       : (removal.error ?? removal.blocked?.code ?? 'confirm');
-  // On a change of shape, not on arrival: filtering a row out unmounts it
-  // while the removal state lives on in the parent, so clearing the filter
-  // mounts it again with the panel already open — and focusing then would
-  // take the keyboard out of the filter box the user is still typing in.
-  const focusedShape = useRef(confirmShape);
+  // A rescue, not a summons: this moves the keyboard only when it has
+  // nowhere to be — the button it was on was just unmounted, which leaves it
+  // on the page body or on the dialog around this row. Anywhere else, the
+  // user put it there: typing in the filter box while this row comes back
+  // into view with its panel open, or while a refusal lands in it, is not a
+  // reason to take it away.
   useEffect(() => {
-    if (confirmShape !== null && focusedShape.current !== confirmShape) {
-      confirmRef.current?.querySelector('button')?.focus();
-    }
-    focusedShape.current = confirmShape;
+    if (confirmShape === null) return;
+    const active = document.activeElement;
+    const row = rowRef.current;
+    const lost =
+      !active ||
+      active === document.body ||
+      (row !== null && (row.contains(active) || active.contains(row)));
+    if (lost) confirmRef.current?.querySelector('button')?.focus();
   }, [confirmShape]);
   const removable = !worktree.isMain && !worktree.bare && !worktree.isWorkspace;
   const skipStatus = worktree.prunable !== undefined || worktree.bare;
@@ -256,8 +273,12 @@ const WorktreeRow = memo(function WorktreeRow({
           t('gitWorktrees.blockedUnmerged', { head: blocked.unmergedHead }),
         );
       }
-      if (blocked.submodules && blocked.code !== 'worktree_nested_repository') {
-        also.push(t('gitWorktrees.blockedSubmodules'));
+      if (blocked.code !== 'worktree_nested_repository') {
+        if (blocked.submodules) {
+          also.push(t('gitWorktrees.blockedSubmodules'));
+        } else if (blocked.submodulesUnknown) {
+          also.push(t('gitWorktrees.blockedSubmodulesUnknown'));
+        }
       }
       if (
         blocked.operation &&
@@ -314,7 +335,7 @@ const WorktreeRow = memo(function WorktreeRow({
   }
 
   return (
-    <div className={styles.row} data-testid="git-worktree-row">
+    <div className={styles.row} data-testid="git-worktree-row" ref={rowRef}>
       <div className={styles.rowMain}>
         <span className={styles.name} title={worktree.path}>
           {worktree.slug ?? baseName(worktree.path)}
@@ -447,9 +468,17 @@ export function GitWorktreesContent({
   // the render that issued it, and the answer has to reach the row it is
   // about or, failing that, somewhere the user will see it.
   const confirmPathRef = useRef<string | null>(null);
-  // Which repository the rows belong to, read when a request settles: the
-  // answer to a removal in one workspace means nothing in the next.
-  const shownWorkspaceRef = useRef(workspaceCwd);
+  // Which request each path's answer is for. An answer is only ever applied
+  // by the request that is still the latest for its path in the repository
+  // on screen: switching away and back leaves the workspace the same, and
+  // an older request's answer landing in a newer one's panel re-arms a
+  // destructive button over a request that has not been answered yet.
+  const requestSeq = useRef(0);
+  // Paths git has let go of since the list on screen was read. Filtered out
+  // of view rather than out of the list itself: a new list object would
+  // send every remaining row back to git for its state, one process each.
+  const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
+  const latestRequest = useRef(new Map<string, number>());
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
@@ -461,7 +490,8 @@ export function GitWorktreesContent({
     setNotice(null);
     setRemoving([]);
     confirmPathRef.current = null;
-    shownWorkspaceRef.current = workspaceCwd;
+    latestRequest.current = new Map();
+    setGone(new Set());
     // A confirmation is about a row of the previous repository, and it is
     // matched to rows by path — which another repository can spell the same.
     setRemoval(null);
@@ -481,6 +511,9 @@ export function GitWorktreesContent({
       .then(([result, sessionList]) => {
         if (cancelled) return;
         setList(result);
+        // Read after every removal that has succeeded — each one restarts
+        // this read — so it already leaves out what they took.
+        setGone(new Set());
         setSessions(sessionList);
       })
       .catch(() => {
@@ -533,7 +566,9 @@ export function GitWorktreesContent({
   }, [client, workspaceCwd, list]);
 
   const subtitle = list?.available
-    ? t('gitWorktrees.subtitle', { count: list.worktrees.length })
+    ? t('gitWorktrees.subtitle', {
+        count: list.worktrees.filter((w) => !gone.has(w.path)).length,
+      })
     : undefined;
   useEffect(() => {
     onSubtitleChange?.(subtitle);
@@ -548,11 +583,13 @@ export function GitWorktreesContent({
       if (removing.includes(path)) return;
       setNotice(null);
       setRemoving((prev) => [...prev, path]);
+      const id = (requestSeq.current += 1);
+      latestRequest.current.set(path, id);
+      const isCurrent = () => latestRequest.current.get(path) === id;
       // Every write below is scoped to the path it is about: by the time a
       // request settles the user may be confirming a different row, and this
       // state is what puts a "Remove anyway" button under their cursor.
       const settle = (next: RemoveState | null) => {
-        if (shownWorkspaceRef.current !== workspaceCwd) return;
         if (confirmPathRef.current === path) {
           confirmPathRef.current = next?.path ?? null;
           setRemoval(next);
@@ -570,20 +607,20 @@ export function GitWorktreesContent({
           );
         }
       };
-      // Guarded like every other write here: two workspaces of one
-      // repository list the same worktree paths, so an answer arriving after
-      // a switch could clear the in-flight mark of a removal it is not about.
-      const finish = () => {
-        if (shownWorkspaceRef.current !== workspaceCwd) return;
+      const finish = () =>
         setRemoving((prev) => prev.filter((inFlight) => inFlight !== path));
-      };
+      // The registration is gone, whatever the refresh that follows says or
+      // however long it takes: a row left on screen until then carries a
+      // live trash button for a worktree git no longer has.
+      const dropRow = () => setGone((prev) => new Set(prev).add(path));
       client
         .workspaceByCwd(workspaceCwd)
         .workspaceGitRemoveWorktree(path, { force })
         .then((result) => {
+          if (!isCurrent()) return;
           finish();
           settle(null);
-          if (shownWorkspaceRef.current !== workspaceCwd) return;
+          dropRow();
           // The row is about to disappear, which on its own reads as "the
           // directory is gone" — the very thing the confirmation promised and
           // the daemon is reporting it could not do.
@@ -595,8 +632,8 @@ export function GitWorktreesContent({
           setGeneration((g) => g + 1);
         })
         .catch((err: unknown) => {
+          if (!isCurrent()) return;
           finish();
-          if (shownWorkspaceRef.current !== workspaceCwd) return;
           // Even a refusal can leave the repository changed — the daemon's
           // last resort for a stale entry takes and releases git's own locks
           // across the repository, and can prune an entry and then report the
@@ -605,6 +642,14 @@ export function GitWorktreesContent({
           setGeneration((g) => g + 1);
           const body = errorBody(err);
           const code = typeof body?.['code'] === 'string' ? body['code'] : '';
+          // Not listed any more is what the user asked for: something else —
+          // another tab, the session's own cleanup, a prune — got there
+          // first. Calling that a refusal would report a success as failure.
+          if (code === 'worktree_not_found') {
+            settle(null);
+            dropRow();
+            return;
+          }
           if (BLOCKING_CODES.has(code)) {
             // Chosen by code, not by which field happens to be present:
             // an in-use refusal carries both, and reading `changes` there
@@ -631,6 +676,7 @@ export function GitWorktreesContent({
                 ? body['unmergedHead']
                 : undefined;
             const submodules = body?.['submodules'] === true;
+            const submodulesUnknown = body?.['submodulesUnknown'] === true;
             settle({
               path,
               blocked: {
@@ -642,6 +688,7 @@ export function GitWorktreesContent({
                 ...(operation ? { operation } : {}),
                 ...(unmergedHead ? { unmergedHead } : {}),
                 ...(submodules ? { submodules: true } : {}),
+                ...(submodulesUnknown ? { submodulesUnknown: true } : {}),
               },
               busy: false,
             });
@@ -664,12 +711,16 @@ export function GitWorktreesContent({
           // A classified git failure carries the machine token in `error` and
           // git's own sentence in `message`; every other shape puts the
           // sentence in `error` and has no `message`. Prefer the sentence.
+          // An empty string is no sentence: git can die with nothing on
+          // either stream, and passing that on renders an error as nothing.
+          const said = (key: string) => {
+            const value = body?.[key];
+            return typeof value === 'string' && value.trim() !== ''
+              ? value
+              : undefined;
+          };
           const message =
-            typeof body?.['message'] === 'string'
-              ? body['message']
-              : typeof body?.['error'] === 'string'
-                ? body['error']
-                : t('gitWorktrees.removeFailed');
+            said('message') ?? said('error') ?? t('gitWorktrees.removeFailed');
           settle({ path, error: message, busy: false });
         });
     },
@@ -681,12 +732,13 @@ export function GitWorktreesContent({
     () =>
       list?.worktrees.filter(
         (w) =>
-          !q ||
-          w.path.toLowerCase().includes(q) ||
-          (w.branch ?? '').toLowerCase().includes(q) ||
-          (w.slug ?? '').toLowerCase().includes(q),
+          !gone.has(w.path) &&
+          (!q ||
+            w.path.toLowerCase().includes(q) ||
+            (w.branch ?? '').toLowerCase().includes(q) ||
+            (w.slug ?? '').toLowerCase().includes(q)),
       ) ?? [],
-    [list, q],
+    [list, q, gone],
   );
   // Joined once per session list rather than re-scanned inside every row on
   // every one of the N status arrivals.
@@ -740,6 +792,14 @@ export function GitWorktreesContent({
   } else {
     body = (
       <div className={styles.list}>
+        {error && (
+          // Only reachable with a refusal on screen, which keeps the list
+          // for it to be read in — but the refresh behind it failed, and
+          // rows that look current and are not are what misleads. Say so.
+          <div className={styles.notice} role="status">
+            {t('gitWorktrees.refreshFailed')}
+          </div>
+        )}
         {visible.map((worktree) => (
           <WorktreeRow
             key={worktree.path}
