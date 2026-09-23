@@ -1,0 +1,152 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java
+index 2484071b3b..46f7bc80c5 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java
+@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
+ public final class LocalProcessRuntimeProvisioner
+         implements RuntimeProvisioner, AutoCloseable {
+     private static final Duration READY_TIMEOUT = Duration.ofSeconds(30);
++    private static final Duration STOP_GRACE = Duration.ofSeconds(5);
+     private static final SecureRandom RANDOM = new SecureRandom();
+ 
+     private final List<String> command;
+@@ -70,10 +71,19 @@ public final class LocalProcessRuntimeProvisioner
+     void stop(RuntimeLease lease) {
+         OwnedProcess process = owned.remove(lease.getRuntimeInstanceId());
+         if (process != null) {
+-            process.process.destroy();
++            terminate(process.process);
+         }
+     }
+ 
++    private static void terminate(Process process) {
++        process.destroy();
++        process.onExit().orTimeout(STOP_GRACE.toMillis(),
++                TimeUnit.MILLISECONDS).exceptionally(ignored -> {
++                    process.destroyForcibly();
++                    return null;
++                });
++    }
++
+     @Override
+     public void close() {
+         for (OwnedProcess process : owned.values()) {
+@@ -135,20 +145,23 @@ public final class LocalProcessRuntimeProvisioner
+                     || !Long.valueOf(1L).equals(number(ready.get("epoch")))) {
+                 throw failed("Managed Runtime ready record is invalid.");
+             }
++            URI endpoint = URI.create(String.valueOf(ready.get("url")));
++            if (!"127.0.0.1".equals(endpoint.getHost())) {
++                throw failed("Managed Runtime ready record is invalid.");
++            }
+             RuntimeLease lease = new RuntimeLease(runtimeInstanceId,
+-                    URI.create(String.valueOf(ready.get("url"))), token,
+-                    leaseId, 1);
++                    endpoint, token, leaseId, 1);
+             attest(request, ownedProcess.seed, lease);
+             owned.put(runtimeInstanceId, ownedProcess);
+             return lease;
+         } catch (RuntimeException exception) {
+             if (ownedProcess != null) {
+-                ownedProcess.process.destroy();
++                terminate(ownedProcess.process);
+             }
+             throw exception;
+         } catch (IOException exception) {
+             if (ownedProcess != null) {
+-                ownedProcess.process.destroy();
++                terminate(ownedProcess.process);
+             }
+             throw failed("Managed Runtime worker failed to start.",
+                     exception);
+@@ -159,9 +172,15 @@ public final class LocalProcessRuntimeProvisioner
+             RuntimeLease lease) {
+         OwnedProcess process = owned.get(lease.getRuntimeInstanceId());
+         if (process == null || !process.process.isAlive()) {
++            stop(lease);
+             throw failed("Managed Runtime process is not alive.");
+         }
+-        attest(request, process.seed, lease);
++        try {
++            attest(request, process.seed, lease);
++        } catch (RuntimeException exception) {
++            stop(lease);
++            throw exception;
++        }
+     }
+ 
+     private void attest(RuntimeProvisionRequest request,
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index 5f9e51602a..8e5e5b8826 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -488,7 +488,13 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             }
+             BindingContext live = requireLiveBinding(record);
+             return safeStage(() -> provisioner.confirm(request, live.lease()))
+-                    .thenApply(ignored -> live);
++                    .handle((ignored, error) -> {
++                        if (error == null) {
++                            return live;
++                        }
++                        retireUnconfirmedBinding(record);
++                        throw new CompletionException(unwrap(error));
++                    });
+         }
+         if (record.getState()
+                 != RuntimeBindingRecord.State.PROVISIONING) {
+@@ -918,6 +924,25 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                 "Runtime Session changed after release");
+     }
+ 
++    /**
++     * A READY binding whose Runtime no longer attests cannot recover in
++     * place. Retire it so the next ensureBinding provisions a new generation.
++     */
++    private void retireUnconfirmedBinding(RuntimeBindingRecord record) {
++        RuntimeBindingRecord claimed = bindingRepository.claimOperation(
++                record.getBindingId(), brokerOwnerId, operationLeaseDuration);
++        if (claimed == null
++                || claimed.getState() != RuntimeBindingRecord.State.READY
++                || claimed.getGeneration() != record.getGeneration()) {
++            return;
++        }
++        if (bindingRepository.compareAndSet(claimed, claimed.withState(
++                RuntimeBindingRecord.State.FAILED, null, clock.instant()))
++                != null) {
++            liveBindings.remove(record.getBindingId());
++        }
++    }
++
+     private void failBinding(RuntimeBindingRecord claimed) {
+         bindingRepository.compareAndSet(claimed, claimed.withState(
+                 RuntimeBindingRecord.State.FAILED, null, clock.instant()));
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
+index 6659ad0c2f..0dafeda5ea 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
+@@ -32,7 +32,8 @@ class LocalProcessRuntimeProvisionerTest {
+                         Path.of("").toAbsolutePath(), transport)) {
+             InMemoryRuntimeBindingRepository bindings =
+                     new InMemoryRuntimeBindingRepository(
+-                            java.time.Clock.systemUTC(), () -> "binding-1");
++                            java.time.Clock.systemUTC(),
++                            () -> "binding-" + java.util.UUID.randomUUID());
+             RuntimeBrokerService service = new RuntimeBrokerService(
+                     harnessSessionId -> java.util.concurrent.CompletableFuture
+                             .completedFuture(scope),
+@@ -71,6 +72,14 @@ class LocalProcessRuntimeProvisionerTest {
+                                         .toCompletableFuture()
+                                         .get(10, TimeUnit.SECONDS));
+                 assertTrue(again.getCause() instanceof RuntimeBrokerException);
++
++                RuntimeBindingRecord replaced = service.warm("harness")
++                        .toCompletableFuture().get(30, TimeUnit.SECONDS);
++                assertEquals(RuntimeBindingRecord.State.READY,
++                        replaced.getState());
++                assertTrue(replaced.getGeneration() > ready.getGeneration());
++                assertFalse(lease.getRuntimeInstanceId().equals(
++                        replaced.getLease().getRuntimeInstanceId()));
+             } finally {
+                 service.close();
+             }

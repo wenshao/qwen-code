@@ -1,0 +1,12 @@
+PASS S1 warm adopts real worker :: state=READY endpoint=http://127.0.0.1:40089/ pid=3836227 cold=176ms
+PASS S1b worker listens on loopback only :: listen=127.0.0.1:40089
+PASS S2 warm on READY re-attests (real HTTP) :: 20 warm p50=2.044ms p95=2.947ms
+PASS S3 execute against real worker fails closed :: 404 managed_runtime_incompatible retryable=false msg=Managed Runtime attestation endpoint is incompatible.
+PASS S4a stop() ends the real worker (SIGTERM) :: pid 3836227 gone=true
+PASS S4b next warm after stop fails :: 503 runtime_provision_failed retryable=true
+FAIL S4c binding recovers after worker death (retry told retryable=true) :: 5 retries => [503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true]; workers spawned=0
+PASS S5 kill -9 worker -> next warm fails closed :: 503 runtime_provision_failed retryable=true
+PASS S6 provisioner.close() ends all owned workers :: live=3 afterServiceClose=3 afterProvisionerClose=0
+PASS S7 8 parallel warms -> 8 distinct attested workers :: ports=8 wall=127ms
+PASS S7b no workers left after close :: workers=0
+TOTAL pass=10 fail=1

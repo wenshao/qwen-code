@@ -1,0 +1,138 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
+index 6659ad0c2f..fc531a7e59 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
+@@ -12,6 +12,9 @@ import java.util.List;
+ import java.util.concurrent.ExecutionException;
+ import java.util.concurrent.TimeUnit;
+ import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.io.TempDir;
++import org.junit.jupiter.params.ParameterizedTest;
++import org.junit.jupiter.params.provider.ValueSource;
+ 
+ class LocalProcessRuntimeProvisionerTest {
+     private static final String DIGEST = "sha256:" + "a".repeat(64);
+@@ -77,6 +80,73 @@ class LocalProcessRuntimeProvisionerTest {
+         }
+     }
+ 
++    @ParameterizedTest
++    @ValueSource(strings = {"wrong-type", "wrong-instance",
++        "wrong-incarnation", "wrong-lease", "wrong-epoch", "no-attest"})
++    void refusesAWorkerThatDoesNotProveItsBootAndEndsIt(String mode,
++            @TempDir Path temp) throws Exception {
++        assumeTrue(commandExists("node"), "node is required");
++        Path pidFile = temp.resolve("pid");
++        try (LocalProcessRuntimeProvisioner provisioner = provisioner(mode,
++                pidFile)) {
++            ExecutionException failure = org.junit.jupiter.api.Assertions
++                    .assertThrows(ExecutionException.class,
++                            () -> provisioner.provision(
++                                    new RuntimeProvisionRequest(SCOPE, null))
++                                    .toCompletableFuture()
++                                    .get(30, TimeUnit.SECONDS));
++            assertTrue(failure.getCause() instanceof RuntimeBrokerException);
++            assertEquals("runtime_provision_failed",
++                    ((RuntimeBrokerException) failure.getCause()).getCode());
++            assertExits(pidFile);
++        }
++    }
++
++    @Test
++    void stopAndCloseEndTheWorkerProcess(@TempDir Path temp)
++            throws Exception {
++        assumeTrue(commandExists("node"), "node is required");
++        Path stopped = temp.resolve("stopped");
++        Path closed = temp.resolve("closed");
++        LocalProcessRuntimeProvisioner provisioner = provisioner("ok",
++                stopped);
++        RuntimeLease lease = provisioner.provision(
++                new RuntimeProvisionRequest(SCOPE, null))
++                .toCompletableFuture().get(30, TimeUnit.SECONDS);
++        provisioner.stop(lease);
++        assertExits(stopped);
++        LocalProcessRuntimeProvisioner other = provisioner("ok", closed);
++        other.provision(new RuntimeProvisionRequest(SCOPE, null))
++                .toCompletableFuture().get(30, TimeUnit.SECONDS);
++        other.close();
++        assertExits(closed);
++        provisioner.close();
++    }
++
++    private static final RuntimeScope SCOPE = new RuntimeScope("tenant-a",
++            "workspace-a", "7", "/runtime/workspace", DIGEST, "workspace");
++
++    private static LocalProcessRuntimeProvisioner provisioner(String mode,
++            Path pidFile) {
++        Path script = Path.of("src/test/resources/fake-attestation-worker.mjs")
++                .toAbsolutePath();
++        return new LocalProcessRuntimeProvisioner(
++                List.of("node", script.toString(), mode, pidFile.toString()),
++                Path.of("").toAbsolutePath(), new HttpRuntimeTransport());
++    }
++
++    private static void assertExits(Path pidFile) throws Exception {
++        long pid = Long.parseLong(Files.readString(pidFile).trim());
++        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
++        while (System.nanoTime() < deadline) {
++            if (ProcessHandle.of(pid).map(h -> !h.isAlive()).orElse(true)) {
++                return;
++            }
++            Thread.sleep(50);
++        }
++        org.junit.jupiter.api.Assertions.fail("worker " + pid + " still runs");
++    }
++
+     private static boolean commandExists(String command) {
+         try {
+             return new ProcessBuilder(command, "-v")
+diff --git a/packages/sdk-java/runtime-broker/src/test/resources/fake-attestation-worker.mjs b/packages/sdk-java/runtime-broker/src/test/resources/fake-attestation-worker.mjs
+index 9a54a9ccad..c94c4fdc52 100644
+--- a/packages/sdk-java/runtime-broker/src/test/resources/fake-attestation-worker.mjs
++++ b/packages/sdk-java/runtime-broker/src/test/resources/fake-attestation-worker.mjs
+@@ -1,7 +1,15 @@
+ import { Buffer } from 'node:buffer';
++import { writeFileSync } from 'node:fs';
+ import { createServer } from 'node:http';
+ import process from 'node:process';
+ 
++// Optional: <mode> <pid file>. Modes corrupt one ready field or refuse
++// attestation so the provisioner's refusal paths run against a real process.
++const mode = process.argv[2] ?? 'ok';
++if (process.argv[3]) {
++  writeFileSync(process.argv[3], String(process.pid));
++}
++
+ const boot = JSON.parse(
+   await new Promise((resolve, reject) => {
+     const chunks = [];
+@@ -20,7 +28,8 @@ const server = createServer((request, response) => {
+     const path = request.url.split('?')[0];
+     if (
+       request.method === 'POST' &&
+-      path === '/internal/managed-runtime/v2/attest'
++      path === '/internal/managed-runtime/v2/attest' &&
++      mode !== 'no-attest'
+     ) {
+       const body = JSON.stringify({
+         protocolVersion: 2,
+@@ -55,12 +64,14 @@ server.listen(0, '127.0.0.1', () => {
+   const address = server.address();
+   process.stdout.write(
+     `${JSON.stringify({
+-      type: 'ready',
++      type: mode === 'wrong-type' ? 'boot' : 'ready',
+       version: 1,
+-      runtimeInstanceId: boot.runtimeInstanceId,
+-      runtimeIncarnation: boot.runtimeIncarnation,
+-      leaseId: boot.leaseId,
+-      epoch: boot.epoch,
++      runtimeInstanceId:
++        mode === 'wrong-instance' ? 'other' : boot.runtimeInstanceId,
++      runtimeIncarnation:
++        mode === 'wrong-incarnation' ? 'other' : boot.runtimeIncarnation,
++      leaseId: mode === 'wrong-lease' ? 'other' : boot.leaseId,
++      epoch: mode === 'wrong-epoch' ? 2 : boot.epoch,
+       url: `http://127.0.0.1:${address.port}`,
+     })}\n`,
+   );
