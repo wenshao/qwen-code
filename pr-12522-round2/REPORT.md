@@ -49,4 +49,4 @@ See the last rows of the first figure. The PR's stall test only asserts `pending
 
   Suggested wording: "…so the stage deadline (`orTimeout`), not the request timeout, bounds the body."
 
-Evidence (probe logs, `ss` output, mutation results, patch): [`wenshao/qwen-code@__SHA__/pr-12522-round2`](.)
+Evidence (probe logs, `ss` output, mutation results, patch): this directory
