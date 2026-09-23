@@ -1,0 +1,140 @@
+diff --git a/packages/cli/src/serve/managed-runtime-attestation-worker.test.ts b/packages/cli/src/serve/managed-runtime-attestation-worker.test.ts
+index 91d74da15b..362a8dc62b 100644
+--- a/packages/cli/src/serve/managed-runtime-attestation-worker.test.ts
++++ b/packages/cli/src/serve/managed-runtime-attestation-worker.test.ts
+@@ -5,6 +5,7 @@
+  */
+ 
+ import { spawn } from 'node:child_process';
++import { connect } from 'node:net';
+ import { PassThrough, Readable } from 'node:stream';
+ import { fileURLToPath } from 'node:url';
+ import { afterEach, describe, expect, it, vi } from 'vitest';
+@@ -118,6 +119,8 @@ describe('Managed Runtime attestation worker', () => {
+     ['malformed JSON', '{'],
+     ['unknown field', JSON.stringify({ ...boot, unexpected: true })],
+     ['oversized payload', `${JSON.stringify(boot)}${' '.repeat(32 * 1024)}`],
++    ['wrong version', JSON.stringify({ ...boot, version: 2 })],
++    ['wrong type', JSON.stringify({ ...boot, type: 'ready' })],
+   ])('rejects an invalid boot payload: %s', async (_label, payload) => {
+     await expect(
+       readManagedRuntimeWorkerBoot(Readable.from([payload])),
+@@ -141,6 +144,39 @@ describe('Managed Runtime attestation worker', () => {
+     }
+   });
+ 
++  it('accepts a boot payload of exactly 32 KiB', async () => {
++    const serialized = JSON.stringify(boot);
++    const payload = serialized.padEnd(32 * 1024, ' ');
++    expect(Buffer.byteLength(payload)).toBe(32 * 1024);
++
++    await expect(
++      readManagedRuntimeWorkerBoot(Readable.from([payload])),
++    ).resolves.toEqual(boot);
++  });
++
++  it.skipIf(process.platform === 'darwin')(
++    'does not accept connections on other loopback addresses',
++    async () => {
++      const worker = await startManagedRuntimeAttestationWorker(boot);
++      openWorkers.add(worker);
++      const port = Number(new URL(worker.ready.url).port);
++
++      const connected = await new Promise<boolean>((resolve) => {
++        const socket = connect({ host: '127.0.0.2', port, timeout: 1_000 });
++        socket.once('connect', () => {
++          socket.destroy();
++          resolve(true);
++        });
++        socket.once('timeout', () => {
++          socket.destroy();
++          resolve(false);
++        });
++        socket.once('error', () => resolve(false));
++      });
++      expect(connected).toBe(false);
++    },
++  );
++
+   it('mounts only the attestation manifest on a loopback listener', async () => {
+     const worker = await startManagedRuntimeAttestationWorker(boot);
+     openWorkers.add(worker);
+@@ -178,38 +214,45 @@ describe('Managed Runtime attestation worker', () => {
+     ).rejects.toThrow('Managed Runtime attestation identity is invalid.');
+   });
+ 
+-  it('starts through the hidden CLI command and exits cleanly', async () => {
+-    const cliEntry = fileURLToPath(new URL('../cli.ts', import.meta.url));
+-    const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
+-    const child = spawn(
+-      process.execPath,
+-      ['--import', 'tsx/esm', cliEntry, 'managed-runtime-worker'],
+-      {
+-        cwd: packageRoot,
+-        env: { ...process.env, NO_COLOR: '1' },
+-        stdio: ['pipe', 'pipe', 'pipe'],
+-      },
+-    );
+-    try {
+-      child.stdin?.end(JSON.stringify(boot));
+-      const ready = await waitForReady(child);
+-
+-      expect(ready).toMatchObject({
+-        type: 'ready',
+-        version: 1,
+-        runtimeInstanceId: boot.runtimeInstanceId,
+-        leaseId: boot.leaseId,
+-        epoch: boot.epoch,
+-      });
+-      expect(await attestationRequest(ready.url)).toHaveProperty('status', 200);
+-
+-      const exited = new Promise<number | null>((resolve) =>
+-        child.once('exit', resolve),
++  it.each(['SIGTERM', 'SIGINT'] as const)(
++    'starts through the hidden CLI command and exits cleanly on %s',
++    async (signal) => {
++      const cliEntry = fileURLToPath(new URL('../cli.ts', import.meta.url));
++      const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
++      const child = spawn(
++        process.execPath,
++        ['--import', 'tsx/esm', cliEntry, 'managed-runtime-worker'],
++        {
++          cwd: packageRoot,
++          env: { ...process.env, NO_COLOR: '1' },
++          stdio: ['pipe', 'pipe', 'pipe'],
++        },
+       );
+-      child.kill('SIGTERM');
+-      expect(await exited).toBe(0);
+-    } finally {
+-      if (!child.killed) child.kill('SIGKILL');
+-    }
+-  }, 30_000);
++      try {
++        child.stdin?.end(JSON.stringify(boot));
++        const ready = await waitForReady(child);
++
++        expect(ready).toMatchObject({
++          type: 'ready',
++          version: 1,
++          runtimeInstanceId: boot.runtimeInstanceId,
++          leaseId: boot.leaseId,
++          epoch: boot.epoch,
++        });
++        expect(await attestationRequest(ready.url)).toHaveProperty(
++          'status',
++          200,
++        );
++
++        const exited = new Promise<number | null>((resolve) =>
++          child.once('exit', resolve),
++        );
++        child.kill(signal);
++        expect(await exited).toBe(0);
++      } finally {
++        if (!child.killed) child.kill('SIGKILL');
++      }
++    },
++    30_000,
++  );
+ });
