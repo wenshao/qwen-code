@@ -1,0 +1,109 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
+index ba21618063..bb3bdfec5c 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
+@@ -248,6 +248,16 @@ class LocalProcessRuntimeProvisionerTest {
+ 
+     @Test
+     void fencedProvisioningReapsTheWorker() throws Exception {
++        assertFencedProvisioningReaps(false);
++    }
++
++    @Test
++    void provisioningFencedByRenewalReapsTheWorker() throws Exception {
++        assertFencedProvisioningReaps(true);
++    }
++
++    private void assertFencedProvisioningReaps(boolean atRenewal)
++            throws Exception {
+         requireNode();
+         Path script = Path.of("src/test/resources/fake-attestation-worker.mjs")
+                 .toAbsolutePath();
+@@ -255,20 +265,34 @@ class LocalProcessRuntimeProvisionerTest {
+         RuntimeScope scope = new RuntimeScope("tenant-a", "workspace-a", "7",
+                 "/runtime/workspace", DIGEST, "workspace");
+         Set<Long> before = childPids();
++        FencingBindingRepository bindings =
++                new FencingBindingRepository(atRenewal);
+         try (LocalProcessRuntimeProvisioner provisioner =
+                 new LocalProcessRuntimeProvisioner(
+                         List.of("node", script.toString()),
+                         Path.of("").toAbsolutePath(),
+                         new HttpRuntimeTransport())) {
++            // In renewal mode, provisioning starts only after the first
++            // renewal has already lost the claim.
++            RuntimeProvisioner gated = request -> {
++                try {
++                    assertTrue(bindings.renewed.await(10, TimeUnit.SECONDS));
++                } catch (InterruptedException exception) {
++                    throw new IllegalStateException(exception);
++                }
++                return provisioner.provision(request);
++            };
+             RuntimeBrokerService service = new RuntimeBrokerService(
+                     harnessSessionId -> java.util.concurrent.CompletableFuture
+                             .completedFuture(scope),
+-                    provisioner, new AcceptingTransport(),
+-                    new FencingBindingRepository(),
++                    atRenewal ? delegating(gated, provisioner) : provisioner,
++                    new AcceptingTransport(), bindings,
+                     new InMemoryRuntimeSessionRepository(),
+                     new InMemoryToolExecutionRepository(
+                             java.time.Clock.systemUTC()),
+-                    "broker", Duration.ofMinutes(1), Duration.ofMinutes(1));
++                    "broker",
++                    atRenewal ? Duration.ofMillis(300) : Duration.ofMinutes(1),
++                    Duration.ofMinutes(1));
+             try {
+                 ExecutionException failure = org.junit.jupiter.api.Assertions
+                         .assertThrows(ExecutionException.class,
+@@ -288,6 +312,24 @@ class LocalProcessRuntimeProvisionerTest {
+         }
+     }
+ 
++    /** Gates provision; forwards release so the service can reap. */
++    private static RuntimeProvisioner delegating(RuntimeProvisioner gate,
++            LocalProcessRuntimeProvisioner target) {
++        return new RuntimeProvisioner() {
++            @Override
++            public java.util.concurrent.CompletionStage<RuntimeLease>
++                    provision(RuntimeProvisionRequest request) {
++                return gate.provision(request);
++            }
++
++            @Override
++            public java.util.concurrent.CompletionStage<Void> release(
++                    RuntimeProvisionRequest request, RuntimeLease lease) {
++                return target.release(request, lease);
++            }
++        };
++    }
++
+     private static void assertNoNewChildren(Set<Long> before)
+             throws InterruptedException {
+         long deadline = System.nanoTime()
+@@ -338,6 +380,13 @@ class LocalProcessRuntimeProvisionerTest {
+             implements RuntimeBindingRepository {
+         private final InMemoryRuntimeBindingRepository delegate =
+                 new InMemoryRuntimeBindingRepository();
++        private final boolean fenceRenewal;
++        final java.util.concurrent.CountDownLatch renewed =
++                new java.util.concurrent.CountDownLatch(1);
++
++        FencingBindingRepository(boolean fenceRenewal) {
++            this.fenceRenewal = fenceRenewal;
++        }
+ 
+         @Override
+         public RuntimeBindingRecord findOrCreate(
+@@ -383,6 +432,10 @@ class LocalProcessRuntimeProvisionerTest {
+         public RuntimeBindingRecord renewOperation(String bindingId,
+                 String owner, long operationGeneration,
+                 Duration leaseDuration) {
++            if (fenceRenewal) {
++                renewed.countDown();
++                return null;
++            }
+             return delegate.renewOperation(bindingId, owner,
+                     operationGeneration, leaseDuration);
+         }
