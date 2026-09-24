@@ -1,0 +1,183 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/HttpRuntimeTransport.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/HttpRuntimeTransport.java
+index 70196dcd30..a756ad6847 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/HttpRuntimeTransport.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/HttpRuntimeTransport.java
+@@ -45,6 +45,12 @@ public final class HttpRuntimeTransport {
+             "executing", "cancel_requested", "settled", "unknown");
+     private static final Set<String> EXECUTION_STATUSES = Set.of(
+             "not_started", "success", "error", "cancelled");
++    private static final Set<String> CALLER_REFERENCE_FIELDS = Set.of(
++            "sessionId", "promptId", "callId", "argsDigest", "toolName",
++            "input");
++    private static final Set<String> RESULT_FIELDS = Set.of(
++            "executionStatus", "responseParts", "error");
++    private static final Set<String> ERROR_FIELDS = Set.of("message", "type");
+ 
+     private final HttpClient client;
+     private final Duration requestTimeout;
+@@ -208,6 +214,12 @@ public final class HttpRuntimeTransport {
+         if (reference == null) {
+             throw new IllegalArgumentException("reference is required");
+         }
++        for (Object key : reference.keySet()) {
++            if (!CALLER_REFERENCE_FIELDS.contains(key)) {
++                throw new IllegalArgumentException(
++                        "reference " + key + " is not allowed");
++            }
++        }
+         Map<String, Object> identity = new LinkedHashMap<>();
+         for (String field : List.of("sessionId", "promptId", "callId",
+                 "argsDigest")) {
+@@ -286,7 +298,8 @@ public final class HttpRuntimeTransport {
+     }
+ 
+     private static void requireResult(Object result, String operation) {
+-        if (!(result instanceof Map<?, ?> resultMap)) {
++        if (!(result instanceof Map<?, ?> resultMap)
++                || !RESULT_FIELDS.containsAll(resultMap.keySet())) {
+             throw protocol("Managed Runtime " + operation
+                     + " response is invalid.");
+         }
+@@ -303,12 +316,15 @@ public final class HttpRuntimeTransport {
+         Object error = resultMap.get("error");
+         if (error != null) {
+             if (!(error instanceof Map<?, ?> errorMap)
+-                    || !(errorMap.get("message") instanceof String)) {
++                    || !ERROR_FIELDS.containsAll(errorMap.keySet())
++                    || !(errorMap.get("message") instanceof String message)
++                    || message.isEmpty()) {
+                 throw protocol("Managed Runtime " + operation
+                         + " response is invalid.");
+             }
+             Object type = errorMap.get("type");
+-            if (type != null && !(type instanceof String)) {
++            if (type != null && (!(type instanceof String text)
++                    || text.isEmpty())) {
+                 throw protocol("Managed Runtime " + operation
+                         + " response is invalid.");
+             }
+@@ -349,6 +365,14 @@ public final class HttpRuntimeTransport {
+                                 ? 413 : response.statusCode()));
+                 return;
+             }
++            if (!"no-store".equals(response.headers()
++                    .firstValue("Cache-Control").orElse(""))
++                    || !jsonContentType(response.headers()
++                            .firstValue("Content-Type").orElse(""))) {
++                result.completeExceptionally(protocol(
++                        "Managed Runtime tool response is invalid."));
++                return;
++            }
+             result.complete(responseBody.bytes());
+         });
+         CompletableFuture<byte[]> returned = result
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/HttpRuntimeTransportTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/HttpRuntimeTransportTest.java
+index a0857511aa..a72538cc42 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/HttpRuntimeTransportTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/HttpRuntimeTransportTest.java
+@@ -477,6 +477,105 @@ class HttpRuntimeTransportTest {
+         }
+     }
+ 
++    @Test
++    void rejectsAReferenceWithUndeclaredKeys() {
++        Map<String, Object> reference = toolReference();
++        reference.put("tenantId", "tenant-b");
++
++        assertThrows(IllegalArgumentException.class,
++                () -> transport.status(
++                        toolLease(server.getAddress().getPort()),
++                        toolSession(), reference, 0));
++        assertNull(captured.get());
++    }
++
++    @Test
++    void rejectsAToolResponseWithoutNoStoreJson() throws IOException {
++        byte[] body = JSON.writeValueAsBytes(findIn(toolSuite("status"),
++                "unknown-is-ok").required("expected").required("body"));
++        reply.set(new Reply(200, body, "max-age=60", "application/json"));
++        assertEquals(400, awaitToolFailure("status").getStatusCode());
++        reply.set(new Reply(200, body, "no-store", "text/html"));
++        assertEquals(400, awaitToolFailure("status").getStatusCode());
++    }
++
++    @Test
++    void rejectsAResultOutsideTheClosedShape() throws IOException {
++        for (String result : new String[] {
++                "{\"executionStatus\":\"success\",\"responseParts\":[],"
++                        + "\"debug\":1}",
++                "{\"executionStatus\":\"error\",\"responseParts\":[],"
++                        + "\"error\":{\"message\":\"\"}}",
++                "{\"executionStatus\":\"error\",\"responseParts\":[],"
++                        + "\"error\":{\"message\":\"x\",\"stack\":\"y\"}}"}) {
++            reply.set(json(200, ("{\"protocolVersion\":2,\"state\":"
++                    + "\"settled\",\"result\":" + result + "}")
++                    .getBytes(StandardCharsets.UTF_8)));
++
++            assertEquals(400, awaitToolFailure("execute").getStatusCode());
++        }
++    }
++
++    @Test
++    void rejectsMalformedToolResponses() {
++        String result = "{\"executionStatus\":\"success\","
++                + "\"responseParts\":[]}";
++        for (String body : new String[] {
++                "{\"protocolVersion\":2,\"state\":\"unknown\",\"x\":1}",
++                "{\"protocolVersion\":1,\"state\":\"unknown\"}",
++                "{\"protocolVersion\":2,\"state\":\"unknown\","
++                        + "\"lastSequence\":-1}",
++                "{\"protocolVersion\":2,\"state\":\"unknown\","
++                        + "\"lastSequence\":1.5}",
++                "{\"protocolVersion\":2,\"state\":\"settled\",\"result\":"
++                        + result.replace("success", "done") + "}",
++                "{\"protocolVersion\":2,\"state\":\"settled\",\"result\":"
++                        + result.replace("[]", "\"x\"") + "}",
++                "{\"protocolVersion\":2,\"state\":\"settled\",\"result\":"
++                        + "{\"executionStatus\":\"error\",\"responseParts\":[],"
++                        + "\"error\":{\"message\":5}}}",
++                "{\"protocolVersion\":2,\"state\":\"settled\",\"result\":"
++                        + "{\"executionStatus\":\"error\",\"responseParts\":[],"
++                        + "\"error\":{\"message\":\"x\",\"type\":5}}}"}) {
++            reply.set(json(200, body.getBytes(StandardCharsets.UTF_8)));
++
++            assertEquals(400, awaitToolFailure("status").getStatusCode(),
++                    body);
++        }
++    }
++
++    @Test
++    void acceptsAToolResponseAboveTheAttestationBound() throws Exception {
++        String text = "x".repeat(64 * 1024);
++        reply.set(json(200, ("{\"protocolVersion\":2,\"state\":\"settled\","
++                + "\"result\":{\"executionStatus\":\"success\","
++                + "\"responseParts\":[{\"text\":\"" + text + "\"}]}}")
++                .getBytes(StandardCharsets.UTF_8)));
++
++        Map<String, Object> answer = transport
++                .status(toolLease(server.getAddress().getPort()),
++                        toolSession(), toolReference(), 0)
++                .toCompletableFuture().get(2, TimeUnit.SECONDS);
++
++        assertEquals("settled", answer.get("state"));
++    }
++
++    @Test
++    void rejectsAnEmptyIdentityOrANonObjectInput() {
++        Map<String, Object> empty = toolReference();
++        empty.put("callId", "");
++        Map<String, Object> listInput = toolReference();
++        listInput.put("input", java.util.List.of("a"));
++        for (Map<String, Object> reference : java.util.List.of(empty,
++                listInput)) {
++            assertThrows(IllegalArgumentException.class,
++                    () -> transport.execute(
++                            toolLease(server.getAddress().getPort()),
++                            toolSession(), reference));
++        }
++        assertNull(captured.get());
++    }
++
+     @Test
+     void statusRejectsANegativeSequence() {
+         assertThrows(IllegalArgumentException.class,
