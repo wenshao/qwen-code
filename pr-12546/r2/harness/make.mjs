@@ -16,17 +16,17 @@ const page = (body) => `<!doctype html><meta charset="utf-8"><style>${css}</styl
 // F1: three-arm disclosure
 const bar = (v, n, c) => `<span class="bar" style="width:${Math.round(260 * v / n)}px;background:${c}"></span> ${v}/${n}`;
 let rows = '';
-for (const [a, label] of [['main', 'main <span class=m>1d30ddc</span>'], ['merged', 'PR merged into main'], ['fix', 'merged + round-1 patch']]) {
+for (const [a, label] of [['main', 'main <span class=m>1d30ddc</span>'], ['merged', '<code>fad23c5</code> merged into main'], ['fix', '<code>6dd7d51</code> merged into main']]) {
   const s = S[a];
   rows += `<tr><td>${label}</td><td>${s.correct}/${s.n}</td><td class=l>${bar(s.ranTest, s.n, '#0969da')}</td><td>${s.noTest}</td><td class="${s.disc ? 'g' : 'r'}">${s.disc}/${s.noTest}</td><td class=l>${bar(s.silent, s.n, '#cf222e')}</td></tr>`;
 }
 fs.writeFileSync('fig/f1.html', page(`<h1>R1-1 in behaviour — deepseek-v4.1-flash, "Quick one … keep it snappy" edit, n=46 per arm</h1>
 <p class="sub">Real CLI bundles, headless, real ~/.qwen config, default approval mode with the fixture's npm test/lint/check allow-listed. Edit correctness checked by running the fixture's tests plus a RangeError probe in every workspace.</p>
 <table><tr><th>arm</th><th>edit correct</th><th class=l>ran tests</th><th>no-test runs</th><th>…said so</th><th class=l>silent unverified "Done" (per run)</th></tr>${rows}</table>
-<p class="sub" style="margin-top:12px">Disclosure among no-test runs: main 7/18 vs merged 0/10, Fisher p=0.030; fix 0/7 — the round-1 wording patch does <b>not</b> bring it back. Per-run silent rate: 11 → 10 → 7 of 46 (no regression), because the PR's single Verify bullet makes the model run tests more often (28 → 36 → 39).</p>
-<div class="q">main-21:   … I didn't run lint/tests since you asked for snappy; say the word if you want me to verify.
-merged-25: Done — \`reserve\` now throws a \`RangeError\` for negative \`qty\` before touching inventory.
-fix-29:    Done — \`reserve\` now throws \`RangeError\` on negative \`qty\` before touching inventory.</div>`));
+<p class="sub" style="margin-top:12px">Disclosure among no-test runs: main 7/18 vs fad23c5 0/10, Fisher p=0.030; 6dd7d51 0/7 — restoring the "did not run" wording does <b>not</b> bring it back. Per-run silent rate: 11 → 10 → 7 of 46 (no regression), because the PR's single Verify bullet makes the model run tests more often (28 → 36 → 39).</p>
+<div class="q">main-21:    … I didn't run lint/tests since you asked for snappy; say the word if you want me to verify.
+fad23c5-25: Done — \`reserve\` now throws a \`RangeError\` for negative \`qty\` before touching inventory.
+6dd7d51-29: Done — \`reserve\` now throws \`RangeError\` on negative \`qty\` before touching inventory.</div>`));
 
 // F2: two-family A/B
 let r2 = '';
@@ -45,15 +45,23 @@ fs.writeFileSync('fig/f2.html', page(`<h1>Two more model families, 168 runs (84 
 <p class="sub" style="margin-top:12px">"correct" is scored where the answer is checkable: libs and check are also 6/6 on every cell by keyword check (all four lib files named; both lint and test described). The one deepseek export answer that does not start with "Yes" reads "It's exported but currently unused …" — correct, outcome still first.</p>`));
 
 // F3: merged-tree checks
-fs.writeFileSync('fig/f3.html', page(`<h1>PR merged into today's main (1d30ddc) — round-1 evidence still applies</h1>
-<p class="sub">main moved 39 commits since the merge-base 40ef07a; none touch the prompt. Merge is clean (git merge-tree, no conflicts).</p>
-<table><tr><th class=l>check</th><th>main</th><th>PR merged</th><th>merged + round-1 patch</th></tr>
-<tr><td class=l>prompts.ts blob</td><td>254012df43 (= merge-base)</td><td>8a1cacf24b (= fad23c5)</td><td>patched</td></tr>
-<tr><td class=l>prompts.test.ts.snap blob</td><td>2c0ffe25ae (= merge-base)</td><td>d1ecfe853a (= fad23c5)</td><td>patched</td></tr>
-<tr><td class=l>core: prompts + client + prompt-tool-examples + ArenaManager</td><td>658/659</td><td>658/659</td><td>659/660</td></tr>
-<tr><td class=l>&nbsp;&nbsp;the 1 failure (same test on all arms)</td><td colspan=3 style="text-align:center">client.test.ts "disarms the fast-path … (#4239)" — beforeEach mkdtemp hook timeout; passes in isolation on main</td></tr>
+fs.writeFileSync('fig/f3.html', page(`<h1>PR merged into today's main (1d30ddc): tests, tokens, and mutants for the new head 6dd7d51</h1>
+<p class="sub">main has moved 39 commits since the merge-base 40ef07a, and none of them touch the prompt. Both heads merge cleanly. The 6dd7d51 arm's packages/ tree is identical to <code>git merge-tree origin/main 6dd7d51</code> (tree 090e4c3). Its prompts.ts and snapshot blobs equal the round-1 patch byte-for-byte.</p>
+<table><tr><th class=l>check</th><th>main</th><th>fad23c5 merged</th><th>6dd7d51 merged</th></tr>
+<tr><td class=l>core: prompts + client + prompt-tool-examples + ArenaManager</td><td>658/659</td><td>658/659</td><td>663/664</td></tr>
+<tr><td class=l>&nbsp;&nbsp;the 1 failure (same test on every arm)</td><td colspan=3 style="text-align:center">client.test.ts "disarms the fast-path … (#4239)": beforeEach mkdtemp hook timeout. Passes in isolation on main.</td></tr>
 <tr><td class=l>cli: contextCommand.test.ts</td><td>48/48</td><td>48/48</td><td>48/48</td></tr>
-<tr><td class=l>bundle contains "Lead with the outcome for simple tasks"</td><td>yes</td><td class=g>no</td><td>no</td></tr>
-<tr><td class=l>bundle contains "including when you could not"</td><td>no</td><td>no</td><td class=g>yes</td></tr>
+<tr><td class=l>o200k tokens, general interactive (Git section on)</td><td>4,052</td><td>3,765 (−287)</td><td>3,772 (−280, 6.91%)</td></tr>
+<tr><td class=l>o200k tokens, CodeModeOnly + todo</td><td>4,573</td><td>4,295 (−278)</td><td>4,302 (−271, 5.93%)</td></tr>
+<tr><td class=l>192 renders: "did not run a verification step"</td><td>192</td><td class=r>0</td><td class=g>192</td></tr>
+<tr><td class=l>192 renders: blank line ends the workflow list (R1-3)</td><td>n/a</td><td class=r>0</td><td class=g>192</td></tr>
+<tr><td class=l>6dd7d51 vs fad23c5 renders</td><td colspan=3 style="text-align:center">192/192 differ only in the Report-outcomes line plus one blank line</td></tr>
 </table>
-<p class="sub" style="margin-top:12px">contextCommand reports 48 cases here vs 43 in the PR body: #12182 edited that test file after the merge-base. Still green on every arm. client.test.ts needs --max-old-space-size=8192 on this host when run together with the other three files (OOM on every arm otherwise).</p>`));
+<p class="sub" style="margin:14px 0 6px"><b>Mutants on 6dd7d51's new tests</b> (prompts.test.ts, 195 tests; 17 are full-prompt snapshots)</p>
+<table><tr><th class=l>mutant in prompts.ts</th><th>result</th><th class=l>caught beyond the 17 snapshots?</th></tr>
+<tr><td class=l>revert to "if you could not run a verification step"</td><td class=g>20 failed</td><td class=l>yes, +3</td></tr>
+<tr><td class=l>drop the blank line after Report outcomes</td><td class=g>18 failed</td><td class=l>yes, +1</td></tr>
+<tr><td class=l>drop "Read-only or explanatory turns do not require verification."</td><td class=g>18 failed</td><td class=l>yes, +1</td></tr>
+<tr><td class=l>CodeModeOnly Reserve line (R1-4; 0 failed in round 1)</td><td class=g>1 failed</td><td class=l>yes, the new it.each</td></tr>
+<tr><td class=l>direct-mode Reserve line</td><td>17 failed</td><td class=l>snapshots only</td></tr>
+</table>`));
