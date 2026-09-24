@@ -1,0 +1,25 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
+index 38bcff44f2..6846cd3000 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisionerTest.java
+@@ -329,7 +329,7 @@ class LocalProcessRuntimeProvisionerTest {
+         }
+     }
+ 
+-    /** Fences every renewal so provisioning loses its claim mid-boot. */
++    /** Fences renewal and the READY write, so provisioning always loses. */
+     private static final class FencingBindingRepository
+             implements RuntimeBindingRepository {
+         private final InMemoryRuntimeBindingRepository delegate =
+@@ -362,6 +362,11 @@ class LocalProcessRuntimeProvisionerTest {
+         public RuntimeBindingRecord compareAndSet(
+                 RuntimeBindingRecord expected,
+                 RuntimeBindingRecord replacement) {
++            // Also fence the READY write, so the outcome does not depend on
++            // whether the first renewal tick beats the worker's boot.
++            if (replacement.getState() == RuntimeBindingRecord.State.READY) {
++                return null;
++            }
+             return delegate.compareAndSet(expected, replacement);
+         }
+ 

@@ -1,0 +1,19 @@
+INFO real workers before start=0
+INFO B0 acquired rt-1 state=READY on gen=1 pid=41752
+PASS B1 control on a dead worker is refused before transport (R2-1) :: 3x control => [503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true]
+INFO B2 createExecution (session rt-9) on dead worker => OK execution UNKNOWN; later => OK execution UNKNOWN
+INFO B3 warm(h2) after death => OK gen=2 port=53066
+INFO B3b next warms => [OK gen=2 port=53066, OK gen=2 port=53066, OK gen=2 port=53066]
+FAIL B4 the old session can still be released or re-acquired once the binding recovered :: acquire(rt-1) => OK session READY; 3x control => [503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true]; 3x release => [503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true]
+INFO B4c acquire(rt-1) after those releases => OK session READY; control => 503 runtime_provision_failed retryable=true
+INFO B4b release(rt-9, which holds the UNKNOWN execution) => 503 runtime_provision_failed retryable=true
+INFO B5 a new runtimeSessionId on the same harness => OK session READY; control => OK ok
+FAIL C1 a retired worker that failed re-attestation is released :: 8 warms => [OK gen=1 port=53068, 409 managed_runtime_identity_conflict retryable=false, OK gen=2 port=53070, 409 managed_runtime_identity_conflict retryable=false, OK gen=3 port=53072, 409 managed_runtime_identity_conflict retryable=false, OK gen=4 port=53074, 409 managed_runtime_identity_conflict retryable=false]; alive after each = [1, 1, 2, 2, 3, 3, 4, 4]; retired endpoints [53068:LISTEN, 53070:LISTEN, 53072:LISTEN, 53074:LISTEN]
+INFO C2 after service.close(): alive=0
+PASS D1 hung worker: re-attest times out, next warm re-provisions :: warm while stopped => 503 runtime_provision_failed retryable=true after 30010ms; next warm => OK gen=2 port=53106
+FAIL D2 the retired (hung, then resumed) worker is torn down :: old pid 41908 alive=true listen=127.0.0.1:53078
+INFO D3 after service.close(): old pid alive=false
+FAIL F1 non-loopback ready url is refused before credentials are sent :: warm=503 runtime_provision_failed retryable=true captured at <en0-ip>: {"remote":"<en0-ip>","auth":"Bearer BPa5s0m…","body":{"protocolVersion":2,"provisionRequestId":"9000321e-3c72-4fca-8cfe-afda9359d402","tenantId":"tenant-a","workspaceId":"ws-h7","workspaceGeneration":"7","workspaceCwd":"/runtime/h7","capabilityDigest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","isolationClass":"workspace"}}
+FAIL G1 releasing a stale session after recovery leaves the new generation alone :: warm after kill => 503 runtime_provision_failed retryable=true; gen2 g2 pid 42030; release(rt-1 on dead gen1) => 503 runtime_provision_failed retryable=true; control(rt-1) => 503 runtime_provision_failed retryable=true; control(rt-2 on gen2) => OK ok; warm => OK gen=2 port=53118 id=g2; gen2 pid alive=true; workers 1->1; release(rt-2) => OK true
+PASS Z no real workers left after every service.close() :: workers=0
+TOTAL pass=3 fail=5
