@@ -1,0 +1,60 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java
+index 42a4ca1e39..a55fec10bb 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java
+@@ -160,9 +160,13 @@ public final class LocalProcessRuntimeProvisioner
+                     || !Long.valueOf(1L).equals(number(ready.get("epoch")))) {
+                 throw failed("Managed Runtime ready record is invalid.");
+             }
++            URI endpoint = URI.create(String.valueOf(ready.get("url")));
++            if (!"http".equals(endpoint.getScheme())
++                    || !"127.0.0.1".equals(endpoint.getHost())) {
++                throw failed("Managed Runtime ready record is invalid.");
++            }
+             RuntimeLease lease = new RuntimeLease(runtimeInstanceId,
+-                    URI.create(String.valueOf(ready.get("url"))), token,
+-                    leaseId, 1);
++                    endpoint, token, leaseId, 1);
+             attest(request, ownedProcess.seed, lease);
+             owned.put(runtimeInstanceId, ownedProcess);
+             adopted = true;
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index 384f127b25..7e77c3deff 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -338,7 +338,24 @@ public final class RuntimeBrokerService implements AutoCloseable {
+ 
+     private CompletionStage<Boolean> releaseSession(
+             SessionContext context) {
+-        requireUsableLease(context);
++        if (!provisioner.isUsable(context.lease())) {
++            invalidateBinding(context.binding());
++            synchronized (context) {
++                if (context.hasActiveControl()
++                        || executionRepository.hasActiveByRuntimeSession(
++                                context.session().getRuntimeSessionId())) {
++                    throw conflict("runtime_session_busy",
++                            "Runtime Session has an active operation");
++                }
++                RuntimeSessionRecord gone =
++                        transitionSessionToReleasing(context);
++                if (gone.getState() != RuntimeSessionRecord.State.RELEASED) {
++                    finishSessionRelease(gone);
++                }
++                sessions.remove(context.session().getRuntimeSessionId());
++                return CompletableFuture.completedFuture(true);
++            }
++        }
+         CompletableFuture<Boolean> result;
+         RuntimeSessionRecord releasing;
+         synchronized (context) {
+@@ -951,6 +968,9 @@ public final class RuntimeBrokerService implements AutoCloseable {
+      */
+     private void invalidateBinding(RuntimeBindingRecord record) {
+         liveBindings.remove(record.getBindingId());
++        if (record.getLease() != null) {
++            releaseQuietly(record.getRequest(), record.getLease());
++        }
+         RuntimeBindingRecord claimed = bindingRepository.claimOperation(
+                 record.getBindingId(), brokerOwnerId, operationLeaseDuration);
+         if (claimed != null) {

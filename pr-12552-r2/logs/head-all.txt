@@ -1,0 +1,25 @@
+INFO real workers before start=0
+PASS A1 warm adopts real worker :: gen=1 endpoint=http://127.0.0.1:50253/ pid=31716 cold=274ms listen=127.0.0.1:50253
+INFO A2 20 warms on READY (each re-attests over HTTP) p50=2.706ms p95=9.145ms
+PASS A3 after SIGTERM of the worker, the binding recovers (round-1 F1) :: 6 warms => [503 runtime_provision_failed retryable=true, OK gen=2 port=50309, OK gen=2 port=50309, OK gen=2 port=50309, OK gen=2 port=50309, OK gen=2 port=50309]; fresh workers=1
+PASS A4 after kill -9 of the worker, the binding recovers :: 6 warms => [503 runtime_provision_failed retryable=true, OK gen=3 port=50319, OK gen=3 port=50319, OK gen=3 port=50319, OK gen=3 port=50319, OK gen=3 port=50319]
+PASS A5 service.close() now ends the provisioner's workers (R1-33) :: real workers before close=1 after=0
+INFO B0 acquired rt-1 state=READY on gen=1 pid=31849
+PASS B1 control on a dead worker is refused before transport (R2-1) :: 3x control => [503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true]
+INFO B2 createExecution (session rt-9) on dead worker => OK execution UNKNOWN; later => OK execution UNKNOWN
+INFO B3 warm(h2) after death => OK gen=2 port=50377
+INFO B3b next warms => [OK gen=2 port=50377, OK gen=2 port=50377, OK gen=2 port=50377]
+FAIL B4 the old session can still be released or re-acquired once the binding recovered :: acquire(rt-1) => OK session READY; 3x control => [503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true]; 3x release => [503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true, 503 runtime_provision_failed retryable=true]
+INFO B4c acquire(rt-1) after those releases => OK session READY; control => 503 runtime_provision_failed retryable=true
+INFO B4b release(rt-9, which holds the UNKNOWN execution) => 503 runtime_provision_failed retryable=true
+INFO B5 a new runtimeSessionId on the same harness => OK session READY; control => OK ok
+FAIL C1 a retired worker that failed re-attestation is released :: 8 warms => [OK gen=1 port=50379, 409 managed_runtime_identity_conflict retryable=false, OK gen=2 port=50389, 409 managed_runtime_identity_conflict retryable=false, OK gen=3 port=50395, 409 managed_runtime_identity_conflict retryable=false, OK gen=4 port=50397, 409 managed_runtime_identity_conflict retryable=false]; alive after each = [1, 1, 2, 2, 3, 3, 4, 4]; retired endpoints [50379:LISTEN, 50389:LISTEN, 50395:LISTEN, 50397:LISTEN]
+INFO C2 after service.close(): alive=0
+PASS D1 hung worker: re-attest times out, next warm re-provisions :: warm while stopped => 503 runtime_provision_failed retryable=true after 30015ms; next warm => OK gen=2 port=50853
+FAIL D2 the retired (hung, then resumed) worker is torn down :: old pid 32036 alive=true listen=127.0.0.1:50447
+INFO D3 after service.close(): old pid alive=false
+PASS E1 failed adoption of a SIGTERM-ignoring worker kills it (finally -> destroyForcibly) :: warm => 503 runtime_provision_failed retryable=true; alive after 1.5s=0
+FAIL E2 service.close() ends an adopted worker that ignores SIGTERM :: warm => OK gen=1 port=50949; adopted=1; alive 6.5s after close=1
+FAIL F1 non-loopback ready url is refused before credentials are sent :: warm=503 runtime_provision_failed retryable=true captured at <en0 LAN ip>: {"remote":"<en0 LAN ip>","auth":"Bearer Q3Fa3Yj…","body":{"protocolVersion":2,"provisionRequestId":"932dc556-4518-4df0-ada2-00792af256fb","tenantId":"tenant-a","workspaceId":"ws-h7","workspaceGeneration":"7","workspaceCwd":"/runtime/h7","capabilityDigest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","isolationClass":"workspace"}}
+PASS Z no real workers left after every service.close() :: workers=0
+TOTAL pass=8 fail=5
