@@ -1,0 +1,144 @@
+diff --git a/packages/cli/src/serve/contracts/managed-runtime-tool-v2.schema.json b/packages/cli/src/serve/contracts/managed-runtime-tool-v2.schema.json
+index caa54dee5b..057ea621cd 100644
+--- a/packages/cli/src/serve/contracts/managed-runtime-tool-v2.schema.json
++++ b/packages/cli/src/serve/contracts/managed-runtime-tool-v2.schema.json
+@@ -123,7 +123,17 @@
+         },
+         "result": { "$ref": "#/$defs/result" },
+         "lastSequence": { "type": "integer", "minimum": 0 }
+-      }
++      },
++      "if": {
++        "type": "object",
++        "properties": { "state": { "const": "settled" } }
++      },
++      "then": {
++        "type": "object",
++        "properties": { "result": true },
++        "required": ["result"]
++      },
++      "else": { "type": "object", "properties": { "result": false } }
+     },
+     "headers": {
+       "type": "object",
+@@ -201,6 +211,88 @@
+             },
+             "code": { "type": "string", "minLength": 1 },
+             "body": { "$ref": "#/$defs/toolResponseBody" }
++          },
++          "if": {
++            "type": "object",
++            "properties": { "classification": { "const": "ok" } }
++          },
++          "then": {
++            "type": "object",
++            "properties": { "body": true },
++            "required": ["body"]
++          }
++        }
++      }
++    },
++    "executeShape": {
++      "type": "object",
++      "properties": {
++        "canonicalRequest": {
++          "type": "object",
++          "properties": {
++            "body": {
++              "type": "object",
++              "properties": {
++                "toolName": true,
++                "input": true,
++                "afterSequence": false
++              },
++              "required": ["toolName", "input"]
++            }
++          }
++        },
++        "cases": {
++          "type": "array",
++          "items": { "$ref": "#/$defs/noLastSequence" }
++        }
++      }
++    },
++    "statusShape": {
++      "type": "object",
++      "properties": {
++        "canonicalRequest": {
++          "type": "object",
++          "properties": {
++            "body": {
++              "type": "object",
++              "properties": { "toolName": false, "input": false }
++            }
++          }
++        }
++      }
++    },
++    "cancelShape": {
++      "type": "object",
++      "properties": {
++        "canonicalRequest": {
++          "type": "object",
++          "properties": {
++            "body": {
++              "type": "object",
++              "properties": {
++                "toolName": false,
++                "input": false,
++                "afterSequence": false
++              }
++            }
++          }
++        },
++        "cases": {
++          "type": "array",
++          "items": { "$ref": "#/$defs/noLastSequence" }
++        }
++      }
++    },
++    "noLastSequence": {
++      "type": "object",
++      "properties": {
++        "expected": {
++          "type": "object",
++          "properties": {
++            "body": {
++              "type": "object",
++              "properties": { "lastSequence": false }
++            }
+           }
+         }
+       }
+@@ -225,7 +317,30 @@
+           "minItems": 1,
+           "items": { "$ref": "#/$defs/case" }
+         }
+-      }
++      },
++      "allOf": [
++        {
++          "if": {
++            "type": "object",
++            "properties": { "route": { "const": "execute" } }
++          },
++          "then": { "$ref": "#/$defs/executeShape" }
++        },
++        {
++          "if": {
++            "type": "object",
++            "properties": { "route": { "const": "status" } }
++          },
++          "then": { "$ref": "#/$defs/statusShape" }
++        },
++        {
++          "if": {
++            "type": "object",
++            "properties": { "route": { "const": "cancel" } }
++          },
++          "then": { "$ref": "#/$defs/cancelShape" }
++        }
++      ]
+     }
+   }
+ }
