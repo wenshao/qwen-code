@@ -1,0 +1,23 @@
+import { openShell, sleep, SHOTS } from './lib.mjs';
+const { ctx, page, requests, errors } = await openShell(4661, { height: 1000 });
+await page.locator('[class*=sessionRow]').filter({ hasText: 'SCN:parallel multi-head' }).first().click();
+await page.getByText('parallel done').first().waitFor({ timeout: 60000 }); await sleep(1500);
+const sb = page.getByRole('button', { name: 'Search this conversation' }).first();
+console.log('search buttons', await page.getByRole('button', { name: /search/i }).evaluateAll((b) => b.map((x) => x.getAttribute('aria-label'))));
+await sb.click(); await sleep(600);
+await page.keyboard.type('SCN:slow'); await sleep(1500);
+const results = await page.$$eval('[role=listbox] [role=option], [aria-label*="results" i] li', (os) => os.map((o) => o.innerText.replace(/\s+/g, ' ').slice(0, 80)));
+await page.screenshot({ path: `${SHOTS}/S-1-search.png` });
+await page.keyboard.press('Enter'); await sleep(2500);
+await page.screenshot({ path: `${SHOTS}/S-2-jumped.png` });
+const btns = page.getByRole('button', { name: 'View tool calls' });
+// click the button of the message whose text is SCN:slow multi-head
+const msg = page.locator('[data-web-shell-message-list] *').filter({ hasText: /^SCN:slow multi-head$/ }).last();
+await msg.scrollIntoViewIfNeeded(); await msg.hover(); await sleep(400);
+const box = await msg.boundingBox();
+const cand = await btns.evaluateAll((bs, y) => bs.map((b, i) => ({ i, y: b.getBoundingClientRect().y })).filter((c) => c.y > y - 10).sort((a, b) => a.y - b.y), box.y);
+await btns.nth(cand[0].i).click(); await sleep(2500);
+const st = await page.evaluate(() => { const p = document.querySelector('section[aria-label="Tool calls"]'); return { combo: p?.querySelector('[aria-label="Prompt"]')?.innerText, rows: [...document.querySelectorAll('ul[data-web-shell-turn-calls] > li')].map((li) => li.innerText.replace(/\s+/g, ' ').slice(0, 80)), alert: p?.querySelector('[role=alert]')?.innerText }; });
+await page.screenshot({ path: `${SHOTS}/S-3-toolcalls.png` });
+console.log(JSON.stringify({ results, st, tc: requests.filter((r) => r.method && r.url.includes('tool-calls')).map((r) => r.url.split('turnId=')[1].slice(0, 8)), errors }, null, 1));
+await ctx.close();

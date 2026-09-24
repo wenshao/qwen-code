@@ -1,0 +1,13 @@
+import { openShell, sleep, SHOTS } from './lib.mjs';
+const { ctx, page, requests } = await openShell(4661, { height: 1000 });
+await page.locator('[class*=sessionRow]').filter({ hasText: 'SCN:parallel multi-head' }).first().click();
+await page.getByText('parallel done').first().waitFor({ timeout: 60000 }); await sleep(1500);
+const n = await page.getByRole('button', { name: 'View tool calls' }).count();
+await page.getByRole('button', { name: 'View tool calls' }).last().click(); await sleep(2500);
+const badge = page.locator('section[aria-label="Tool calls"] [aria-label^="Elapsed"]').first(); await badge.hover(); await sleep(700);
+const tip = await page.$$eval('[role=tooltip]', (ts) => ts.map((t) => t.innerText.replace(/\s+/g, ' ')).join(' / '));
+await page.locator('section[aria-label="Tool calls"] [aria-label="Prompt"]').click(); await sleep(800);
+const opts = await page.$$eval('[role=listbox] [role=option]', (os) => os.map((o, i) => i + ':' + o.innerText.replace(/\s+/g, ' ') + (o.getAttribute('aria-selected') === 'true' ? ' ✓' : '')));
+await page.screenshot({ path: `${SHOTS}/C-dup-last.png` });
+console.log(JSON.stringify({ buttons: n, tip, opts, tc: requests.filter((r) => r.method && r.url.includes('tool-calls')).map((r) => r.url.split('turnId=')[1].slice(0, 8)) }, null, 1));
+await ctx.close();
