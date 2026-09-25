@@ -48,7 +48,7 @@ Checks on the patch: core config Advisor tests 13/13, cli `settings.test.ts` 213
 | cap 2: same flow | child cannot consult | 2 requests; the child's request carries `CHILD_TASK` and **not** `PARENT_TASK`; 0 tools on the Advisor request |
 | cap 1: two `advisor` calls in **one** model response | 2 requests, both `invalid structured output` (fake answers in free text) | **1** request; second result `usage limit reached` (reserved before the await) |
 | user cap 1 + workspace `advisorMaxUses: 0` | no cap | 1 request, 2nd refused, workspace-ignored warning |
-| workspace-only `advisorMaxUses: 1` | — | ignored: 2 requests allowed, warning |
+| workspace-only `advisorMaxUses: 1` | no cap (2 requests) | ignored: 2 requests allowed, warning |
 | subagent `tools: read_file` tries `advisor` | not found | not found; no reminder; 0 requests |
 | subagent with default tools | not found | advisor declared, reminder on first turn, 1 request |
 | `permissions.deny: ["advisor"]` / `tools.disabled: ["advisor"]` | — | reminder suppressed (0 copies) |

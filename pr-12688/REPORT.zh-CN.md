@@ -48,7 +48,7 @@ head 输出 `An unexpected critical error occurred: Error: advisorMaxUses must b
 | 上限 2：同流程 | 子代理无法咨询 | 2 次请求；子代理那次含 `CHILD_TASK`、**不含** `PARENT_TASK`；Advisor 请求 0 个工具 |
 | 上限 1：**同一条**模型回复里两个 `advisor` 调用 | 2 次请求，均 `invalid structured output`（假顾问用自由文本作答） | **1** 次请求；第二个结果为 `usage limit reached`（await 前已预留） |
 | user 上限 1 + workspace `advisorMaxUses: 0` | 无上限 | 1 次请求，第 2 次被拒，并告警 workspace 值被忽略 |
-| 仅 workspace `advisorMaxUses: 1` | — | 被忽略：2 次均放行，并告警 |
+| 仅 workspace `advisorMaxUses: 1` | 无上限（2 次请求） | 被忽略：2 次均放行，并告警 |
 | 子代理 `tools: read_file` 尝试 `advisor` | not found | not found；无提醒；0 次请求 |
 | 默认工具的子代理 | not found | 已声明 advisor，首轮有提醒，1 次请求 |
 | `permissions.deny: ["advisor"]` / `tools.disabled: ["advisor"]` | — | 提醒被抑制（0 份） |
