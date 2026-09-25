@@ -1,0 +1,124 @@
+diff --git a/packages/core/src/mcp/oauth-provider.test.ts b/packages/core/src/mcp/oauth-provider.test.ts
+index 61f6c358fe..0e8b263979 100644
+--- a/packages/core/src/mcp/oauth-provider.test.ts
++++ b/packages/core/src/mcp/oauth-provider.test.ts
+@@ -785,6 +785,119 @@ describe('MCPOAuthProvider', () => {
+       );
+     });
+ 
++    it('should fall back to configured registration URL when WWW-Authenticate discovery omits one', async () => {
++      const configWithoutClientAndAuthorizationUrl: MCPOAuthConfig = {
++        ...mockConfig,
++        registrationUrl: 'https://auth.example.com/pinned/register',
++      };
++      delete configWithoutClientAndAuthorizationUrl.clientId;
++      delete configWithoutClientAndAuthorizationUrl.authorizationUrl;
++      delete configWithoutClientAndAuthorizationUrl.tokenUrl;
++
++      const resourceMetadata: OAuthProtectedResourceMetadata = {
++        resource: 'https://mcp.example.com/v2/mcp',
++        authorization_servers: ['https://auth.example.com/tenant'],
++        scopes_supported: ['read'],
++      };
++      const authServerMetadata: OAuthAuthorizationServerMetadata = {
++        issuer: 'https://auth.example.com/tenant',
++        authorization_endpoint: 'https://auth.example.com/authorize',
++        token_endpoint: 'https://auth.example.com/token',
++        // No registration_endpoint: the configured URL is the only one.
++      };
++      const registrationResponse: OAuthClientRegistrationResponse = {
++        client_id: 'dynamic_client_id',
++        client_secret: 'dynamic_client_secret',
++        redirect_uris: ['http://localhost:7777/oauth/callback'],
++        grant_types: ['authorization_code', 'refresh_token'],
++        response_types: ['code'],
++        token_endpoint_auth_method: 'none',
++      };
++
++      mockFetch
++        .mockResolvedValueOnce(
++          createMockResponse({
++            ok: false,
++            status: 401,
++            wwwAuthenticate:
++              'Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/v2/mcp"',
++          }),
++        )
++        .mockResolvedValueOnce(
++          createMockResponse({
++            ok: true,
++            contentType: 'application/json',
++            text: JSON.stringify(resourceMetadata),
++            json: resourceMetadata,
++          }),
++        )
++        .mockResolvedValueOnce(
++          createMockResponse({
++            ok: true,
++            contentType: 'application/json',
++            text: JSON.stringify(authServerMetadata),
++            json: authServerMetadata,
++          }),
++        )
++        .mockResolvedValueOnce(
++          createMockResponse({
++            ok: true,
++            contentType: 'application/json',
++            text: JSON.stringify(registrationResponse),
++            json: registrationResponse,
++          }),
++        )
++        .mockResolvedValueOnce(
++          createMockResponse({
++            ok: true,
++            contentType: 'application/json',
++            text: JSON.stringify(mockTokenResponse),
++            json: mockTokenResponse,
++          }),
++        );
++
++      let callbackHandler: unknown;
++      vi.mocked(http.createServer).mockImplementation((handler) => {
++        callbackHandler = handler;
++        return mockHttpServer as unknown as http.Server;
++      });
++
++      mockHttpServer.listen.mockImplementation((port, callback) => {
++        callback?.();
++        setTimeout(() => {
++          const mockReq = {
++            url: '/oauth/callback?code=auth_code_123&state=bW9ja19zdGF0ZV8xNl9ieXRlcw',
++          };
++          const mockRes = {
++            writeHead: vi.fn(),
++            end: vi.fn(),
++          };
++          (callbackHandler as (req: unknown, res: unknown) => void)(
++            mockReq,
++            mockRes,
++          );
++        }, 10);
++      });
++
++      const authProvider = new MCPOAuthProvider();
++      await expect(
++        authProvider.authenticate(
++          'test-server',
++          configWithoutClientAndAuthorizationUrl,
++          'https://mcp.example.com/v2/mcp',
++        ),
++      ).resolves.toBeDefined();
++
++      expect(mockFetch).toHaveBeenCalledWith(
++        'https://auth.example.com/pinned/register',
++        expect.objectContaining({
++          method: 'POST',
++          headers: { 'Content-Type': 'application/json' },
++        }),
++      );
++    });
++
++
+     it('should preserve configured registration URL through standard discovery', async () => {
+       const configWithRegistrationUrl: MCPOAuthConfig = {
+         ...mockConfig,

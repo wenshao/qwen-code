@@ -1,0 +1,24 @@
+diff --git a/packages/core/src/tools/mcp-client.ts b/packages/core/src/tools/mcp-client.ts
+index dbaa154213..82a7472ae6 100644
+--- a/packages/core/src/tools/mcp-client.ts
++++ b/packages/core/src/tools/mcp-client.ts
+@@ -1176,7 +1176,9 @@ async function handleAutomaticOAuth(
+       OAuthUtils.parseWWWAuthenticateHeader(wwwAuthenticate);
+     if (resourceMetadataUri) {
+       oauthConfig = await retryWithBackoff(
+-        () => OAuthUtils.discoverOAuthConfig(resourceMetadataUri),
++        async () =>
++          (await OAuthUtils.discoverOAuthFromWWWAuthenticate(wwwAuthenticate)) ??
++          (await OAuthUtils.discoverOAuthConfig(resourceMetadataUri)),
+         `${mcpServerName}/oauth-discovery`,
+         { maxRetries: 1 },
+       );
+@@ -1209,6 +1211,8 @@ async function handleAutomaticOAuth(
+       authorizationUrl: oauthConfig.authorizationUrl,
+       tokenUrl: oauthConfig.tokenUrl,
+       scopes: oauthConfig.scopes || [],
++      registrationUrl:
++        oauthConfig.registrationUrl ?? mcpServerConfig.oauth?.registrationUrl,
+     };
+ 
+     // Perform OAuth authentication
