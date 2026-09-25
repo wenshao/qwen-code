@@ -1,0 +1,157 @@
+diff --git a/packages/cli/src/config/settings.test.ts b/packages/cli/src/config/settings.test.ts
+index 8e9a74f4d5..356a08524e 100644
+--- a/packages/cli/src/config/settings.test.ts
++++ b/packages/cli/src/config/settings.test.ts
+@@ -659,6 +659,30 @@ describe('Settings Loading and Merging', () => {
+       );
+     });
+ 
++    it.each([-1, 1.5, '5'])(
++      'warns that an invalid advisorMaxUses %s is ignored',
++      (advisorMaxUses) => {
++        (mockFsExistsSync as Mock).mockImplementation(
++          (p: fs.PathLike) => p === USER_SETTINGS_PATH,
++        );
++        (fs.readFileSync as Mock).mockImplementation(
++          (p: fs.PathOrFileDescriptor) =>
++            p === USER_SETTINGS_PATH
++              ? JSON.stringify({
++                  [SETTINGS_VERSION_KEY]: SETTINGS_VERSION,
++                  advisorMaxUses,
++                })
++              : '{}',
++        );
++
++        const settings = loadSettings(MOCK_WORKSPACE_DIR);
++
++        expect(getSettingsWarnings(settings)).toEqual([
++          expect.stringContaining('advisorMaxUses must be a non-negative'),
++        ]);
++      },
++    );
++
+     it('should silently ignore unknown top-level keys in a v2 settings file', () => {
+       (mockFsExistsSync as Mock).mockImplementation(
+         (p: fs.PathLike) => p === USER_SETTINGS_PATH,
+diff --git a/packages/cli/src/config/settings.ts b/packages/cli/src/config/settings.ts
+index f39041e387..6efff00a36 100644
+--- a/packages/cli/src/config/settings.ts
++++ b/packages/cli/src/config/settings.ts
+@@ -11,6 +11,7 @@ import process from 'node:process';
+ import {
+   FatalConfigError,
+   getErrorMessage,
++  isValidAdvisorMaxUses,
+   Storage,
+   createDebugLogger,
+   stripRuntimeSnapshotPrefix,
+@@ -439,6 +440,18 @@ export function getSettingsWarnings(loadedSettings: LoadedSettings): string[] {
+       }
+     }
+   }
++  // Core falls back to unlimited for an invalid value instead of refusing to
++  // start; say so, since the user asked for a limit.
++  const advisorMaxUses: unknown = loadedSettings.merged.advisorMaxUses;
++  if (
++    advisorMaxUses !== undefined &&
++    advisorMaxUses !== null &&
++    !isValidAdvisorMaxUses(advisorMaxUses)
++  ) {
++    warningSet.add(
++      `Warning: advisorMaxUses must be a non-negative integer (0 means unlimited); ignoring ${JSON.stringify(advisorMaxUses)}. Advisor consultations are not limited in this session.`,
++    );
++  }
+   return [...warningSet];
+ }
+ 
+diff --git a/packages/core/src/config/config.test.ts b/packages/core/src/config/config.test.ts
+index d2899d8ee1..711348c160 100644
+--- a/packages/core/src/config/config.test.ts
++++ b/packages/core/src/config/config.test.ts
+@@ -6993,6 +6993,31 @@ describe('Server Config (config.ts)', () => {
+       expect(config.getAdvisorUseCount()).toBe(1);
+     });
+ 
++    it('treats an Advisor limit of 0 as unlimited', () => {
++      const config = new Config({
++        ...baseParams,
++        advisorModel: 'advisor-model',
++        advisorMaxUses: 0,
++      });
++      for (let i = 0; i < 3; i++) {
++        expect(config.tryConsumeAdvisorUse()).toBe(true);
++      }
++      expect(config.getAdvisorUseCount()).toBe(3);
++    });
++
++    it('resets the Advisor count when a new session starts', () => {
++      const config = new Config({
++        ...baseParams,
++        advisorModel: 'advisor-model',
++        advisorMaxUses: 1,
++      });
++      expect(config.tryConsumeAdvisorUse()).toBe(true);
++      expect(config.tryConsumeAdvisorUse()).toBe(false);
++      config.startNewSession('next-advisor-session');
++      expect(config.getAdvisorUseCount()).toBe(0);
++      expect(config.tryConsumeAdvisorUse()).toBe(true);
++    });
++
+     it('registers configured Advisor for ordinary subagent registries', async () => {
+       const config = new Config({
+         ...baseParams,
+@@ -7008,12 +7033,14 @@ describe('Server Config (config.ts)', () => {
+       );
+     });
+ 
+-    it.each([-1, 1.5, NaN, Infinity])(
+-      'rejects invalid Advisor limit %s',
++    it.each([-1, 1.5, NaN, Infinity, '5'])(
++      'falls back to unlimited for invalid Advisor limit %s',
+       (advisorMaxUses) => {
+-        expect(() => new Config({ ...baseParams, advisorMaxUses })).toThrow(
+-          'advisorMaxUses',
+-        );
++        const config = new Config({
++          ...baseParams,
++          advisorMaxUses: advisorMaxUses as number,
++        });
++        expect(config.getAdvisorMaxUses()).toBe(0);
+       },
+     );
+ 
+diff --git a/packages/core/src/config/config.ts b/packages/core/src/config/config.ts
+index 1fa9558ae4..96c09fd6df 100644
+--- a/packages/core/src/config/config.ts
++++ b/packages/core/src/config/config.ts
+@@ -404,6 +404,10 @@ function formatVisionModelSettingForLog(setting: string): string {
+   return setting.replace(/\0/g, '\\0');
+ }
+ 
++export function isValidAdvisorMaxUses(value: unknown): value is number {
++  return Number.isSafeInteger(value) && (value as number) >= 0;
++}
++
+ function normalizeAdvisorModel(model: string | undefined): string | undefined {
+   const trimmed = model?.trim();
+   if (!trimmed || trimmed.toLowerCase() === 'off') return undefined;
+@@ -3636,12 +3640,13 @@ export class Config {
+         : undefined;
+     this.fastModel = params.fastModel || undefined;
+     this.advisorModel = normalizeAdvisorModel(params.advisorModel);
+-    this.advisorMaxUses = params.advisorMaxUses ?? 0;
+-    if (!Number.isSafeInteger(this.advisorMaxUses) || this.advisorMaxUses < 0) {
+-      throw new Error(
+-        'advisorMaxUses must be a non-negative integer (0 means unlimited).',
+-      );
+-    }
++    // Nothing validates settings.json on the load path, so a hand-edited
++    // -1, 1.5 or "5" reaches this constructor. Fall back to the default
++    // (unlimited) like the neighbouring numeric settings instead of refusing
++    // to start; the CLI surfaces a settings warning for the ignored value.
++    this.advisorMaxUses = isValidAdvisorMaxUses(params.advisorMaxUses)
++      ? params.advisorMaxUses
++      : 0;
+     this.webSearchSettings = params.webSearch;
+     this.visionModel = params.visionModel || undefined;
+     this.compactionModel = params.compactionModel || undefined;
