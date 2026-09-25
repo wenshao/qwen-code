@@ -1,0 +1,66 @@
+######## A: re-collect after the local result copy is gone
+
+$ qwen batch run plan.json   (cwd=/root/verify/pr12492/r3-repro/scratch/r2-02-usage/project)
+[exit 0, 525 ms]
+  out| task r2-02a-20260925164937: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-1
+  out| collect later with: qwen batch collect r2-02a-20260925164937
+
+$ qwen batch collect r2-02a-20260925164937   (cwd=/root/verify/pr12492/r3-repro/scratch/r2-02-usage/project)
+[exit 0, 563 ms]
+  out| task r2-02a-20260925164937: 2 delivered, 0 held, 0 failed, 0 awaiting a settled batch
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+usage after first collect: {"promptTokens":100,"completionTokens":20,"requests":2,"missing":0}
+deleted attempt-001/output.jsonl
+
+$ qwen batch collect r2-02a-20260925164937   (cwd=/root/verify/pr12492/r3-repro/scratch/r2-02-usage/project)
+[exit 0, 492 ms]
+  out| task r2-02a-20260925164937: 2 delivered, 0 held, 0 failed, 0 awaiting a settled batch
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+usage after re-collect:    {"promptTokens":100,"completionTokens":20,"requests":2,"missing":0}
+"Batch usage" line printed on re-collect: true
+CONFIRMED  billed usage survives a re-collect without the local copy
+
+######## B: forced clean after the open-batch refusal
+
+$ qwen batch run plan.json   (cwd=/root/verify/pr12492/r3-repro/scratch/r2-02-clean/project)
+[exit 0, 513 ms]
+  out| task r2-02b-20260925164939: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-2
+  out| collect later with: qwen batch collect r2-02b-20260925164939
+
+$ qwen batch collect r2-02b-20260925164939   (cwd=/root/verify/pr12492/r3-repro/scratch/r2-02-clean/project)
+[exit 0, 542 ms]
+  out| task r2-02b-20260925164939: 0 delivered, 1 held, 1 failed, 0 awaiting a settled batch
+  out|   held: b — target "docs/en/b.md" already exists with different content; kept both
+  out|   failed: a — request status 500: {"error":"boom"}
+  out| Batch usage, all attempts: 50 in / 10 out tokens across 2 request(s) — INCOMPLETE: 1 request(s) reported no usage, so these totals are a lower bound. Kept out of the interactive session's cache statistics; preparation in the session is not included.
+  out| retry failed items with: qwen batch retry r2-02b-20260925164939
+  out| resolve the held conflicts above, then re-run: qwen batch collect r2-02b-20260925164939
+
+$ qwen batch retry r2-02b-20260925164939   (cwd=/root/verify/pr12492/r3-repro/scratch/r2-02-clean/project)
+[exit 0, 519 ms]
+  out| retrying 1 item(s) as attempt 2: ~37 in / ~37 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-3
+  out| collect later with: qwen batch collect r2-02b-20260925164939
+
+$ qwen batch clean r2-02b-20260925164939   (cwd=/root/verify/pr12492/r3-repro/scratch/r2-02-clean/project)
+[exit 1, 554 ms]
+  err| task r2-02b-20260925164939 has 1 batch submission(s) that may still be running, billing, or holding uncollected results (batch-3). Collect or cancel first — deleting the record loses the only way to do either — or pass --force.
+
+$ qwen batch clean r2-02b-20260925164939 --force   (cwd=/root/verify/pr12492/r3-repro/scratch/r2-02-clean/project)
+[exit 0, 490 ms]
+  out| removed local record of task r2-02b-20260925164939
+  err| [batch] warning: batch-3 was not cancelled; it may still run and bill.
+  err| [batch] warning: 1 undelivered result(s) (b) were the only copy; the remote files are already deleted, so they are now lost.
+record still on disk: false
+CONFIRMED  forced clean names the destroyed held result
+CONFIRMED  forced clean still warns about the uncancelled batch
+
+== 3/3 expectations matched
