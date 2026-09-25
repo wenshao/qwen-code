@@ -12,16 +12,21 @@ jobs:
         run: |
           & "C:\Program Files\nodejs\node.exe" -v
           & "C:\Program Files\nodejs\node.exe" probe-win.mjs "program-files-default" | Tee-Object -FilePath out-default.txt
+          & "C:\Program Files\nodejs\node.exe" probe-cand.mjs "program-files-default" | Tee-Object -FilePath cand-default.txt
       - uses: actions/setup-node@v4
         with: { node-version: '22.x' }
       - name: node 22 (hostedtoolcache)
         shell: pwsh
-        run: node probe-win.mjs "toolcache-22" | Tee-Object -FilePath out-22.txt
+        run: |
+          node probe-win.mjs "toolcache-22" | Tee-Object -FilePath out-22.txt
+          node probe-cand.mjs "toolcache-22" | Tee-Object -FilePath cand-22.txt
       - uses: actions/setup-node@v4
         with: { node-version: '24.x' }
       - name: node 24 (hostedtoolcache)
         shell: pwsh
-        run: node probe-win.mjs "toolcache-24" | Tee-Object -FilePath out-24.txt
+        run: |
+          node probe-win.mjs "toolcache-24" | Tee-Object -FilePath out-24.txt
+          node probe-cand.mjs "toolcache-24" | Tee-Object -FilePath cand-24.txt
       - name: node 24 copied under a path with spaces
         shell: pwsh
         run: |
@@ -29,5 +34,6 @@ jobs:
           New-Item -ItemType Directory -Force "C:\Program Files\node 24 copy" | Out-Null
           Copy-Item -Recurse "$src\*" "C:\Program Files\node 24 copy\"
           & "C:\Program Files\node 24 copy\node.exe" probe-win.mjs "program-files-24" | Tee-Object -FilePath out-24pf.txt
+          & "C:\Program Files\node 24 copy\node.exe" probe-cand.mjs "program-files-24" | Tee-Object -FilePath cand-24pf.txt
       - uses: actions/upload-artifact@v4
-        with: { name: probe-out, path: 'out-*.txt' }
+        with: { name: probe-out, path: '*-*.txt' }
