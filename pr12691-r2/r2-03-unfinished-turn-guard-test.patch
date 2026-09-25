@@ -1,0 +1,26 @@
+diff --git a/packages/core/src/tools/managed-tool-runtime.test.ts b/packages/core/src/tools/managed-tool-runtime.test.ts
+index 86e7d01c14..92b32c6932 100644
+--- a/packages/core/src/tools/managed-tool-runtime.test.ts
++++ b/packages/core/src/tools/managed-tool-runtime.test.ts
+@@ -553,6 +553,21 @@ describe('ManagedToolRuntime', () => {
+     expect(tool.invocations).toHaveLength(1025);
+   });
+ 
++  it('refuses a new turn while an invocation is still running', async () => {
++    const gate = deferred<ToolResult>();
++    tool.setup = (invocation) =>
++      invocation.execute.mockReturnValue(gate.promise);
++    const ref = await prepare();
++    await runtime.preflight(ref);
++    const running = runtime.execute(ref);
++    expect(() =>
++      runtime.beginTurn({ ...identity, promptId: 'prompt-2' }),
++    ).toThrow('still owns an unfinished tool invocation');
++    expect(runtime.status(ref).state).toBe('executing');
++    gate.resolve(rawResult);
++    expect((await running).executionStatus).toBe('success');
++  });
++
+   it('runs the preflight hook once across the second confirmation bounce', async () => {
+     hooks.pre.mockResolvedValue({ shouldProceed: false, blockType: 'ask' });
+     const ref = await prepare();
