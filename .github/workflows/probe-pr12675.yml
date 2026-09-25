@@ -1,0 +1,33 @@
+name: probe-pr12675-windows
+on:
+  push:
+    branches: ['probe/pr12675-**']
+jobs:
+  win:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image default node (C:\Program Files\nodejs)
+        shell: pwsh
+        run: |
+          & "C:\Program Files\nodejs\node.exe" -v
+          & "C:\Program Files\nodejs\node.exe" probe-win.mjs "program-files-default" | Tee-Object -FilePath out-default.txt
+      - uses: actions/setup-node@v4
+        with: { node-version: '22.x' }
+      - name: node 22 (hostedtoolcache)
+        shell: pwsh
+        run: node probe-win.mjs "toolcache-22" | Tee-Object -FilePath out-22.txt
+      - uses: actions/setup-node@v4
+        with: { node-version: '24.x' }
+      - name: node 24 (hostedtoolcache)
+        shell: pwsh
+        run: node probe-win.mjs "toolcache-24" | Tee-Object -FilePath out-24.txt
+      - name: node 24 copied under a path with spaces
+        shell: pwsh
+        run: |
+          $src = Split-Path (Get-Command node).Source
+          New-Item -ItemType Directory -Force "C:\Program Files\node 24 copy" | Out-Null
+          Copy-Item -Recurse "$src\*" "C:\Program Files\node 24 copy\"
+          & "C:\Program Files\node 24 copy\node.exe" probe-win.mjs "program-files-24" | Tee-Object -FilePath out-24pf.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: probe-out, path: 'out-*.txt' }
