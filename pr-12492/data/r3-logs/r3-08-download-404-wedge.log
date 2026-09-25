@@ -1,0 +1,45 @@
+
+$ qwen batch run plan.json   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-08/project)
+[exit 0, 566 ms]
+  out| task r3-08-20260925145954: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-1
+  out| collect later with: qwen batch collect r3-08-20260925145954
+
+$ qwen batch collect r3-08-20260925145954   # GET /files/<output>/content -> 404 always   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-08/project)
+[exit 1, 535 ms]
+  out| task r3-08-20260925145954: 0 delivered, 0 held, 0 failed, 2 awaiting a settled batch
+  out|   could not collect batch-1: GET /files/file-2/content -> HTTP 404: {"error":{"message":"fake download failure"}}
+  err| collect incomplete: batch-1: GET /files/file-2/content -> HTTP 404: {"error":{"message":"fake download failure"}}
+
+$ qwen batch collect r3-08-20260925145954 --wait --timeout 30   # again, with --wait   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-08/project)
+[exit 1, 592 ms]
+  out| task r3-08-20260925145954: 0 delivered, 0 held, 0 failed, 2 awaiting a settled batch
+  out|   could not collect batch-1: GET /files/file-2/content -> HTTP 404: {"error":{"message":"fake download failure"}}
+  err| collect incomplete: batch-1: GET /files/file-2/content -> HTTP 404: {"error":{"message":"fake download failure"}}
+
+$ qwen batch retry r3-08-20260925145954   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-08/project)
+[exit 0, 530 ms]
+  out| task r3-08-20260925145954: nothing to retry — no failed items; 2 item(s) still await their batch (`qwen batch collect r3-08-20260925145954`) (held target conflicts need resolving; then run `qwen batch collect r3-08-20260925145954`).
+
+$ qwen batch cancel r3-08-20260925145954   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-08/project)
+[exit 0, 532 ms]
+  out| batch-1 already settled (completed); run `qwen batch collect r3-08-20260925145954` to pick up results.
+
+$ qwen batch clean r3-08-20260925145954   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-08/project)
+[exit 1, 516 ms]
+  err| task r3-08-20260925145954 has 1 batch submission(s) that may still be running, billing, or holding uncollected results (batch-1). Collect or cancel first — deleting the record loses the only way to do either — or pass --force.
+task.json: items=[["a","submitted"],["b","submitted"]] collected=undefined finalStatus=undefined
+CONFIRMED  every collect exits 1 ("GET /files/file-2/content -> HTTP 404"), items stay "submitted"
+CONFIRMED  retry has nothing to retry (items are "submitted", never failed)
+CONFIRMED  cancel: already settled; clean: refuses without --force
+
+$ qwen batch clean r3-08-20260925145954 --force   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-08/project)
+[exit 0, 522 ms]
+  out| removed local record of task r3-08-20260925145954
+  err| [batch] warning: batch-1 was not cancelled; it may still run and bill.
+CONFIRMED  only exit is clean --force (loses the record)
+
+== 4/4 expectations matched

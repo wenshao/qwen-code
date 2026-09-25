@@ -1,0 +1,54 @@
+
+######## one transient HTTP 503 on the 2nd status poll
+
+$ qwen batch run plan.json   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-10-503/project)
+[exit 0, 551 ms]
+  out| task r3-10-503-20260925150331: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-1
+  out| collect later with: qwen batch collect r3-10-503-20260925150331
+
+$ qwen batch collect r3-10-503-20260925150331 --wait --timeout 120   # background waiter the skill starts   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-10-503/project)
+[exit 0, 30669 ms]
+  out| waiting: batch-1 is in_progress …
+  out| task r3-10-503-20260925150331: 2 delivered, 0 held, 0 failed, 0 awaiting a settled batch
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+  err| [batch] warning: polling batch-1 failed (GET /batches/batch-1 -> HTTP 503: {"error":{"message":"fake transient"}}); retrying
+after waiter: items=[["a","delivered"],["b","delivered"]] fake log: GET /v1/batches/batch-1 -> 200 ; GET /v1/batches/batch-1 -> 503 ; GET /v1/batches/batch-1 -> 200 ; GET /v1/batches/batch-1 -> 200
+
+$ qwen batch collect r3-10-503-20260925150331   # plain collect afterwards   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-10-503/project)
+[exit 0, 526 ms]
+  out| task r3-10-503-20260925150331: 2 delivered, 0 held, 0 failed, 0 awaiting a settled batch
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+NOT-CONFIRMED  [503] waiter exits 1 after ONE transient 503 (no retry), nothing delivered
+CONFIRMED  [503] a plain collect afterwards delivers everything (nothing lost)
+
+######## one transient HTTP 429 on the 2nd status poll
+
+$ qwen batch run plan.json   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-10-429/project)
+[exit 0, 540 ms]
+  out| task r3-10-429-20260925150403: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-1
+  out| collect later with: qwen batch collect r3-10-429-20260925150403
+
+$ qwen batch collect r3-10-429-20260925150403 --wait --timeout 120   # background waiter the skill starts   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-10-429/project)
+[exit 0, 30607 ms]
+  out| waiting: batch-1 is in_progress …
+  out| task r3-10-429-20260925150403: 2 delivered, 0 held, 0 failed, 0 awaiting a settled batch
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+  err| [batch] warning: polling batch-1 failed (GET /batches/batch-1 -> HTTP 429: {"error":{"message":"fake transient"}}); retrying
+after waiter: items=[["a","delivered"],["b","delivered"]] fake log: GET /v1/batches/batch-1 -> 200 ; GET /v1/batches/batch-1 -> 429 ; GET /v1/batches/batch-1 -> 200 ; GET /v1/batches/batch-1 -> 200
+
+$ qwen batch collect r3-10-429-20260925150403   # plain collect afterwards   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-10-429/project)
+[exit 0, 526 ms]
+  out| task r3-10-429-20260925150403: 2 delivered, 0 held, 0 failed, 0 awaiting a settled batch
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+NOT-CONFIRMED  [429] waiter exits 1 after ONE transient 429 (no retry), nothing delivered
+CONFIRMED  [429] a plain collect afterwards delivers everything (nothing lost)
+
+== 2/4 expectations matched

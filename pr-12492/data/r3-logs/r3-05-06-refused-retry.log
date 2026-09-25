@@ -1,0 +1,117 @@
+
+######## R3-5: failed item, retry create refused, then collect
+
+$ qwen batch run plan.json   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-05/project)
+[exit 0, 548 ms]
+  out| task r3-05-20260925145743: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-1
+  out| collect later with: qwen batch collect r3-05-20260925145743
+
+$ qwen batch collect r3-05-20260925145743   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-05/project)
+[exit 0, 601 ms]
+  out| task r3-05-20260925145743: 1 delivered, 0 held, 1 failed, 0 awaiting a settled batch
+  out|   failed: b — unexpected finish_reason=content_filter
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+  out| retry failed items with: qwen batch retry r3-05-20260925145743
+
+$ qwen batch retry r3-05-20260925145743   # create #2 -> HTTP 400   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-05/project)
+[exit 1, 602 ms]
+  out| retrying 1 item(s) as attempt 2: ~37 in / ~37 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  err| create refused by provider: POST /batches -> HTTP 400: {"error":{"message":"fake refusal #2"}}
+item b after refusal: {"state":"failed","lastAttempt":1,"lastError":"create refused by provider: POST /batches -> HTTP 400: {\"error\":{\"message\":\"fake refusal #2\"}}"}
+
+$ qwen batch collect r3-05-20260925145743   # collect after refusal   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-05/project)
+[exit 0, 520 ms]
+  out| task r3-05-20260925145743: 1 delivered, 0 held, 1 failed, 0 awaiting a settled batch
+  out|   failed: b — unexpected finish_reason=content_filter
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+  out| retry failed items with: qwen batch retry r3-05-20260925145743
+item b after collect: {"state":"failed","lastAttempt":1,"lastError":"unexpected finish_reason=content_filter"}
+attempts: [[1,"created",null],[2,"intent","create refused by provider: POST /batches -> HTTP 400: {\"error\":{\"message\":\"fake refusal #2\"}}"]]
+CONFIRMED  refusal: b failed with "create refused", but lastAttempt still 1
+CONFIRMED  next collect replays attempt-1 line: b.lastError reverts to the old content_filter reason (refusal reason erased)
+
+$ qwen batch retry r3-05-20260925145743   # retry again (create now accepted)   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-05/project)
+[exit 0, 544 ms]
+  out| retrying 1 item(s) as attempt 3: ~37 in / ~37 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-2
+  out| collect later with: qwen batch collect r3-05-20260925145743
+CONFIRMED  a later retry still works (no billing/lock-out consequence)
+
+######## R3-6: held+sourceChanged item, retry create refused
+
+$ qwen batch run plan.json   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-06/project)
+[exit 0, 550 ms]
+  out| task r3-06-20260925145746: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-1
+  out| collect later with: qwen batch collect r3-06-20260925145746
+
+$ qwen batch collect r3-06-20260925145746   # b source edited after submission   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-06/project)
+[exit 0, 595 ms]
+  out| task r3-06-20260925145746: 1 delivered, 1 held, 0 failed, 0 awaiting a settled batch
+  out|   held: b — source "docs/zh/b.md" changed since submission; `qwen batch retry` resubmits it against the new source
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+  out| resolve the held conflicts above, then re-run: qwen batch collect r3-06-20260925145746
+item b after collect: {"state":"held","lastAttempt":1,"heldReason":"source \"docs/zh/b.md\" changed since submission; `qwen batch retry` resubmits it against the new source","sourceChanged":true}
+
+$ qwen batch retry r3-06-20260925145746   # create #2 -> HTTP 400   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-06/project)
+[exit 1, 595 ms]
+  out| retrying 1 item(s) as attempt 2: ~42 in / ~42 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  err| create refused by provider: POST /batches -> HTTP 400: {"error":{"message":"fake refusal #2"}}
+item b after refusal: {"state":"failed","lastAttempt":1,"lastError":"create refused by provider: POST /batches -> HTTP 400: {\"error\":{\"message\":\"fake refusal #2\"}}","heldReason":"source \"docs/zh/b.md\" changed since submission; `qwen batch retry` resubmits it against the new source","sourceChanged":true}
+
+$ qwen batch collect r3-06-20260925145746   # collect after refusal   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-06/project)
+[exit 0, 524 ms]
+  out| task r3-06-20260925145746: 1 delivered, 1 held, 0 failed, 0 awaiting a settled batch
+  out|   held: b — source "docs/zh/b.md" changed since submission; `qwen batch retry` resubmits it against the new source
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+  out| resolve the held conflicts above, then re-run: qwen batch collect r3-06-20260925145746
+item b after collect: {"state":"held","lastAttempt":1,"heldReason":"source \"docs/zh/b.md\" changed since submission; `qwen batch retry` resubmits it against the new source","sourceChanged":true}
+CONFIRMED  after refusal b is "failed" yet still carries heldReason + sourceChanged=true + lastAttempt=1
+CONFIRMED  next collect flips b back to "held" (source changed) — refusal no longer reported
+
+######## truncated variant
+
+$ qwen batch run plan.json   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-06t/project)
+[exit 0, 570 ms]
+  out| task r3-06t-20260925145748: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-1
+  out| collect later with: qwen batch collect r3-06t-20260925145748
+
+$ qwen batch collect r3-06t-20260925145748   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-06t/project)
+[exit 0, 601 ms]
+  out| task r3-06t-20260925145748: 1 delivered, 0 held, 1 failed, 0 awaiting a settled batch
+  out|   failed: b — output truncated (finish_reason=length)
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+  out| retry failed items with: qwen batch retry r3-06t-20260925145748
+
+$ qwen batch retry r3-06t-20260925145748 --max-output-tokens 8192   # create #2 -> HTTP 400   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-06t/project)
+[exit 1, 616 ms]
+  out| retrying 1 item(s) as attempt 2 with max output 8192 tokens: ~37 in / ~37 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  err| create refused by provider: POST /batches -> HTTP 400: {"error":{"message":"fake refusal #2"}}
+item b after refusal: {"state":"failed","lastAttempt":1,"lastError":"create refused by provider: POST /batches -> HTTP 400: {\"error\":{\"message\":\"fake refusal #2\"}}","truncated":true}
+
+$ qwen batch collect r3-06t-20260925145748   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-06t/project)
+[exit 0, 539 ms]
+  out| task r3-06t-20260925145748: 1 delivered, 0 held, 1 failed, 0 awaiting a settled batch
+  out|   failed: b — output truncated (finish_reason=length)
+  out| Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+  out| retry failed items with: qwen batch retry r3-06t-20260925145748
+
+$ qwen batch retry r3-06t-20260925145748 --max-output-tokens 8192   # retry again   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-06t/project)
+[exit 0, 564 ms]
+  out| retrying 1 item(s) as attempt 3 with max output 8192 tokens: ~37 in / ~37 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-2
+  out| collect later with: qwen batch collect r3-06t-20260925145748
+CONFIRMED  truncated flag kept, but a retry with the larger limit still goes through
+
+== 6/6 expectations matched

@@ -1,0 +1,86 @@
+
+######## no-root-gitignore
+git status BEFORE:
+  | ?? NEW_FEATURE.ts
+  | ?? src/added.ts
+
+$ qwen batch run plan.json --dry-run   # QWEN_BATCH_HOME=""   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-03-no-root-gitignore/project)
+[exit 0, 530 ms]
+  out| preview: 2 item(s), window 24h — nothing uploaded, nothing billed
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| snapshot 685e14d47b9033bb; submit exactly this batch with: qwen batch run plan.json --expect 685e14d47b9033bb
+git status AFTER dry-run:
+  | (empty)
+project entries after dry-run: .git .gitignore NEW_FEATURE.ts docs plan.json src tasks
+project .gitignore: "*\n"
+git check-ignore -v: .gitignore:1:*	NEW_FEATURE.ts
+.gitignore:1:*	src/added.ts
+'git add -A' then staged names: ""
+CONFIRMED  [no-root-gitignore] dry-run writes "*" .gitignore into the project root
+CONFIRMED  [no-root-gitignore] afterwards every untracked file is invisible to git status and git add -A
+CONFIRMED  [no-root-gitignore] dry-run leaves a "tasks/" dir in the project root
+
+$ qwen batch run plan.json   # QWEN_BATCH_HOME="" real run   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-03-no-root-gitignore/project)
+[exit 0, 548 ms]
+  out| task r3-03-20260925145648: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-1
+  out| collect later with: qwen batch collect r3-03-20260925145648
+task record in project: <project>/tasks/r3-03-20260925145648/attempt-001/input.jsonl
+git status AFTER real run:
+  | (empty)
+
+$ qwen batch collect r3-03-20260925145648   # collect from a different cwd   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-03-no-root-gitignore/elsewhere)
+[exit 1, 519 ms]
+  err| no batch task "r3-03-20260925145648" under
+CONFIRMED  [no-root-gitignore] collect from another cwd cannot find the task
+
+######## has-root-gitignore
+git status BEFORE:
+  | ?? NEW_FEATURE.ts
+  | ?? src/added.ts
+
+$ qwen batch run plan.json --dry-run   # QWEN_BATCH_HOME=""   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-03-has-root-gitignore/project)
+[exit 0, 524 ms]
+  out| preview: 2 item(s), window 24h — nothing uploaded, nothing billed
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| snapshot 685e14d47b9033bb; submit exactly this batch with: qwen batch run plan.json --expect 685e14d47b9033bb
+git status AFTER dry-run:
+  | ?? NEW_FEATURE.ts
+  | ?? src/added.ts
+project entries after dry-run: .git .gitignore NEW_FEATURE.ts docs plan.json src tasks
+project .gitignore: "node_modules/\n"
+git check-ignore -v: (not ignored)
+'git add -A' then staged names: "LATER.md\nNEW_FEATURE.ts\nsrc/added.ts"
+CONFIRMED  [has-root-gitignore] existing .gitignore untouched
+CONFIRMED  [has-root-gitignore] dry-run leaves a "tasks/" dir in the project root
+
+$ qwen batch run plan.json   # QWEN_BATCH_HOME="" real run   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-03-has-root-gitignore/project)
+[exit 0, 553 ms]
+  out| task r3-03-20260925145650: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-2
+  out| collect later with: qwen batch collect r3-03-20260925145650
+task record in project: <project>/tasks/r3-03-20260925145650/attempt-001/input.jsonl
+git status AFTER real run:
+  | ?? LATER.md
+  | ?? NEW_FEATURE.ts
+  | ?? src/added.ts
+  | ?? tasks/r3-03-20260925145650/attempt-001/input.jsonl
+  | ?? tasks/r3-03-20260925145650/task.json
+CONFIRMED  [has-root-gitignore] task records (full source copies) show up as untracked, committable files
+
+$ qwen batch collect r3-03-20260925145650   # collect from a different cwd   (cwd=/root/verify/pr12492/r3-repro/scratch/r3-03-has-root-gitignore/elsewhere)
+[exit 1, 522 ms]
+  err| no batch task "r3-03-20260925145650" under
+CONFIRMED  [has-root-gitignore] collect from another cwd cannot find the task
+
+== 8/8 expectations matched

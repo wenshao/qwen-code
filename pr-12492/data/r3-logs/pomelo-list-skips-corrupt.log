@@ -1,0 +1,44 @@
+
+$ qwen batch run plan.json   (cwd=/root/verify/pr12492/r3-repro/scratch/pomelo/project)
+[exit 0, 557 ms]
+  out| task healthy-20260925150112: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-1
+  out| collect later with: qwen batch collect healthy-20260925150112
+
+$ qwen batch run plan2.json   (cwd=/root/verify/pr12492/r3-repro/scratch/pomelo/project)
+[exit 0, 551 ms]
+  out| task corrupt-20260925150113: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-2
+  out| collect later with: qwen batch collect corrupt-20260925150113
+
+$ qwen batch run plan3.json   (cwd=/root/verify/pr12492/r3-repro/scratch/pomelo/project)
+[exit 0, 552 ms]
+  out| task newer-schema-20260925150113: 2 item(s), window 24h
+  out| model qwen-plus, thinking: provider default, max output provider default (frozen from your current settings; retries reuse them)
+  out| writes new files to: docs/en/ (2)
+  out| ~74 in / ~74 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+  out| batch job: batch-3
+  out| collect later with: qwen batch collect newer-schema-20260925150113
+task dirs on disk: corrupt-20260925150113, healthy-20260925150112, newer-schema-20260925150113
+
+$ qwen batch list   (cwd=/root/verify/pr12492/r3-repro/scratch/pomelo/project)
+[exit 0, 514 ms]
+  out| healthy-20260925150112	running	0/2 delivered	batch batch-1	updated 2026-09-25T15:01:12.914Z	/root/verify/pr12492/r3-repro/scratch/pomelo/project
+
+$ qwen batch collect corrupt-20260925150113   (cwd=/root/verify/pr12492/r3-repro/scratch/pomelo/project)
+[exit 1, 522 ms]
+  err| cannot load task "corrupt-20260925150113" from /root/verify/pr12492/r3-repro/scratch/pomelo/batchhome/tasks/corrupt-20260925150113/task.json: Unterminated string in JSON at position 200 (line 8 column 24)
+
+$ qwen batch collect newer-schema-20260925150113   (cwd=/root/verify/pr12492/r3-repro/scratch/pomelo/project)
+[exit 1, 512 ms]
+  err| task "newer-schema-20260925150113" uses schema version 2, this build understands 1; not touching it
+CONFIRMED  list shows only the healthy task, with no warning about the 2 unreadable ones
+CONFIRMED  the skipped tasks still hold running batches (collect by id reports the load error)
+
+== 2/2 expectations matched

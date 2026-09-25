@@ -1,0 +1,64 @@
+Real DashScope (dashscope.aliyuncs.com), bundle at 8560fe95, isolated HOME; batch.model = qwen3.7-plus
+# 1) `qwen batch check` across settings shapes (unbilled probe: GET /batches?limit=1)
+[conversation openai qwen3.8-max + batch.model qwen3.7-plus]
+  ready: dashscope.aliyuncs.com accepts Batch requests with these credentials (nothing was billed)
+  model qwen3.7-plus, thinking on, max output provider default
+  exit=0
+[conversation ANTHROPIC + batch.model qwen3.7-plus]
+  ready: dashscope.aliyuncs.com accepts Batch requests … (nothing was billed)
+  model qwen3.7-plus, thinking on, max output provider default
+  exit=0
+[conversation ANTHROPIC, no batch.model]
+  qwen batch needs an API key (auth type "openai") for a DashScope endpoint; current auth type is "anthropic".
+  exit=1
+[qwen-oauth, no batch.model]
+  qwen batch needs an API key (auth type "openai") for a DashScope endpoint; current auth type is "qwen-oauth".
+  exit=1
+[batch.model = unknown id]
+  batch.model must match exactly one chat-completions modelProviders entry; use batch.baseUrl to disambiguate duplicate IDs.
+  exit=1
+
+# 2) preview → tamper → refuse → real submission (4 short zh→en docs)
+$ qwen batch run .qwen/batch/plans/notice-en.json --dry-run
+preview: 4 item(s), window 24h — nothing uploaded, nothing billed
+model qwen3.7-plus, thinking on, max output 800 tokens (frozen from your current settings; retries reuse them)
+writes new files to: docs/en/ (4)
+~584 in / ~584 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+snapshot 9ebf006406875801; submit exactly this batch with: qwen batch run .qwen/batch/plans/notice-en.json --expect 9ebf006406875801
+$ echo tampered >> docs/zh/notice-03.md && qwen batch run .qwen/batch/plans/notice-en.json --expect 9ebf006406875801
+the batch changed since it was previewed (expected 9ebf006406875801, now e598c0db79f04c96): the plan, a source file or the frozen settings differ. Nothing was submitted; preview again with --dry-run.
+exit=1 · task records left behind: 0
+$ git checkout docs/zh/notice-03.md && qwen batch run .qwen/batch/plans/notice-en.json --expect 9ebf006406875801
+task notice-en-20260925145318: 4 item(s), window 24h
+model qwen3.7-plus, thinking on, max output 800 tokens (frozen from your current settings; retries reuse them)
+writes new files to: docs/en/ (4)
+~584 in / ~584 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+batch job: batch_b94e3319-5eb8-4c9f-b5e4-7f0e5e205b61
+collect later with: qwen batch collect notice-en-20260925145318
+$ qwen batch list
+notice-en-20260925145318	running	0/4 delivered	batch batch_b94e3319-5eb8-4c9f-b5e4-7f0e5e205b61	…
+
+# 3) collect (user-authorized) — the batch settled ~52 min after submission
+$ qwen batch collect notice-en-20260925145318 --wait --timeout 3600
+waiting: batch_b94e3319-… is in_progress …   (×27, backoff 10 s → 60 s)
+task notice-en-20260925145318: 4 delivered, 0 held, 0 failed, 0 awaiting a settled batch
+Batch usage, all attempts: 584 in / 2,975 out tokens across 4 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+exit=0 elapsed=1516s
+$ grep -o 'TEST-0[1-4]' docs/en/*.md; head -3 docs/en/notice-01.md
+docs/en/notice-01.md:TEST-01
+docs/en/notice-02.md:TEST-02
+docs/en/notice-03.md:TEST-03
+docs/en/notice-04.md:TEST-04
+# Maintenance Notice 01
+
+Identifier: TEST-01
+$ qwen batch collect notice-en-20260925145318      # re-collect: local only, target mtimes unchanged
+task notice-en-20260925145318: 4 delivered, 0 held, 0 failed, 0 awaiting a settled batch
+$ qwen batch list
+notice-en-20260925145318	done	4/4 delivered	batch batch_b94e3319-5eb8-4c9f-b5e4-7f0e5e205b61
+# per-request usage from output.jsonl (thinking on, frozen from the preset's extra_body; plan maxOutputTokens 800)
+n01#1 stop  completion 796 (reasoning 705)
+n02#1 stop  completion 678 (reasoning 588)
+n03#1 stop  completion 774 (reasoning 681)
+n04#1 stop  completion 727 (reasoning 634)
+preview estimated ~584 out; actual 2,975 out (5.1×), 2,608 of them reasoning

@@ -1,0 +1,47 @@
+PASS  check reports a ready endpoint and submits nothing — ready: 127.0.0.1:37435 accepts Batch requests with these credentials (nothing was billed)
+model qwen-plus, thinking: provider default, max output provider default
+no unit prices (QWEN_BATCH_INPUT_PRICE_PER_1M_USD, QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD): estimates are token-only and a plan must not set maxCostUsd
+
+PASS  run prints a task id — e2e-translate-20260925145449
+PASS  run prints the batch job id
+PASS  run prints the collect hint
+PASS  collect reports in_progress before settle
+PASS  nothing delivered before settle
+PASS  collect reports 2 delivered — Batch usage, all attempts: 100 in / 20 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+PASS  target a has the transformed content
+PASS  usage is reported
+PASS  remote input/output deleted after collect — file-1,file-2
+PASS  re-collect is a no-op success — exit 0
+PASS  no extra remote deletes on re-collect — file-1,file-2
+PASS  no re-download on re-collect
+PASS  list shows the task with progress
+PASS  truncated item is failed, not delivered — waiting: batch-2 is in_progress …
+task e2e-translate-2-20260925145452: 1 delivered, 0 held, 1 failed, 0 awaiting a settled batch
+  failed: b — output truncated (finish_reason=length)
+Batch usage, all attempts: 100 in / 12 out tokens across 2 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+retry failed items with: qwen batch retry e2e-translate-2-20260925145452
+
+PASS  failure reason names truncation
+PASS  failed target was not written
+PASS  retry skips a truncated item without a larger limit — skipping 1 truncated item(s) (b): resending with the same output limit would fail the same way and be billed again. Retry them with --max-output-tokens <larger limit>.
+
+PASS  retry prints a new batch job — retrying 1 item(s) as attempt 2 with max output 8192 tokens: ~37 in / ~37 out tokens (rough estimate); set QWEN_BATCH_INPUT_PRICE_PER_1M_USD and QWEN_BATCH_OUTPUT_PRICE_PER_1M_USD for a monetary estimate (Batch bills successful requests at 50% of realtime list)
+batch job: batch-3
+collect later with: qwen batch collect e2e-translate-2-20260925145452
+
+PASS  retry delivers the failed item — waiting: batch-3 is in_progress …
+task e2e-translate-2-20260925145452: 2 delivered, 0 held, 0 failed, 0 awaiting a settled batch
+Batch usage, all attempts: 150 in / 22 out tokens across 3 request(s). Kept out of the interactive session's cache statistics; preparation in the session is not included.
+
+PASS  b2 written after retry
+PASS  conflicting target is held
+PASS  held target keeps user content
+PASS  held item delivers after conflict resolved
+PASS  cancel warns about billed partials
+PASS  clean refuses a task whose batch is not collected — task e2e-translate-4-20260925145527 has 1 batch submission(s) that may still be running, billing, or holding uncollected results (batch-5). Collect or cancel first — deleting the record loses the only way to do either — or pass --force.
+
+PASS  clean removes a collected task and keeps its delivered files — removed local record of task e2e-translate-20260925145449
+
+
+27/27 checks passed
+EXIT=0

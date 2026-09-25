@@ -1,0 +1,66 @@
+--- a/packages/cli/src/commands/batch-docs.ts	2026-09-25 23:02:41.059978574 +0800
++++ b/packages/cli/src/commands/batch-docs.ts	2026-09-25 23:03:09.100069712 +0800
+@@ -125,11 +125,12 @@
+   })) {
+     if (value !== undefined && value !== null) params[key] = value;
+   }
++  // Realtime applies `reasoning: false` after merging extra_body (pipeline
++  // disable path), so a preset's `extra_body.enable_thinking: true` does not
++  // keep thinking on there; it must not here either.
+   if (
+     config?.reasoning === false &&
+     !config.thinkingMandatory &&
+-    params['enable_thinking'] === undefined &&
+-    params['reasoning_effort'] === undefined &&
+     !setThinking(params, model, false)
+   ) {
+     notes.push(
+--- a/packages/cli/src/commands/batch-task.ts	2026-09-25 23:02:41.059978574 +0800
++++ b/packages/cli/src/commands/batch-task.ts	2026-09-25 23:03:09.100069712 +0800
+@@ -264,9 +264,12 @@
+ export function batchHomeDir(
+   env: Record<string, string | undefined> = process.env,
+ ): string {
+-  return (
+-    env['QWEN_BATCH_HOME'] ?? path.join(Storage.getGlobalQwenDir(), 'batch')
+-  );
++  // An empty value (`QWEN_BATCH_HOME=` in an env file) means unset, not
++  // "the current directory".
++  const configured = env['QWEN_BATCH_HOME']?.trim();
++  return configured
++    ? path.resolve(configured)
++    : path.join(Storage.getGlobalQwenDir(), 'batch');
+ }
+ 
+ /** Task records hold full copies of the sources and the generated outputs. */
+--- a/packages/cli/src/commands/batch-workflow.ts	2026-09-25 23:02:41.059978574 +0800
++++ b/packages/cli/src/commands/batch-workflow.ts	2026-09-25 23:03:09.100069712 +0800
+@@ -653,7 +653,27 @@
+   const sleep = deps.sleep ?? realSleep;
+   let delay = 10_000;
+   for (;;) {
+-    const job = await api.getBatch(deps.ep, batchId);
++    let job: BatchJob;
++    try {
++      job = await api.getBatch(deps.ep, batchId);
++    } catch (error) {
++      // Hours of polling will meet a 429/5xx or a dropped connection; only a
++      // definite client error (bad key, unknown batch) ends the wait early.
++      const status = (error as BatchApiError | undefined)?.status;
++      const definite =
++        typeof status === 'number' &&
++        status >= 400 &&
++        status < 500 &&
++        status !== 408 &&
++        status !== 429;
++      if (definite || Date.now() >= deadline) throw error;
++      deps.err(
++        `[batch] warning: polling ${batchId} failed (${error instanceof Error ? error.message : String(error)}); retrying`,
++      );
++      await sleep(Math.min(delay, deadline - Date.now()));
++      delay = Math.min(delay * 2, 60_000);
++      continue;
++    }
+     if (SETTLED_STATUSES.has(job.status)) return job;
+     if (Date.now() >= deadline) {
+       throw new Error(
