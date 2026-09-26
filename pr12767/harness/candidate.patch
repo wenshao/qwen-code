@@ -1,0 +1,348 @@
+diff --git a/packages/core/src/managed-runtime/local-managed-tool-result-store.fault.test.ts b/packages/core/src/managed-runtime/local-managed-tool-result-store.fault.test.ts
+index 294885b8f1..df67ffcca5 100644
+--- a/packages/core/src/managed-runtime/local-managed-tool-result-store.fault.test.ts
++++ b/packages/core/src/managed-runtime/local-managed-tool-result-store.fault.test.ts
+@@ -16,6 +16,7 @@ const fault = vi.hoisted(() => ({
+   mode: '' as '' | 'write' | 'sync',
+   target: '',
+   missingOnce: undefined as undefined | (() => Promise<void>),
++  stale: [] as Array<{ target: string; before: () => Promise<void> }>,
+ }));
+ 
+ vi.mock('node:fs/promises', async (importOriginal) => {
+@@ -23,6 +24,13 @@ vi.mock('node:fs/promises', async (importOriginal) => {
+   return {
+     ...actual,
+     lstat: async (...args: Parameters<typeof actual.lstat>) => {
++      if (fault.stale[0] && String(args[0]) === fault.stale[0].target) {
++        const { before } = fault.stale.shift()!;
++        await before();
++        throw Object.assign(new Error('stale missing segment'), {
++          code: 'ENOENT',
++        });
++      }
+       if (fault.missingOnce && String(args[0]) === fault.target) {
+         const beforeMissing = fault.missingOnce;
+         fault.missingOnce = undefined;
+@@ -98,6 +106,7 @@ async function harness() {
+ afterEach(async () => {
+   fault.mode = '';
+   fault.missingOnce = undefined;
++  fault.stale.length = 0;
+   for (const { root, store, lease } of opened) {
+     await store.close();
+     await lease.release();
+@@ -239,6 +248,11 @@ describe('local tool-result disk faults', () => {
+     await expect(store.publish(request)).rejects.toThrow(
+       'injected sync failure',
+     );
++    // The marker now exists; the stream directory still has to be synced.
++    fault.mode = 'sync';
++    await expect(store.publish(request)).rejects.toThrow(
++      'injected sync failure',
++    );
+     expect((await store.publish(request)).status).toBe('ok');
+     expect(
+       await store.seal({
+@@ -281,4 +295,105 @@ describe('local tool-result disk faults', () => {
+     await expect(store.seal(request)).rejects.toThrow('injected sync failure');
+     expect((await store.seal(request)).status).toBe('ok');
+   });
++
++  it('retries syncing the capture directory after its stream directory exists', async () => {
++    const { store } = await harness();
++    const request = {
++      captureId: 'capture',
++      streamId: 'stdout',
++      ordinal: 0,
++      bytes: Buffer.from('first'),
++    };
++    fault.target = path.join(store.root, 'capture-capture');
++    fault.mode = 'sync';
++    await expect(store.publish(request)).rejects.toThrow(
++      'injected sync failure',
++    );
++    fault.mode = 'sync';
++    await expect(store.publish(request)).rejects.toThrow(
++      'injected sync failure',
++    );
++    expect((await store.publish(request)).status).toBe('ok');
++  });
++
++  it('keeps a growing stream readable when a reader misses two new segments in a row', async () => {
++    const { store, runtimeBaseDir } = await harness();
++    const request = { captureId: 'capture', streamId: 'stdout' };
++    const stream = path.join(store.root, 'capture-capture', 'stream-stdout');
++    expect(
++      (await store.publish({ ...request, ordinal: 0, bytes: Buffer.from('a') }))
++        .status,
++    ).toBe('ok');
++    const reader = await LocalToolResultSegmentStore.openReadOnly({
++      runtimeBaseDir,
++      sessionKey: key,
++    });
++    for (const ordinal of [1, 2]) {
++      fault.stale.push({
++        target: path.join(stream, `segment-0000${ordinal}`),
++        before: async () => {
++          expect(
++            (
++              await store.publish({
++                ...request,
++                ordinal,
++                bytes: Buffer.from('b'.repeat(ordinal)),
++              })
++            ).status,
++          ).toBe('ok');
++        },
++      });
++    }
++    expect(await reader.prefix(request)).toMatchObject({
++      status: 'ok',
++      result: { sealed: false },
++    });
++    expect(fault.stale).toHaveLength(0);
++    await reader.close();
++  });
++
++  it('rechecks a prefix when the seal lands after the scan', async () => {
++    const { store, runtimeBaseDir } = await harness();
++    const bytes = Buffer.from('first');
++    const later = Buffer.from('later');
++    const request = { captureId: 'capture', streamId: 'stdout' };
++    expect(
++      (await store.publish({ ...request, ordinal: 0, bytes })).status,
++    ).toBe('ok');
++    const reader = await LocalToolResultSegmentStore.openReadOnly({
++      runtimeBaseDir,
++      sessionKey: key,
++    });
++    // The reader misses segment 1 and its marker; the seal then covers both.
++    fault.target = path.join(
++      store.root,
++      'capture-capture',
++      'stream-stdout',
++      'published-00001',
++    );
++    fault.missingOnce = async () => {
++      expect(
++        (await store.publish({ ...request, ordinal: 1, bytes: later })).status,
++      ).toBe('ok');
++      expect(
++        (
++          await store.seal({
++            ...request,
++            segmentCount: 2,
++            byteLength: bytes.byteLength + later.byteLength,
++            digest: createHash('sha256')
++              .update(bytes)
++              .update(later)
++              .digest('hex'),
++          })
++        ).status,
++      ).toBe('ok');
++    };
++    expect(await reader.prefix(request)).toMatchObject({
++      status: 'ok',
++      result: { segmentCount: 2, sealed: true },
++    });
++    expect(fault.missingOnce).toBeUndefined();
++    await reader.close();
++  });
+ });
+diff --git a/packages/core/src/managed-runtime/local-managed-tool-result-store.test.ts b/packages/core/src/managed-runtime/local-managed-tool-result-store.test.ts
+index 8dfb819081..86a859940e 100644
+--- a/packages/core/src/managed-runtime/local-managed-tool-result-store.test.ts
++++ b/packages/core/src/managed-runtime/local-managed-tool-result-store.test.ts
+@@ -926,3 +926,146 @@ describe('local managed tool-result segments', () => {
+     }
+   }, 180_000);
+ });
++
++describe('local managed tool-result guards', () => {
++  it('refuses a seal that would drop an acknowledged tail segment', async () => {
++    const { store } = await harness();
++    const parts = ['alpha-', 'beta-', 'gamma'].map((part) => Buffer.from(part));
++    for (const [ordinal, bytes] of parts.entries()) {
++      expect(
++        (
++          await store.publish({
++            captureId: 'capture',
++            streamId: 'stdout',
++            ordinal,
++            bytes,
++          })
++        ).status,
++      ).toBe('ok');
++    }
++    await fs.rm(
++      path.join(
++        store.root,
++        'capture-capture',
++        'stream-stdout',
++        'segment-00002',
++      ),
++      { recursive: true },
++    );
++    const kept = Buffer.concat(parts.slice(0, 2));
++    expect(
++      await store.seal({
++        captureId: 'capture',
++        streamId: 'stdout',
++        segmentCount: 2,
++        byteLength: kept.byteLength,
++        digest: digest(kept),
++      }),
++    ).toEqual({ status: 'refused', code: 'managed_tool_result_conflict' });
++  });
++
++  it('refuses a page whose segment digest differs from the stored segment', async () => {
++    const { store, runtimeBaseDir } = await harness();
++    const stored = Buffer.from('alpha');
++    const pinned = Buffer.from('omega');
++    await store.publish({
++      captureId: 'capture-01',
++      streamId: 'stdout',
++      ordinal: 0,
++      bytes: stored,
++    });
++    const resources = LocalManagedSessionResourceStore.create({
++      runtimeBaseDir,
++      sessionKey,
++    });
++    const page = {
++      toolResult: 'managed-tool-result/1',
++      type: 'page',
++      captureId: 'capture-01',
++      streamId: 'stdout',
++      firstOrdinal: 0,
++      offset: 0,
++      segments: [{ byteLength: 5, digest: digest(pinned) }],
++    };
++    const pageRef = await resources.publish(
++      'managed-tool-result-page',
++      Buffer.from(JSON.stringify(page)),
++    );
++    const base = parseToolResultManifest(fixtures.manifest);
++    const manifest: ToolResultManifest = {
++      ...base,
++      contents: [
++        {
++          ...base.contents[0],
++          byteLength: 5,
++          digest: digest(pinned),
++          body: { pages: [{ ref: pageRef, segmentCount: 1, byteLength: 5 }] },
++        },
++        ...base.contents.slice(1),
++      ],
++    };
++    const manifestRef = await resources.publish(
++      'managed-tool-result-manifest',
++      Buffer.from(JSON.stringify(manifest)),
++    );
++    expect(
++      await store.readRange({
++        manifestRef,
++        expectedIdentity: identityOf(manifest),
++        streamId: 'stdout',
++        offset: 0,
++        length: 5,
++      }),
++    ).toEqual({
++      status: 'refused',
++      code: 'managed_tool_result_digest_mismatch',
++    });
++  });
++
++  it('does not replace an acknowledged stream after its capture directory is removed', async () => {
++    const { store } = await harness();
++    const request = {
++      captureId: 'capture',
++      streamId: 'stdout',
++      ordinal: 0,
++      bytes: Buffer.from('original'),
++    };
++    expect((await store.publish(request)).status).toBe('ok');
++    await fs.rm(path.join(store.root, 'capture-capture'), { recursive: true });
++    expect(
++      await store.publish({ ...request, bytes: Buffer.from('different') }),
++    ).toEqual({
++      status: 'refused',
++      code: 'managed_tool_result_digest_mismatch',
++    });
++  });
++
++  it('stops acknowledging when the Session transcript changes outside its writer', async () => {
++    const { store, transcriptPath } = await harness();
++    await fs.appendFile(transcriptPath, '{"foreign":true}\n');
++    await expect(
++      store.publish({
++        captureId: 'capture',
++        streamId: 'stdout',
++        ordinal: 0,
++        bytes: Buffer.from('late'),
++      }),
++    ).rejects.toThrow(/changed outside its active writer/);
++  });
++
++  it('rejects a writer lease that belongs to another Session', async () => {
++    const { runtimeBaseDir } = await harness();
++    const lease = await SessionWriterLease.acquire({
++      runtimeBaseDir,
++      sessionId: 'session-b',
++      transcriptPath: path.join(runtimeBaseDir, 'chats', 'session-b.jsonl'),
++    });
++    try {
++      await expect(
++        LocalToolResultSegmentStore.openWritable({ lease, sessionKey }),
++      ).rejects.toThrow(/another Session/);
++    } finally {
++      await lease.release();
++    }
++  });
++});
+diff --git a/packages/core/src/managed-runtime/local-managed-tool-result-store.ts b/packages/core/src/managed-runtime/local-managed-tool-result-store.ts
+index 07f96860ed..5484ad26d5 100644
+--- a/packages/core/src/managed-runtime/local-managed-tool-result-store.ts
++++ b/packages/core/src/managed-runtime/local-managed-tool-result-store.ts
+@@ -687,13 +687,15 @@ export class LocalToolResultSegmentStore implements ToolResultSegmentStore {
+     }
+     const directory = path.join(stream, `segment-${id}`);
+     if (!(await maybeStat(directory))) {
+-      if (await this.publishedMarker(stream, ordinal)) {
++      if (!(await this.publishedMarker(stream, ordinal))) return undefined;
++      // The writer installs a segment before its marker, so a reader can miss
++      // the directory and then see the marker. Only a second miss is missing.
++      if (!(await maybeStat(directory))) {
+         if (mark && this.lease) await this.markCorrupt(stream, ordinal);
+         throw new CorruptToolResultError(
+           'missing published tool-result segment.',
+         );
+       }
+-      return undefined;
+     }
+     try {
+       await assertDirectory(directory);
+@@ -930,12 +932,18 @@ export class LocalToolResultSegmentStore implements ToolResultSegmentStore {
+             return refused('managed_tool_result_conflict');
+           }
+         }
+-        const names = (await readdir(stream)).filter((name) =>
+-          /^segment-[0-9]{5}$/.test(name),
+-        );
++        const entries = await readdir(stream);
++        const names = entries.filter((name) => /^segment-[0-9]{5}$/.test(name));
+         if (
+           names.length !== fields.segmentCount ||
+-          names.some((name) => Number(name.slice(8)) >= fields.segmentCount)
++          names.some((name) => Number(name.slice(8)) >= fields.segmentCount) ||
++          // An acknowledged ordinal past the seal stays acknowledged even if
++          // its directory has been removed.
++          entries.some(
++            (name) =>
++              /^published-[0-9]{5}$/.test(name) &&
++              Number(name.slice(10)) >= fields.segmentCount,
++          )
+         ) {
+           return refused(
+             storedSeal

@@ -1,0 +1,85 @@
+name: 'probe-pr12767'
+
+on:
+  push:
+    branches: ['probe/pr12767-**']
+
+permissions:
+  contents: 'read'
+
+jobs:
+  probe:
+    name: 'probe (${{ matrix.os }})'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['windows-2022', 'ubuntu-latest', 'macos-latest']
+    runs-on: '${{ matrix.os }}'
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: 'bash'
+    steps:
+      - name: 'Disable Git CRLF conversion'
+        if: "${{ runner.os == 'Windows' }}"
+        run: 'git config --global core.autocrlf false'
+      - uses: 'actions/checkout@v4'
+      - name: 'Point temp at a short-alias-free directory'
+        if: "${{ runner.os == 'Windows' }}"
+        shell: 'powershell'
+        run: |-
+          $temp = Join-Path $env:RUNNER_WORKSPACE 'qwen-code-temp'
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+          "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+      - name: 'Install'
+        run: 'corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only'
+      - name: 'Environment'
+        run: |-
+          mkdir -p probe-out
+          { echo "os=${{ matrix.os }}"; node -v; uname -a || true; git rev-parse HEAD; df -h . || true; } | tee probe-out/env.txt
+      - name: 'PR tests at head'
+        continue-on-error: true
+        working-directory: 'packages/core'
+        run: |-
+          set -o pipefail
+          npx vitest run src/managed-runtime/local-managed-tool-result-store.test.ts src/managed-runtime/local-managed-tool-result-store.fault.test.ts src/managed-runtime/managed-tool-result.test.ts --coverage.enabled=false --retry=0 2>&1 | tee ../../probe-out/tests-head.txt
+      - name: 'Harness against head dist'
+        continue-on-error: true
+        env:
+          CORE_DIST: '${{ github.workspace }}/packages/core/dist/src'
+        run: |-
+          cd probe/h
+          run() { local out="$1"; shift; echo "::group::$out"; env "$@" > "../../probe-out/$out.txt" 2>&1; echo "exit=$?" >> "../../probe-out/$out.txt"; tail -3 "../../probe-out/$out.txt"; echo "::endgroup::"; }
+          run diff-fuzz ITER=60 OPS=60 node diff-fuzz.mjs
+          run range-fuzz ITER=40 READS=40 node range-fuzz.mjs
+          run crash-fuzz ITER=60 MAXDELAY=900 node crash-fuzz.mjs
+          run targeted node targeted.mjs
+          run race-head RACE_SECONDS=15 node race.mjs
+          run race-head-150 RACE_SEGMENTS=60 RACE_SECONDS=15 READER_DELAY_MS=150 node race.mjs
+          run scale-100 COUNT=25 WITH_REF=1 node scale.mjs
+      - name: 'Candidate arm'
+        continue-on-error: true
+        env:
+          CORE_DIST: '${{ github.workspace }}/packages/core/dist/src'
+        run: |-
+          set -o pipefail
+          git apply probe/candidate.patch
+          git diff --stat | tee probe-out/candidate-applied.txt
+          (cd packages/core && npm run build) > probe-out/candidate-build.txt 2>&1; echo "build exit=$?" >> probe-out/candidate-build.txt
+          (cd packages/core && npx vitest run src/managed-runtime/local-managed-tool-result-store.test.ts src/managed-runtime/local-managed-tool-result-store.fault.test.ts --coverage.enabled=false --retry=0) 2>&1 | tee probe-out/tests-candidate.txt
+          cd probe/h
+          env RACE_SEGMENTS=60 RACE_SECONDS=15 READER_DELAY_MS=150 node race.mjs > ../../probe-out/race-candidate-150.txt 2>&1
+          node targeted.mjs > ../../probe-out/targeted-candidate.txt 2>&1
+          tail -1 ../../probe-out/race-candidate-150.txt
+      - name: 'Collect'
+        if: "${{ always() }}"
+        run: 'grep -h PROBE_JSON probe-out/*.txt || true'
+      - uses: 'actions/upload-artifact@v4'
+        if: "${{ always() }}"
+        with:
+          name: 'probe-${{ matrix.os }}'
+          path: 'probe-out/'
