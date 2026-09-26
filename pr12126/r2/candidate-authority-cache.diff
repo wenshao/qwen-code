@@ -1,0 +1,21 @@
+--- a/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/NativeFilePicker.kt
++++ b/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/NativeFilePicker.kt
+@@ -90,10 +90,15 @@
+             }
+         }.distinct()
+         if (uris.isEmpty() || uris.size > 100 || (!multiple && uris.size != 1)) return null
++        val ownUid = context.applicationInfo.uid
++        val checkedAuthorities = HashSet<String>()
+         for (uri in uris) {
+-            if (uri.scheme != "content" || uri.authority.isNullOrBlank()) return null
+-            val provider = context.packageManager.resolveContentProvider(uri.authority!!, 0) ?: return null
+-            if (provider.applicationInfo.uid == context.applicationInfo.uid) return null
++            val authority = uri.authority
++            if (uri.scheme != "content" || authority.isNullOrBlank()) return null
++            if (checkedAuthorities.add(authority)) {
++                val provider = context.packageManager.resolveContentProvider(authority, 0) ?: return null
++                if (provider.applicationInfo.uid == ownUid) return null
++            }
+             if (context.checkUriPermission(uri, Process.myPid(), Process.myUid(), Intent.FLAG_GRANT_READ_URI_PERMISSION) != PackageManager.PERMISSION_GRANTED) return null
+         }
+         return uris.toTypedArray()
