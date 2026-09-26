@@ -1,0 +1,26 @@
+## Session s1 bound to services/api
+install s1                                   -> 200
+execute c1 (directory present)           -> 200 success pwd=$BASE/ws/services/api
+rm -rf services/api; execute c2           -> 409 managed_context_unavailable
+status c2 (the refused call)              -> 200 "unknown"
+replay c1 (already journaled)            -> 200 settled/success
+services/ now contains: []  (nothing ran elsewhere: probe.txt at root? false)
+mkdir services/api again; execute             -> 200 success pwd=$BASE/ws/services/api   (no reinstall needed)
+services/api -> symlink to $BASE/outside       -> 409 managed_context_unavailable
+chmod 000                                    -> 409 managed_context_unavailable
+chmod 300 (no read)                          -> 409 managed_context_unavailable
+chmod 600 (no search)                        -> 409 managed_context_unavailable
+chmod 755 (restored)                         -> 200 success pwd=$BASE/ws/services/api
+## New installations (step 6) on APFS (case-insensitive, normalization-preserving)
+install s2 'Services/API' (disk: services/api) -> 409 managed_context_unavailable
+   (ls says the path exists: true; realpath.native -> $BASE/ws/services/api)
+install s3 'café' NFC (disk stores NFD)        -> 409 managed_context_unavailable
+install s4 'café' NFD (as stored)             -> 200 receipt
+install s5 'services/missing'                  -> 409 managed_context_unavailable
+install s6 'services/file' (a regular file)    -> 409 managed_context_unavailable
+install s7 'services/alias' (link inside ws)   -> 409 managed_context_unavailable
+execute for never-installed Session s9        -> 409 managed_context_unavailable
+execute for refused Session s2                -> 409 managed_context_unavailable
+execute for s4 (NFD, installed)               -> 200 success pwd=$BASE/ws/café
+install s5 same request after mkdir (repair)   -> 200 receipt
+stderr bytes: 0; token in stderr: false; base path in any 409 body: false by construction

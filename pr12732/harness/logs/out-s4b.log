@@ -1,0 +1,38 @@
+### Sequence 1: volume B takes the freed device node (the ordinary remount)
+[PR 42d6f28a51]
+  A on disk4 (dev=16777239 ino=2): install s1 200 receipt; execute 200 ran on "volume A"
+  detach A; attach B at mnt -> disk4 (dev=16777239 ino=2)
+    execute s1 -> 200 ran on "volume B"
+    install s2 -> 200 receipt
+  back to A on disk4 (dev=16777239 ino=2): execute s1 -> 200 ran on "volume A"
+[mutant: device check removed]
+  A on disk4 (dev=16777239 ino=2): install s1 200 receipt; execute 200 ran on "volume A"
+  detach A; attach B at mnt -> disk4 (dev=16777239 ino=2)
+    execute s1 -> 200 ran on "volume B"
+    install s2 -> 200 receipt
+  back to A on disk4 (dev=16777239 ino=2): execute s1 -> 200 ran on "volume A"
+[candidate: also pin birth time]
+  A on disk4 (dev=16777239 ino=2): install s1 200 receipt; execute 200 ran on "volume A"
+  detach A; attach B at mnt -> disk4 (dev=16777239 ino=2)
+    execute s1 -> 409 managed_context_unavailable
+    install s2 -> 409 managed_context_unavailable
+  back to A on disk4 (dev=16777239 ino=2): execute s1 -> 200 ran on "volume A"
+### Sequence 2: volume B gets a new device node
+[PR 42d6f28a51]
+  A on disk4 (dev=16777239 ino=2): install s1 200 receipt; execute 200 ran on "volume A"
+  hold disk6 with P, detach A, hold disk4 with Q; attach B at mnt -> disk8 (dev=16777247 ino=2)
+    execute s1 -> 409 managed_context_unavailable
+    install s2 -> 409 managed_context_unavailable
+  back to A on disk4 (dev=16777239 ino=2): execute s1 -> 200 ran on "volume A"
+[mutant: device check removed]
+  A on disk4 (dev=16777239 ino=2): install s1 200 receipt; execute 200 ran on "volume A"
+  hold disk6 with P, detach A, hold disk4 with Q; attach B at mnt -> disk8 (dev=16777247 ino=2)
+    execute s1 -> 200 ran on "volume B"
+    install s2 -> 200 receipt
+  back to A on disk4 (dev=16777239 ino=2): execute s1 -> 200 ran on "volume A"
+[candidate: also pin birth time]
+  A on disk4 (dev=16777239 ino=2): install s1 200 receipt; execute 200 ran on "volume A"
+  hold disk6 with P, detach A, hold disk4 with Q; attach B at mnt -> disk8 (dev=16777247 ino=2)
+    execute s1 -> 409 managed_context_unavailable
+    install s2 -> 409 managed_context_unavailable
+  back to A on disk4 (dev=16777239 ino=2): execute s1 -> 200 ran on "volume A"

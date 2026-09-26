@@ -1,0 +1,39 @@
+kernel 6.8.0-117-generic, node v24.19.0
+### Sequence 1: B takes the freed loop device (the ordinary remount)
+[PR 42d6f28a51]
+  A on /dev/loop0 (dev=1792 ino=2): install s1 200 receipt; execute 200 success on "volume A"
+  umount A; mount B -> /dev/loop0 (dev=1792 ino=2)
+    execute s1 -> 200 success on "volume B"
+    install s2 -> 200 receipt
+  back to A on /dev/loop0 (dev=1792 ino=2): execute s1 -> 200 success on "volume A"
+[mutant: device check removed]
+  A on /dev/loop0 (dev=1792 ino=2): install s1 200 receipt; execute 200 success on "volume A"
+  umount A; mount B -> /dev/loop0 (dev=1792 ino=2)
+    execute s1 -> 200 success on "volume B"
+    install s2 -> 200 receipt
+  back to A on /dev/loop0 (dev=1792 ino=2): execute s1 -> 200 success on "volume A"
+[candidate: also pin birth time]
+  A on /dev/loop0 (dev=1792 ino=2): install s1 200 receipt; execute 200 success on "volume A"
+  umount A; mount B -> /dev/loop0 (dev=1792 ino=2)
+    execute s1 -> 409 managed_context_unavailable
+    install s2 -> 409 managed_context_unavailable
+  back to A on /dev/loop0 (dev=1792 ino=2): execute s1 -> 200 success on "volume A"
+### Sequence 2: B gets another loop device
+[PR 42d6f28a51]
+  A on /dev/loop0 (dev=1792 ino=2): install s1 200 receipt; execute 200 success on "volume A"
+  hold /dev/loop1 with P, umount A, hold /dev/loop0 with Q; mount B -> /dev/loop2 (dev=1794 ino=2)
+    execute s1 -> 409 managed_context_unavailable
+    install s2 -> 409 managed_context_unavailable
+  back to A on /dev/loop0 (dev=1792 ino=2): execute s1 -> 200 success on "volume A"
+[mutant: device check removed]
+  A on /dev/loop0 (dev=1792 ino=2): install s1 200 receipt; execute 200 success on "volume A"
+  hold /dev/loop1 with P, umount A, hold /dev/loop0 with Q; mount B -> /dev/loop2 (dev=1794 ino=2)
+    execute s1 -> 200 success on "volume B"
+    install s2 -> 200 receipt
+  back to A on /dev/loop0 (dev=1792 ino=2): execute s1 -> 200 success on "volume A"
+[candidate: also pin birth time]
+  A on /dev/loop0 (dev=1792 ino=2): install s1 200 receipt; execute 200 success on "volume A"
+  hold /dev/loop1 with P, umount A, hold /dev/loop0 with Q; mount B -> /dev/loop2 (dev=1794 ino=2)
+    execute s1 -> 409 managed_context_unavailable
+    install s2 -> 409 managed_context_unavailable
+  back to A on /dev/loop0 (dev=1792 ino=2): execute s1 -> 200 success on "volume A"

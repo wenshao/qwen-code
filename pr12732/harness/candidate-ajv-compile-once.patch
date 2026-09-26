@@ -1,0 +1,87 @@
+diff --git a/packages/core/src/utils/schemaValidator.test.ts b/packages/core/src/utils/schemaValidator.test.ts
+index 1ed430a8cb..4bd6550708 100644
+--- a/packages/core/src/utils/schemaValidator.test.ts
++++ b/packages/core/src/utils/schemaValidator.test.ts
+@@ -2330,3 +2330,24 @@ describe('SchemaValidator', () => {
+     });
+   });
+ });
++
++describe('SchemaValidator compile cache (PR 12732 candidate)', () => {
++  it('compiles equal schemas once, whatever their object identity', async () => {
++    const { default: AjvPkg } = await import('ajv');
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    const AjvClass = ((AjvPkg as any).default || AjvPkg) as any;
++    const compile = vi.spyOn(AjvClass.prototype, 'compile');
++    try {
++      for (let i = 0; i < 50; i++) {
++        const schema = {
++          type: 'object',
++          properties: { probe12732: { type: 'string' } },
++        };
++        expect(SchemaValidator.validate(schema, { probe12732: 'x' })).toBeNull();
++      }
++      expect(compile).toHaveBeenCalledTimes(1);
++    } finally {
++      compile.mockRestore();
++    }
++  });
++});
+diff --git a/packages/core/src/utils/schemaValidator.ts b/packages/core/src/utils/schemaValidator.ts
+index de1c20ab9a..f91f9d73ca 100644
+--- a/packages/core/src/utils/schemaValidator.ts
++++ b/packages/core/src/utils/schemaValidator.ts
+@@ -4,7 +4,11 @@
+  * SPDX-License-Identifier: Apache-2.0
+  */
+ 
+-import AjvPkg, { type AnySchema, type Ajv } from 'ajv';
++import AjvPkg, {
++  type AnySchema,
++  type Ajv,
++  type ValidateFunction,
++} from 'ajv';
+ // Ajv2020 is the documented way to use draft-2020-12: https://ajv.js.org/json-schema.html#draft-2020-12
+ // eslint-disable-next-line import/no-internal-modules
+ import Ajv2020Pkg from 'ajv/dist/2020.js';
+@@ -84,6 +88,31 @@ function getValidator(schema: AnySchema): Ajv {
+   return ajvDefault;
+ }
+ 
++// Ajv caches every compiled schema by object identity for the life of the
++// process. Callers that rebuild their tools (and so their schema objects) for
++// each call would otherwise add one compiled validator per call.
++const compiledByText = new WeakMap<Ajv, Map<string, ValidateFunction>>();
++
++function compileOnce(validator: Ajv, schema: AnySchema): ValidateFunction {
++  let key: string;
++  try {
++    key = JSON.stringify(schema);
++  } catch {
++    return validator.compile(schema);
++  }
++  let byText = compiledByText.get(validator);
++  if (!byText) {
++    byText = new Map();
++    compiledByText.set(validator, byText);
++  }
++  let validate = byText.get(key);
++  if (!validate) {
++    validate = validator.compile(schema);
++    byText.set(key, validate);
++  }
++  return validate;
++}
++
+ /**
+  * Simple utility to validate objects against JSON Schemas.
+  * Supports both draft-07 (default) and draft-2020-12 schemas.
+@@ -184,7 +213,7 @@ export class SchemaValidator {
+     // This matches LenientJsonSchemaValidator behavior in mcp-client.ts.
+     let validate;
+     try {
+-      validate = validator.compile(anySchema);
++      validate = compileOnce(validator, anySchema);
+     } catch (error) {
+       // Schema compilation failed (unsupported version, invalid $ref, etc.)
+       // Skip validation rather than blocking tool usage.

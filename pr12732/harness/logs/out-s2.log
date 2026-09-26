@@ -1,0 +1,21 @@
+mount roots: W1=$BASE/workspace-1  W2=$BASE/workspace-2
+W1 sess-api  cwdRelative=services/api install=200  shell pwd=$BASE/workspace-1/services/api  write=success edit=success read=success (content ok)
+W1 sess-web  cwdRelative=apps/web     install=200  shell pwd=$BASE/workspace-1/apps/web  write=success edit=success read=success (content ok)
+W1 sess-root cwdRelative=.            install=200  shell pwd=$BASE/workspace-1  write=success edit=success read=success (content ok)
+W2 sess-api  cwdRelative=services/api install=200  shell pwd=$BASE/workspace-2/services/api  write=success edit=success read=success (content ok)
+--- files on disk (find $BASE -name "*.txt") ---
+$BASE/workspace-1/apps/web/note.txt      final by W1:sess-web
+$BASE/workspace-1/apps/web/shell.txt     W1:sess-web
+$BASE/workspace-1/note.txt               final by W1:sess-root
+$BASE/workspace-1/services/api/note.txt  final by W1:sess-api
+$BASE/workspace-1/services/api/shell.txt W1:sess-api
+$BASE/workspace-1/shell.txt              W1:sess-root
+$BASE/workspace-2/services/api/note.txt  final by W2:sess-api
+$BASE/workspace-2/services/api/shell.txt W2:sess-api
+--- W1 sess-api reaching outside its effective directory ---
+read sibling Session file (absolute)         -> 200 success: [{"type":"text","text":"final by W1:sess-web"}]
+write into sibling Session dir (absolute)    -> 200 success: [{"type":"text","text":"Successfully created and wrote to new file: $BASE/workspace-1/apps/web/intrude.txt."}]
+read Workspace-root README (absolute)        -> 200 success: [{"type":"text","text":"root of workspace-1 | "}]
+shell cat ../../apps/web/note.txt            -> 200 success: [{"type":"text","text":"Command: cat ../../apps/web/note.txt | Directory: (root) | Output: final by W1:sess-web | Error: (none) | Exit Code: 0 | Signa
+shell with directory=sibling Session dir     -> 200 error: Directory '$BASE/workspace-1/apps/web' is not within any of the registered workspace directories.
+intrude.txt exists: true
