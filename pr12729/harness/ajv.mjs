@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+const require = createRequire(process.env.CORE + '/package.json');
+const { Ajv2020 } = require('ajv/dist/2020.js');
+const schema = JSON.parse(fs.readFileSync(process.env.SCHEMAPATH ?? (process.env.CORE + '/src/managed-runtime/contracts/managed-tool-result-v1.schema.json'),'utf8'));
+const ajv = new Ajv2020({ strict: true });
+ajv.compile(schema);
+export const schemaAccepts = (def, v) => ajv.getSchema(`${schema.$id}#/$defs/${def}`)(v);
+export const fx = JSON.parse(fs.readFileSync(process.env.CORE + '/src/managed-runtime/contracts/managed-tool-result-v1.fixtures.json','utf8'));
+export const M = await import(process.env.MODPATH ?? (process.env.CORE + '/dist/src/managed-runtime/managed-tool-result.js'));

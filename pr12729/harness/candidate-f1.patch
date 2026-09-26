@@ -1,0 +1,205 @@
+diff --git a/packages/core/src/managed-runtime/contracts/managed-tool-result-v1.fixtures.json b/packages/core/src/managed-runtime/contracts/managed-tool-result-v1.fixtures.json
+index 5f8f480b19..9683b02c2c 100644
+--- a/packages/core/src/managed-runtime/contracts/managed-tool-result-v1.fixtures.json
++++ b/packages/core/src/managed-runtime/contracts/managed-tool-result-v1.fixtures.json
+@@ -13154,6 +13154,132 @@
+       },
+       "valid": false
+     },
++    {
++      "id": "unknown-outcome-with-an-exit-code",
++      "manifest": {
++        "toolResult": "managed-tool-result/1",
++        "type": "manifest",
++        "tenantId": "tenant-a",
++        "sessionId": "session-a",
++        "turnId": "turn-1",
++        "executionCallId": "exec-1",
++        "callId": "call-01",
++        "invocationDigest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
++        "bindingGeneration": "3",
++        "captureId": "capture-01",
++        "revision": 1,
++        "executionStatus": "unknown",
++        "exitCode": 137,
++        "signal": null,
++        "captureScope": "process_pipes",
++        "capturePolicy": "complete_required",
++        "captureStatus": "pending",
++        "captureReason": null,
++        "upstreamTruncated": false,
++        "contents": [
++          {
++            "streamId": "stdout",
++            "role": "stdout",
++            "mimeType": "application/octet-stream",
++            "state": "open",
++            "byteLength": 5,
++            "digest": "8ed1fb4b8baf5498e96657e3e335a95493acc1e26b6cdff7ce0b3eff49207cfe",
++            "missingRanges": [],
++            "body": {
++              "pages": [
++                {
++                  "ref": {
++                    "resourceId": "page-stdout-0",
++                    "kind": "managed-tool-result-page",
++                    "schemaVersion": 1,
++                    "byteLength": 324,
++                    "digest": "adfd35832c458641134fe04080c8f54637632d6a3dc44ebdbe457283901f06c2"
++                  },
++                  "segmentCount": 2,
++                  "byteLength": 5
++                }
++              ]
++            }
++          },
++          {
++            "streamId": "stderr",
++            "role": "stderr",
++            "mimeType": "text/plain; charset=utf-8",
++            "state": "open",
++            "byteLength": 0,
++            "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++            "missingRanges": [],
++            "body": {
++              "pages": []
++            }
++          }
++        ]
++      },
++      "valid": false
++    },
++    {
++      "id": "unknown-outcome-with-a-signal",
++      "manifest": {
++        "toolResult": "managed-tool-result/1",
++        "type": "manifest",
++        "tenantId": "tenant-a",
++        "sessionId": "session-a",
++        "turnId": "turn-1",
++        "executionCallId": "exec-1",
++        "callId": "call-01",
++        "invocationDigest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
++        "bindingGeneration": "3",
++        "captureId": "capture-01",
++        "revision": 1,
++        "executionStatus": "unknown",
++        "exitCode": null,
++        "signal": "SIGKILL",
++        "captureScope": "process_pipes",
++        "capturePolicy": "complete_required",
++        "captureStatus": "pending",
++        "captureReason": null,
++        "upstreamTruncated": false,
++        "contents": [
++          {
++            "streamId": "stdout",
++            "role": "stdout",
++            "mimeType": "application/octet-stream",
++            "state": "open",
++            "byteLength": 5,
++            "digest": "8ed1fb4b8baf5498e96657e3e335a95493acc1e26b6cdff7ce0b3eff49207cfe",
++            "missingRanges": [],
++            "body": {
++              "pages": [
++                {
++                  "ref": {
++                    "resourceId": "page-stdout-0",
++                    "kind": "managed-tool-result-page",
++                    "schemaVersion": 1,
++                    "byteLength": 324,
++                    "digest": "adfd35832c458641134fe04080c8f54637632d6a3dc44ebdbe457283901f06c2"
++                  },
++                  "segmentCount": 2,
++                  "byteLength": 5
++                }
++              ]
++            }
++          },
++          {
++            "streamId": "stderr",
++            "role": "stderr",
++            "mimeType": "text/plain; charset=utf-8",
++            "state": "open",
++            "byteLength": 0,
++            "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++            "missingRanges": [],
++            "body": {
++              "pages": []
++            }
++          }
++        ]
++      },
++      "valid": false
++    },
+     {
+       "id": "tool-native-with-an-exit-code",
+       "manifest": {
+diff --git a/packages/core/src/managed-runtime/contracts/managed-tool-result-v1.schema.json b/packages/core/src/managed-runtime/contracts/managed-tool-result-v1.schema.json
+index 96b43a0499..564c8ed4bd 100644
+--- a/packages/core/src/managed-runtime/contracts/managed-tool-result-v1.schema.json
++++ b/packages/core/src/managed-runtime/contracts/managed-tool-result-v1.schema.json
+@@ -1308,6 +1308,28 @@
+             "required": ["captureReason"]
+           }
+         },
++        {
++          "if": {
++            "type": "object",
++            "properties": {
++              "executionStatus": {
++                "const": "unknown"
++              }
++            },
++            "required": ["executionStatus"]
++          },
++          "then": {
++            "type": "object",
++            "properties": {
++              "exitCode": {
++                "type": "null"
++              },
++              "signal": {
++                "type": "null"
++              }
++            }
++          }
++        },
+         {
+           "if": {
+             "type": "object",
+diff --git a/packages/core/src/managed-runtime/managed-tool-result.ts b/packages/core/src/managed-runtime/managed-tool-result.ts
+index ca356a797f..6757509d13 100644
+--- a/packages/core/src/managed-runtime/managed-tool-result.ts
++++ b/packages/core/src/managed-runtime/managed-tool-result.ts
+@@ -570,10 +570,16 @@ export function parseToolResultManifest(value: unknown): ToolResultManifest {
+     CAPTURE_SCOPES,
+     'manifest.captureScope',
+   );
++  const executionStatus = oneOf(
++    manifest.executionStatus,
++    EXECUTION_STATUSES,
++    'manifest.executionStatus',
++  );
+   const exitCode = nullable(manifest.exitCode, parseExitCode);
+   const signal = nullable(manifest.signal, parseSignal);
++  // No process has exited while the outcome is unknown.
+   if (
+-    captureScope === 'tool_native'
++    captureScope === 'tool_native' || executionStatus === 'unknown'
+       ? exitCode !== null || signal !== null
+       : exitCode !== null && signal !== null
+   ) {
+@@ -620,11 +626,7 @@ export function parseToolResultManifest(value: unknown): ToolResultManifest {
+     ),
+     captureId: token(manifest.captureId, 'manifest.captureId'),
+     revision: count(manifest.revision, 'manifest.revision', 1),
+-    executionStatus: oneOf(
+-      manifest.executionStatus,
+-      EXECUTION_STATUSES,
+-      'manifest.executionStatus',
+-    ),
++    executionStatus,
+     exitCode,
+     signal,
+     captureScope,
