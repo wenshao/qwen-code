@@ -1,0 +1,31 @@
+[A] --- variant 1: Session created with a directory that does not exist ---
+[create] alice cwd=docs: 202
+[create] bob cwd=not-yet-created: 202
+[A] ghost acquire g-rt1: 409 managed_context_unavailable retryable=false (Managed Runtime context request failed (HTTP 409).)
+[A] holders: [["addfe557","g-rt1"]]
+[A] alice acquire a-rt1 (same storage, healthy Session): 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[A] ghost release g-rt1: 503 runtime_reconciliation_required retryable=true (Runtime Session is not active in this Broker process)
+[A] ghost retry g-rt1: 409 managed_context_unavailable retryable=false (Managed Runtime context request failed (HTTP 409).)
+[A] runtime session rows: [["a-rt1","ACQUIRING"],["g-rt1","ACQUIRING"]]
+[A] waiting 65 s (> 2x the 30 s Broker lease) ...
+[A] alice acquire a-rt2 after 65 s: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[A] holders: [["addfe557","g-rt1"]]
+[C] --- the only in-band exit: make the directory exist and retry the SAME runtime id ---
+[C] mkdir <rootA>/not-yet-created; ghost retry g-rt1: 200 {"protocolVersion":1,"harnessSessionId":"30092bc5-a470-48ba-8d6d-532fcb4ec8f0","runtimeSessionId":"g-rt1","acquired":true}
+[C] ghost release g-rt1: 200 {"protocolVersion":1,"harnessSessionId":"30092bc5-a470-48ba-8d6d-532fcb4ec8f0","runtimeSessionId":"g-rt1","released":true}
+[C] alice acquire a-rt4: 200 {"protocolVersion":1,"harnessSessionId":"32cb850e-b519-4c6c-b935-229f3b9921e8","runtimeSessionId":"a-rt4","acquired":true}
+[C] holders: [["addfe557","a-rt4"]]
+[D] --- variant 2: another Session deletes the directory with an ordinary Shell call ---
+[create] bob cwd=docs: 202
+[D] alice (current holder, cwd=docs) runs an ordinary Shell call: settled executionStatus=success ["Command: cd .. && rm -rf docs && ls\nDirectory: (root)\nOutput: not-yet-created\nError: (none)\nExit Code: 0\nSignal: (none)\nProcess Group PGID: 83083"]
+[D] alice release a-rt4: 200 {"protocolVersion":1,"harnessSessionId":"32cb850e-b519-4c6c-b935-229f3b9921e8","runtimeSessionId":"a-rt4","released":true}
+[D] holders after a clean release: [["addfe557","<none>"]]
+[D] bob's Session (cwd=docs) acquire c-rt1: 409 managed_context_unavailable retryable=false (Managed Runtime context request failed (HTTP 409).)
+[create] alice cwd=.: 202
+[D] a fresh root-level Session acquire o-rt1: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[D] holders: [["addfe557","c-rt1"]]
+[B] --- restart the server: ownership is durable ---
+[create] alice cwd=.: 202
+[B] a Session created after the restart acquire f-rt1: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[B] holders: [["addfe557","c-rt1"]]
+[D] worker launches: 5; live workers: 1

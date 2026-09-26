@@ -1,0 +1,31 @@
+[A] --- variant 1: Session created with a directory that does not exist ---
+[create] alice cwd=docs: 202
+[create] bob cwd=not-yet-created: 202
+[A] ghost acquire g-rt1: 409 workspace_unavailable retryable=false (Workspace execution authority is unavailable.)
+[A] holders: []
+[A] alice acquire a-rt1 (same storage, healthy Session): 200 {"protocolVersion":1,"harnessSessionId":"b9f95c4f-f75d-461c-903f-3aa83859c0ab","runtimeSessionId":"a-rt1","acquired":true}
+[A] ghost release g-rt1: 503 runtime_reconciliation_required retryable=true (Runtime Session is not active in this Broker process)
+[A] ghost retry g-rt1: 409 workspace_unavailable retryable=false (Workspace execution authority is unavailable.)
+[A] runtime session rows: [["a-rt1","READY"],["g-rt1","ACQUIRING"]]
+[A] waiting 65 s (> 2x the 30 s Broker lease) ...
+[A] alice acquire a-rt2 after 65 s: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[A] holders: [["addfe557","a-rt1"]]
+[C] --- the only in-band exit: make the directory exist and retry the SAME runtime id ---
+[C] mkdir <rootA>/not-yet-created; ghost retry g-rt1: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[C] ghost release g-rt1: 503 runtime_reconciliation_required retryable=true (Runtime Session is not active in this Broker process)
+[C] alice acquire a-rt4: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[C] holders: [["addfe557","a-rt1"]]
+[D] --- variant 2: another Session deletes the directory with an ordinary Shell call ---
+[create] bob cwd=docs: 202
+[D] alice (current holder, cwd=docs) runs an ordinary Shell call: 404 runtime_session_not_found retryable=false (Runtime Session is not active in this Broker process)
+[D] alice release a-rt4: 503 runtime_reconciliation_required retryable=true (Runtime Session is not active in this Broker process)
+[D] holders after a clean release: [["addfe557","a-rt1"]]
+[D] bob's Session (cwd=docs) acquire c-rt1: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[create] alice cwd=.: 202
+[D] a fresh root-level Session acquire o-rt1: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[D] holders: [["addfe557","a-rt1"]]
+[B] --- restart the server: ownership is durable ---
+[create] alice cwd=.: 202
+[B] a Session created after the restart acquire f-rt1: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[B] holders: [["addfe557","a-rt1"]]
+[D] worker launches: 5; live workers: 1

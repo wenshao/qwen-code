@@ -1,0 +1,70 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTransport.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTransport.java
+index 1501140..c5ffd57 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTransport.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTransport.java
+@@ -15,6 +15,10 @@ import com.alibaba.qwen.code.runtimebroker.RuntimeSessionRepository;
+ import com.alibaba.qwen.code.runtimebroker.RuntimeTransport;
+ import com.alibaba.qwen.code.runtimebroker.WorkspaceExecutionProfile;
+ import com.alibaba.qwen.code.runtimebroker.managedworkspace.ContextBinding;
++import java.io.IOException;
++import java.nio.file.Files;
++import java.nio.file.LinkOption;
++import java.nio.file.Path;
+ import java.util.Map;
+ import java.util.List;
+ import java.util.UUID;
+@@ -51,6 +55,9 @@ final class WorkspaceRuntimeTransport implements RuntimeTransport {
+             return delegate.acquire(lease, session);
+         }
+         Context context = context(lease, session, true);
++        // A deterministic refusal must not reach the claim: a retained holder
++        // would otherwise block every Session on this storage.
++        requireDirectory(session.getScope().getCanonicalCwd(), context.binding().getCwdRelative());
+         ownership.claim(context.binding(), context.session());
+         // Failure retains ownership: a missing response cannot prove the worker did nothing.
+         return delegate.installContext(context.runtime(), context.session(),
+@@ -144,6 +151,19 @@ final class WorkspaceRuntimeTransport implements RuntimeTransport {
+         return new Context(binding, record, runtime);
+     }
+ 
++    private static void requireDirectory(String root, String cwdRelative) {
++        try {
++            Path base = Path.of(root);
++            Path directory = base.resolve(cwdRelative).normalize();
++            if (!directory.startsWith(base) || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)
++                    || !directory.toRealPath().equals(directory)) {
++                throw WorkspaceExecutionStore.unavailable();
++            }
++        } catch (IOException error) {
++            throw WorkspaceExecutionStore.unavailable();
++        }
++    }
++
+     private static boolean managed(RuntimeSession session) {
+         return WorkspaceExecutionProfile.CAPABILITY_DIGEST.equals(session.getScope().getCapabilityDigest());
+     }
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
+index ed332de..9823f5e 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
+@@ -207,6 +207,20 @@ class WorkspaceRuntimeTest {
+         authority.assertHeld(binding, rival);
+     }
+ 
++    @Test
++    void refusesMissingOrLinkedSessionDirectoryBeforeClaimingStorage() throws Exception {
++        for (String cwd : List.of("missing", "link")) {
++            SessionRecord session = createSession("storage", cwd);
++            var fixture = transport(session);
++            if (cwd.equals("link")) {
++                Files.createSymbolicLink(temp.resolve("link"), Files.createTempDirectory("outside"));
++            }
++            assertUnavailable(() -> fixture.transport().acquire(fixture.lease(), fixture.record().getSession()));
++            verify(fixture.http(), never()).installContext(any(), any(), any(), any());
++            authority.claim(session.workspace(), holder(session, "rival"));
++        }
++    }
++
+     @Test
+     void rechecksAuthorityBeforeNewDispatchButAllowsOriginalCleanupAfterRevocation() throws Exception {
+         SessionRecord session = createSession("storage", ".");

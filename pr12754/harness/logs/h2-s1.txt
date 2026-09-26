@@ -1,0 +1,69 @@
+[setup] two JVMs up (pids 79919 / 80192), MySQL db rig_matrix_h2
+[setup] flyway: [["11","1"]]
+[setup] S1=ws-a:child S2=ws-a:. S3=ws-b:. S4=ws-a:child/nested (all created via public W0b API as actor alice)
+[1] --- real tools in two roots / child directories (JVM1: S1, S3) ---
+[1] S1 acquire @JVM1: 200 {"protocolVersion":1,"harnessSessionId":"17cd9c86-ff2f-4f5c-b379-b56c85d06138","runtimeSessionId":"s1-rt1","acquired":true}
+[1] S1 write_file child/f.txt: settled executionStatus=success ["Successfully created and wrote to new file: <rootA>/child/f.txt."]
+[1] S1 read_file: settled executionStatus=success ["alpha\n"]
+[1] S1 edit alpha->beta: settled executionStatus=success ["The file: <rootA>/child/f.txt has been updated. Showing lines 1-2 of 2 from the edited file:\n\n---\n\nbeta\n"]
+[1] S1 shell pwd+cat: settled executionStatus=success ["Command: pwd; cat f.txt\nDirectory: (root)\nOutput: <rootA>/child\nbeta\nError: (none)\nExit Code: 0\nSignal: (none)\nProcess Group PGID: 80480"]
+[1] S1 read_file <rootA>/root-note.txt (mount root, outside child): settled executionStatus=success ["root note\n"]
+[1] S1 shell with directory=<rootA> (mount root): settled executionStatus=success ["Command: pwd\nDirectory: <rootA>\nOutput: <rootA>\nError: (none)\nExit Code: 0\nSignal: (none)\nProcess Group PGID: 80519"]
+[1] S1 write_file OUTSIDE the mount (<rig>/roots/outside-h2.txt): settled executionStatus=success ["Successfully created and wrote to new file: <rig>/roots/outside-h2.txt."]
+[1]   -> on disk: "written by S1\n"
+[1] S1 read_file OUTSIDE the mount (/etc/hosts): settled executionStatus=success ["Showing lines 1-1 of 10 total lines.\n\n---\n\n##"]
+[1] S3 acquire @JVM1 (other storage, concurrently): 200 {"protocolVersion":1,"harnessSessionId":"dcc79cea-a988-44bc-97b7-269cd2b7c254","runtimeSessionId":"s3-rt1","acquired":true}
+[1] S3 shell: settled executionStatus=success ["Command: pwd; echo b > b.txt; ls\nDirectory: (root)\nOutput: <rootB>\nb.txt\nError: (none)\nExit Code: 0\nSignal: (none)\nProcess Group PGID: 80730"]
+[1] disk: <rootA>/child/f.txt="beta\n" <rootB>/b.txt="b\n"
+[1] holders: [["4b06ef1a","s3-rt1"],["addfe557","s1-rt1"]]
+[2] --- same-storage contention across JVMs (JVM2: S2, S4) ---
+[2] S2 acquire @JVM2 while S1 holds st-a on JVM1: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[2] S4 acquire @JVM2: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[2] holders: [["4b06ef1a","s3-rt1"],["addfe557","s1-rt1"]]
+[3] --- release while a foreground Shell call is running ---
+[3] start slow shell: 200 {"protocolVersion":1,"harnessSessionId":"17cd9c86-ff2f-4… state=executing
+[3] release S1 during the call: 409 runtime_session_busy retryable=false (Runtime Session has an active operation)
+[3] holders: [["4b06ef1a","s3-rt1"],["addfe557","s1-rt1"]]
+[3] slow call settles: settled executionStatus=success ["Command: node -e \"setTimeout(()=>{},4000)\" && echo slow > slow.txt\nDirectory: (root)\nOutput: (empty)\nError: (none)\nExit Code: 0\nSignal: (none)\nProcess Group PGID: 80823"]
+[3] release S1 after settlement: 200 {"protocolVersion":1,"harnessSessionId":"17cd9c86-ff2f-4f5c-b379-b56c85d06138","runtimeSessionId":"s1-rt1","released":true}
+[3] holders: [["4b06ef1a","s3-rt1"],["addfe557","<none>"]]
+[4] --- cross-JVM hand-off and stale release ---
+[4] S2 retries the same runtime id s2-rt1 @JVM2: 200 {"protocolVersion":1,"harnessSessionId":"d41478db-1cbe-44ac-95ae-d95062f8e8a9","runtimeSessionId":"s2-rt1","acquired":true}
+[4] S2 write <rootA>/from-s2.txt @JVM2: settled executionStatus=success ["Successfully created and wrote to new file: <rootA>/from-s2.txt."]
+[4] stale release of S1/s1-rt1 again @JVM1: 200 {"protocolVersion":1,"harnessSessionId":"17cd9c86-ff2f-4f5c-b379-b56c85d06138","runtimeSessionId":"s1-rt1","released":true}
+[4] holders (S2 must remain): [["4b06ef1a","s3-rt1"],["addfe557","s2-rt1"]]
+[4] S2 still executes: settled executionStatus=success ["Command: ls\nDirectory: (root)\nOutput: child           from-s2.txt     root-note.txt\nError: (none)\nExit Code: 0\nSignal: (none)\nProcess Group PGID: 81146"]
+[4] S1 acquire (new id s1-rt2) @JVM1 while S2 holds: 409 workspace_busy retryable=true (Workspace storage is held by another tool turn.)
+[4] release S2 @JVM2: 200 {"protocolVersion":1,"harnessSessionId":"d41478db-1cbe-44ac-95ae-d95062f8e8a9","runtimeSessionId":"s2-rt1","released":true}
+[4] holders: [["4b06ef1a","s3-rt1"],["addfe557","<none>"]]
+[5] --- frozen references vs Registry changes ---
+[5] Registry ws-a config/policy changed to later-config/2 + later-policy/2
+[5] S4 (created before) retries s4-rt1 @JVM2: 200 {"protocolVersion":1,"harnessSessionId":"8ed3a1bc-f9f2-4d6a-b536-08bad4506ac6","runtimeSessionId":"s4-rt1","acquired":true}
+[5] S4 shell: settled executionStatus=success ["Command: pwd\nDirectory: (root)\nOutput: <rootA>/child/nested\nError: (none)\nExit Code: 0\nSignal: (none)\nProcess Group PGID: 81200"]
+[5] release S4: 200 {"protocolVersion":1,"harnessSessionId":"8ed3a1bc-f9f2-4d6a-b536-08bad4506ac6","runtimeSessionId":"s4-rt1","released":true}
+[5] S5 created after the change, saved refs: [["later-config/2","later-policy/2"]]
+[5] S5 acquire @JVM1: 409 workspace_unavailable retryable=false (Workspace execution authority is unavailable.)
+[5] holders (S5 must not hold): [["4b06ef1a","s3-rt1"],["addfe557","<none>"]]
+[6] --- revoke the creator grant after acquisition ---
+[6] S4 acquire s4-rt2 @JVM2: 200 {"protocolVersion":1,"harnessSessionId":"8ed3a1bc-f9f2-4d6a-b536-08bad4506ac6","runtimeSessionId":"s4-rt2","acquired":true}
+[6] revoked alice can_read on ws-a
+[6] S4 write after revoke: http=200 settled executionStatus=not_started [] error={"message":"Workspace execution was refused before dispatch.","type":"workspace_unavailable"}
+[6] revoked.txt exists: false
+[6] release S4: 200 {"protocolVersion":1,"harnessSessionId":"8ed3a1bc-f9f2-4d6a-b536-08bad4506ac6","runtimeSessionId":"s4-rt2","released":true}
+[6] holders: [["4b06ef1a","s3-rt1"],["addfe557","<none>"]]
+[7] --- delete the Session through the public API while it holds storage ---
+[7] S2 acquire s2-rt2 @JVM2: 200 {"protocolVersion":1,"harnessSessionId":"d41478db-1cbe-44ac-95ae-d95062f8e8a9","runtimeSessionId":"s2-rt2","acquired":true}
+[7] DELETE S2: 409 workspace_unavailable
+[7] S2 row: [["ACTIVE","0","st-a"]]
+[7] S2 write after delete: settled executionStatus=success ["Successfully created and wrote to new file: <rootA>/after-delete.txt."]
+[7] after-delete.txt exists: true
+[7] release S2: 200 {"protocolVersion":1,"harnessSessionId":"d41478db-1cbe-44ac-95ae-d95062f8e8a9","runtimeSessionId":"s2-rt2","released":true}
+[7] holders: [["4b06ef1a","s3-rt1"],["addfe557","<none>"]]
+[8] --- original call status/cancel after revocation ---
+[8] status after revoke: 200 state=executing
+[8] cancel after revoke: 200 state=cancel_requested
+[8] settles: settled executionStatus=cancelled ["Command was cancelled by user before it could complete. There was no output before it was cancelled."]
+[8] release S3: 200 {"protocolVersion":1,"harnessSessionId":"dcc79cea-a988-44bc-97b7-269cd2b7c254","runtimeSessionId":"s3-rt1","released":true}
+[8] holders: [["4b06ef1a","<none>"],["addfe557","<none>"]]
+[9] worker launches JVM1=2 JVM2=2; live workers before shutdown: 4
+[9] live workers after shutdown: 0
