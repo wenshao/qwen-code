@@ -1,0 +1,57 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ConcurrencyStorageFaultGateTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ConcurrencyStorageFaultGateTest.java
+index ba70574..9460708 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ConcurrencyStorageFaultGateTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ConcurrencyStorageFaultGateTest.java
+@@ -47,8 +47,11 @@ class ConcurrencyStorageFaultGateTest {
+         FaultProxy staleProxy = rig.proxy();
+         FaultProxy takeoverProxy = rig.proxy();
+         TcpRelay staleDatabase = rig.databaseRelay();
++        // The held answer must reach the stale Broker as an answer, not
++        // as a request timeout, however long the takeover takes.
+         BrokerProcess stale = rig.broker("stale", staleProxy,
+-                FaultGateRig.Provisioner.RECOVERABLE, staleDatabase);
++                FaultGateRig.Provisioner.RECOVERABLE, staleDatabase,
++                FaultGateRig.WAIT.multipliedBy(2));
+         BrokerProcess takeover = rig.broker("takeover", takeoverProxy,
+                 FaultGateRig.Provisioner.RECOVERABLE);
+         assertEquals("READY", stale.warm(HARNESS).object()
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java
+index 69ad649..fb0a81c 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java
+@@ -136,6 +136,12 @@ final class FaultGateRig implements AutoCloseable {
+ 
+     BrokerProcess broker(String name, FaultProxy proxy,
+             Provisioner provisioner, TcpRelay relay) throws Exception {
++        return broker(name, proxy, provisioner, relay, REQUEST_TIMEOUT);
++    }
++
++    BrokerProcess broker(String name, FaultProxy proxy,
++            Provisioner provisioner, TcpRelay relay, Duration requestTimeout)
++            throws Exception {
+         Map<String, Object> scopeConfig = new LinkedHashMap<>();
+         scopeConfig.put("tenantId", scope.getTenantId());
+         scopeConfig.put("workspaceId", scope.getWorkspaceId());
+@@ -157,7 +163,7 @@ final class FaultGateRig implements AutoCloseable {
+         config.put("proxyPort", proxy.port());
+         config.put("operationLeaseMillis", OPERATION_LEASE.toMillis());
+         config.put("dispatchLeaseMillis", DISPATCH_LEASE.toMillis());
+-        config.put("requestTimeoutMillis", REQUEST_TIMEOUT.toMillis());
++        config.put("requestTimeoutMillis", requestTimeout.toMillis());
+         config.put("scope", scopeConfig);
+         String file = name + "-" + brokers.size();
+         Path configFile = root.resolve(file + ".json");
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ProcessCrashFaultGateTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ProcessCrashFaultGateTest.java
+index 0630527..f85eacd 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ProcessCrashFaultGateTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ProcessCrashFaultGateTest.java
+@@ -115,6 +115,9 @@ class ProcessCrashFaultGateTest {
+                 FaultGateRig.Provisioner.RECOVERABLE);
+         rig.awaitDispatchLapse(execution);
+         second.acquire(HARNESS, SESSION).requireOk();
++        // Before reuse, the restarted Broker re-proves the worker's identity
++        // twice: the provisioner's observation, then the service's adoption.
++        assertEquals(2, secondProxy.count("attest"));
+ 
+         // Adopted, not replaced: the same generation and lease, and the
+         // second Broker started no worker of its own.
