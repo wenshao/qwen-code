@@ -1,0 +1,350 @@
+PROBE|pr|h2-file|http|setup|acquire|200 {"protocolVersion":1,"harnessSessionId":"harness-71dd0cf3","runtimeSessionId":"runtime-71dd0cf3","acquired":tr...
+PROBE|pr|h2-file|http-result|scale 2048: 0.1{2048}|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-71dd0cf3","runtimeSessionId":"runtime-71dd0cf3","executionCal...
+PROBE|pr|h2-file|http-result|scale 2048: 0.1{2048}|2 GET /executions/{id}|200 state=settled result.value=0.111111111111111111... (equal)
+PROBE|pr|h2-file|http-result|scale 2048: 0.1{2048}|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-71dd0cf3","runtimeSessionId":"runtime-71dd0cf3","executionCal...
+PROBE|pr|h2-file|http-result|scale 2049: 0.1{2049}|1 POST /executions|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|h2-file|http-result|scale 2049: 0.1{2049}|3 retry POST same idempotencyKey|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|h2-file|http-result|scale 2049: 0.5 setScale(2049)|1 POST /executions|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|h2-file|http-result|scale 2049: 0.5 setScale(2049)|3 retry POST same idempotencyKey|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|h2-file|http-result|scale 3001: 1E-3001|1 POST /executions|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|h2-file|http-result|scale 3001: 1E-3001|3 retry POST same idempotencyKey|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|h2-file|http-result|scale 32768: 1E-32768|1 POST /executions|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|h2-file|http-result|scale 32768: 1E-32768|3 retry POST same idempotencyKey|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|h2-file|http-result|scale -100000: 1E+100000|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-71dd0cf3","runtimeSessionId":"runtime-71dd0cf3","executionCal...
+PROBE|pr|h2-file|http-result|scale -100000: 1E+100000|2 GET /executions/{id}|200 state=settled result.value=10000000000000000000... (equal)
+PROBE|pr|h2-file|http-result|scale -100000: 1E+100000|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-71dd0cf3","runtimeSessionId":"runtime-71dd0cf3","executionCal...
+PROBE|pr|h2-file|programmatic|1E-32768|1 service.createExecution (same key+request)|RuntimeBrokerException 400 runtime_payload_invalid
+PROBE|pr|h2-file|programmatic|1E-32768|2 service.createExecution (same key+request)|RuntimeBrokerException 400 runtime_payload_invalid
+PROBE|pr|h2-file|programmatic|0.1{2049}|1 service.createExecution (same key+request)|RuntimeBrokerException 400 runtime_payload_invalid
+PROBE|pr|h2-file|programmatic|0.1{2049}|2 service.createExecution (same key+request)|RuntimeBrokerException 400 runtime_payload_invalid
+PROBE|pr|h2-file|http-reference|0.1{2049} (p=2049,s=2049)|1 POST /executions|400 {"error":"execution request contains invalid JSON.","code":"runtime_broker_invalid_json","retryable":false}
+PROBE|pr|h2-file|http-reference|0.1{2049} (p=2049,s=2049)|2 value the Runtime received|(not dispatched)
+PROBE|pr|h2-file|http-reference|0.0{2048}7 (p=1,s=2049)|1 POST /executions|400 {"error":"Runtime Broker request is invalid.","code":"runtime_broker_invalid_request","retryable":false}
+PROBE|pr|h2-file|http-reference|0.0{2048}7 (p=1,s=2049)|2 value the Runtime received|(not dispatched)
+PROBE|pr|h2-file|http-reference|0.0{32767}1 (=1E-32768)|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-71dd0cf3","runtimeSessionId":"runtime-71dd0cf3","executionCal...
+PROBE|pr|h2-file|http-reference|0.0{32767}1 (=1E-32768)|2 value the Runtime received|WRONG value 1E+32768
+PROBE|pr|h2-file|http-reference|0.0{32767}1 (=1E-32768)|3 GET /executions/{id}|200 {"protocolVersion":1,"harnessSessionId":"harness-71dd0cf3","runtimeSessionId":"runtime-71dd0cf3","executionCal...
+PROBE|pr|h2-file|reference|scale 2048: 0.1{2048}|1 construct|OK
+PROBE|pr|h2-file|reference|scale 2048: 0.1{2048}|2 findOrCreate (write)|OK committed
+PROBE|pr|h2-file|reference|scale 2048: 0.1{2048}|3 rows persisted|1
+PROBE|pr|h2-file|reference|scale 2048: 0.1{2048}|4 findByExecutionCallId|OK equal
+PROBE|pr|h2-file|reference|scale 2048: 0.1{2048}|5 findByIdempotencyKey|OK
+PROBE|pr|h2-file|reference|scale 2048: 0.1{2048}|6 idempotent retry|OK sameRequest=true
+PROBE|pr|h2-file|reference|scale 2048: 0.1{2048}|7 claimDispatch|OK claimed
+PROBE|pr|h2-file|result|scale 2048: 0.1{2048}|1 construct|OK
+PROBE|pr|h2-file|result|scale 2048: 0.1{2048}|2 compareAndSet (settle)|OK committed
+PROBE|pr|h2-file|result|scale 2048: 0.1{2048}|3 result_json persisted|state=SETTLED result_json=2088 chars
+PROBE|pr|h2-file|result|scale 2048: 0.1{2048}|4 findByExecutionCallId|OK equal
+PROBE|pr|h2-file|result|scale 2048: 0.1{2048}|5 findByIdempotencyKey|OK
+PROBE|pr|h2-file|result|scale 2048: 0.1{2048}|6 idempotent retry|OK sameRequest=true
+PROBE|pr|h2-file|reference|scale 2049: 0.1{2049}|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|h2-file|reference|scale 2049: 0.1{2049}|3 rows persisted|0
+PROBE|pr|h2-file|result|scale 2049: 0.1{2049}|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|h2-file|result|scale 2049: 0.1{2049}|3 result_json persisted|state=DISPATCHING result_json=NULL
+PROBE|pr|h2-file|reference|scale 2049: 0.5 setScale(2049)|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|h2-file|reference|scale 2049: 0.5 setScale(2049)|3 rows persisted|0
+PROBE|pr|h2-file|result|scale 2049: 0.5 setScale(2049)|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|h2-file|result|scale 2049: 0.5 setScale(2049)|3 result_json persisted|state=DISPATCHING result_json=NULL
+PROBE|pr|h2-file|reference|scale 3001: 1E-3001|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|h2-file|reference|scale 3001: 1E-3001|3 rows persisted|0
+PROBE|pr|h2-file|result|scale 3001: 1E-3001|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|h2-file|result|scale 3001: 1E-3001|3 result_json persisted|state=DISPATCHING result_json=NULL
+PROBE|pr|h2-file|reference|scale 32768: 1E-32768|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|h2-file|reference|scale 32768: 1E-32768|3 rows persisted|0
+PROBE|pr|h2-file|result|scale 32768: 1E-32768|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|h2-file|result|scale 32768: 1E-32768|3 result_json persisted|state=DISPATCHING result_json=NULL
+PROBE|pr|h2-file|reference|scale -100000: 1E+100000|1 construct|OK
+PROBE|pr|h2-file|reference|scale -100000: 1E+100000|2 findOrCreate (write)|OK committed
+PROBE|pr|h2-file|reference|scale -100000: 1E+100000|3 rows persisted|1
+PROBE|pr|h2-file|reference|scale -100000: 1E+100000|4 findByExecutionCallId|OK equal
+PROBE|pr|h2-file|reference|scale -100000: 1E+100000|5 findByIdempotencyKey|OK
+PROBE|pr|h2-file|reference|scale -100000: 1E+100000|6 idempotent retry|OK sameRequest=true
+PROBE|pr|h2-file|reference|scale -100000: 1E+100000|7 claimDispatch|OK claimed
+PROBE|pr|h2-file|result|scale -100000: 1E+100000|1 construct|OK
+PROBE|pr|h2-file|result|scale -100000: 1E+100000|2 compareAndSet (settle)|OK committed
+PROBE|pr|h2-file|result|scale -100000: 1E+100000|3 result_json persisted|state=SETTLED result_json=100039 chars
+PROBE|pr|h2-file|result|scale -100000: 1E+100000|4 findByExecutionCallId|OK equal
+PROBE|pr|h2-file|result|scale -100000: 1E+100000|5 findByIdempotencyKey|OK
+PROBE|pr|h2-file|result|scale -100000: 1E+100000|6 idempotent retry|OK sameRequest=true
+PROBE|pr|mysql-8.4.7|http|setup|acquire|200 {"protocolVersion":1,"harnessSessionId":"harness-25eb1199","runtimeSessionId":"runtime-25eb1199","acquired":tr...
+PROBE|pr|mysql-8.4.7|http-result|scale 2048: 0.1{2048}|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-25eb1199","runtimeSessionId":"runtime-25eb1199","executionCal...
+PROBE|pr|mysql-8.4.7|http-result|scale 2048: 0.1{2048}|2 GET /executions/{id}|200 state=settled result.value=0.111111111111111111... (equal)
+PROBE|pr|mysql-8.4.7|http-result|scale 2048: 0.1{2048}|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-25eb1199","runtimeSessionId":"runtime-25eb1199","executionCal...
+PROBE|pr|mysql-8.4.7|http-result|scale 2049: 0.1{2049}|1 POST /executions|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|mysql-8.4.7|http-result|scale 2049: 0.1{2049}|3 retry POST same idempotencyKey|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|mysql-8.4.7|http-result|scale 2049: 0.5 setScale(2049)|1 POST /executions|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|mysql-8.4.7|http-result|scale 2049: 0.5 setScale(2049)|3 retry POST same idempotencyKey|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|mysql-8.4.7|http-result|scale 3001: 1E-3001|1 POST /executions|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|mysql-8.4.7|http-result|scale 3001: 1E-3001|3 retry POST same idempotencyKey|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|mysql-8.4.7|http-result|scale 32768: 1E-32768|1 POST /executions|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|mysql-8.4.7|http-result|scale 32768: 1E-32768|3 retry POST same idempotencyKey|409 {"error":"Runtime execution outcome is unknown.","code":"runtime_broker_execution_unknown","retryable":false}
+PROBE|pr|mysql-8.4.7|http-result|scale -100000: 1E+100000|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-25eb1199","runtimeSessionId":"runtime-25eb1199","executionCal...
+PROBE|pr|mysql-8.4.7|http-result|scale -100000: 1E+100000|2 GET /executions/{id}|200 state=settled result.value=10000000000000000000... (equal)
+PROBE|pr|mysql-8.4.7|http-result|scale -100000: 1E+100000|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-25eb1199","runtimeSessionId":"runtime-25eb1199","executionCal...
+PROBE|pr|mysql-8.4.7|programmatic|1E-32768|1 service.createExecution (same key+request)|RuntimeBrokerException 400 runtime_payload_invalid
+PROBE|pr|mysql-8.4.7|programmatic|1E-32768|2 service.createExecution (same key+request)|RuntimeBrokerException 400 runtime_payload_invalid
+PROBE|pr|mysql-8.4.7|programmatic|0.1{2049}|1 service.createExecution (same key+request)|RuntimeBrokerException 400 runtime_payload_invalid
+PROBE|pr|mysql-8.4.7|programmatic|0.1{2049}|2 service.createExecution (same key+request)|RuntimeBrokerException 400 runtime_payload_invalid
+PROBE|pr|mysql-8.4.7|http-reference|0.1{2049} (p=2049,s=2049)|1 POST /executions|400 {"error":"execution request contains invalid JSON.","code":"runtime_broker_invalid_json","retryable":false}
+PROBE|pr|mysql-8.4.7|http-reference|0.1{2049} (p=2049,s=2049)|2 value the Runtime received|(not dispatched)
+PROBE|pr|mysql-8.4.7|http-reference|0.0{2048}7 (p=1,s=2049)|1 POST /executions|400 {"error":"Runtime Broker request is invalid.","code":"runtime_broker_invalid_request","retryable":false}
+PROBE|pr|mysql-8.4.7|http-reference|0.0{2048}7 (p=1,s=2049)|2 value the Runtime received|(not dispatched)
+PROBE|pr|mysql-8.4.7|http-reference|0.0{32767}1 (=1E-32768)|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-25eb1199","runtimeSessionId":"runtime-25eb1199","executionCal...
+PROBE|pr|mysql-8.4.7|http-reference|0.0{32767}1 (=1E-32768)|2 value the Runtime received|WRONG value 1E+32768
+PROBE|pr|mysql-8.4.7|http-reference|0.0{32767}1 (=1E-32768)|3 GET /executions/{id}|200 {"protocolVersion":1,"harnessSessionId":"harness-25eb1199","runtimeSessionId":"runtime-25eb1199","executionCal...
+PROBE|pr|mysql-8.4.7|reference|scale 2048: 0.1{2048}|1 construct|OK
+PROBE|pr|mysql-8.4.7|reference|scale 2048: 0.1{2048}|2 findOrCreate (write)|OK committed
+PROBE|pr|mysql-8.4.7|reference|scale 2048: 0.1{2048}|3 rows persisted|1
+PROBE|pr|mysql-8.4.7|reference|scale 2048: 0.1{2048}|4 findByExecutionCallId|OK equal
+PROBE|pr|mysql-8.4.7|reference|scale 2048: 0.1{2048}|5 findByIdempotencyKey|OK
+PROBE|pr|mysql-8.4.7|reference|scale 2048: 0.1{2048}|6 idempotent retry|OK sameRequest=true
+PROBE|pr|mysql-8.4.7|reference|scale 2048: 0.1{2048}|7 claimDispatch|OK claimed
+PROBE|pr|mysql-8.4.7|result|scale 2048: 0.1{2048}|1 construct|OK
+PROBE|pr|mysql-8.4.7|result|scale 2048: 0.1{2048}|2 compareAndSet (settle)|OK committed
+PROBE|pr|mysql-8.4.7|result|scale 2048: 0.1{2048}|3 result_json persisted|state=SETTLED result_json=2088 chars
+PROBE|pr|mysql-8.4.7|result|scale 2048: 0.1{2048}|4 findByExecutionCallId|OK equal
+PROBE|pr|mysql-8.4.7|result|scale 2048: 0.1{2048}|5 findByIdempotencyKey|OK
+PROBE|pr|mysql-8.4.7|result|scale 2048: 0.1{2048}|6 idempotent retry|OK sameRequest=true
+PROBE|pr|mysql-8.4.7|reference|scale 2049: 0.1{2049}|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|mysql-8.4.7|reference|scale 2049: 0.1{2049}|3 rows persisted|0
+PROBE|pr|mysql-8.4.7|result|scale 2049: 0.1{2049}|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|mysql-8.4.7|result|scale 2049: 0.1{2049}|3 result_json persisted|state=DISPATCHING result_json=NULL
+PROBE|pr|mysql-8.4.7|reference|scale 2049: 0.5 setScale(2049)|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|mysql-8.4.7|reference|scale 2049: 0.5 setScale(2049)|3 rows persisted|0
+PROBE|pr|mysql-8.4.7|result|scale 2049: 0.5 setScale(2049)|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|mysql-8.4.7|result|scale 2049: 0.5 setScale(2049)|3 result_json persisted|state=DISPATCHING result_json=NULL
+PROBE|pr|mysql-8.4.7|reference|scale 3001: 1E-3001|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|mysql-8.4.7|reference|scale 3001: 1E-3001|3 rows persisted|0
+PROBE|pr|mysql-8.4.7|result|scale 3001: 1E-3001|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|mysql-8.4.7|result|scale 3001: 1E-3001|3 result_json persisted|state=DISPATCHING result_json=NULL
+PROBE|pr|mysql-8.4.7|reference|scale 32768: 1E-32768|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|mysql-8.4.7|reference|scale 32768: 1E-32768|3 rows persisted|0
+PROBE|pr|mysql-8.4.7|result|scale 32768: 1E-32768|1 construct|THROWS IllegalArgumentException: JSON number scale must be at most 2048
+PROBE|pr|mysql-8.4.7|result|scale 32768: 1E-32768|3 result_json persisted|state=DISPATCHING result_json=NULL
+PROBE|pr|mysql-8.4.7|reference|scale -100000: 1E+100000|1 construct|OK
+PROBE|pr|mysql-8.4.7|reference|scale -100000: 1E+100000|2 findOrCreate (write)|OK committed
+PROBE|pr|mysql-8.4.7|reference|scale -100000: 1E+100000|3 rows persisted|1
+PROBE|pr|mysql-8.4.7|reference|scale -100000: 1E+100000|4 findByExecutionCallId|OK equal
+PROBE|pr|mysql-8.4.7|reference|scale -100000: 1E+100000|5 findByIdempotencyKey|OK
+PROBE|pr|mysql-8.4.7|reference|scale -100000: 1E+100000|6 idempotent retry|OK sameRequest=true
+PROBE|pr|mysql-8.4.7|reference|scale -100000: 1E+100000|7 claimDispatch|OK claimed
+PROBE|pr|mysql-8.4.7|result|scale -100000: 1E+100000|1 construct|OK
+PROBE|pr|mysql-8.4.7|result|scale -100000: 1E+100000|2 compareAndSet (settle)|OK committed
+PROBE|pr|mysql-8.4.7|result|scale -100000: 1E+100000|3 result_json persisted|state=SETTLED result_json=100039 chars
+PROBE|pr|mysql-8.4.7|result|scale -100000: 1E+100000|4 findByExecutionCallId|OK equal
+PROBE|pr|mysql-8.4.7|result|scale -100000: 1E+100000|5 findByIdempotencyKey|OK
+PROBE|pr|mysql-8.4.7|result|scale -100000: 1E+100000|6 idempotent retry|OK sameRequest=true
+PROBE|main|h2-file|http|setup|acquire|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","acquired":tr...
+PROBE|main|h2-file|http-result|scale 2048: 0.1{2048}|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-result|scale 2048: 0.1{2048}|2 GET /executions/{id}|200 state=settled result.value=0.111111111111111111... (equal)
+PROBE|main|h2-file|http-result|scale 2048: 0.1{2048}|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-result|scale 2049: 0.1{2049}|1 POST /executions|500 {"error":"Runtime Broker operation failed.","code":"runtime_broker_internal_error","retryable":false}
+PROBE|main|h2-file|http-result|scale 2049: 0.1{2049}|3 retry POST same idempotencyKey|500 {"error":"Runtime Broker operation failed.","code":"runtime_broker_internal_error","retryable":false}
+PROBE|main|h2-file|http-result|scale 2049: 0.5 setScale(2049)|1 POST /executions|500 {"error":"Runtime Broker operation failed.","code":"runtime_broker_internal_error","retryable":false}
+PROBE|main|h2-file|http-result|scale 2049: 0.5 setScale(2049)|3 retry POST same idempotencyKey|500 {"error":"Runtime Broker operation failed.","code":"runtime_broker_internal_error","retryable":false}
+PROBE|main|h2-file|http-result|scale 3001: 1E-3001|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-result|scale 3001: 1E-3001|2 GET /executions/{id}|200 state=settled result.value=0.000000000000000000... (equal)
+PROBE|main|h2-file|http-result|scale 3001: 1E-3001|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-result|scale 32768: 1E-32768|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-result|scale 32768: 1E-32768|2 GET /executions/{id}|200 state=settled result.value=1E+32768 (WRONG value 1E+32768)
+PROBE|main|h2-file|http-result|scale 32768: 1E-32768|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-result|scale -100000: 1E+100000|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-result|scale -100000: 1E+100000|2 GET /executions/{id}|200 state=settled result.value=10000000000000000000... (equal)
+PROBE|main|h2-file|http-result|scale -100000: 1E+100000|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|programmatic|1E-32768|1 service.createExecution (same key+request)|OK state=SETTLED
+PROBE|main|h2-file|programmatic|1E-32768|2 service.createExecution (same key+request)|RuntimeBrokerException 409 runtime_idempotency_conflict
+PROBE|main|h2-file|programmatic|0.1{2049}|1 service.createExecution (same key+request)|RuntimeBrokerException 503 runtime_execution_dispatch_failed
+PROBE|main|h2-file|programmatic|0.1{2049}|2 service.createExecution (same key+request)|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|http-reference|0.1{2049} (p=2049,s=2049)|1 POST /executions|400 {"error":"execution request contains invalid JSON.","code":"runtime_broker_invalid_json","retryable":false}
+PROBE|main|h2-file|http-reference|0.1{2049} (p=2049,s=2049)|2 value the Runtime received|(not dispatched)
+PROBE|main|h2-file|http-reference|0.0{2048}7 (p=1,s=2049)|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-reference|0.0{2048}7 (p=1,s=2049)|2 value the Runtime received|equal
+PROBE|main|h2-file|http-reference|0.0{2048}7 (p=1,s=2049)|3 GET /executions/{id}|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-reference|0.0{32767}1 (=1E-32768)|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|http-reference|0.0{32767}1 (=1E-32768)|2 value the Runtime received|WRONG value 1E+32768
+PROBE|main|h2-file|http-reference|0.0{32767}1 (=1E-32768)|3 GET /executions/{id}|200 {"protocolVersion":1,"harnessSessionId":"harness-d330aee4","runtimeSessionId":"runtime-d330aee4","executionCal...
+PROBE|main|h2-file|reference|scale 2048: 0.1{2048}|1 construct|OK
+PROBE|main|h2-file|reference|scale 2048: 0.1{2048}|2 findOrCreate (write)|OK committed
+PROBE|main|h2-file|reference|scale 2048: 0.1{2048}|3 rows persisted|1
+PROBE|main|h2-file|reference|scale 2048: 0.1{2048}|4 findByExecutionCallId|OK equal
+PROBE|main|h2-file|reference|scale 2048: 0.1{2048}|5 findByIdempotencyKey|OK
+PROBE|main|h2-file|reference|scale 2048: 0.1{2048}|6 idempotent retry|OK sameRequest=true
+PROBE|main|h2-file|reference|scale 2048: 0.1{2048}|7 claimDispatch|OK claimed
+PROBE|main|h2-file|result|scale 2048: 0.1{2048}|1 construct|OK
+PROBE|main|h2-file|result|scale 2048: 0.1{2048}|2 compareAndSet (settle)|OK committed
+PROBE|main|h2-file|result|scale 2048: 0.1{2048}|3 result_json persisted|state=SETTLED result_json=2088 chars
+PROBE|main|h2-file|result|scale 2048: 0.1{2048}|4 findByExecutionCallId|OK equal
+PROBE|main|h2-file|result|scale 2048: 0.1{2048}|5 findByIdempotencyKey|OK
+PROBE|main|h2-file|result|scale 2048: 0.1{2048}|6 idempotent retry|OK sameRequest=true
+PROBE|main|h2-file|reference|scale 2049: 0.1{2049}|1 construct|OK
+PROBE|main|h2-file|reference|scale 2049: 0.1{2049}|2 findOrCreate (write)|OK committed
+PROBE|main|h2-file|reference|scale 2049: 0.1{2049}|3 rows persisted|1
+PROBE|main|h2-file|reference|scale 2049: 0.1{2049}|4 findByExecutionCallId|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|reference|scale 2049: 0.1{2049}|5 findByIdempotencyKey|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|reference|scale 2049: 0.1{2049}|6 idempotent retry|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|reference|scale 2049: 0.1{2049}|7 claimDispatch|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|result|scale 2049: 0.1{2049}|1 construct|OK
+PROBE|main|h2-file|result|scale 2049: 0.1{2049}|2 compareAndSet (settle)|OK committed
+PROBE|main|h2-file|result|scale 2049: 0.1{2049}|3 result_json persisted|state=SETTLED result_json=2089 chars
+PROBE|main|h2-file|result|scale 2049: 0.1{2049}|4 findByExecutionCallId|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|result|scale 2049: 0.1{2049}|5 findByIdempotencyKey|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|result|scale 2049: 0.1{2049}|6 idempotent retry|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|reference|scale 2049: 0.5 setScale(2049)|1 construct|OK
+PROBE|main|h2-file|reference|scale 2049: 0.5 setScale(2049)|2 findOrCreate (write)|OK committed
+PROBE|main|h2-file|reference|scale 2049: 0.5 setScale(2049)|3 rows persisted|1
+PROBE|main|h2-file|reference|scale 2049: 0.5 setScale(2049)|4 findByExecutionCallId|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|reference|scale 2049: 0.5 setScale(2049)|5 findByIdempotencyKey|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|reference|scale 2049: 0.5 setScale(2049)|6 idempotent retry|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|reference|scale 2049: 0.5 setScale(2049)|7 claimDispatch|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|result|scale 2049: 0.5 setScale(2049)|1 construct|OK
+PROBE|main|h2-file|result|scale 2049: 0.5 setScale(2049)|2 compareAndSet (settle)|OK committed
+PROBE|main|h2-file|result|scale 2049: 0.5 setScale(2049)|3 result_json persisted|state=SETTLED result_json=2089 chars
+PROBE|main|h2-file|result|scale 2049: 0.5 setScale(2049)|4 findByExecutionCallId|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|result|scale 2049: 0.5 setScale(2049)|5 findByIdempotencyKey|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|result|scale 2049: 0.5 setScale(2049)|6 idempotent retry|THROWS JSONException: scale overflow : 2049
+PROBE|main|h2-file|reference|scale 3001: 1E-3001|1 construct|OK
+PROBE|main|h2-file|reference|scale 3001: 1E-3001|2 findOrCreate (write)|OK committed
+PROBE|main|h2-file|reference|scale 3001: 1E-3001|3 rows persisted|1
+PROBE|main|h2-file|reference|scale 3001: 1E-3001|4 findByExecutionCallId|OK equal
+PROBE|main|h2-file|reference|scale 3001: 1E-3001|5 findByIdempotencyKey|OK
+PROBE|main|h2-file|reference|scale 3001: 1E-3001|6 idempotent retry|OK sameRequest=true
+PROBE|main|h2-file|reference|scale 3001: 1E-3001|7 claimDispatch|OK claimed
+PROBE|main|h2-file|result|scale 3001: 1E-3001|1 construct|OK
+PROBE|main|h2-file|result|scale 3001: 1E-3001|2 compareAndSet (settle)|OK committed
+PROBE|main|h2-file|result|scale 3001: 1E-3001|3 result_json persisted|state=SETTLED result_json=3041 chars
+PROBE|main|h2-file|result|scale 3001: 1E-3001|4 findByExecutionCallId|OK equal
+PROBE|main|h2-file|result|scale 3001: 1E-3001|5 findByIdempotencyKey|OK
+PROBE|main|h2-file|result|scale 3001: 1E-3001|6 idempotent retry|OK sameRequest=true
+PROBE|main|h2-file|reference|scale 32768: 1E-32768|1 construct|OK
+PROBE|main|h2-file|reference|scale 32768: 1E-32768|2 findOrCreate (write)|OK committed
+PROBE|main|h2-file|reference|scale 32768: 1E-32768|3 rows persisted|1
+PROBE|main|h2-file|reference|scale 32768: 1E-32768|4 findByExecutionCallId|OK WRONG value 1E+32768
+PROBE|main|h2-file|reference|scale 32768: 1E-32768|5 findByIdempotencyKey|OK
+PROBE|main|h2-file|reference|scale 32768: 1E-32768|6 idempotent retry|OK sameRequest=false
+PROBE|main|h2-file|reference|scale 32768: 1E-32768|7 claimDispatch|OK claimed
+PROBE|main|h2-file|result|scale 32768: 1E-32768|1 construct|OK
+PROBE|main|h2-file|result|scale 32768: 1E-32768|2 compareAndSet (settle)|OK committed
+PROBE|main|h2-file|result|scale 32768: 1E-32768|3 result_json persisted|state=SETTLED result_json=32808 chars
+PROBE|main|h2-file|result|scale 32768: 1E-32768|4 findByExecutionCallId|OK WRONG value 1E+32768
+PROBE|main|h2-file|result|scale 32768: 1E-32768|5 findByIdempotencyKey|OK
+PROBE|main|h2-file|result|scale 32768: 1E-32768|6 idempotent retry|OK sameRequest=true
+PROBE|main|h2-file|reference|scale -100000: 1E+100000|1 construct|OK
+PROBE|main|h2-file|reference|scale -100000: 1E+100000|2 findOrCreate (write)|OK committed
+PROBE|main|h2-file|reference|scale -100000: 1E+100000|3 rows persisted|1
+PROBE|main|h2-file|reference|scale -100000: 1E+100000|4 findByExecutionCallId|OK equal
+PROBE|main|h2-file|reference|scale -100000: 1E+100000|5 findByIdempotencyKey|OK
+PROBE|main|h2-file|reference|scale -100000: 1E+100000|6 idempotent retry|OK sameRequest=true
+PROBE|main|h2-file|reference|scale -100000: 1E+100000|7 claimDispatch|OK claimed
+PROBE|main|h2-file|result|scale -100000: 1E+100000|1 construct|OK
+PROBE|main|h2-file|result|scale -100000: 1E+100000|2 compareAndSet (settle)|OK committed
+PROBE|main|h2-file|result|scale -100000: 1E+100000|3 result_json persisted|state=SETTLED result_json=100039 chars
+PROBE|main|h2-file|result|scale -100000: 1E+100000|4 findByExecutionCallId|OK equal
+PROBE|main|h2-file|result|scale -100000: 1E+100000|5 findByIdempotencyKey|OK
+PROBE|main|h2-file|result|scale -100000: 1E+100000|6 idempotent retry|OK sameRequest=true
+PROBE|main|mysql-8.4.7|http|setup|acquire|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","acquired":tr...
+PROBE|main|mysql-8.4.7|http-result|scale 2048: 0.1{2048}|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-result|scale 2048: 0.1{2048}|2 GET /executions/{id}|200 state=settled result.value=0.111111111111111111... (equal)
+PROBE|main|mysql-8.4.7|http-result|scale 2048: 0.1{2048}|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-result|scale 2049: 0.1{2049}|1 POST /executions|500 {"error":"Runtime Broker operation failed.","code":"runtime_broker_internal_error","retryable":false}
+PROBE|main|mysql-8.4.7|http-result|scale 2049: 0.1{2049}|3 retry POST same idempotencyKey|500 {"error":"Runtime Broker operation failed.","code":"runtime_broker_internal_error","retryable":false}
+PROBE|main|mysql-8.4.7|http-result|scale 2049: 0.5 setScale(2049)|1 POST /executions|500 {"error":"Runtime Broker operation failed.","code":"runtime_broker_internal_error","retryable":false}
+PROBE|main|mysql-8.4.7|http-result|scale 2049: 0.5 setScale(2049)|3 retry POST same idempotencyKey|500 {"error":"Runtime Broker operation failed.","code":"runtime_broker_internal_error","retryable":false}
+PROBE|main|mysql-8.4.7|http-result|scale 3001: 1E-3001|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-result|scale 3001: 1E-3001|2 GET /executions/{id}|200 state=settled result.value=0.000000000000000000... (equal)
+PROBE|main|mysql-8.4.7|http-result|scale 3001: 1E-3001|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-result|scale 32768: 1E-32768|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-result|scale 32768: 1E-32768|2 GET /executions/{id}|200 state=settled result.value=1E+32768 (WRONG value 1E+32768)
+PROBE|main|mysql-8.4.7|http-result|scale 32768: 1E-32768|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-result|scale -100000: 1E+100000|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-result|scale -100000: 1E+100000|2 GET /executions/{id}|200 state=settled result.value=10000000000000000000... (equal)
+PROBE|main|mysql-8.4.7|http-result|scale -100000: 1E+100000|3 retry POST same idempotencyKey|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|programmatic|1E-32768|1 service.createExecution (same key+request)|OK state=SETTLED
+PROBE|main|mysql-8.4.7|programmatic|1E-32768|2 service.createExecution (same key+request)|RuntimeBrokerException 409 runtime_idempotency_conflict
+PROBE|main|mysql-8.4.7|programmatic|0.1{2049}|1 service.createExecution (same key+request)|RuntimeBrokerException 503 runtime_execution_dispatch_failed
+PROBE|main|mysql-8.4.7|programmatic|0.1{2049}|2 service.createExecution (same key+request)|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|http-reference|0.1{2049} (p=2049,s=2049)|1 POST /executions|400 {"error":"execution request contains invalid JSON.","code":"runtime_broker_invalid_json","retryable":false}
+PROBE|main|mysql-8.4.7|http-reference|0.1{2049} (p=2049,s=2049)|2 value the Runtime received|(not dispatched)
+PROBE|main|mysql-8.4.7|http-reference|0.0{2048}7 (p=1,s=2049)|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-reference|0.0{2048}7 (p=1,s=2049)|2 value the Runtime received|equal
+PROBE|main|mysql-8.4.7|http-reference|0.0{2048}7 (p=1,s=2049)|3 GET /executions/{id}|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-reference|0.0{32767}1 (=1E-32768)|1 POST /executions|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|http-reference|0.0{32767}1 (=1E-32768)|2 value the Runtime received|WRONG value 1E+32768
+PROBE|main|mysql-8.4.7|http-reference|0.0{32767}1 (=1E-32768)|3 GET /executions/{id}|200 {"protocolVersion":1,"harnessSessionId":"harness-356ef724","runtimeSessionId":"runtime-356ef724","executionCal...
+PROBE|main|mysql-8.4.7|reference|scale 2048: 0.1{2048}|1 construct|OK
+PROBE|main|mysql-8.4.7|reference|scale 2048: 0.1{2048}|2 findOrCreate (write)|OK committed
+PROBE|main|mysql-8.4.7|reference|scale 2048: 0.1{2048}|3 rows persisted|1
+PROBE|main|mysql-8.4.7|reference|scale 2048: 0.1{2048}|4 findByExecutionCallId|OK equal
+PROBE|main|mysql-8.4.7|reference|scale 2048: 0.1{2048}|5 findByIdempotencyKey|OK
+PROBE|main|mysql-8.4.7|reference|scale 2048: 0.1{2048}|6 idempotent retry|OK sameRequest=true
+PROBE|main|mysql-8.4.7|reference|scale 2048: 0.1{2048}|7 claimDispatch|OK claimed
+PROBE|main|mysql-8.4.7|result|scale 2048: 0.1{2048}|1 construct|OK
+PROBE|main|mysql-8.4.7|result|scale 2048: 0.1{2048}|2 compareAndSet (settle)|OK committed
+PROBE|main|mysql-8.4.7|result|scale 2048: 0.1{2048}|3 result_json persisted|state=SETTLED result_json=2088 chars
+PROBE|main|mysql-8.4.7|result|scale 2048: 0.1{2048}|4 findByExecutionCallId|OK equal
+PROBE|main|mysql-8.4.7|result|scale 2048: 0.1{2048}|5 findByIdempotencyKey|OK
+PROBE|main|mysql-8.4.7|result|scale 2048: 0.1{2048}|6 idempotent retry|OK sameRequest=true
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.1{2049}|1 construct|OK
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.1{2049}|2 findOrCreate (write)|OK committed
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.1{2049}|3 rows persisted|1
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.1{2049}|4 findByExecutionCallId|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.1{2049}|5 findByIdempotencyKey|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.1{2049}|6 idempotent retry|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.1{2049}|7 claimDispatch|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.1{2049}|1 construct|OK
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.1{2049}|2 compareAndSet (settle)|OK committed
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.1{2049}|3 result_json persisted|state=SETTLED result_json=2089 chars
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.1{2049}|4 findByExecutionCallId|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.1{2049}|5 findByIdempotencyKey|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.1{2049}|6 idempotent retry|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.5 setScale(2049)|1 construct|OK
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.5 setScale(2049)|2 findOrCreate (write)|OK committed
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.5 setScale(2049)|3 rows persisted|1
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.5 setScale(2049)|4 findByExecutionCallId|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.5 setScale(2049)|5 findByIdempotencyKey|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.5 setScale(2049)|6 idempotent retry|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|reference|scale 2049: 0.5 setScale(2049)|7 claimDispatch|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.5 setScale(2049)|1 construct|OK
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.5 setScale(2049)|2 compareAndSet (settle)|OK committed
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.5 setScale(2049)|3 result_json persisted|state=SETTLED result_json=2089 chars
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.5 setScale(2049)|4 findByExecutionCallId|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.5 setScale(2049)|5 findByIdempotencyKey|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|result|scale 2049: 0.5 setScale(2049)|6 idempotent retry|THROWS JSONException: scale overflow : 2049
+PROBE|main|mysql-8.4.7|reference|scale 3001: 1E-3001|1 construct|OK
+PROBE|main|mysql-8.4.7|reference|scale 3001: 1E-3001|2 findOrCreate (write)|OK committed
+PROBE|main|mysql-8.4.7|reference|scale 3001: 1E-3001|3 rows persisted|1
+PROBE|main|mysql-8.4.7|reference|scale 3001: 1E-3001|4 findByExecutionCallId|OK equal
+PROBE|main|mysql-8.4.7|reference|scale 3001: 1E-3001|5 findByIdempotencyKey|OK
+PROBE|main|mysql-8.4.7|reference|scale 3001: 1E-3001|6 idempotent retry|OK sameRequest=true
+PROBE|main|mysql-8.4.7|reference|scale 3001: 1E-3001|7 claimDispatch|OK claimed
+PROBE|main|mysql-8.4.7|result|scale 3001: 1E-3001|1 construct|OK
+PROBE|main|mysql-8.4.7|result|scale 3001: 1E-3001|2 compareAndSet (settle)|OK committed
+PROBE|main|mysql-8.4.7|result|scale 3001: 1E-3001|3 result_json persisted|state=SETTLED result_json=3041 chars
+PROBE|main|mysql-8.4.7|result|scale 3001: 1E-3001|4 findByExecutionCallId|OK equal
+PROBE|main|mysql-8.4.7|result|scale 3001: 1E-3001|5 findByIdempotencyKey|OK
+PROBE|main|mysql-8.4.7|result|scale 3001: 1E-3001|6 idempotent retry|OK sameRequest=true
+PROBE|main|mysql-8.4.7|reference|scale 32768: 1E-32768|1 construct|OK
+PROBE|main|mysql-8.4.7|reference|scale 32768: 1E-32768|2 findOrCreate (write)|OK committed
+PROBE|main|mysql-8.4.7|reference|scale 32768: 1E-32768|3 rows persisted|1
+PROBE|main|mysql-8.4.7|reference|scale 32768: 1E-32768|4 findByExecutionCallId|OK WRONG value 1E+32768
+PROBE|main|mysql-8.4.7|reference|scale 32768: 1E-32768|5 findByIdempotencyKey|OK
+PROBE|main|mysql-8.4.7|reference|scale 32768: 1E-32768|6 idempotent retry|OK sameRequest=false
+PROBE|main|mysql-8.4.7|reference|scale 32768: 1E-32768|7 claimDispatch|OK claimed
+PROBE|main|mysql-8.4.7|result|scale 32768: 1E-32768|1 construct|OK
+PROBE|main|mysql-8.4.7|result|scale 32768: 1E-32768|2 compareAndSet (settle)|OK committed
+PROBE|main|mysql-8.4.7|result|scale 32768: 1E-32768|3 result_json persisted|state=SETTLED result_json=32808 chars
+PROBE|main|mysql-8.4.7|result|scale 32768: 1E-32768|4 findByExecutionCallId|OK WRONG value 1E+32768
+PROBE|main|mysql-8.4.7|result|scale 32768: 1E-32768|5 findByIdempotencyKey|OK
+PROBE|main|mysql-8.4.7|result|scale 32768: 1E-32768|6 idempotent retry|OK sameRequest=true
+PROBE|main|mysql-8.4.7|reference|scale -100000: 1E+100000|1 construct|OK
+PROBE|main|mysql-8.4.7|reference|scale -100000: 1E+100000|2 findOrCreate (write)|OK committed
+PROBE|main|mysql-8.4.7|reference|scale -100000: 1E+100000|3 rows persisted|1
+PROBE|main|mysql-8.4.7|reference|scale -100000: 1E+100000|4 findByExecutionCallId|OK equal
+PROBE|main|mysql-8.4.7|reference|scale -100000: 1E+100000|5 findByIdempotencyKey|OK
+PROBE|main|mysql-8.4.7|reference|scale -100000: 1E+100000|6 idempotent retry|OK sameRequest=true
+PROBE|main|mysql-8.4.7|reference|scale -100000: 1E+100000|7 claimDispatch|OK claimed
+PROBE|main|mysql-8.4.7|result|scale -100000: 1E+100000|1 construct|OK
+PROBE|main|mysql-8.4.7|result|scale -100000: 1E+100000|2 compareAndSet (settle)|OK committed
+PROBE|main|mysql-8.4.7|result|scale -100000: 1E+100000|3 result_json persisted|state=SETTLED result_json=100039 chars
+PROBE|main|mysql-8.4.7|result|scale -100000: 1E+100000|4 findByExecutionCallId|OK equal
+PROBE|main|mysql-8.4.7|result|scale -100000: 1E+100000|5 findByIdempotencyKey|OK
+PROBE|main|mysql-8.4.7|result|scale -100000: 1E+100000|6 idempotent retry|OK sameRequest=true

@@ -1,0 +1,43 @@
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java	2026-09-27 07:05:04
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRepositoryContract.java	2026-09-27 07:06:00
+@@ -600,19 +600,27 @@
+                             prefix + "-types-turn", prefix + "-types-tool",
+                             prefix + "-types-digest", invalidReference));
+         }
+-        Map<String, Object> unreadableReference = new LinkedHashMap<>(
+-                typedReference);
+-        unreadableReference.put("fraction",
+-                new BigDecimal("0." + "1".repeat(2049)));
+-        assertThrows(IllegalArgumentException.class,
+-                () -> ToolExecutionRecord.prepared(
+-                        prefix + "-unreadable-types-execution",
+-                        prefix + "-unreadable-types-idempotency",
+-                        prefix + "-types-binding", 1,
+-                        prefix + "-types-harness",
+-                        prefix + "-types-runtime-session",
+-                        prefix + "-types-turn", prefix + "-types-tool",
+-                        prefix + "-types-digest", unreadableReference));
++        // The codec's limit follows scale, not precision: fewer significant
++        // digits or trailing zeros stay unreadable, and past scale 32767
++        // fastjson2 reads back a different number instead of failing.
++        for (BigDecimal unreadable : List.of(
++                new BigDecimal("0." + "1".repeat(2049)),
++                new BigDecimal("0.0" + "1".repeat(2048)),
++                new BigDecimal("0.5").setScale(2049),
++                new BigDecimal("1E-32768"))) {
++            Map<String, Object> unreadableReference = new LinkedHashMap<>(
++                    typedReference);
++            unreadableReference.put("fraction", unreadable);
++            assertThrows(IllegalArgumentException.class,
++                    () -> ToolExecutionRecord.prepared(
++                            prefix + "-unreadable-types-execution",
++                            prefix + "-unreadable-types-idempotency",
++                            prefix + "-types-binding", 1,
++                            prefix + "-types-harness",
++                            prefix + "-types-runtime-session",
++                            prefix + "-types-turn", prefix + "-types-tool",
++                            prefix + "-types-digest", unreadableReference));
++        }
+         ToolExecutionRecord typedCandidate = ToolExecutionRecord.prepared(
+                 prefix + "-types-execution", typesKey,
+                 prefix + "-types-binding", 1, prefix + "-types-harness",
