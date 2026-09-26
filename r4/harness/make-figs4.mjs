@@ -55,12 +55,13 @@ const label = (f) => {
 const cell = (arm, mid) => {
   const r = runs.get(`${arm}|${mid}`);
   if (!r) return '<td class="n">—</td>';
-  if (r.failed === 0) {
+  const real = r.fails.filter((f) => !/preheat /.test(f));
+  if (real.length === 0) {
     const declared = ['M4_branch_callback', 'M7_fork_callback', 'M11_sidetask_release'].includes(mid);
     return `<td class="cell ${declared ? 'decl' : 's'}"><b>survives</b><span>${r.tests} / ${r.tests} pass${declared ? ' (declared)' : ''}</span></td>`;
   }
   const labs = [...new Set(r.fails.map(label).filter((x) => x !== 'preheat (load flake)'))];
-  const body = r.failed > 3 ? `${r.failed} tests, incl. ${labs.filter((x) => x !== 'other').join(', ') || 'existing tests'}` : labs.join('<br>');
+  const body = real.length > 3 ? `${real.length} tests, incl. ${labs.filter((x) => x !== 'other').join(', ') || 'existing tests'}` : labs.join('<br>');
   return `<td class="cell k"><b>caught</b><span>${body}</span></td>`;
 };
 const ROWS = [
@@ -85,7 +86,7 @@ const fig1 = `<!doctype html><meta charset="utf-8"><style>${CSS}</style><div cla
 <table><tr><th>mutant</th><th>what it breaks</th>${ARMS.map(([, h]) => `<th>${h}</th>`).join('')}</tr>
 ${ROWS.map(([mid, d]) => `<tr><td class="m">${mid.replace(/_.*/, '')}</td><td class="d">${d}</td>${ARMS.map(([a]) => cell(a, mid)).join('')}</tr>`).join('\n')}
 </table>
-<p class="foot">“—” = not run in that column this round (round 3 already has them). Yellow = the survivors the PR description declares out of scope. The <code>r4settled</code> control (queued-cd fixture edited so the cd has settled before the operation runs) lets M3, M6 and M16 all survive (2261/2261): the new test name states the precondition that makes the table work. In the head+main column, the first runs of M4/M6/M7/M9/M16/M1b also failed two unrelated <code>preheat</code> fake-timer tests while the host load average was 90–178; the reruns shown here are clean, and <code>none</code> passed in all 3 runs.</p></div>`;
+<p class="foot">“—” = not run in that column this round (round 3 already has them). Yellow = the survivors the PR description declares out of scope. The <code>r4settled</code> control (queued-cd fixture edited so the cd has settled before the operation runs) lets M3, M6 and M16 all survive (2261/2261): the new test name states the precondition that makes the table work. Of the 58 whole-suite runs this round, 8 (all in the head+main column, while the host load average was 90–178) also failed two unrelated <code>preheat</code> fake-timer tests; those two are left out of the cell text. M4/M6/M7/M9/M16/M1b were rerun clean at lower load, and <code>none</code> passed in all 3 of its runs.</p></div>`;
 
 // ---------- fig2: real-stack timelines ----------
 const RD = `${D}/rig/out/runs`;
