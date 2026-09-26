@@ -1,0 +1,20 @@
+[36;1mfor stale_qwen in "$GITHUB_WORKSPACE/.qwen" "$GITHUB_WORKSPACE/.qwen.root-orig" "$GITHUB_WORKSPACE/trusted-ci-classifier"; do[0m
+[36;1m  if [ ! -e "$stale_qwen" ] && [ ! -L "$stale_qwen" ]; then[0m
+[36;1m  if [ -d "$stale_qwen" ] && [ ! -L "$stale_qwen" ]; then[0m
+[36;1m    chmod -R u+w "$stale_qwen" 2>/dev/null || true[0m
+[36;1m  rm -rf -- "$stale_qwen" 2>/dev/null ||[0m
+[36;1m    sudo -n rm -rf -- "$stale_qwen" 2>/dev/null ||[0m
+[36;1m      stale_name="$(basename -- "$stale_qwen")"[0m
+[36;1m      if mv -- "$stale_qwen" "$quarantine/${stale_name#\.}-$(date -u +%Y%m%dT%H%M%SZ)-$$" 2>/dev/null; then[0m
+[36;1m        echo "::warning::could not delete leaked $stale_name; moved it to $quarantine so this checkout can proceed — that directory needs manual cleanup"[0m
+[36;1m          echo "::warning::could not delete leaked $stale_name; moved the whole workspace to $workspace_quarantine so this checkout can proceed — that directory needs manual cleanup"[0m
+[36;1m          echo "::warning::leaked $stale_name survived every recovery; runner needs manual cleanup"[0m
+[36;1m    | while read -r stale_ref; do[0m
+[36;1m        if [ -n "$stale_ref" ]; then[0m
+[36;1m          "${GIT_SAFE[@]}" branch -D "$stale_ref" ||[0m
+[36;1m            echo "::warning::could not remove review branch: $stale_ref"[0m
+The lint gate changed on 'main' after this branch last incorporated it:
+  - eslint.config.js: 73aa65a4b41e chore(desktop): rename packages/desktop-shell to packages/desktop (#12653) (2026-09-25)
+  - .prettierignore: 73aa65a4b41e chore(desktop): rename packages/desktop-shell to packages/desktop (#12653) (2026-09-25)
+  - .github/workflows/ci.yml: c7c6def8bcab test(managed-agent): add Hosted no-tool process gates (#12733) (2026-09-26)
+is stale. Merge or rebase 'main' into this branch and push to
