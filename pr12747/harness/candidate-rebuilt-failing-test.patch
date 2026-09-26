@@ -1,0 +1,31 @@
+diff --git a/packages/core/src/utils/schemaValidator.test.ts b/packages/core/src/utils/schemaValidator.test.ts
+index bef3de980a..701dbff2f6 100644
+--- a/packages/core/src/utils/schemaValidator.test.ts
++++ b/packages/core/src/utils/schemaValidator.test.ts
+@@ -2440,6 +2440,26 @@ describe('SchemaValidator compile cache', () => {
+     }
+   });
+ 
++  it('does not compile a copy for each rebuilt schema that fails to compile', () => {
++    // A per-call tool build or a rediscovery hands over a new object each
++    // time. Only the first one is compiled from a copy parsed from its text.
++    const schema = () => ({
++      $schema: 'http://json-schema.org/draft-04/schema#',
++      type: 'object',
++      properties: { rebuiltDraftProbe: { type: 'integer' } },
++      required: ['rebuiltDraftProbe'],
++    });
++    const parse = vi.spyOn(JSON, 'parse');
++    try {
++      for (let i = 0; i < 3; i++) {
++        expect(SchemaValidator.validate(schema(), {})).toBeNull();
++      }
++      expect(parse).toHaveBeenCalledTimes(1);
++    } finally {
++      parse.mockRestore();
++    }
++  });
++
+   it('shares no validator with a caller that mutates its schema object', () => {
+     const schema = () => ({
+       type: 'object',

@@ -1,0 +1,14 @@
+## base-probe: one qwen --acp process (qwen-code-pr12747-base); MCP tool 'lookup' has $id, 'lookup_plain' has none
+# 1) settings-level MCP server, three ACP sessions
+  A lookup       {"cnt":3}    -> tool failed    | MCP server received: nothing | params must have required property 'count'
+  B lookup       {"cnt":3}    -> tool failed    | MCP server received: nothing | params must have required property 'count'
+  B lookup_plain {"cnt":3}    -> tool failed    | MCP server received: nothing | params must have required property 'count'
+  B lookup       {"count":3}  -> tool completed | MCP server received: [{"count":3}] | server received {"count":3}
+  C lookup       {"count":0}  -> tool failed    | MCP server received: nothing | params/count must be >= 1
+  MCP server processes: 1, listTools calls: 1 for 3 sessions (discovery is shared)
+# 2) the MCP server is restarted through the daemon control method (Web Shell / POST /workspace/mcp/probe/restart)
+  restart reply: {"serverName":"probe","entries":[{"entryIndex":0,"restarted":true,"durationMs":124}]}; MCP pid 36864 -> 37012, listTools calls now 2
+  A lookup       {"cnt":3}    -> tool failed    | MCP server received: nothing | params must have required property 'count'
+  A lookup       {"count":0}  -> tool failed    | MCP server received: nothing | params/count must be >= 1
+  A lookup_plain {"count":0}  -> tool failed    | MCP server received: nothing | params/count must be >= 1
+  B lookup       {"count":3}  -> tool completed | MCP server received: [{"count":3}] | server received {"count":3}
