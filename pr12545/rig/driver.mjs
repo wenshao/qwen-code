@@ -81,6 +81,7 @@ const SUBTYPE = {
   path: 'probe-reader',
   'path-open': 'probe-open',
   path2: 'probe-reader',
+  'path-builtin': 'statusline-setup',
   'eager-cm': 'general-purpose',
   'path2-open': 'probe-open',
 }[scenario];
