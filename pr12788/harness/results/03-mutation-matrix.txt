@@ -1,0 +1,26 @@
+# Mutation matrix: one production site changed per mutant (head 60b1f8a)
+== H2     = full runtime-broker suite, 362 tests (what CI's Java 21 ubuntu/macos/windows lanes run)
+== MySQL  = JdbcRuntimeBrokerMySqlIT on real MySQL 8.4.7 + Connector/J 8.4.0
+== nofrac = the same IT with sendFractionalSeconds=false (drops fractional seconds on write)
+== K = killed, . = survived; "+cand" = same lanes with the 55-line candidate contract test
+
+## mutant                                              PR tests          +cand
+##                                                     H2 MySQL nofrac   H2 MySQL nofrac
+++ M01 leaseUntil: no rounding at all                  K    .     K      K    K     K
+++ M02 leaseUntil: always +1 s (pads whole seconds)    K    .     .      K    .     .
+++ M03 leaseUntil: floor instead of ceil               K    .     .      K    K     K
+-- M05 binding claimOperation: truncated clock         .    .     .      K    K     K
+!! M06 binding claimOperation: unrounded deadline      .    .     K      K    K     K
+-- M07 binding renewOperation: truncated clock         .    .     .      K    K     K
+!! M08 binding renewOperation: unrounded deadline      .    .     K      K    K     K
+-- M10 tool claimDispatch: truncated clock             .    .     .      K    K     K
+!! M11 tool claimDispatch: unrounded deadline          .    .     K      K    K     K
+-- M12 tool renewDispatch: truncated clock             .    .     .      K    K     K
+!! M13 tool renewDispatch: unrounded deadline          .    .     K      K    K     K
+== M04 binding compareAndSet: truncated liveness clock .    .     .      .    .     .   equivalent
+== M09 tool compareAndSet: truncated liveness clock    .    .     .      .    .     .   equivalent
+
+-- PR tests: H2 kills 3/13; all lanes 7/13. M05/M07/M10/M12 restore the base behaviour
+--           at that call site (a 1 s lease lasts < 1 s) and nothing fails.
+++ +cand:    H2 kills 11/13; the 2 survivors are equivalent (deadlines are whole seconds,
+++           so L > floor(now) <=> L > now).

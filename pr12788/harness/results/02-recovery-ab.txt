@@ -1,0 +1,18 @@
+# ManagedContextRecoveryTest: production code x test lease (H2, JDK 21)
+== Same head test file in every arm (strict first-call assertion); only the 3 JDBC
+== production files and the test's lease duration vary. Host load avg 35-56 on 10 cores.
+== strict = timedOutLaunchIsBlockedAndLateCompletionCannotPublishReady x10
+== boundary = issue #12782 probe: first warm() starts in the last 3 ms of a second, x20
+
+## arm    production         test lease   strict x10   boundary probe x20
+-- p0l1   base a480bc7       1 s          0/10 pass    10x fenced -> provision_timeout (the flake)
+--                                                     10x provision_timeout -> blocked (fallback)
+!! p0l15  base a480bc7       1.5 s (PR)   10/10 pass   20x blocked -> blocked
+++ p1l1   PR 60b1f8a         1 s          10/10 pass   20x blocked -> blocked
+++ p1l15  PR 60b1f8a (as-is) 1.5 s (PR)   10/10 pass   20x blocked -> blocked
+
+== p0l1 failures: expected <runtime_broker_recovery_blocked> but was <runtime_broker_provision_timeout>
+!! p0l15: with the PR's 1.5 s test lease the unfixed code passes too -> the test no longer
+!!        detects the defect it was written for.
+++ p1l1:  the production fix alone is sufficient with the original 1 s lease
+++        (deadline cases stay at 4.0 s instead of 6.0 s).

@@ -1,0 +1,47 @@
+
+    // ---- PR #12788 verification probes (not part of the PR) ----
+    private static final java.util.concurrent.atomic.AtomicBoolean WARMED =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
+    @org.junit.jupiter.api.RepeatedTest(10)
+    void repeatTimedOutLaunch() throws Exception {
+        timedOutLaunchIsBlockedAndLateCompletionCannotPublishReady();
+    }
+
+    // Boundary probe from issue #12782: start the first warm in the last
+    // 3 ms of a wall-clock second.
+    @org.junit.jupiter.api.RepeatedTest(20)
+    void probeClaimNearSecondBoundary() throws Exception {
+        if (WARMED.compareAndSet(false, true)) {
+            DataSource warm = database();
+            JdbcRuntimeBrokerSchema.initialize(warm);
+            try (RuntimeBrokerService service = service(repository(warm), new FailingProvisioner(true))) {
+                service.warm("warmup").toCompletableFuture().handle((ignored, error) -> null)
+                        .get(12, TimeUnit.SECONDS);
+            }
+        }
+        DataSource source = database();
+        JdbcRuntimeBrokerSchema.initialize(source);
+        try (RuntimeBrokerService service = service(repository(source), new FailingProvisioner(true))) {
+            while (System.currentTimeMillis() % 1000 < 997) {
+                Thread.onSpinWait();
+            }
+            long t0 = System.nanoTime();
+            String first = warmCode(service);
+            long t1 = System.nanoTime();
+            String second = warmCode(service);
+            long t2 = System.nanoTime();
+            System.out.println("BOUNDARY first=" + first + " " + (t1 - t0) / 1_000_000
+                    + "ms second=" + second + " " + (t2 - t1) / 1_000_000 + "ms");
+        }
+    }
+
+    private static String warmCode(RuntimeBrokerService service) throws Exception {
+        try {
+            service.warm("harness").toCompletableFuture().get(12, TimeUnit.SECONDS);
+            return "ok";
+        } catch (ExecutionException failure) {
+            return ((RuntimeBrokerException) failure.getCause()).getCode();
+        }
+    }
+}
