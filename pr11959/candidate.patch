@@ -1,0 +1,46 @@
+diff --git a/packages/cli/src/config/shared-env-keys.ts b/packages/cli/src/config/shared-env-keys.ts
+index 985bafbfbb..d77bfa884f 100644
+--- a/packages/cli/src/config/shared-env-keys.ts
++++ b/packages/cli/src/config/shared-env-keys.ts
+@@ -42,6 +42,9 @@ export const PROJECT_ENV_HARDCODED_EXCLUSIONS = [
+   'QWEN_CODE_SYSTEM_DEFAULTS_PATH',
+   // Downloaded updates execute as the user; a project must not select them.
+   'QWEN_UPDATE_BASE_URL',
++  // The refreshed model catalog is written to the global cache that every
++  // project reads; a project must not choose where it is downloaded from.
++  'QWEN_CODE_MODELS_DEV_URL',
+   // This points to a host temp file that carries build warnings. A project
+   // `.env` must not redirect it to an arbitrary file to read or delete.
+   'QWEN_CODE_WARNINGS_FILE',
+diff --git a/packages/core/src/core/tokenLimits.ts b/packages/core/src/core/tokenLimits.ts
+index e9da775564..e58715780a 100644
+--- a/packages/core/src/core/tokenLimits.ts
++++ b/packages/core/src/core/tokenLimits.ts
+@@ -358,10 +358,7 @@ function findTokenLimit(
+  */
+ export function hasExplicitOutputLimit(model: Model): boolean {
+   const norm = normalize(model);
+-  return (
+-    lookupModelCatalog(norm)?.output !== undefined ||
+-    OUTPUT_PATTERNS.some(([regex]) => regex.test(norm))
+-  );
++  return OUTPUT_PATTERNS.some(([regex]) => regex.test(norm));
+ }
+ 
+ export function knownTokenLimit(
+diff --git a/packages/core/src/models/model-catalog-refresh.ts b/packages/core/src/models/model-catalog-refresh.ts
+index ab967268c5..af8f1b336a 100644
+--- a/packages/core/src/models/model-catalog-refresh.ts
++++ b/packages/core/src/models/model-catalog-refresh.ts
+@@ -211,6 +211,11 @@ async function refreshRemote(url: string, cachePath: string): Promise<void> {
+       fetchedAt,
+       url,
+     );
++    // A 200 that projects to nothing is not a catalog (renamed upstream
++    // field, gateway error body); keep the previous usable data instead.
++    if (Object.keys(next.models).length === 0) {
++      throw new Error('payload projected to no models');
++    }
+     const etag = response.headers.get('etag');
+     if (etag) {
+       next.etag = etag;
