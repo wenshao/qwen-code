@@ -1,0 +1,98 @@
+name: 'PR 12191 round-3 preflight repeat'
+
+on:
+  push:
+    branches: ['probe/pr12191-r3b']
+
+permissions:
+  contents: 'read'
+
+jobs:
+  preflight:
+    name: 'literal preflight ubuntu / ${{ matrix.arm }} #${{ matrix.attempt }}'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arm: 'pr', attempt: 2 }
+          - { arm: 'pr', attempt: 3 }
+          - { arm: 'main', attempt: 2 }
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 180
+    steps:
+      - uses: 'actions/checkout@v4'
+        with:
+          ref: 'probe/pr12191-r3-arm-${{ matrix.arm }}'
+      - uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+      - name: 'Record identity'
+        run: |-
+          mkdir -p "$RUNNER_TEMP/probe-out"
+          echo "PROBE_JSON {\"kind\":\"identity\",\"arm\":\"${{ matrix.arm }}\",\"attempt\":${{ matrix.attempt }},\"sha\":\"$(git rev-parse HEAD)\",\"node\":\"$(node -v)\"}" | tee "$RUNNER_TEMP/probe-out/identity.txt"
+      - name: 'Install locked dependencies first (clean imports glob)'
+        run: 'corepack pnpm install --frozen-lockfile --reporter=append-only'
+      - name: 'npm run preflight (literal)'
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ''
+          DASHSCOPE_API_KEY: ''
+          QWEN_API_KEY: ''
+          GEMINI_API_KEY: ''
+        run: |-
+          set +e
+          start=$(date +%s)
+          npm run preflight > "$RUNNER_TEMP/probe-out/preflight.log" 2>&1
+          rc=$?
+          end=$(date +%s)
+          sed -E 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/probe-out/preflight.log" | grep -E '^ ?FAIL |Test Files .*failed|npm error workspace' | head -20
+          echo "PROBE_JSON {\"kind\":\"preflight\",\"rc\":$rc,\"seconds\":$((end-start))}" | tee "$RUNNER_TEMP/probe-out/preflight-summary.txt"
+          exit $rc
+      - name: 'Tree audit after preflight'
+        if: '${{ always() }}'
+        run: |-
+          git status --porcelain --untracked-files=all | tee "$RUNNER_TEMP/probe-out/git-status.txt"
+          echo "PROBE_JSON {\"kind\":\"tree\",\"dirty\":$(git status --porcelain --untracked-files=all | wc -l | tr -d ' ')}" | tee -a "$RUNNER_TEMP/probe-out/git-status.txt"
+      - uses: 'actions/upload-artifact@v4'
+        if: '${{ always() }}'
+        with:
+          name: 'preflight-${{ matrix.arm }}-${{ matrix.attempt }}'
+          path: '${{ runner.temp }}/probe-out'
+          retention-days: 14
+
+  flake:
+    name: 'flake loop ubuntu / ${{ matrix.arm }}'
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: ['pr', 'main']
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 90
+    steps:
+      - uses: 'actions/checkout@v4'
+        with:
+          ref: 'probe/pr12191-r3-arm-${{ matrix.arm }}'
+      - uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+      - name: 'Install (runs prepare: build + bundle)'
+        run: 'corepack pnpm install --frozen-lockfile --reporter=append-only'
+      - name: 'Repeat the two files that failed in preflight'
+        run: |-
+          mkdir -p "$RUNNER_TEMP/probe-out"
+          loop() {
+            local dir=$1 file=$2 tag=$3 pass=0 fail=0
+            for i in $(seq 1 10); do
+              if (cd "$dir" && npx vitest run "$file" > "$RUNNER_TEMP/probe-out/$tag-$i.log" 2>&1); then pass=$((pass+1)); else fail=$((fail+1)); fi
+            done
+            echo "PROBE_JSON {\"kind\":\"flake\",\"arm\":\"${{ matrix.arm }}\",\"file\":\"$tag\",\"pass\":$pass,\"fail\":$fail}" | tee -a "$RUNNER_TEMP/probe-out/flake.txt"
+          }
+          loop packages/channels/feishu src/adapter.test.ts feishu-adapter
+          loop packages/core src/code-mode/code-mode.test.ts core-code-mode
+          git status --porcelain --untracked-files=all | tee "$RUNNER_TEMP/probe-out/git-status.txt"
+      - uses: 'actions/upload-artifact@v4'
+        if: '${{ always() }}'
+        with:
+          name: 'flake-${{ matrix.arm }}'
+          path: '${{ runner.temp }}/probe-out'
+          retention-days: 14
