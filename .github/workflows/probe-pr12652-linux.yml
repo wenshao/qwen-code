@@ -1,0 +1,78 @@
+name: probe-pr12652-linux
+'on':
+  push:
+    branches:
+      - probe/pr12652-**
+permissions:
+  contents: read
+jobs:
+  linux:
+    name: collapsed rail / ubuntu-24.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      QWEN_SKIP_PREPARE: '1'
+      QWEN_SKIP_NOTICE_GENERATION: '1'
+    steps:
+      - name: Checkout (PR head 8b39a69 + probe files)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Set up Node.js 22.x
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 22.x
+          package-manager-cache: false
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+      - name: Build (PR head)
+        run: npm run build
+      - name: Install Playwright browsers (repo-pinned 1.61.1)
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Build base web-shell app (origin/main 9cb0180 CSS)
+        run: |
+          set -euo pipefail
+          css=packages/web-shell/client/components/sidebar/WebShellSidebar.module.css
+          cp "$css" "$RUNNER_TEMP/head.module.css"
+          cp .github/probe/pr12652/base.module.css "$css"
+          git diff --stat -- "$css"
+          (cd packages/web-shell && npx vite build --outDir "$GITHUB_WORKSPACE/ws-base" --emptyOutDir)
+          cp "$RUNNER_TEMP/head.module.css" "$css"
+          git diff --exit-code -- "$css"
+          mkdir -p ws-head
+          for n in assets index.html sw.js manifest.webmanifest; do cp -R "packages/web-shell/dist/$n" ws-head/; done
+          grep -c 'scrollbar-width:none}' ws-head/assets/index-*.css || true
+          grep -c 'scrollbar-width:none}' ws-base/assets/index-*.css || true
+      - name: Probe both arms with the real daemon
+        run: |
+          set -uo pipefail
+          ws="$RUNNER_TEMP/pr12652-ws"; mkdir -p "$ws"; echo '# demo' > "$ws/README.md"
+          export PW_FROM="$GITHUB_WORKSPACE" OUT="$GITHUB_WORKSPACE/probe-out"
+          export VIEWPORTS='[{"name":"tall","width":1280,"height":900},{"name":"short","width":1280,"height":460}]'
+          for arm in head base; do
+            for n in assets index.html sw.js manifest.webmanifest; do
+              rm -rf "packages/web-shell/dist/$n"; cp -R "ws-$arm/$n" packages/web-shell/dist/
+            done
+            port=$([ "$arm" = head ] && echo 4191 || echo 4190)
+            QWEN_HOME="$RUNNER_TEMP/home-$arm" QWEN_RUNTIME_DIR="$RUNNER_TEMP/rt-$arm" \
+              node packages/cli/dist/index.js serve --port "$port" --workspace "$ws" > "daemon-$arm.log" 2>&1 &
+            pid=$!
+            for i in $(seq 1 90); do
+              [ "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/")" = 200 ] && break; sleep 2
+            done
+            grep -E 'served from|listening' "daemon-$arm.log" || true
+            export ARMS="[{\"name\":\"$arm\",\"url\":\"http://127.0.0.1:$port\"}]"
+            ENGINE=chromium KEEP_SB=1 TAG="linux-chromium-keepsb-$arm" node .github/probe/pr12652/probe.mjs || echo "probe failed"
+            ENGINE=chromium KEEP_SB=0 TAG="linux-chromium-default-$arm" node .github/probe/pr12652/probe.mjs || echo "probe failed"
+            ENGINE=chromium KEEP_SB=1 CHANNEL=chrome TAG="linux-chrome-keepsb-$arm" node .github/probe/pr12652/probe.mjs || echo "probe failed"
+            ENGINE=firefox TAG="linux-firefox-$arm" node .github/probe/pr12652/probe.mjs || echo "probe failed"
+            ENGINE=firefox FF_CLASSIC=1 TAG="linux-firefox-classic-$arm" node .github/probe/pr12652/probe.mjs || echo "probe failed"
+            ENGINE=webkit TAG="linux-webkit-$arm" node .github/probe/pr12652/probe.mjs || echo "probe failed"
+            kill "$pid"; sleep 2
+          done
+      - name: Upload probe output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: pr12652-linux-probe
+          path: |
+            probe-out
+            daemon-*.log
