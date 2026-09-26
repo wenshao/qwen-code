@@ -1,0 +1,58 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+index 9a51f39da4..28273fa4ad 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+@@ -282,6 +282,11 @@ class ManagedAgentApiContractTest {
+                 post("/v1/agents/sessions/{id}/archive", sessionId)
+                         .header(TENANT, tenant)
+                         .header(IDEMPOTENCY_KEY, "contract-archive"), null);
++        exchange(drift, "getSession", 200,
++                get("/v1/agents/sessions/{id}", sessionId)
++                        .header(TENANT, tenant), null);
++        exchange(drift, "listSessions", 200, get("/v1/agents/sessions")
++                .param("limit", "100").header(TENANT, tenant), null);
+         exchange(drift, "unarchiveSession", 200,
+                 post("/v1/agents/sessions/{id}/unarchive", sessionId)
+                         .header(TENANT, tenant)
+@@ -356,7 +361,17 @@ class ManagedAgentApiContractTest {
+                 "{\"sessionId\":\"%s\",\"limit\":1000}"
+                         .formatted(webSessionId));
+ 
+-        for (String id : List.of(sessionId, cancelledId, webSessionId)) {
++        String webInputId = json(exchange(drift, "webShellCreateSession",
++                202, post(WEB_SHELL + "/sessions/create")
++                        .header(TENANT, tenant),
++                """
++                {"requestId":"contract-trace","idempotencyKey":"contract-web-input",
++                 "agentId":"qwen-code","input":[{"type":"text","text":"hello"}]}
++                """)).get("sessionId").asText();
++        awaitMaterialized(tenant, webInputId);
++
++        for (String id : List.of(sessionId, cancelledId, webSessionId,
++                webInputId)) {
+             exchange(drift, "deleteSession", 202,
+                     delete("/v1/agents/sessions/{id}", id)
+                             .header(TENANT, tenant)
+diff --git a/packages/sdk-java/managed-agent-server/src/test/resources/openapi/contract-known-gaps.txt b/packages/sdk-java/managed-agent-server/src/test/resources/openapi/contract-known-gaps.txt
+index 1e40b102e0..c75b143223 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/resources/openapi/contract-known-gaps.txt
++++ b/packages/sdk-java/managed-agent-server/src/test/resources/openapi/contract-known-gaps.txt
+@@ -42,6 +42,7 @@ request postSessionEvent: / oneOf
+ request postSessionEvent: / required turn_id
+ request postSessionEvent: /input/*/type enum
+ request postSessionEvent: /type const
++request webShellCreateSession: /input/*/type enum
+ request webShellSubmitTurn: /input/*/type enum
+ 
+ # D3: event versions and top-level Item and Part identity.
+@@ -67,6 +68,10 @@ response webShellTranscript: expected 200, got 400 invalid_limit
+ record DeletedSession has no schema
+ response archiveSession: expected 202, got 200
+ response deleteSession: expected 202, got 200
++# An archived Session reads back with status "archived", which the contract's
++# status enum lacks; v1.10 models archive with archived_at instead.
++response getSession 200: /status enum
++response listSessions 200: /data/*/status enum
+ 
+ # Workspace context (W0d/W2, outside Stage D): the Session workspace lacks its
+ # context revision and state.
