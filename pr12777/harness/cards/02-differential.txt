@@ -1,0 +1,25 @@
+# PR 12777 · differential: the built validator of three builds on the same inputs
+> packages/core/dist/src/utils/schemaValidator.js of 89b057befd (pre-cache), d004e3ddf8 (main) and f6c5829942 (PR); Ajv 8.20.0 in all three
+> 1606 generated schemas (2 seeds x 800, plus the 3 examples of the PR body): null-prototype objects in const/enum/properties/$defs,
+> arrays with named keys reached by $ref pointers (#/allOf/constructor, /named, /push ...), -0, root and nested $id, draft-04/07/2020-12,
+> unresolvable $ref, meta-schema violations; each run as: same object x3, new object x3, mixed, and after another schema took its $id
+> 19120 validate() calls per build, one process per build; compared per call: result, the "Failed to compile" log line, console output
+
+## Invariant claimed by the PR: where the PR differs from main, it gives what the pre-cache validator gave
+== view              calls    all 3 equal   PR = pre-cache != main   PR = main != pre-cache   PR differs from both
+++ result            19120        17667            1186                      267                    0
+++ result + log      19120        15951            2741                      428                    0
+++ console output    19120        18414             706                        0                    0
+
+## Where main differed and the PR restores the pre-cache result (1186 calls)
+-- 456  main accepted invalid data (441 passed, 15 skipped with a misleading duplicate $id); pre-cache and PR reject it
+!! 672  main validated a rebuilt $id schema holding such values on its first use; pre-cache and PR skip it (disclosed trade-off)
+==  58  all three reject, with a different first message
+
+## Where the PR still differs from pre-cache (428 calls, results and logs)
+++ 428/428  a new object of a compiling schema with a root $id: pre-cache skipped it as a duplicate $id, PR (like main) validates it
+==          = the intended change of #12747; nothing else differs from pre-cache
+
+## Inside the new catch (instrumented copy of the PR's built module, same 19120 calls)
+== copy failed to compile: 960    object then compiled: 0    object failed with the copy's error: 593    object failed as duplicate $id: 367
+++ matches the comment: "The object fails as its copy did, or as a duplicate of the $id its copy claimed first"

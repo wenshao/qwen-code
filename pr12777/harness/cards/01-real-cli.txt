@@ -1,0 +1,38 @@
+# PR 12777 · real CLI: the reason the debug log gives for a skipped validation
+> node dist/cli.js -p (headless) · isolated QWEN_HOME · real stdio MCP server (official SDK) · scripted OpenAI-compatible model
+> 15 tool calls with {"count":0}; every schema requires count >= 1, so "reached" = the MCP server received it = validation skipped
+
+## Outcome of each call: identical in all three builds (15/15)
+== #   tool        89b057befd (pre-cache)    d004e3ddf8 (main)         f6c5829942 (PR)           
+   1   d04_id      reached (skipped)         reached (skipped)         reached (skipped)         
+   2   d04_id      refused: must be >= 1     refused: must be >= 1     refused: must be >= 1     
+   3   d04_noid    reached (skipped)         reached (skipped)         reached (skipped)         
+   4   d04_noid    refused: must be >= 1     refused: must be >= 1     refused: must be >= 1     
+   5   badref_id   reached (skipped)         reached (skipped)         reached (skipped)         
+   6   badref_id   reached (skipped)         reached (skipped)         reached (skipped)         
+   7   meta_id     reached (skipped)         reached (skipped)         reached (skipped)         
+   8   meta_id     reached (skipped)         reached (skipped)         reached (skipped)         
+   9   nested_id   reached (skipped)         reached (skipped)         reached (skipped)         
+   10  nested_id   reached (skipped)         reached (skipped)         reached (skipped)         
+   11  dup_a       refused: must be >= 1     refused: must be >= 1     refused: must be >= 1     
+   12  dup_b       reached (skipped)         reached (skipped)         reached (skipped)         
+   13  dup_b       refused: must be >= 5     refused: must be >= 5     refused: must be >= 5     
+   14  ok_id       refused: must be >= 1     refused: must be >= 1     refused: must be >= 1     
+   15  ok_id       refused: must be >= 1     refused: must be >= 1     refused: must be >= 1     
+
+## [SchemaValidator] lines in each debug log: 9 per build
+-- d04_id     main     : schema with key or id "urn:p12777:d04" already exists
+++            PR       : no schema with key or ref "http://json-schema.org/draft-04/schema#"   (= pre-cache)
+== d04_noid   all three: no schema with key or ref "http://json-schema.org/draft-04/schema#"
+-- badref_id  main     : schema with key or id "urn:p12777:badref" already exists
+++            PR       : can't resolve reference #/definitions/missing from id urn:p12777:badref   (= pre-cache)
+== badref_id  all three: can't resolve reference #/definitions/missing from id urn:p12777:badref
+-- meta_id    main     : schema with key or id "urn:p12777:meta" already exists
+++            PR       : schema is invalid: data/properties/count/minimum must be number   (= pre-cache)
+== meta_id    all three: minimum value must be ["number"]
+== nested_id  all three: reference "urn:p12777:n" resolves to more than one schema
+== nested_id  all three: reference "urn:p12777:n" resolves to more than one schema
+== dup_b      all three: schema with key or id "urn:p12777:dup" already exists
+
+++ pre-cache vs PR: 9/9 lines identical      main vs PR: 3 lines differ, each the first call of a failing schema with an $id
+!! main names an $id the server declared once as a duplicate; the PR logs the schema's own compile error again

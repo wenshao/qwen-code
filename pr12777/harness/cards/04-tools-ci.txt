@@ -1,0 +1,24 @@
+# PR 12777 · no tool of the real CLI loses its shared validator; CI; one aside
+> The PR makes two kinds of value inexact. If a real tool schema held one, it would be compiled per object again (the #12732 leak).
+> dist/cli.js copied to dist-probe with one line spliced into the DeclarativeTool constructor; at exit each tool's current
+> parameterSchema is judged by main's rule and by the PR's rule (both copied verbatim); headless session with the MCP server above
+
+## Result (same on the main and the PR bundle)
+== tools constructed: 56 (35 distinct: 27 built-in + 8 MCP)    schema objects: 35
+++ exact under main's rule: 35/35    exact under the PR's rule: 35/35    judged differently: 0
+== built-in: read_file edit write_file glob grep_search run_shell_command web_fetch agent skill tool_search tool_call
+==           cron_create cron_list cron_delete list_agents send_message task_stop enter_worktree exit_worktree
+==           exit_plan_mode record_artifact report_findings loop_wakeup get_goal update_goal read_mcp_resource zoom_image
+== static check: none of the 29 Object.create(null) sites in core/cli source (non-test) builds a parameter schema
+
+## CI: "Integration Tests (no-AK, No Sandbox)" was red on the first attempt at f6c5829942
+== failing test: integration-tests/cli/hosted-harness-process.test.ts > initializes a fresh canonical Session ...
+== assertion in the fake session store: url.pathname.startsWith(prefix); a no-tool Hosted process, no parameter validation
+++ local, macOS, same test file x3 per build:   PR 7/7, 7/7, 7/7     main 7/7, 7/7, 7/7   (assertion never hit)
+++ the re-run passed (job 108436296203); the flake is not related to this diff
+
+## Out of scope, identical in main and the PR: workflow agent({schema})
+== QWEN_CODE_ENABLE_WORKFLOWS, model runs one workflow: 3 x agent('...', { schema: S }), S has $id; sub-agent submits {"answer":0} first
+== the sandbox revives S with JSON.parse inside the vm, so structured_output gets a vm-realm object: hostProto=false, inexact under both rules
+!! so every call compiles its own validator, and calls 2 and 3 log "urn:wf:answer already exists. Skipping parameter validation"
+++ yet all 3 invalid submissions were refused on both builds, so the object is compiled again within the call (a=b=c={"answer":7})

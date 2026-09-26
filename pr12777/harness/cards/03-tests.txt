@@ -1,0 +1,28 @@
+# PR 12777 · tests: mutants at CI's --retry=2, and one-off failures
+> PR worktree f6c5829942; the test file before this PR (d004e3ddf8) copied next to it; vitest 3.2.7; each mutant is one exact-string edit
+> of src/utils/schemaValidator.ts, restored after; CI runs vitest with --retry=2 (ci.yml VITEST_RETRY default '2')
+
+## Mutant                                                          PR tests r0 / r2      tests before PR r0 / r2
+== none (baseline)                                                 pass 152 / pass 152   pass 146 / pass 146
+++ L1  catch returns the object's compile, no rethrow              fail / fail           pass / pass
+++ Z1r isExactJsonValue rejects -0                                 fail / fail           pass / pass
+++ N1  arrays with named keys count as exact (main's rule)         fail / fail           pass / pass
+++ NP  null-prototype objects count as exact (main's rule)         fail / fail           pass / pass
+++ X5  direct branch forgets the object (3rd use serializes)       fail / fail           pass / pass
+++ T2  direct branch forgets the object only when compile throws   fail / fail           pass / pass
+++ F1  catch no longer adds the object to compiled.direct          fail / fail           fail / PASS (retry hides it)
+++ CF  'unknown format' warning filter stops matching              fail / fail           fail / PASS (retry hides it)
+++ A5  subclassed arrays count as exact (mine)                     fail / fail           fail / PASS (retry hides it)
+++ A1  every array counts as inexact (mine)                        fail / fail           fail / fail
+++ A3  catch drops failedTexts.add (C3 of #12747)                  fail / fail           fail / fail
+++ A4  toJSON check removed (mine)                                 fail / fail           fail / fail
+++ B3c M7 D1 X1 X2  (pinned by #12759)                             fail / fail (5/5)     fail / fail
+!! A2  catch throws the copy's error even when the object compiles pass / pass           pass / pass   (equivalent on all
+!!     observed inputs: the object compiled 0 of 960 times, so the success return is defensive and unpinned)
+
+## One-off failure injected after each compile-cache test body (afterEach throws once), --retry=2
+++ this PR:        19 tests, still failing after retries: 0
+-- before this PR: 13 tests, still failing after retries: 3, each attempt 2 and 3 with a misleading count:
+--   compiles equal schemas once ...                     expected "compile" to be called 1 times, but got 0 times
+--   compiles a schema that fails to compile as Ajv ...  expected "parse" to be called 1 times, but got 0 times
+--   does not compile a copy for each rebuilt schema ... expected "parse" to be called 1 times, but got 0 times
