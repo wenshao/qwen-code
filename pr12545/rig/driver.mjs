@@ -82,6 +82,7 @@ const SUBTYPE = {
   'path-open': 'probe-open',
   path2: 'probe-reader',
   'path-builtin': 'statusline-setup',
+  'direct-exec': 'probe-exec',
   'eager-cm': 'general-purpose',
   'path2-open': 'probe-open',
 }[scenario];
@@ -91,7 +92,7 @@ if (!SUBTYPE) throw new Error(`unknown scenario ${scenario}`);
 const EXEC_SOURCE = [
   'try {',
   "  const r = await tools.skill({ skill: 'demo-skill' });",
-  "  text('SKILL_CALL_OK ' + String(r.output).replace(/\\s+/g, ' ').slice(0, 160));",
+  "  text('SKILL_CALL_OK body=' + (String(r.output).includes('DEMO-SKILL-BODY-7731') ? 'DEMO-SKILL-BODY-7731' : 'missing'));",
   '} catch (e) {',
   "  text('SKILL_CALL_ERR ' + String((e && e.message) || e).slice(0, 200));",
   '}',
