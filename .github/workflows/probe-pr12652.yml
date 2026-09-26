@@ -1,0 +1,100 @@
+name: probe-pr12652
+'on':
+  push:
+    branches:
+      - probe/pr12652-**
+permissions:
+  contents: read
+jobs:
+  win:
+    name: collapsed rail / windows-2022
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      QWEN_SKIP_PREPARE: '1'
+      QWEN_SKIP_NOTICE_GENERATION: '1'
+    steps:
+      - name: Checkout (PR head 8b39a69 + probe files)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Set up Node.js 22.x
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 22.x
+          package-manager-cache: false
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+      - name: Build (PR head)
+        run: npm run build
+      - name: Environment census
+        run: |
+          node -v
+          [System.Environment]::OSVersion.VersionString
+          (Get-Item "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe").VersionInfo.ProductVersion
+          (Get-Item "C:\Program Files\Google\Chrome\Application\chrome.exe").VersionInfo.ProductVersion
+          Get-ItemProperty 'HKCU:\Control Panel\Accessibility' -ErrorAction SilentlyContinue | Format-List
+      - name: Build base web-shell app (origin/main 9cb0180 CSS)
+        run: |
+          $css = 'packages/web-shell/client/components/sidebar/WebShellSidebar.module.css'
+          Copy-Item $css "$env:RUNNER_TEMP/head.module.css"
+          Copy-Item .github/probe/pr12652/base.module.css $css -Force
+          git diff --stat -- $css
+          Push-Location packages/web-shell
+          npx vite build --outDir "$env:GITHUB_WORKSPACE/ws-base" --emptyOutDir
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Pop-Location
+          Copy-Item "$env:RUNNER_TEMP/head.module.css" $css -Force
+          git diff --exit-code -- $css
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          New-Item -ItemType Directory "$env:GITHUB_WORKSPACE/ws-head" | Out-Null
+          foreach ($n in 'assets','index.html','sw.js','manifest.webmanifest') {
+            Copy-Item "packages/web-shell/dist/$n" "$env:GITHUB_WORKSPACE/ws-head/" -Recurse
+          }
+          Get-ChildItem ws-base/assets/*.css, ws-head/assets/*.css | ForEach-Object { "{0} {1}" -f $_.FullName, $_.Length }
+          Select-String -Path ws-head/assets/index-*.css -Pattern 'scrollbar-width:none\}' | Measure-Object | Select-Object -ExpandProperty Count
+          Select-String -Path ws-base/assets/index-*.css -Pattern 'scrollbar-width:none\}' | Measure-Object | Select-Object -ExpandProperty Count
+      - name: Probe both arms with the real daemon
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ws = "$env:RUNNER_TEMP\pr12652-ws"
+          New-Item -ItemType Directory $ws | Out-Null
+          Set-Content "$ws\README.md" '# demo'
+          $env:PW_FROM = "$env:GITHUB_WORKSPACE"
+          $env:OUT = "$env:GITHUB_WORKSPACE\probe-out"
+          $env:VIEWPORTS = '[{"name":"tall","width":1280,"height":900},{"name":"short","width":1280,"height":460}]'
+          foreach ($arm in 'head','base') {
+            foreach ($n in 'assets','index.html','sw.js','manifest.webmanifest') {
+              Remove-Item "packages/web-shell/dist/$n" -Recurse -Force
+              Copy-Item "$env:GITHUB_WORKSPACE/ws-$arm/$n" "packages/web-shell/dist/" -Recurse
+            }
+            $port = if ($arm -eq 'head') { 4191 } else { 4190 }
+            $env:QWEN_HOME = "$env:RUNNER_TEMP\home-$arm"
+            $env:QWEN_RUNTIME_DIR = "$env:RUNNER_TEMP\rt-$arm"
+            New-Item -ItemType Directory $env:QWEN_HOME, $env:QWEN_RUNTIME_DIR -Force | Out-Null
+            $p = Start-Process -FilePath node -ArgumentList @('packages/cli/dist/index.js','serve','--port',"$port",'--workspace',$ws) -RedirectStandardOutput "daemon-$arm.log" -RedirectStandardError "daemon-$arm.err" -PassThru -NoNewWindow
+            $ok = $false
+            for ($i = 0; $i -lt 90; $i++) {
+              try { $r = Invoke-WebRequest "http://127.0.0.1:$port/" -UseBasicParsing -TimeoutSec 5; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}
+              Start-Sleep -Seconds 2
+            }
+            Get-Content "daemon-$arm.log" | Select-String 'served from|listening'
+            if (-not $ok) { Get-Content "daemon-$arm.err"; throw "daemon $arm not ready" }
+            $env:ARMS = "[{""name"":""$arm"",""url"":""http://127.0.0.1:$port""}]"
+            $env:ENGINE = 'chromium'
+            foreach ($cfg in @(@('msedge','1','keepsb'), @('chrome','1','keepsb'), @('msedge','0','default'))) {
+              $env:CHANNEL = $cfg[0]; $env:KEEP_SB = $cfg[1]
+              $env:TAG = "win-$($cfg[0])-$($cfg[2])-$arm"
+              node .github/probe/pr12652/probe.mjs
+              if ($LASTEXITCODE -ne 0) { Write-Host "probe failed for $($env:TAG)" }
+            }
+            taskkill /PID $p.Id /T /F | Out-Null
+            Start-Sleep -Seconds 2
+          }
+      - name: Upload probe output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: pr12652-win-probe
+          path: |
+            probe-out
+            daemon-*.log
+            daemon-*.err
