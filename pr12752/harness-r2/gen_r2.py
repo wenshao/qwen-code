@@ -32,7 +32,7 @@ frow = ''.join(
     for a, b, c, d, e, f in fix)
 
 body = f"""
-<h1>PR #12752 · round 2 at <code>9d949e8</code>: both findings fixed, nothing regressed</h1>
+<h1>PR #12752 · round 2: both findings fixed at <code>9d949e8</code>, re-confirmed on merged main <code>d004e3d</code></h1>
 <div class="sub">The delta over <code>c6f197d</code> is 3 test files + 2 design docs (no production, worker or
 workflow change, so last round's bundle is still the right one) · macOS 26.6.2 arm64 · Zulu JDK 21.0.12 ·
 the same harness, re-run on a fresh copy of the new head</div>
@@ -47,6 +47,13 @@ the same harness, re-run on a fresh copy of the new head</div>
 <tr><td>M01–M12 (the PR's table) + W1–W3 (bundled worker)</td><td class="ok">15 / 15 killed, each by its named gate; M01 now fails FG2 ×3 <i>and</i> FG3 worker-killed (4 / 4)</td></tr>
 <tr><td>Full module Checkstyle rule set forced onto <code>src/test</code> (<code>includeTestSourceDirectory</code>, with a planted-violation control that it catches)</td>
 <td class="ok">0 violations in the 12 new files <span class="dim">— the 9 hits are all in the pre-existing <code>DurableRuntimeRecoveryTest</code></span></td></tr>
+</table>
+<h2>After the merge: main <code>d004e3d</code>, which also carries #12730 (W0c-2)</h2>
+<table>
+<tr><td>The PR's 18 files at the squash commit vs the verified <code>9d949e8</code></td><td class="ok">byte-identical (<code>git diff --quiet</code>)</td></tr>
+<tr><td>#12730 merged 12:11 UTC, after the PR's last CI run (10:24); it changed <code>RuntimeBrokerService</code>, <code>LocalProcessRuntimeProvisioner</code>, <code>HttpRuntimeTransport</code>, <code>RuntimeTransport</code>, <code>RuntimeProvisioner</code> (+1564 / −69 in 21 files)</td><td class="warn">the combination was first built by the post-merge push</td></tr>
+<tr><td>Main's push CI, run 36242380534 · Hosted job</td><td class="ok">16 / 16 (1:35)</td></tr>
+<tr><td>Local, bundle rebuilt from <code>d004e3d</code>: control · M01–M12 + W1–W3 · A1/A2/A123 on FG3 and FG4 · stall S0 / S9</td><td class="ok">16 / 16 · 15 / 15 killed · 6 / 6 killed · pass / killed</td></tr>
 </table>
 <div class="note">The attest count after an adopting <code>acquire</code> can only exceed 2 if an attestation fails and the
 reconcile loop retries, so the exact pin does not depend on timing: all 7 full runs on the new head
