@@ -1,0 +1,31 @@
+diff --git a/docs/verification/resident-tool-prompt-assembly/README.md b/docs/verification/resident-tool-prompt-assembly/README.md
+index dd547d9eb0..28830cf961 100644
+--- a/docs/verification/resident-tool-prompt-assembly/README.md
++++ b/docs/verification/resident-tool-prompt-assembly/README.md
+@@ -40,7 +40,7 @@
+ | 无声明快照（假定全部工具可用）           |    1,135 |           1,139 | Subagent Delegation、Codebase Search、Monitor Processes 三条 |
+ | 基线已不声明 monitor，其他相关工具均声明 |      818 |             822 | Subagent Delegation、Codebase Search 两条                    |
+ 
+-字符采用 JavaScript `string.length` 口径，字节采用 UTF-8 口径；`wc -c` 量的是字节，不能直接与字符数比较。两种对比都保留全部示例，因为示例只调用文件类工具和 shell。若继续移除 `edit`、`write_file`、`glob` 或 shell，示例也会被裁剪，必须按当前模型模板重新测量，不能沿用旧版范围。若 A/B 两边都开启 Todo，B 还会少 `- **Task Management:**` 一条（228 字符——该条按 `todo_write` 是否被**声明**门控，见 `prompts.ts` 的 `TOOL_GUIDANCE_LINE_GATES`，而 `todo_write` 不在文件七件套内）：无快照行差值变为 1,364 字符 / 1,368 字节，monitor 未声明行变为 1,047 字符 / 1,051 字节。
++字符采用 JavaScript `string.length` 口径，字节采用 UTF-8 口径；`wc -c` 量的是字节，不能直接与字符数比较。两种对比都保留全部示例，因为示例只调用文件类工具和 shell。若继续移除 `edit`、`write_file`、`glob` 或 shell，示例也会被裁剪，必须按当前模型模板重新测量，不能沿用旧版范围。若 A/B 两边都开启 Todo，B 还会少 `- **Task Management:**` 一条（126 字符——该条按 `todo_write` 是否被**声明**门控，见 `prompts.ts` 的 `TOOL_GUIDANCE_LINE_GATES`，而 `todo_write` 不在文件七件套内）：无快照行差值变为 1,262 字符 / 1,266 字节，monitor 未声明行变为 945 字符 / 949 字节。
+ 
+ 这些数字不是 token 计费数据，也不是所有真实 CLI 配置的固定收益。默认延迟加载的 `monitor` 若在 A/B 两边均未声明，就不能把它的 317 字符算入 A/B 差值。
+ 
+@@ -68,7 +68,7 @@ wc -c /tmp/prompt-default.md /tmp/prompt-eager.md
+ diff /tmp/prompt-default.md /tmp/prompt-eager.md
+ ```
+ 
+-**预期：** A/B 必须使用同一构建、模型、output style、Todo 状态及其他配置，并确认实际声明集合。Todo 关闭、默认 `monitor` 在两边均未声明、A 声明 `agent` 且 B 不声明它时，文件七件套的 B 比 A 少 **818 字符 / 822 字节**，只删除 `- **Subagent Delegation:**` 与 `- **Codebase Search:**` 两条，示例不变。若两边都开启 Todo，B 还会少 `- **Task Management:**` 一条（228 字符），差值为 **1,047 字符 / 1,051 字节**——「Todo 状态一致」不足以固定该数字，该条按 `todo_write` 是否被**声明**门控，而它不在文件七件套内。若改用无声明快照的函数渲染作 A，才是 §1 的三条 / 1,135 字符 / 1,139 字节口径。更窄白名单需要逐块检查示例差异，不使用历史总量作通过阈值。
++**预期：** A/B 必须使用同一构建、模型、output style、Todo 状态及其他配置，并确认实际声明集合。Todo 关闭、默认 `monitor` 在两边均未声明、A 声明 `agent` 且 B 不声明它时，文件七件套的 B 比 A 少 **818 字符 / 822 字节**，只删除 `- **Subagent Delegation:**` 与 `- **Codebase Search:**` 两条，示例不变。若两边都开启 Todo，B 还会少 `- **Task Management:**` 一条（126 字符），差值为 **945 字符 / 949 字节**——「Todo 状态一致」不足以固定该数字，该条按 `todo_write` 是否被**声明**门控，而它不在文件七件套内。若改用无声明快照的函数渲染作 A，才是 §1 的三条 / 1,135 字符 / 1,139 字节口径。更窄白名单需要逐块检查示例差异，不使用历史总量作通过阈值。
+ 
+ **如果 B 和 A 一样大**，说明 `tools.eager` 没被接受（这是最常见的坑，见伞 issue 的交接文档：settings 写漏、scope 覆盖、未知 key 只走 debug 日志），而不是门控没生效。先确认 `/tools` 里那些工具确实变成了按需。
+ 
+@@ -155,7 +155,7 @@ done
+ 
+ ## 7. 请报告回来什么
+ 
+-1. §2 的版本、模型、实际声明集合、Todo 状态、`wc -c` 字节数与 diff 摘要（Todo 关闭且两边均未声明 monitor 时，文件七件套预期差值为 822 字节；Todo 开启时为 1,051 字节。见 §1、§2 的适用条件）。
++1. §2 的版本、模型、实际声明集合、Todo 状态、`wc -c` 字节数与 diff 摘要（Todo 关闭且两边均未声明 monitor 时，文件七件套预期差值为 822 字节；Todo 开启时为 949 字节。见 §1、§2 的适用条件）。
+ 2. §3 三档的 `input_token_count` 与 `/context` 系统提示词一行。
+ 3. §4 三条检查的输出（第 2、3 条预期无输出）。
+ 4. §5 表格逐行结论，尤其第 6、7 条（必须无变化）。
