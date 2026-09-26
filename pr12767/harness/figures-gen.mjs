@@ -106,7 +106,7 @@ fix: the writer always installs the directory before its marker, so after seeing
 
 const muts = [
   ['M05', 'publish retry: skip the stream-directory sync before re-acknowledging', 'survived', 'killed', 'test arms the fault for two attempts; the third acks with no successful sync'],
-  ['M06', 'ensureDirectory: skip the parent sync when the child exists', 'survived', 'killed', 'test targets the root, whose anchor install syncs it anyway; capture dir never synced'],
+  ['M06', 'ensureDirectory: drop the parent-directory sync', 'survived', 'killed', 'test targets the root, which the anchor install syncs anyway; nothing checks the capture dir'],
   ['M12', 'readRange: skip receipt-vs-page digest comparison', 'survived', 'killed', 'real run: returns "alpha" for a page pinning sha256("omega")'],
   ['M13', 'publish: retain every published buffer', 'survived', 'survived', 'scale test records RSS but asserts nothing'],
   ['M17', 'existingStream: ignore anchors when the capture dir is gone', 'survived', 'killed', 'real run: acknowledged segment replaced by other bytes'],
