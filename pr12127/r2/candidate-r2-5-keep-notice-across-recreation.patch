@@ -1,0 +1,97 @@
+diff --git a/packages/mobile-shell/app/src/androidTest/java/com/qwen/mobileshell/MicrophoneLifecycleDeviceTest.kt b/packages/mobile-shell/app/src/androidTest/java/com/qwen/mobileshell/MicrophoneLifecycleDeviceTest.kt
+index 69a56f2..17529bf 100644
+--- a/packages/mobile-shell/app/src/androidTest/java/com/qwen/mobileshell/MicrophoneLifecycleDeviceTest.kt
++++ b/packages/mobile-shell/app/src/androidTest/java/com/qwen/mobileshell/MicrophoneLifecycleDeviceTest.kt
+@@ -92,6 +92,28 @@ class MicrophoneLifecycleDeviceTest {
+         scenario.close()
+     }
+ 
++    @Test fun grantedConnectionNoticeSurvivesRecreation() {
++        grantMicrophonePermission()
++        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
++            scenario.onActivity { activity ->
++                attach(activity)
++                val request = AudioRequest()
++                val microphone = (field(activity, "microphone\$delegate") as Lazy<*>).value as NativeMicrophonePermission
++                assertTrue(microphone.begin(request, "https://example.test/") { true })
++                microphone.decide(request, true)
++                assertEquals(true, field(activity, "microphoneAuthorized"))
++            }
++            scenario.recreate()
++            scenario.onActivity { activity ->
++                assertNull(field(activity, "webView"))
++                val nodes = descendants(activity.window.decorView).toList()
++                assertTrue("Recreated activity still explains the closed microphone connection", nodes.any {
++                    it is TextView && it.text.toString() == activity.getString(R.string.microphone_closed)
++                })
++            }
++        }
++    }
++
+     private fun grantMicrophonePermission() {
+         val command = "pm grant ${instrumentation.targetContext.packageName} ${Manifest.permission.RECORD_AUDIO}"
+         val output = ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).use {
+diff --git a/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/MainActivity.kt b/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/MainActivity.kt
+index 651c41c..827eb70 100644
+--- a/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/MainActivity.kt
++++ b/packages/mobile-shell/app/src/main/java/com/qwen/mobileshell/MainActivity.kt
+@@ -50,6 +50,7 @@ class MainActivity : AppCompatActivity() {
+     private var connectionAttempt = 0
+     private var microphoneDialog: AlertDialog? = null
+     private var microphoneAuthorized = false
++    private var closedMicrophoneProfile: String? = null
+     private val microphone: NativeMicrophonePermission by lazy {
+         NativeMicrophonePermission(
+             { ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED },
+@@ -75,15 +76,22 @@ class MainActivity : AppCompatActivity() {
+                 }
+             }
+         })
+-        loadProfiles()
++        loadProfiles(savedInstanceState?.getString("microphone-closed-profile"))
+     }
+ 
+-    private fun loadProfiles() {
++    private fun showMicrophoneClosed(profile: ConnectionProfile?) {
++        closedMicrophoneProfile = profile?.id ?: ""
++        showMessage(getString(R.string.microphone_closed), getString(R.string.microphone_reconnect), profile?.let { p -> { connect(p) } })
++    }
++
++    private fun loadProfiles(closedMicrophoneId: String? = null) {
+         try {
+             val storage = store ?: AndroidProfileStore(this).also { store = it }
+             state = storage.vault.load()
+             retireBrowserProfiles()
+-            showProfiles()
++            // A recreated Activity keeps explaining why its microphone connection was closed.
++            if (closedMicrophoneId != null) showMicrophoneClosed(state.profiles.find { it.id == closedMicrophoneId })
++            else showProfiles()
+         } catch (_: Exception) { showStorageError() }
+     }
+ 
+@@ -426,6 +434,7 @@ class MainActivity : AppCompatActivity() {
+         connectionAttempt++
+         cancelMicrophone()
+         microphoneAuthorized = false
++        closedMicrophoneProfile = null
+         cancelDialog()
+         val previous = webView
+         webView = null
+@@ -482,13 +491,16 @@ class MainActivity : AppCompatActivity() {
+         val profile = activeProfile
+         if (microphoneAuthorized && profile != null) {
+             destroyConnection()
+-            showMessage(getString(R.string.microphone_closed), getString(R.string.microphone_reconnect)) { connect(profile) }
++            showMicrophoneClosed(profile)
+         }
+         super.onStop()
+     }
+ 
+     override fun onSaveInstanceState(outState: Bundle) {
+         outState.putBoolean("microphone-in-flight", microphone.awaitingResult)
++        // onSaveInstanceState runs before onStop on API 26-27, while the connection is still authorized.
++        (closedMicrophoneProfile ?: activeProfile?.id?.takeIf { microphoneAuthorized })
++            ?.let { outState.putString("microphone-closed-profile", it) }
+         super.onSaveInstanceState(outState)
+     }
+ }
