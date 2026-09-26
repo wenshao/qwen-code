@@ -1,0 +1,25 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
+index af1fbac..987d1e0 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
+@@ -209,12 +209,19 @@ class WorkspaceRuntimeTest {
+ 
+     @Test
+     void refusesMissingOrLinkedSessionDirectoryBeforeClaimingStorage() throws Exception {
+-        for (String cwd : List.of("missing", "link")) {
++        for (String cwd : List.of("missing", "link", "file", "parent/child")) {
+             SessionRecord session = createSession("storage", cwd);
+             var fixture = transport(session);
+             if (cwd.equals("link")) {
+                 Files.createSymbolicLink(temp.resolve("link"), Files.createDirectory(temp.resolve("outside")));
+             }
++            if (cwd.equals("file")) {
++                Files.writeString(temp.resolve("file"), "not a directory");
++            }
++            if (cwd.equals("parent/child")) {
++                Files.createSymbolicLink(temp.resolve("parent"),
++                        Files.createDirectories(temp.resolve("real/child")).getParent());
++            }
+             assertUnavailable(() -> fixture.transport().acquire(fixture.lease(), fixture.record().getSession()));
+             verify(fixture.http(), never()).installContext(any(), any(), any(), any());
+             authority.claim(session.workspace(), holder(session, "rival"));
