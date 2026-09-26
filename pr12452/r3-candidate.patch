@@ -1,0 +1,302 @@
+diff --git a/docs/developers/qwen-serve-protocol.md b/docs/developers/qwen-serve-protocol.md
+index 207df9f7e8..1e8da80d7f 100644
+--- a/docs/developers/qwen-serve-protocol.md
++++ b/docs/developers/qwen-serve-protocol.md
+@@ -268,6 +268,8 @@ Success includes `modelApplied: true` and `startupConfigApplied: { modelServiceI
+ 
+ `workspace_runtime_removal` advertises synchronous hot removal through `DELETE /workspaces/:workspace`. Capability workspace entries add optional `removable`; only rows with `removable: true` may be removed. Removal also forgets every persistent registration alias for the runtime, but never deletes files, settings, transcripts, or archives.
+ 
++`workspace_pinning` advertises `PATCH /workspace-registrations/:id/pin` with body `{ "isPinned": boolean }`. Capability workspace entries add `isPinned`, optional `pinnedAt` (ISO-8601), and `pinnable`; only rows with `pinnable: true` (non-primary rows backed by a persisted registration) may be pinned. `:id` may be the capability `id` or any registration id of that row. A repeated pin or unpin is an idempotent `200` that reports the current state.
++
+ `workspace_runtime` advertises `GET /workspace/runtime/status`, `POST /workspace/runtime/ensure`, and their `/workspaces/:workspace/runtime/...` equivalents. `ensure` accepts no capability selection: it starts or reuses the selected trusted workspace's ACP runtime and returns its lifecycle state and monotonic runtime epoch. The primary routes are owned only by the primary runtime; qualified routes resolve only the selected registered runtime and never fall back. A successful ensure renews the runtime's ten-minute keepalive window. Status is read-only and never starts the child. Concurrent ensures share one physical startup. Startup in progress or failure returns retryable `503 runtime_still_starting` or `503 runtime_initialization_failed`. Capability preparation may continue after the ensure observation budget expires; in that case ensure still returns the live runtime with a non-ready capability state for status polling. The capability is advertised only when all active runtime bridges provide the authoritative lifecycle snapshot; a selected legacy injected bridge returns `501 workspace_runtime_not_supported` instead of a guessed state or epoch.
+ 
+ `workspace_runtime_stop` independently advertises user-confirmed runtime stopping. `GET /workspaces/runtime-stop-options` is a read-only, process-global preview: it includes committed child count, modeled child ceiling, and each visible workspace's sessions, blocked reasons, channel ID, epoch, current stop token and latest receipt. Ordinary loaded sessions may be explicitly stopped; independent ACP clients, enabled schedules, pending scheduler/management/start work, memory tasks, workers, voice and special-purpose runtimes are blocked. `POST /workspaces/:workspace/runtime/stop` uses the strict mutation gate and only the selected trusted runtime. Send `confirmInterruptions: true`, `expectedChannelId`, `expectedRuntimeEpoch`, `expectedStopToken` and the exact `expectedSessionIds` from the preview. Never fall back to the primary runtime.
+@@ -611,6 +613,7 @@ operator diagnostic snapshot documented below.
+ | `persistent_workspace_registration` | a workspace registration store is wired into the daemon. Production `runQwenServe` supplies the user-level store automatically; direct `createServeApp` embeds must inject one explicitly and own startup restoration of their workspace registry.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+ | `scratch_workspace_registration`    | managed scratch workspace creation is available — a runtime factory, a validated managed scratch root, and runtime disposal are wired, and every managed runtime respects the scratch root boundary.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+ | `workspace_runtime_removal`         | removable dynamic or persistence-restored secondary runtimes can be drained and removed through the management route.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
++| `workspace_pinning`                 | a workspace registration store is wired into the daemon, so persisted secondary workspaces can be pinned through `PATCH /workspace-registrations/:id/pin`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+ | `native_directory_picker`           | the daemon host can open a native OS directory picker (`osascript` on macOS, PowerShell on Windows, `zenity` on a Linux host with a display). Headless hosts omit the tag so clients hide the Browse affordance instead of surfacing a guaranteed picker failure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+ | `workspace_runtime_stop`            | the daemon owns ACP process accounting, complete independent-activity and scheduled-task observations, and a runtime bridge supporting confirmed stop and receipt snapshots. Unsupported individual runtimes are disabled in the preview.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+ | `workspace_runtime`                 | every active workspace bridge provides an authoritative runtime lifecycle snapshot; mixed or legacy injected bridges omit the tag.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+diff --git a/packages/cli/src/serve/routes/capabilities.ts b/packages/cli/src/serve/routes/capabilities.ts
+index c4cbb2a5ca..a2f74c7fdb 100644
+--- a/packages/cli/src/serve/routes/capabilities.ts
++++ b/packages/cli/src/serve/routes/capabilities.ts
+@@ -188,8 +188,15 @@ export function registerCapabilitiesRoutes(
+           ...(entry.current?.runtime.provenance === 'live-conversation'
+             ? { kind: 'live' as const }
+             : {}),
+-          isPinned: pinnedAt !== undefined,
+-          ...(pinnedAt !== undefined ? { pinnedAt } : {}),
++          // Pin fields ride with the `workspace_pinning` tag, which is
++          // advertised only when the registration store is wired.
++          ...(deps.workspaceRegistrationStore
++            ? {
++                isPinned: pinnedAt !== undefined,
++                ...(pinnedAt !== undefined ? { pinnedAt } : {}),
++                pinnable: !entry.primary && entry.registrationIds.length > 0,
++              }
++            : {}),
+         };
+       }),
+       supportedLanguages: deps.languageCodes,
+diff --git a/packages/cli/src/serve/routes/workspace-management.test.ts b/packages/cli/src/serve/routes/workspace-management.test.ts
+index d4a7798f43..44ed1e0d38 100644
+--- a/packages/cli/src/serve/routes/workspace-management.test.ts
++++ b/packages/cli/src/serve/routes/workspace-management.test.ts
+@@ -3342,6 +3342,62 @@ describe('persistent workspace registrations', () => {
+     });
+   });
+ 
++  it('pins by the capability id the client sends for an alias-stored row', async () => {
++    const aliasRegistrationId = 'alias-registration';
++    const pinnedAt = '2026-01-01T00:00:00.000Z';
++    const setPinned = vi.fn().mockResolvedValue(true);
++    const read = vi.fn().mockResolvedValue({
++      schemaVersion: 1,
++      primaryWorkspace: '/primary',
++      workspaces: ['/alias/path'],
++      pinnedAts: { [aliasRegistrationId]: pinnedAt },
++    });
++    const workspaceRegistry = createMockRegistry([makeRuntime(REAL_DIR)]);
++    (
++      workspaceRegistry as unknown as {
++        listAllEntries: () => ReadonlyArray<Record<string, unknown>>;
++      }
++    ).listAllEntries = () => [
++      {
++        workspaceId: 'capability-id',
++        workspaceCwd: REAL_DIR,
++        primary: false,
++        registrationIds: [aliasRegistrationId],
++      },
++      {
++        workspaceId: 'startup-id',
++        workspaceCwd: '/startup',
++        primary: false,
++        registrationIds: [],
++      },
++    ];
++    const { app } = createApp({
++      workspaceRegistry,
++      workspaceRegistrationStore: {
++        setPinned,
++        read,
++      } as unknown as WorkspaceRegistrationStore,
++    });
++
++    const pinned = await request(app)
++      .patch('/workspace-registrations/capability-id/pin')
++      .send({ isPinned: true });
++    expect(pinned.status).toBe(200);
++    expect(setPinned).toHaveBeenCalledWith(aliasRegistrationId, true);
++    expect(pinned.body).toEqual({
++      id: 'capability-id',
++      isPinned: true,
++      pinnedAt,
++    });
++
++    setPinned.mockResolvedValue(false);
++    const unregistered = await request(app)
++      .patch('/workspace-registrations/startup-id/pin')
++      .send({ isPinned: true });
++    expect(unregistered.status).toBe(404);
++    expect(unregistered.body.code).toBe('workspace_registration_not_found');
++  });
++
+   it('returns 501 for pinning without a store', async () => {
+     const { app } = createApp();
+ 
+diff --git a/packages/cli/src/serve/routes/workspace-management.ts b/packages/cli/src/serve/routes/workspace-management.ts
+index 3c01fa6def..2406f1ce97 100644
+--- a/packages/cli/src/serve/routes/workspace-management.ts
++++ b/packages/cli/src/serve/routes/workspace-management.ts
+@@ -2239,7 +2239,13 @@ export function registerWorkspaceManagementRoutes(
+         if (typeof workspaceRegistry.listAllEntries === 'function') {
+           const entries = workspaceRegistry.listAllEntries();
+           for (const entry of entries) {
+-            if (entry.registrationIds.includes(requestedId)) {
++            // Clients send the capability id (`workspaceId`); a row
++            // stored under an alias path only lists the alias hash.
++            if (
++              (entry.workspaceId === requestedId &&
++                entry.registrationIds.length > 0) ||
++              entry.registrationIds.includes(requestedId)
++            ) {
+               targetEntry = entry;
+               break;
+             }
+@@ -2251,14 +2257,19 @@ export function registerWorkspaceManagementRoutes(
+             requestedId,
+             isPinned,
+           );
+-          if (!changed) {
++          const snapshot = await workspaceRegistrationStore.read();
++          if (
++            !changed &&
++            !snapshot.workspaces.some(
++              (workspace) => workspaceRegistrationId(workspace) === requestedId,
++            )
++          ) {
+             res.status(404).json({
+               error: 'Workspace registration not found',
+               code: 'workspace_registration_not_found',
+             });
+             return;
+           }
+-          const snapshot = await workspaceRegistrationStore.read();
+           const pinnedAt = snapshot.pinnedAts?.[requestedId];
+           res.json({
+             id: requestedId,
+diff --git a/packages/cli/src/serve/server.test.ts b/packages/cli/src/serve/server.test.ts
+index 8216a783b4..b13a064723 100644
+--- a/packages/cli/src/serve/server.test.ts
++++ b/packages/cli/src/serve/server.test.ts
+@@ -878,6 +878,7 @@ const EXPECTED_REGISTERED_FEATURES = [
+   'workspace_display_name',
+   'scratch_workspace_registration',
+   'workspace_runtime_removal',
++  'workspace_pinning',
+   'native_directory_picker',
+   'workspace_runtime',
+   'workspace_runtime_stop',
+@@ -3871,6 +3872,24 @@ describe('createServeApp', () => {
+           );
+           continue;
+         }
++        if (feature === 'workspace_pinning') {
++          expect(
++            predicate({ persistentWorkspaceRegistrationAvailable: true }),
++          ).toBe(true);
++          expect(
++            predicate({ persistentWorkspaceRegistrationAvailable: false }),
++          ).toBe(false);
++          expect(predicate({})).toBe(false);
++          expect(
++            getAdvertisedServeFeatures(undefined, {
++              persistentWorkspaceRegistrationAvailable: true,
++            }),
++          ).toContain(feature);
++          expect(getAdvertisedServeFeatures(undefined, {})).not.toContain(
++            feature,
++          );
++          continue;
++        }
+         if (feature === 'workspace_runtime_stop') {
+           expect(predicate({ workspaceRuntimeStopAvailable: true })).toBe(true);
+           expect(predicate({ workspaceRuntimeStopAvailable: false })).toBe(
+@@ -5779,6 +5798,7 @@ describe('createServeApp', () => {
+           trusted: true,
+           workflowsEnabled: false,
+           isPinned: false,
++          pinnable: false,
+         },
+       ]);
+ 
+@@ -5940,7 +5960,6 @@ describe('createServeApp', () => {
+         trusted: true,
+         workflowsEnabled: false,
+         kind: 'live',
+-        isPinned: false,
+       });
+       expect(response.body.features).not.toContain('multi_workspace_sessions');
+       expect(response.body.limits).toHaveProperty('maxSessionsPerWorkspace');
+diff --git a/packages/cli/src/serve/types.ts b/packages/cli/src/serve/types.ts
+index 05c3f7a2d1..c52aadf6cb 100644
+--- a/packages/cli/src/serve/types.ts
++++ b/packages/cli/src/serve/types.ts
+@@ -508,6 +508,8 @@ export interface CapabilitiesEnvelope {
+     kind?: 'live';
+     /** Present when the workspace is pinned in the sidebar. */
+     isPinned?: boolean;
++    /** Whether PATCH /workspace-registrations/:id/pin can serve this row. */
++    pinnable?: boolean;
+     /** ISO-8601 timestamp of when the workspace was pinned. */
+     pinnedAt?: string;
+   }>;
+diff --git a/packages/sdk-typescript/src/daemon/types.ts b/packages/sdk-typescript/src/daemon/types.ts
+index 522dd26e31..80e8cfe6c4 100644
+--- a/packages/sdk-typescript/src/daemon/types.ts
++++ b/packages/sdk-typescript/src/daemon/types.ts
+@@ -187,6 +187,8 @@ export interface DaemonWorkspaceCapability {
+   kind?: 'live';
+   /** Whether this workspace is pinned to the top of the sidebar. */
+   isPinned?: boolean;
++  /** Whether the daemon can persist a pin for this workspace. */
++  pinnable?: boolean;
+   /** ISO-8601 timestamp of when the workspace was pinned. */
+   pinnedAt?: string;
+ }
+diff --git a/packages/web-shell/client/components/sidebar/WebShellSidebar.tsx b/packages/web-shell/client/components/sidebar/WebShellSidebar.tsx
+index c589c97de0..f64a1d9704 100644
+--- a/packages/web-shell/client/components/sidebar/WebShellSidebar.tsx
++++ b/packages/web-shell/client/components/sidebar/WebShellSidebar.tsx
+@@ -6266,12 +6266,13 @@ export function WebShellSidebar({
+                                   ws.primary &&
+                                   ws.trusted &&
+                                   Boolean(onOpenWorkspaceManagement);
+-                                // Gate pin on: not primary, has registration IDs (stored in registry),
+-                                // workspace_pinning feature advertised, and not locked.
++                                // Gate pin on: not locked, not primary, the daemon marks
++                                // the row pinnable (it has a persisted registration), and
++                                // workspace_pinning is advertised.
+                                 const canPin =
++                                  !lockedWorkspaceCwd &&
+                                   !ws.primary &&
+-                                  ws.registrationIds !== undefined &&
+-                                  ws.registrationIds.length > 0 &&
++                                  ws.pinnable === true &&
+                                   workspace.capabilities?.features.includes(
+                                     'workspace_pinning',
+                                   ) === true;
+diff --git a/packages/web-shell/client/components/sidebar/WebShellSidebar.workspace-removal.test.tsx b/packages/web-shell/client/components/sidebar/WebShellSidebar.workspace-removal.test.tsx
+index 798fba6d7f..7fd3feb707 100644
+--- a/packages/web-shell/client/components/sidebar/WebShellSidebar.workspace-removal.test.tsx
++++ b/packages/web-shell/client/components/sidebar/WebShellSidebar.workspace-removal.test.tsx
+@@ -3192,6 +3192,45 @@ describe('WebShellSidebar workspace removal', () => {
+     expect(labels).not.toContain('Rename…');
+   });
+ 
++  it('offers Pin only on rows the daemon marks pinnable', () => {
++    const withPinning = {
++      ...capabilities,
++      features: [...capabilities.features, 'workspace_pinning'],
++      workspaces: [
++        { ...capabilities.workspaces[0], isPinned: false, pinnable: false },
++        { ...capabilities.workspaces[1], isPinned: false, pinnable: true },
++        {
++          id: 'startup',
++          cwd: '/tmp/startup',
++          primary: false,
++          trusted: true,
++          removable: false,
++          isPinned: false,
++          pinnable: false,
++        },
++      ],
++    } satisfies NonNullable<typeof workspace.capabilities>;
++    connection.capabilities = withPinning;
++    workspace.capabilities = withPinning;
++    renderSidebar();
++
++    act(() => click(workspaceAction('/tmp/other')!));
++    expect(menuItemLabels()).toContain('Pin workspace');
++    act(() => {
++      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
++    });
++
++    for (const cwd of ['/tmp/startup', '/tmp/project']) {
++      act(() => click(workspaceAction(cwd)!));
++      const labels = menuItemLabels();
++      expect(labels).toContain('Copy path');
++      expect(labels).not.toContain('Pin workspace');
++      act(() => {
++        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
++      });
++    }
++  });
++
+   it('offers rename only on dynamic-registration daemons and saves through the registry', async () => {
+     renderSidebar();
+     act(() => click(workspaceAction('/tmp/other')!));
