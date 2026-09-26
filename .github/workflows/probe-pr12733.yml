@@ -1,0 +1,288 @@
+name: probe-pr12733
+'on':
+  push:
+    branches:
+    - probe/pr12733-**
+permissions:
+  contents: read
+env:
+  ACTIONLINT_VERSION: 1.7.12
+  SHELLCHECK_VERSION: 0.11.0
+  YAMLLINT_VERSION: 1.35.1
+  HELPER_TESTS_DEP_FREE: .github/scripts/pr-safety-precheck.test.mjs .github/scripts/cap-release-notes.test.mjs .github/scripts/ci/classify-profile.test.mjs .github/scripts/ci/classify-platform-sensitivity.test.mjs .github/scripts/ci/classify-pr-profile.test.mjs .github/scripts/upsert-bot-comment.test.mjs .github/scripts/ci/main-failure-signature.test.mjs .github/scripts/dsw-swe-verified/make-manifest.test.mjs .github/scripts/dsw-swe-verified/make-terminal-bench-manifest.test.mjs .github/scripts/update-ecs-runner-qwen-workflow.test.mjs .github/scripts/web-shell-visuals-compose.test.mjs .github/scripts/serve-ab-diff.test.mjs .github/scripts/serve-ab-drive.test.mjs .github/scripts/autofix-status-heartbeat.test.mjs .github/scripts/check-disk-floor.test.mjs .github/scripts/check-lint-gate-freshness.test.mjs .github/scripts/review-runner-schedule.test.mjs .github/scripts/ecs-runner/qwen-docker-cleanup.test.mjs
+  HELPER_TESTS: .github/scripts/pr-safety-precheck.test.mjs .github/scripts/cap-release-notes.test.mjs .github/scripts/ci/classify-profile.test.mjs .github/scripts/ci/classify-platform-sensitivity.test.mjs .github/scripts/ci/classify-pr-profile.test.mjs .github/scripts/upsert-bot-comment.test.mjs .github/scripts/ci/main-failure-signature.test.mjs .github/scripts/classify-release-notes.test.mjs .github/scripts/dsw-swe-verified/make-manifest.test.mjs .github/scripts/dsw-swe-verified/make-terminal-bench-manifest.test.mjs .github/scripts/resolve-sandbox-image.test.mjs .github/scripts/update-ecs-runner-qwen-workflow.test.mjs .github/scripts/web-shell-visuals-publish.test.mjs .github/scripts/web-shell-visuals-compose.test.mjs .github/scripts/serve-ab-diff.test.mjs .github/scripts/serve-ab-drive.test.mjs .github/scripts/qwen-triage-workflow.test.mjs .github/scripts/assign-issue-owner.test.mjs .github/scripts/auto-minimize-spam.test.mjs .github/scripts/ci-runner-routing.test.mjs .github/scripts/autofix-status-heartbeat.test.mjs .github/scripts/assign-pr-owner.test.mjs .github/scripts/check-disk-floor.test.mjs .github/scripts/check-lint-gate-freshness.test.mjs .github/scripts/ci-disk-pressure.test.mjs .github/scripts/e2e-build.test.mjs integration-tests/concurrent-runner/export-html-from-chatrecord-jsonl.test.mjs .github/scripts/review-runner-schedule.test.mjs .github/scripts/ecs-runner/qwen-docker-cleanup.test.mjs .github/scripts/ecs-runner/review-scratch-cleanup.test.mjs
+  WORKFLOW_SIZE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+  MAVEN_VERSION: 3.9.11
+  MAVEN_SHA512: bcfe4fe305c962ace56ac7b5fc7a08b87d5abd8b7e89027ab251069faebee516b0ded8961445d6d91ec1985dfe30f8153268843c89aa392733d1a3ec956c9978
+jobs:
+  smoke_macos:
+    name: test_macos steps (verbatim) / macos-latest
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+    - name: Checkout
+      id: checkout
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        ref: ${{ github.event.inputs.branch_ref || (github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number)) || (github.event_name == 'merge_group' && github.event.merge_group.head_sha) || github.ref }}
+    - name: Set up Node.js 22.x
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      with:
+        node-version: 22.x
+        package-manager-cache: false
+        registry-url: https://registry.npmjs.org/
+    - name: Cache pnpm store (hosted)
+      uses: ./.github/actions/pnpm-store-cache
+    - name: Configure npm for rate limiting
+      run: 'npm config set fetch-retry-mintimeout 20000
+
+        npm config set fetch-retry-maxtimeout 120000
+
+        npm config set fetch-retries 5
+
+        npm config set fetch-timeout 300000'
+    - name: Install dependencies
+      run: corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+    - name: Hosted portable process smoke
+      timeout-minutes: 5
+      run: npm run test:integration:hosted:sandbox:none -- -t 'portable startup'
+    - name: 'Probe: leftover temp dirs and serve processes'
+      if: always()
+      run: node .github/probe/census.cjs after-smoke
+    - name: 'Probe: full Hosted suite (all 7 cases)'
+      id: full
+      continue-on-error: true
+      timeout-minutes: 10
+      run: npm run test:integration:hosted:sandbox:none
+    - name: 'Probe: leftover after full suite'
+      if: always()
+      run: node .github/probe/census.cjs after-full
+  smoke_windows:
+    name: test_windows steps (verbatim) / windows-2022
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+    - name: Disable Git CRLF conversion (self-hosted)
+      if: ${{ runner.environment == 'self-hosted' }}
+      shell: powershell
+      run: git config --global core.autocrlf false
+    - name: Checkout
+      id: checkout
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        ref: ${{ github.event.inputs.branch_ref || (github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number)) || (github.event_name == 'merge_group' && github.event.merge_group.head_sha) || github.ref }}
+    - name: Configure self-hosted Windows test environment
+      if: ${{ runner.environment == 'self-hosted' }}
+      uses: ./.github/actions/configure-windows-runner
+    - name: Point temp at a short-alias-free directory
+      if: ${{ runner.environment != 'self-hosted' }}
+      shell: powershell
+      run: '$temp = Join-Path $env:RUNNER_WORKSPACE ''qwen-code-temp''
+
+        New-Item -ItemType Directory -Force -Path $temp | Out-Null
+
+        "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+        "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+        Write-Host "TEMP set to $temp"'
+    - name: Verify checkout includes expected head commit
+      if: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+      uses: ./.github/actions/verify-checkout-head
+      with:
+        expected_sha: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
+    - name: Set up Node.js 22.x (hosted)
+      if: ${{ runner.environment != 'self-hosted' }}
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      with:
+        node-version: 22.x
+        package-manager-cache: false
+        registry-url: https://registry.npmjs.org/
+    - name: Cache pnpm store (hosted)
+      if: ${{ runner.environment != 'self-hosted' }}
+      uses: ./.github/actions/pnpm-store-cache
+    - name: Use pre-installed Node.js (self-hosted)
+      if: ${{ runner.environment == 'self-hosted' }}
+      uses: ./.github/actions/self-hosted-node
+    - name: Verify temp paths carry no short alias
+      run: 'node -e "const fs = require(''node:fs''); for (const key of [''TEMP'', ''TMP'']) { const value = process.env[key]; if (!value) { console.error(key + '' is not set''); process.exitCode = 1; continue; } const real = fs.realpathSync(value); if (real === value) continue; if (real.toLowerCase() === value.toLowerCase()) { console.log(''::warning::'' + key + '' differs from its real path only by casing: '' + value + '' -> '' + real); continue; } console.error(key + '' carries a short alias: '' + value + '' -> '' + real); process.exitCode = 1; }"'
+    - name: Configure persistent npm cache (self-hosted)
+      if: ${{ runner.environment == 'self-hosted' }}
+      run: 'cache_dir="${HOME}/.cache/qwen-code/npm"
+
+        # Coreutils like mkdir are not guaranteed on a Git-Bash-only PATH,
+
+        # so create the directory through the Node the preflight verified.
+
+        node -e "require(''node:fs'').mkdirSync(process.argv[1], { recursive: true })" "${cache_dir}"
+
+        echo "NPM_CONFIG_CACHE=${cache_dir}" >> "${GITHUB_ENV}"
+
+        echo "Using persistent npm cache at ${cache_dir}"
+
+        du -sh "${cache_dir}" 2>/dev/null || true'
+    - name: Configure npm for rate limiting
+      run: 'npm config set fetch-retry-mintimeout 20000
+
+        npm config set fetch-retry-maxtimeout 120000
+
+        npm config set fetch-retries 5
+
+        npm config set fetch-timeout 300000'
+    - name: Install dependencies
+      run: corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+    - name: Hosted portable process smoke
+      timeout-minutes: 5
+      run: npm run test:integration:hosted:sandbox:none -- -t 'portable startup'
+    - name: 'Probe: leftover temp dirs and serve processes'
+      if: always()
+      run: node .github/probe/census.cjs after-smoke
+    - name: 'Probe: full Hosted suite (all 7 cases)'
+      id: full
+      continue-on-error: true
+      timeout-minutes: 10
+      run: npm run test:integration:hosted:sandbox:none
+    - name: 'Probe: leftover after full suite'
+      if: always()
+      run: node .github/probe/census.cjs after-full
+  no_ak_gate:
+    name: integration_no_ak steps (verbatim) / ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+    - name: Checkout
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      with:
+        ref: ${{ (github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number)) || (github.event_name == 'merge_group' && github.event.merge_group.head_sha) || github.ref }}
+        fetch-depth: 1
+    - name: 'Use trusted CI profile (probe: full)'
+      id: ci_profile
+      run: echo "ci_profile=full" >> "$GITHUB_OUTPUT"
+    - name: Setup Node.js (hosted)
+      if: ${{ steps.ci_profile.outputs.ci_profile == 'full' && runner.environment == 'github-hosted' }}
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      with:
+        node-version-file: .nvmrc
+        package-manager-cache: false
+    - name: Use pre-installed Node.js (self-hosted)
+      if: ${{ steps.ci_profile.outputs.ci_profile == 'full' && runner.environment == 'self-hosted' }}
+      uses: ./.github/actions/self-hosted-node
+    - name: Configure persistent npm cache (self-hosted)
+      if: ${{ steps.ci_profile.outputs.ci_profile == 'full' && runner.environment == 'self-hosted' }}
+      run: 'cache_dir="${HOME}/.cache/qwen-code/npm"
+
+        mkdir -p "${cache_dir}"
+
+        echo "NPM_CONFIG_CACHE=${cache_dir}" >> "${GITHUB_ENV}"
+
+        echo "Using persistent npm cache at ${cache_dir}"
+
+        du -sh "${cache_dir}" 2>/dev/null || true'
+    - name: Disk floor gate (self-hosted)
+      if: ${{ steps.ci_profile.outputs.ci_profile == 'full' && runner.environment == 'self-hosted' }}
+      run: bash .github/scripts/check-disk-floor.sh "${GITHUB_WORKSPACE}" "${RUNNER_TEMP:-/tmp}"
+    - name: Install Dependencies
+      if: ${{ steps.ci_profile.outputs.ci_profile == 'full' }}
+      env:
+        NPM_CONFIG_PREFER_OFFLINE: 'true'
+      run: corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+    - name: Report npm cache usage (self-hosted)
+      if: ${{ always() && steps.ci_profile.outputs.ci_profile == 'full' && runner.environment == 'self-hosted' }}
+      run: 'cache_dir="${NPM_CONFIG_CACHE:-$(npm config get cache)}"
+
+        echo "npm cache: ${cache_dir}"
+
+        du -sh "${cache_dir}" 2>/dev/null || true'
+    - name: Run required no-AK integration gate
+      if: ${{ steps.ci_profile.outputs.ci_profile == 'full' }}
+      timeout-minutes: 20
+      env:
+        HOME: ${{ runner.temp }}/qwen-no-ak-home
+        USERPROFILE: ${{ runner.temp }}/qwen-no-ak-home
+        QWEN_HOME: ${{ runner.temp }}/qwen-no-ak-home/.qwen
+        API_KEY: ''
+        ANTHROPIC_API_KEY: ''
+        ANTHROPIC_BASE_URL: ''
+        ANTHROPIC_MODEL: ''
+        BAILIAN_CODING_PLAN_API_KEY: ''
+        BAILIAN_TOKEN_PLAN_API_KEY: ''
+        DEEPSEEK_API_KEY: ''
+        OPENAI_API_KEY: ''
+        OPENAI_BASE_URL: ''
+        OPENAI_MODEL: ''
+        DASHSCOPE_API_KEY: ''
+        GOOGLE_API_KEY: ''
+        GOOGLE_MODEL: ''
+        QWEN_API_KEY: ''
+        QWEN_MODEL: ''
+        GEMINI_API_KEY: ''
+        GEMINI_MODEL: ''
+        IDEALAB_API_KEY: ''
+        MINIMAX_API_KEY: ''
+        MODELSCOPE_API_KEY: ''
+        MOONSHOT_API_KEY: ''
+        OPENROUTER_API_KEY: ''
+        REQUESTY_API_KEY: ''
+        XAI_API_KEY: ''
+        ZAI_API_KEY: ''
+        QWEN_DEFAULT_AUTH_TYPE: ''
+      run: 'mkdir -p "${HOME}" "${QWEN_HOME}"
+
+        npm run typecheck:integration
+
+        npm run test:integration:no-ak:sandbox:none'
+    - name: 'Probe: leftover after no-AK gate'
+      if: always()
+      run: node .github/probe/census.cjs after-noak
+  hosted_harness_mysql:
+    name: Hosted no-tool processes / MySQL 8.4 / Java 21
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.4.6
+        env:
+          MYSQL_DATABASE: hosted_harness_test
+          MYSQL_ROOT_PASSWORD: hosted-fixture
+        ports:
+        - 3306/tcp
+        options: --health-cmd "mysqladmin ping -h 127.0.0.1 -phosted-fixture" --health-interval 5s --health-timeout 5s --health-retries 30
+    steps:
+    - name: Checkout
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+    - name: Set up Java
+      uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654
+      with:
+        distribution: temurin
+        java-version: '21'
+        cache: maven
+        cache-dependency-path: packages/sdk-java/**/pom.xml
+        settings-path: ${{ runner.temp }}/setup-java-m2
+    - name: Set up Node.js
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      with:
+        node-version: '22'
+        package-manager-cache: false
+    - name: Enable Corepack
+      run: corepack enable
+    - name: Install, build and bundle CLI
+      run: corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+    - name: Install Managed Agent dependencies
+      env:
+        MAVEN_ARGS: --settings ${{ runner.temp }}/setup-java-m2/settings.xml --toolchains ${{ runner.temp }}/setup-java-m2/toolchains.xml
+      run: 'mvn --batch-mode --no-transfer-progress -f packages/sdk-java/qwencode/pom.xml -DskipTests -Dgpg.skip=true -Dmaven.javadoc.skip=true install
+
+        mvn --batch-mode --no-transfer-progress -f packages/sdk-java/runtime-broker/pom.xml -DskipTests install'
+    - name: Verify Hosted Java, Spring and MySQL processes
+      timeout-minutes: 5
+      env:
+        MAVEN_ARGS: --settings ${{ runner.temp }}/setup-java-m2/settings.xml --toolchains ${{ runner.temp }}/setup-java-m2/toolchains.xml
+        MYSQL_PORT: ${{ job.services.mysql.ports['3306'] }}
+      run: mvn --batch-mode --no-transfer-progress -f packages/sdk-java/managed-agent-server/pom.xml -Phosted-harness-mysql -Dit.test=HostedHarnessMySqlIT -Dqwen.cli.entry="${GITHUB_WORKSPACE}/dist/cli.js" -Dmysql.url="jdbc:mysql://127.0.0.1:${MYSQL_PORT}/hosted_harness_test?allowPublicKeyRetrieval=true&useSSL=false" -Dmysql.user=root -Dmysql.password=hosted-fixture verify checkstyle:check
+    - name: Upload Hosted process reports
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: hosted-harness-mysql-reports
+        path: packages/sdk-java/managed-agent-server/target/failsafe-reports/
+        retention-days: 7
