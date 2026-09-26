@@ -210,8 +210,8 @@ def page(p):
     return p
 
 
-def page_at(m, si, pi, p):
-    if not (ok(manifest, m, unknown_rule=False) and ok(page, p)):
+def page_at(m, si, pi, p, unknown_rule=True):
+    if not (ok(manifest, m, unknown_rule=unknown_rule) and ok(page, p)):
         return False
     if not (0 <= si < len(m['contents'])):
         return False
@@ -299,8 +299,8 @@ def envelope(r):
     return r
 
 
-def envelope_of(r, m):
-    if not (ok(envelope, r) and ok(manifest, m, unknown_rule=False)):
+def envelope_of(r, m, unknown_rule=True):
+    if not (ok(envelope, r) and ok(manifest, m, unknown_rule=unknown_rule)):
         return False
     c = r['capture']
     return (c is not None and c['manifest'] is not None and m['captureStatus'] != 'pending'

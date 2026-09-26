@@ -424,9 +424,9 @@ def py_verdict(k, v):
     if k == 'pageRevision':
         return {'doc': page_successor(v['a'], v['b'])}
     if k == 'pageAt':
-        return {'doc': page_at(v['m'], v['si'], v['pi'], v['p'])}
+        return {'doc': page_at(v['m'], v['si'], v['pi'], v['p']), 'docNoUnknownRule': page_at(v['m'], v['si'], v['pi'], v['p'], unknown_rule=False)}
     if k == 'envelopeOf':
-        return {'doc': envelope_of(v['r'], v['m'])}
+        return {'doc': envelope_of(v['r'], v['m']), 'docNoUnknownRule': envelope_of(v['r'], v['m'], unknown_rule=False)}
     if k == 'ledger':
         return {'doc': py_ledger(v)}
 
