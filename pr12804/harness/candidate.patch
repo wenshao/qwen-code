@@ -1,0 +1,14 @@
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ContextInstallationFaultGateTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/ContextInstallationFaultGateTest.java
+@@ -216,6 +216,11 @@
+         CompletableFuture<BrokerProcess.Reply> warming =
+                 CompletableFuture.supplyAsync(() -> first.warm(HARNESS));
+         held.awaitHeld(FaultGateRig.WAIT);
++        // On a slow host the first Broker's own startup deadline (4 x the
++        // operation lease) can block the binding before the kill, and the
++        // gate would pass without testing the restart.
++        assertFalse(warming.isDone(), "the first Broker answered warm "
++                + "before it was killed");
+ 
+         rig.killBroker(first);
+         held.release(FaultProxy.Action.RESET);
