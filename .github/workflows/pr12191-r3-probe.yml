@@ -1,0 +1,159 @@
+name: 'PR 12191 round-3 probe'
+
+on:
+  push:
+    branches: ['probe/pr12191-r3']
+
+permissions:
+  contents: 'read'
+
+jobs:
+  lanes:
+    name: 'lane ${{ matrix.os }} / ${{ matrix.arm }}'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['windows-2022', 'macos-latest']
+        arm: ['pr', 'main']
+    runs-on: '${{ matrix.os }}'
+    timeout-minutes: 100
+    defaults:
+      run:
+        shell: 'bash'
+    steps:
+      - name: 'Disable CRLF conversion'
+        run: 'git config --global core.autocrlf false'
+      - uses: 'actions/checkout@v4'
+        with:
+          ref: 'probe/pr12191-r3-arm-${{ matrix.arm }}'
+      - uses: 'actions/checkout@v4'
+        with:
+          path: '_probe'
+          sparse-checkout: '.probe12191'
+      - name: 'Point temp at a short-alias-free directory (Windows)'
+        if: "${{ runner.os == 'Windows' }}"
+        shell: 'powershell'
+        run: |-
+          $temp = Join-Path $env:RUNNER_WORKSPACE 'qwen-code-temp'
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+          "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+      - name: 'Record identity'
+        run: |-
+          mkdir -p probe-out
+          echo "PROBE_JSON {\"kind\":\"identity\",\"os\":\"${{ matrix.os }}\",\"arm\":\"${{ matrix.arm }}\",\"sha\":\"$(git rev-parse HEAD)\",\"tree\":\"$(git rev-parse HEAD^{tree})\",\"node\":\"$(node -v)\"}" | tee probe-out/identity.txt
+      - name: 'Install (runs prepare: build + bundle)'
+        run: 'corepack pnpm install --frozen-lockfile --reporter=append-only'
+      - name: 'web-shell test:ci'
+        id: 'webshell'
+        continue-on-error: true
+        env:
+          NO_COLOR: 'true'
+          HOME: '${{ runner.temp }}/qwen-ci-home'
+          USERPROFILE: '${{ runner.temp }}/qwen-ci-home'
+        run: |-
+          mkdir -p "$HOME"
+          cd packages/web-shell
+          set +e
+          npm run test:ci > ../../probe-out/webshell-test.log 2>&1
+          rc=$?
+          tail -8 ../../probe-out/webshell-test.log
+          files=$(grep -E '^ *Test Files ' ../../probe-out/webshell-test.log | tail -1 | sed 's/^ *//')
+          tests=$(grep -E '^ *Tests ' ../../probe-out/webshell-test.log | tail -1 | sed 's/^ *//')
+          echo "PROBE_JSON {\"kind\":\"webshell-test\",\"rc\":$rc,\"files\":\"$files\",\"tests\":\"$tests\"}" | tee ../../probe-out/webshell-summary.txt
+          exit $rc
+      - name: 'root scripts test suite'
+        id: 'scripts'
+        continue-on-error: true
+        env:
+          NO_COLOR: 'true'
+        run: |-
+          set +e
+          npm run test:scripts > probe-out/scripts-test.log 2>&1
+          rc=$?
+          tail -8 probe-out/scripts-test.log
+          files=$(grep -E '^ *Test Files ' probe-out/scripts-test.log | tail -1 | sed 's/^ *//')
+          tests=$(grep -E '^ *Tests ' probe-out/scripts-test.log | tail -1 | sed 's/^ *//')
+          echo "PROBE_JSON {\"kind\":\"scripts-test\",\"rc\":$rc,\"files\":\"$files\",\"tests\":\"$tests\"}" | tee probe-out/scripts-summary.txt
+          grep -E '(✓|×|FAIL).*(document-mcp-stub-guard|web-terminal-build)' probe-out/scripts-test.log | head -10 || true
+          exit $rc
+      - name: 'Publish-artifact verifier (#12188)'
+        continue-on-error: true
+        run: |-
+          cd packages/web-shell
+          set +e
+          node scripts/verify-publish-artifacts.mjs > ../../probe-out/verify-publish.log 2>&1
+          rc=$?
+          tail -5 ../../probe-out/verify-publish.log
+          echo "PROBE_JSON {\"kind\":\"verify-publish\",\"rc\":$rc}" | tee ../../probe-out/verify-publish-summary.txt
+      - name: 'Sizes'
+        run: 'node _probe/.probe12191/sizes.mjs . | tee probe-out/sizes.txt'
+      - name: 'Document guard matrix (PR arm)'
+        if: "${{ matrix.arm == 'pr' }}"
+        continue-on-error: true
+        run: 'node _probe/.probe12191/doc-matrix.mjs . probe-out/doc | tee probe-out/doc-matrix.txt'
+      - name: 'Tree audit'
+        if: '${{ always() }}'
+        run: |-
+          git status --porcelain -- . ':!_probe' ':!probe-out' | tee probe-out/git-status.txt
+          echo "PROBE_JSON {\"kind\":\"tree\",\"dirty\":$(git status --porcelain -- . ':!_probe' ':!probe-out' | wc -l | tr -d ' ')}" | tee -a probe-out/git-status.txt
+      - uses: 'actions/upload-artifact@v4'
+        if: '${{ always() }}'
+        with:
+          name: 'lane-${{ matrix.os }}-${{ matrix.arm }}'
+          path: 'probe-out'
+          retention-days: 14
+
+  preflight:
+    name: 'literal preflight ubuntu / ${{ matrix.arm }}'
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: ['pr', 'main']
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 180
+    steps:
+      - uses: 'actions/checkout@v4'
+        with:
+          ref: 'probe/pr12191-r3-arm-${{ matrix.arm }}'
+      - uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+      - name: 'Record identity'
+        run: |-
+          mkdir -p "$RUNNER_TEMP/probe-out"
+          echo "PROBE_JSON {\"kind\":\"identity\",\"arm\":\"${{ matrix.arm }}\",\"sha\":\"$(git rev-parse HEAD)\",\"node\":\"$(node -v)\"}" | tee "$RUNNER_TEMP/probe-out/identity.txt"
+      - name: 'Install locked dependencies first (clean imports glob)'
+        run: 'corepack pnpm install --frozen-lockfile --reporter=append-only'
+      - name: 'npm run preflight (literal)'
+        id: 'preflight'
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ''
+          DASHSCOPE_API_KEY: ''
+          QWEN_API_KEY: ''
+          GEMINI_API_KEY: ''
+        run: |-
+          set +e
+          start=$(date +%s)
+          npm run preflight > "$RUNNER_TEMP/probe-out/preflight.log" 2>&1
+          rc=$?
+          end=$(date +%s)
+          tail -40 "$RUNNER_TEMP/probe-out/preflight.log"
+          echo "PROBE_JSON {\"kind\":\"preflight\",\"rc\":$rc,\"seconds\":$((end-start))}" | tee "$RUNNER_TEMP/probe-out/preflight-summary.txt"
+          exit $rc
+      - name: 'Tree audit after preflight'
+        if: '${{ always() }}'
+        run: |-
+          git status --porcelain --untracked-files=all | tee "$RUNNER_TEMP/probe-out/git-status.txt"
+          echo "PROBE_JSON {\"kind\":\"tree\",\"dirty\":$(git status --porcelain --untracked-files=all | wc -l | tr -d ' ')}" | tee -a "$RUNNER_TEMP/probe-out/git-status.txt"
+          grep -nE '^> |Test Files |Tests |FAIL |ERR!|npm error' "$RUNNER_TEMP/probe-out/preflight.log" | tail -150 > "$RUNNER_TEMP/probe-out/preflight-outline.txt" || true
+      - uses: 'actions/upload-artifact@v4'
+        if: '${{ always() }}'
+        with:
+          name: 'preflight-${{ matrix.arm }}'
+          path: '${{ runner.temp }}/probe-out'
+          retention-days: 14
