@@ -1,0 +1,59 @@
+diff --git a/integration-tests/cli/hosted-harness-process.test.ts b/integration-tests/cli/hosted-harness-process.test.ts
+index bbbc5ed218..2d62d01e3f 100644
+--- a/integration-tests/cli/hosted-harness-process.test.ts
++++ b/integration-tests/cli/hosted-harness-process.test.ts
+@@ -462,11 +462,15 @@ describe(
+       expect(await stale.json()).toMatchObject({
+         code: 'hosted_harness_generation_mismatch',
+       });
++      expect(
++        (await cli.request('/health', { headers: new Headers() })).status,
++      ).toBe(401);
++      // Each of these returns 200 on a default-profile daemon.
+       for (const route of [
+-        '/',
+-        '/workspaces',
+-        '/sessions',
+-        '/mcp',
++        '/daemon/status',
++        '/workspace/settings',
++        '/standalone/sessions',
++        '/workspace-registrations',
+         '/session/unknown/shell',
+       ]) {
+         expect((await cli.request(route)).status).toBe(404);
+@@ -490,6 +494,17 @@ describe(
+         ws.on('error', () => undefined);
+         ws.terminate();
+       }
++      expect(
++        await json(
++          '/session',
++          {
++            sessionId,
++            sessionScope: 'thread',
++            managedSessionStore: { ...connection(), writerId: randomUUID() },
++          },
++          409,
++        ),
++      ).toMatchObject({ code: 'hosted_harness_generation_mismatch' });
+       await store!.close();
+       await json(
+         '/session',
+diff --git a/scripts/tests/hosted-process-ci.test.js b/scripts/tests/hosted-process-ci.test.js
+index dd8033662d..91cb35e38d 100644
+--- a/scripts/tests/hosted-process-ci.test.js
++++ b/scripts/tests/hosted-process-ci.test.js
+@@ -54,6 +54,12 @@ describe('Hosted real-process gates', () => {
+     }
+   });
+ 
++  it('keeps the portable smoke filter matched to real cases', () => {
++    // vitest exits 0 when -t matches nothing, so a rename would empty the smoke.
++    const source = read('integration-tests/cli/hosted-harness-process.test.ts');
++    expect(source.match(/it\(\s*'portable startup:/g)?.length).toBe(2);
++  });
++
+   it.each(['test_macos', 'test_windows'])(
+     'runs portable startup and cleanup on %s',
+     (name) => {
