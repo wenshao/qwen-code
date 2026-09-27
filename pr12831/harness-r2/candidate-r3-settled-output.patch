@@ -1,0 +1,186 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index b0f6c3f81e..e97e60eb08 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -537,17 +537,15 @@ export function registerHostedHarnessSessionRoutes(
+                   harness,
+                   promptId,
+                   commit,
+-                  (parts, model) => {
++                  (parts, model, type = 'assistant') => {
+                     if (
+                       Buffer.byteLength(
+-                        JSON.stringify(
+-                          messageRecord('assistant', parts, model),
+-                        ),
++                        JSON.stringify(messageRecord(type, parts, model)),
+                       ) >
+                       HTTP_MANAGED_SESSION_STORE_CONTRACT.maxInlineResourceBytes
+                     )
+                       throw new Error(
+-                        'Hosted assistant record exceeds the inline Session Store limit.',
++                        `Hosted ${type} record exceeds the inline Session Store limit.`,
+                       );
+                   },
+                 )
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index d46b7e5e17..4d00f2818f 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -209,7 +209,8 @@ it.each(['input', 'intent', 'wait', 'result'] as const)(
+       turn.execute(calls, parts, 'model', new AbortController().signal),
+     ).rejects.toBeInstanceOf(HostedToolRecoveryRequiredError);
+     expect(broker.execute).toHaveBeenCalledTimes(point === 'result' ? 1 : 0);
+-    expect(broker.release).not.toHaveBeenCalled();
++    // Only a failure before any reservation proves nothing was dispatched.
++    expect(broker.release).toHaveBeenCalledTimes(point === 'input' ? 1 : 0);
+     await expect(turn.finish()).rejects.toBeInstanceOf(
+       HostedToolRecoveryRequiredError,
+     );
+@@ -381,3 +382,46 @@ it.each(['x'.repeat(70 * 1024), '中'.repeat(23 * 1024), '"'.repeat(17 * 1024)])
+     expect(broker.prepare).not.toHaveBeenCalled();
+   },
+ );
++
++it('records an oversized settled output as a definite error instead of blocking', async () => {
++  broker.execute.mockResolvedValue({
++    executionStatus: 'success',
++    responseParts: [{ text: '\u4e2d'.repeat(30_000) }],
++  });
++  const result = await turn.execute(
++    [calls[0]],
++    [parts[0]],
++    'model',
++    new AbortController().signal,
++  );
++  expect(result[0].functionResponse?.response).toMatchObject({
++    executionStatus: 'success',
++    outputOmitted: true,
++  });
++  expect(String(result[0].functionResponse?.response?.['error'])).toContain(
++    'durable Session limit',
++  );
++  await expect(turn.finish()).resolves.toBeUndefined();
++  expect(broker.release).toHaveBeenCalledTimes(1);
++});
++
++it('returns the Workspace when a failure precedes every reservation', async () => {
++  const failing = new HostedWorkspaceToolTurn(
++    { baseUrl: 'http://127.0.0.1:1', token: 'test' },
++    session,
++    harness,
++    'prompt',
++    async () => {
++      throw new Error('Session Store returned HTTP 503.');
++    },
++    () => undefined,
++  );
++  await expect(
++    failing.execute(calls, parts, 'model', new AbortController().signal),
++  ).rejects.toBeInstanceOf(HostedToolRecoveryRequiredError);
++  expect(broker.prepare).not.toHaveBeenCalled();
++  expect(broker.release).toHaveBeenCalledTimes(1);
++  await expect(failing.finish()).rejects.toBeInstanceOf(
++    HostedToolRecoveryRequiredError,
++  );
++});
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index ebce4d6ef1..2451334cce 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -99,7 +99,11 @@ export class HostedWorkspaceToolTurn {
+       parts: Part[],
+       model: string,
+     ) => Promise<string>,
+-    private readonly validateAssistant: (parts: Part[], model: string) => void,
++    private readonly validateAssistant: (
++      parts: Part[],
++      model: string,
++      type?: 'assistant' | 'tool_result',
++    ) => void,
+   ) {
+     this.broker = new HostedWorkspaceBroker(
+       options,
+@@ -287,7 +291,7 @@ export class HostedWorkspaceToolTurn {
+           )
+         )
+           throw new Error('Runtime returned an unsupported tool result.');
+-        const converted =
++        let converted =
+           result.executionStatus === 'success'
+             ? convertToFunctionResponse(
+                 request.call.name,
+@@ -309,14 +313,32 @@ export class HostedWorkspaceToolTurn {
+           executionStatus: result.executionStatus,
+           ...(result.error ? { runtimeError: result.error } : {}),
+         };
++        let outcome = Buffer.from(
++          JSON.stringify({ executionCallId, ...converted[0] }),
++        );
++        if (!this.fitsInline(outcome, converted, model)) {
++          // The Runtime has settled; only its model-facing output is too large
++          // to persist. Record a definite error the model can act on (e.g. read
++          // a smaller range) instead of leaving the settled call unrecorded.
++          const message = `Tool output of ${outcome.length} bytes exceeds the ${HTTP_MANAGED_SESSION_STORE_CONTRACT.maxInlineResourceBytes}-byte durable Session limit; request a smaller range.`;
++          converted = convertToFunctionErrorResponse(
++            request.call.name,
++            request.call.callId,
++            [],
++            message,
++          );
++          converted[0].functionResponse!.response = {
++            ...converted[0].functionResponse!.response,
++            executionStatus: result.executionStatus,
++            outputOmitted: true,
++          };
++          outcome = Buffer.from(
++            JSON.stringify({ executionCallId, ...converted[0] }),
++          );
++        }
+         const outcomeRef = await this.session.resources.publish(
+           'managed-tool-outcome',
+-          Buffer.from(
+-            JSON.stringify({
+-              executionCallId,
+-              ...converted[0],
+-            }),
+-          ),
++          outcome,
+         );
+         await this.commit('tool_result', converted, model);
+         await this.harness.resolveAwaitRuntime(executionCallId, outcomeRef);
+@@ -327,10 +349,34 @@ export class HostedWorkspaceToolTurn {
+     } catch (cause) {
+       // Best-effort stop requests do not settle or release unknown effects.
+       await Promise.allSettled(reserved.map((id) => this.broker.cancel(id)));
++      if (reserved.length === 0 && this.acquired) {
++        // Nothing was reserved, so nothing can have been dispatched: return the
++        // Workspace to other Sessions while this one awaits recovery.
++        try {
++          await this.broker.release();
++          this.acquired = false;
++        } catch {
++          // Keep ownership when the release itself is unconfirmed.
++        }
++      }
+       throw new HostedToolRecoveryRequiredError(cause);
+     }
+   }
+ 
++  private fitsInline(outcome: Buffer, parts: Part[], model: string): boolean {
++    if (
++      outcome.length >
++      HTTP_MANAGED_SESSION_STORE_CONTRACT.maxInlineResourceBytes
++    )
++      return false;
++    try {
++      this.validateAssistant(parts, model, 'tool_result');
++      return true;
++    } catch {
++      return false;
++    }
++  }
++
+   async consumeResults(): Promise<void> {
+     try {
+       await this.harness.consumeRuntimeResults();

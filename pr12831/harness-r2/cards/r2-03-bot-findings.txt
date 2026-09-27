@@ -5,14 +5,16 @@ Both keep the Workspace storage held, so every other Session of that Workspace l
 >> acquire 200 ; POST /transactions:commit -> 503 (injected, not forwarded) ; no prepare
 -- G recovery blocked; next prompt 409; reload 409; G.txt absent (nothing dispatched)
 -- st-r stays held -> other Sessions: acquire 409 workspace_busy -> turn_error
-++ candidate: release when nothing was reserved -> G still awaits recovery (Store state
-++   unknown), but the storage is returned and K in the same Workspace completes
+++ candidate: release when nothing was reserved -> G stays blocked (the author is right that
+++   the Store state is unknown), but the storage is returned; K in the Workspace completes
 
 ## (2) Definite :start refusal (payload bytes rewritten -> 409 runtime_idempotency_conflict)
--- PR: 2,129 GET /executions/{id} polls over 120.5 s, then recovery blocked, storage held
-++ candidate: cancel the original reservation at once, only for the three codes startExecution
-++   raises before dispatch -> 0 polls, settles as cancelled, turn_complete, reload 200
-== not every 4xx: the PR's own driver hides outcomes with 409 runtime_broker_execution_unknown
+-- 25749df4: 2,129 GET /executions/{id} polls over 120.5 s, then recovery blocked
+++ 68fb6bbc: 0 polls, blocked within 0.65 s (the author's fix for this finding)
+-- still: recovery blocked, reload 409, storage held, although the reservation was cancelled
+--   and settled as cancelled (it never started)
+!! option (tested on 25749df4 + candidate): cancel at once for the three pre-dispatch codes,
+!!   settle as cancelled, return the error to the model -> turn_complete, reload 200
 
 ## Blast radius (bot: "not a Workspace-wide wedge")
 -- after F3, (1) and (2): a new Session in each of the 3 Workspaces -> 409 workspace_busy,
