@@ -1,0 +1,27 @@
+# Mutation matrix, round 2: one production site changed per mutant (head 369f636)
+== H2      = full runtime-broker suite, 366 tests, 1 skipped (what CI's Java 11/17/21 lanes run)
+== MySQL   = JdbcRuntimeBrokerMySqlIT on MySQL 8.4.7 + Connector/J 8.4.0
+== nofrac  = the same IT with sendFractionalSeconds=false
+== MariaDB = the same IT on mariadb:10.11.18, the image CI uses (it also drops fractional seconds)
+== K = killed, . = survived.  "old contract" = head production + JdbcRepositoryContract before f67f16e
+
+## mutant                                          old contract           PR head 369f636
+##                                                 H2 MySQL nofrac Maria  H2 MySQL nofrac Maria
+-- M05 binding claimOperation: truncated clock     .    .     .     .     K    K     K     K
+-- M07 binding renewOperation: truncated clock     .    .     .     .     K    K     K     K
+-- M10 tool claimDispatch: truncated clock         .    .     .     .     K    K     K     K
+-- M12 tool renewDispatch: truncated clock         .    .     .     .     K    K     K     K
+++ M01 leaseUntil: no rounding at all                                     K    K     K     K
+++ M02 leaseUntil: always +1 s (pads whole secs)                          K    .     .     .
+++ M03 leaseUntil: floor instead of ceil                                  K    K     K     K
+!! M06 binding claimOperation: unrounded deadline                         K    K     K     K
+!! M08 binding renewOperation: unrounded deadline                         K    K     K     K
+!! M11 tool claimDispatch: unrounded deadline                             K    K     K     K
+!! M13 tool renewDispatch: unrounded deadline                             K    K     K     K
+== M04 binding compareAndSet: truncated liveness clock                    .    .     .     .   equivalent
+== M09 tool compareAndSet: truncated liveness clock                       .    .     .     .   equivalent
+
+++ PR head: 11/13 killed; the 2 survivors are equivalent. Every clock kill fails on
+++          "<deadline> is shorter than PT30M after <precise db time>".
+-- Old contract: the 4 truncated-clock mutants pass all 4 lanes (366/366 + 2/2 IT each).
+== M02 is caught only by JdbcRepositorySupportTest (H2); the IT lanes do not run it.

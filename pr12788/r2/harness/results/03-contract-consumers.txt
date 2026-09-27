@@ -1,0 +1,18 @@
+# The new contract on every consumer: unfixed call sites vs. the PR
+== "unfixed" = head tree with JdbcRuntimeBindingRepository/JdbcToolExecutionRepository from main 8a170d7
+==             (every claim/renew back on the truncated clock); tests and helper exactly as in the PR.
+== The contract runs in four places; the server side runs it against the Flyway V1-V12 schema.
+
+## consumer                                       database                 unfixed    PR 369f636
+   JdbcRepositoryTest (full 366-test suite)       H2, schema.sql           FAIL       pass
+   JdbcRuntimeBrokerMySqlIT                       MySQL 8.4.7              FAIL       pass
+   JdbcRuntimeBrokerMySqlIT                       MySQL, nofrac            FAIL       pass
+   JdbcRuntimeBrokerMySqlIT                       MariaDB 10.11.18         FAIL       pass
+   RuntimeBrokerFlywaySchemaTest                  H2, Flyway               FAIL       pass
+   ManagedAgentMySqlIT #7 (Flyway schema)         MySQL 8.4.7              FAIL       pass
+   ManagedAgentMySqlIT #7 (Flyway schema)         MariaDB 10.11.18         FAIL       pass
+
+-- unfixed: 7/7 fail, each with the only failure in its run, on the intended assertion, e.g.
+--   2026-09-27T07:33:08Z is shorter than PT30M after 2026-09-27T07:03:08.480687Z
+++ PR: managed-agent-server 101/101 + ManagedAgentMySqlIT 10/10 on both MySQL and MariaDB,
+++     Checkstyle 0. New contract repeated on correct code: H2 20/20, MySQL 5/5, MariaDB 5/5.
