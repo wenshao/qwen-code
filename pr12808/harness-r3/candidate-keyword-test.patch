@@ -1,0 +1,86 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+index 18997fac55..3a1141293c 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+@@ -91,6 +91,23 @@ class ManagedAgentApiContractTest {
+             "record", "request", "response");
+     private static final List<String> API_PREFIXES = List.of("/v1/agents",
+             "/api/agent/web-shell/v1");
++    // JSON Schema 2020-12 keywords plus the OpenAPI 3.1 schema extensions;
++    // x- extensions are allowed separately.
++    private static final Set<String> SCHEMA_KEYWORDS = Set.of("$schema",
++            "$id", "$ref", "$defs", "$comment", "$anchor", "$dynamicRef",
++            "$dynamicAnchor", "$vocabulary", "type", "enum", "const",
++            "multipleOf", "maximum", "exclusiveMaximum", "minimum",
++            "exclusiveMinimum", "maxLength", "minLength", "pattern",
++            "maxItems", "minItems", "uniqueItems", "maxContains",
++            "minContains", "maxProperties", "minProperties", "required",
++            "dependentRequired", "properties", "patternProperties",
++            "additionalProperties", "propertyNames", "unevaluatedProperties",
++            "items", "prefixItems", "contains", "unevaluatedItems", "allOf",
++            "anyOf", "oneOf", "not", "if", "then", "else",
++            "dependentSchemas", "format", "title", "description", "default",
++            "deprecated", "readOnly", "writeOnly", "examples",
++            "contentEncoding", "contentMediaType", "contentSchema",
++            "discriminator", "example", "externalDocs", "xml");
+     private static final String WEB_SHELL = "/api/agent/web-shell/v1";
+     private static final String TENANT = TenantContextFilter.HEADER;
+     private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+@@ -197,6 +214,57 @@ class ManagedAgentApiContractTest {
+         assertKnownGaps(drift, "route");
+     }
+ 
++    @Test
++    void specSchemasUseOnlyKnownKeywords() {
++        Map<String, String> unknown = new TreeMap<>();
++        for (Map.Entry<String, JsonNode> schema
++                : CONTRACT.node("/components/schemas").properties()) {
++            collectUnknownKeywords(schema.getValue(),
++                    "/components/schemas/" + schema.getKey(), unknown);
++        }
++        assertThat(unknown.keySet()).as(
++                "keywords outside JSON Schema 2020-12 and OpenAPI in %s",
++                OpenApiContract.RESOURCE).isEmpty();
++    }
++
++    private static void collectUnknownKeywords(JsonNode schema,
++            String pointer, Map<String, String> unknown) {
++        if (!schema.isObject()) {
++            return;
++        }
++        for (Map.Entry<String, JsonNode> entry : schema.properties()) {
++            String keyword = entry.getKey();
++            JsonNode value = entry.getValue();
++            String child = pointer + "/" + keyword;
++            if (!keyword.startsWith("x-")
++                    && !SCHEMA_KEYWORDS.contains(keyword)) {
++                unknown.put(child, "");
++            }
++            switch (keyword) {
++                case "properties", "patternProperties", "$defs",
++                        "dependentSchemas" -> {
++                    for (Map.Entry<String, JsonNode> member
++                            : value.properties()) {
++                        collectUnknownKeywords(member.getValue(),
++                                child + "/" + member.getKey(), unknown);
++                    }
++                }
++                case "items", "not", "if", "then", "else", "contains",
++                        "additionalProperties", "propertyNames",
++                        "unevaluatedProperties", "unevaluatedItems" ->
++                        collectUnknownKeywords(value, child, unknown);
++                case "allOf", "anyOf", "oneOf", "prefixItems" -> {
++                    for (int i = 0; i < value.size(); i++) {
++                        collectUnknownKeywords(value.get(i), child + "/" + i,
++                                unknown);
++                    }
++                }
++                default -> {
++                }
++            }
++        }
++    }
++
+     @Test
+     void recordsMatchTheirSchemas() {
+         Map<String, String> drift = new TreeMap<>();
