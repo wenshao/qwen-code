@@ -6,7 +6,9 @@ import { createRequire } from 'node:module';
 const RIG = path.dirname(new URL(import.meta.url).pathname);
 const { chromium } = createRequire(path.join(process.env.WT, 'package.json'))('playwright');
 const read = (f) => JSON.parse(fs.readFileSync(path.join(RIG, f), 'utf8'));
-const head = read('out-head/obs.json');
+const E = (k, d) => process.env[k] ?? d;
+const head = read(E('HEAD_OBS', 'out-head/obs.json'));
+const HEAD_SHA = E('HEAD_SHA', '907dae03ac');
 const get = (phase, step, key) => head.find((o) => o.phase === phase && o.step === step && o.key === key)?.value;
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const ok = (s) => `<span class="ok">${esc(s)}</span>`;
@@ -51,7 +53,7 @@ const p3 = (s) => get('P3', s, 'load');
 const hostF = get('P5', 'hosted+flag', 'exit');
 const hostN = get('P5', 'hosted-noflag', 'exit');
 const card1 = page('PR #12828 · real `qwen serve --experimental-paired-engines` (bundled CLI, macOS)',
-  `head 907dae03ac · real <code>qwen --acp</code> Legacy child · isolated HOME, trusted-folders file, local fake model · "engines" = <code>GET /workspaces/runtime-stop-options</code> → <code>channels[].executionEngine</code> (absent on an unpaired Bridge)`,
+  `head ${HEAD_SHA} · real <code>qwen --acp</code> Legacy child · isolated HOME, trusted-folders file, local fake model · "engines" = <code>GET /workspaces/runtime-stop-options</code> → <code>channels[].executionEngine</code> (absent on an unpaired Bridge)`,
   `<table><tr><th>Runtime</th><th>Transcript right after create</th><th>After first prompt</th><th>engines</th><th>Close → cold load</th><th>Managed-owned copy: load / resume</th></tr>${rows}${repl}${conv}</table>
   <table><tr><th>Check</th><th>Result</th></tr>
   <tr><td>Workspace deny <code>Bash(touch *)</code> + <code>POST /workspace/reload</code> (only Legacy live)</td><td>${ok('200 / 200, rule saved')}; model's <code>touch</code> → ${ok(deny.toolResults.join(','))}, marker ${deny.marker ? bad('created') : ok('absent')}</td></tr>
@@ -59,13 +61,14 @@ const card1 = page('PR #12828 · real `qwen serve --experimental-paired-engines`
   <tr><td>Restart <b>with</b> the flag again</td><td>session created while unpaired ${ok(p3('U-unpaired').status)} (${p3('U-unpaired').owners} owner records, not rewritten); paired session ${ok(p3('A-paired').status)}</td></tr>
   <tr><td>Fresh paired daemon, first request = Managed-owned load</td><td>${ok('409 / 409')}, bytes unchanged, ${ok('0 new ACP children')}; next Legacy load ${ok(get('P4', 'A-legacy-next', 'load').status)}</td></tr>
   <tr><td>SIGTERM (5 paired/unpaired daemons)</td><td>exit ${ok(sig.map((s) => s.exit).join(','))} · leftover ACP children ${ok(sig.reduce((a, s) => a + s.leftover, 0))}</td></tr>
+  <tr><td>Legacy session with a <code>user_text_elements</code> record written by the real CLI (<code>qwen/session/recordTextElements</code>)</td><td>paired <code>907dae03ac</code> ${bad('409')} → paired <code>45f09d5c61</code> ${ok('200')}; unpaired and base ${ok('200')}</td></tr>
   <tr><td><code>--profile hosted-harness</code> + flag</td><td>exit ${ok(hostF.code)} before listening: <code>${esc(hostF.line.replace('qwen serve: ', ''))}</code>; same args without the flag: ${ok('listening')}</td></tr>
   </table>`);
 
 // Card 2: flag off parity + dist mutants
 const base = read('out-base/obs.json');
 const flagBase = base.find((o) => o.phase === 'P6' && o.key === 'exit')?.value;
-const dm = read('dmut.json');
+const dm = read(E('DMUT', 'dmut.json'));
 const pick = (m, phase, step, key) => m.obs.find((o) => o.phase === phase && o.step === step && o.key === key)?.value;
 const dmRows = dm.map((m) => {
   let changed;
@@ -81,7 +84,7 @@ const dmRows = dm.map((m) => {
   return `<tr><td class="mono">${m.id}</td><td>${esc(m.desc)}</td><td>${m.id === 'D7' ? '<span class="warn">caught by 2nd layer</span>' : ok('observed')}</td><td>${changed}</td></tr>`;
 }).join('');
 const card2 = page('Flag off = base build · wiring mutants in the real daemon',
-  'Same rig script, fresh storage per arm. Dist mutants: one bundle edit each in an APFS clone of head, paired P1 + replacement phases re-run, chunk restored byte for byte.',
+  `Same rig script, fresh storage per arm. Dist mutants: one bundle edit each in an APFS clone of ${HEAD_SHA}, paired P1 + replacement phases re-run, chunk restored byte for byte.`,
   `<table><tr><th>Arm</th><th>Result</th></tr>
   <tr><td>base <code>8a170d7e45</code> vs head without the flag</td><td>${ok('50 / 50 observations identical')} after normalizing ports, timings, hashes and child counts (create, prompt, transcript shapes, cold load, Managed-owner copies, standalone, deny + reload, SIGTERM)</td></tr>
   <tr><td>base with <code>--experimental-paired-engines</code></td><td>exit ${ok(flagBase.code)}: <code>${esc(flagBase.line)}</code></td></tr></table>
@@ -89,20 +92,20 @@ const card2 = page('Flag off = base build · wiring mutants in the real daemon',
   <div class="note">Every wiring mutant flips exactly the runtime it targets and leaves the others paired. D7 shows the selector refusal is what keeps a Managed-owned load away from the Legacy channel; without it the B2a check in the child still refuses, but only after dispatch and at the cost of that channel.</div>`);
 
 // Card 3: source mutants
-const mu = [...read('mut-unit-main.json').filter((m) => !['S16', 'S17'].includes(m.id)), ...read('mut-unit-rerun.json').filter((m) => m.id === 'S17'), ...read('mut-unit-rerun.json').filter((m) => m.id === 'S16' || m.id === 'S16b'), ...read('mut-unit-s16c.json')];
-const cand = read('mut-unit-candidate.json');
+const mu = process.env.MUT ? read(process.env.MUT) : [...read('mut-unit-main.json').filter((m) => !['S16', 'S17'].includes(m.id)), ...read('mut-unit-rerun.json').filter((m) => m.id === 'S17'), ...read('mut-unit-rerun.json').filter((m) => m.id === 'S16' || m.id === 'S16b'), ...read('mut-unit-s16c.json')];
+const cand = read(E('CAND', 'mut-unit-candidate.json'));
 for (const m of mu) if (m.id === 'S16b') m.desc = 'Managed owner with a non-default source restored on Legacy (purpose re-checked on restore)';
 const muRows = mu.map((m) => `<tr><td class="mono">${m.id}</td><td>${esc(m.desc)}</td><td>${m.verdict === 'KILLED' ? ok('killed') : bad('survived')}</td><td class="mono">${esc(m.tests)}</td><td>${m.verdict === 'KILLED' ? esc((m.failed[0] ?? '').replace(/^src\/serve\/|^src\/commands\//, '').slice(0, 92)) : ok(`killed by candidate test (${cand.find((c) => c.id === m.id)?.tests ?? ''})`)}</td></tr>`).join('');
 const card3 = page(`Source mutants vs the PR's own tests: ${mu.filter((m) => m.verdict === 'KILLED').length}/${mu.length} killed`,
-  'APFS clone of head, one mutant at a time, focused vitest files per area (selector 50 tests, default Bridge 15, run-qwen-serve 498, Hosted/serve command). S01–S17 selector, V default Bridge, R daemon sites, H Hosted, C CLI mapping.',
+  `APFS clone of ${HEAD_SHA}, one mutant at a time, focused vitest files per area (selector + host wiring + default Bridge, run-qwen-serve 498, Hosted/serve command). S01–S17 selector, V default Bridge, R daemon sites, H Hosted, C CLI mapping.`,
   `<table><tr><th>ID</th><th>Mutant</th><th>Verdict</th><th>Tests</th><th>First failing test / note</th></tr>${muRows}</table>
   <div class="note w">S16/S16b/S16c: a cold restore that re-applies the creation-purpose rule and sends a Managed owner with a parent, a non-default source or a standalone restore to Legacy. Restore requests do carry <code>parentSessionId</code>/<code>sourceType</code>/<code>sourceId</code>, and the design says purposes are not evaluated again. A 4-case <code>it.each</code> (Managed owner + that metadata → <code>managed</code>) passes on head and kills all three.</div>`);
 
 // Card 5: behaviour differences with the flag on a Legacy-only host
-const ex = read('out-extra/obs.json');
+const ex = read(E('EXTRA', 'out-extra/obs.json'));
 const exg = (p, s, k) => ex.find((o) => o.phase === p && o.step === s && o.key === k)?.value;
 const q = (f) => fs.readFileSync(path.join(RIG, f, 'rows.txt'), 'utf8').split('\n').filter(Boolean).map((l) => l.replace(/^\s*[\d.]+s\s+/, ''));
-const qp = q('out-q-paired'), qu = q('out-q-unpaired'), qb = q('out-q-base');
+const qp = q(E('QP', 'out-q-paired')), qu = q(E('QU', 'out-q-unpaired')), qb = q('out-q-base');
 const qrow = (i, label) => `<tr><td>${label}</td><td class="mono">${esc(qp[i].split(': ').slice(1).join(': '))}</td><td class="mono">${esc(qu[i].split(': ').slice(1).join(': '))}</td><td class="mono">${esc(qb[i].split(': ').slice(1).join(': '))}</td></tr>`;
 const card5 = page('What the flag changes on a Legacy-only host (both documented; shown here in a real daemon)',
   'Top: a torn last transcript line (what a crash in the middle of an append leaves). Bottom: one session\'s restore outlives <code>--session-restore-timeout-ms 2000</code> and its settlement grace (a SessionStart hook sleeps 14 s on resume); S1 is a different, healthy, idle session on the same Legacy channel.',
