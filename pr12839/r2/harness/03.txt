@@ -1,0 +1,18 @@
+F5 upgrade cliff and F6 Flyway V14 collision with main
+U1: old Broker (baseline classpath) on the baseline schema, then the new initializer and new Brokers on the same data
+
+## U1  one worker crash handled by the old code, then upgrade
+   old Broker: warm, acquire, create; worker tree SIGKILLed; warm #1 503; warm #2 -> generation 2 READY
+   rows: tenant-a/gen1/FAILED/seed=true, tenant-a/gen2/READY/seed=true
+++ new JdbcRuntimeBrokerSchema.initialize() on that database: ok, rows preserved
+-- new Broker, tenant-a / workspace-b (brand-new placement) -> 409 runtime_placement_recovery_required
+   new Broker, tenant-b / workspace-c (control)            -> READY
+== 3/3 runs identical. blocksPlacement counts seeded FAILED rows; every pre-upgrade worker crash wrote one.
+
+## F6  git merge-tree 727aafb4 + origin/main 36710ff6: clean, but migrations now hold
+--   V14__managed_event_replay.sql (main, #12840)  and  V14__runtime_loss_evidence.sql (this PR)
+--   main also owns V15__managed_event_identity.java
+-- merged tree, managed-agent-server suite: 137 run, 72 errors, 9 classes:
+--   FlywayException: Found more than one migration with version 14   (every Spring context fails)
+++ same merged tree with the PR file renamed V16__runtime_loss_evidence.sql: 137/137 pass (mvn clean test)
+!! PR CI "SDK Java" ran 13:20Z; #12840 merged 14:18Z. The green check predates the collision.

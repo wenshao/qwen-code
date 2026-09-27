@@ -1,0 +1,20 @@
+F4  One failed attestation of a healthy worker locks the tenant out
+LOCAL_PROCESS provisioner, legacy scope; FaultProxy fault on ONE /attest exchange; the worker process is never touched
+
+## A1  reset one attest exchange during warm (confirm of the live binding)
+   353b6526  warm #1 503 managed_runtime_unavailable -> binding FAILED, worker released; warm #2 -> gen 2 READY
+-- 727aafb4  warm #1 503 managed_runtime_unavailable -> binding LOST (invalidateBinding: READY -> LOST, no evidence)
+-- 727aafb4  warm #2..#4 503 runtime_broker_runtime_lost retryable=true; 4 more attest exchanges reach the live worker unfaulted
+-- 727aafb4  original worker still alive and never released; Session create 409 runtime_admission_closed
+-- 727aafb4  tenant-a / workspace-b new placement -> 409 runtime_placement_recovery_required (tenant-b: READY)
+## A3  same, but the attest response is only SLOW (12 s > rig request timeout 10 s; production 30 s)
+   353b6526  binding FAILED -> warm #2 generation 2 READY
+-- 727aafb4  binding LOST; warm #2 503 runtime_broker_runtime_lost; worker alive; create 409 admission_closed
+## A2  managed-agent-server default isolationClass = "session" (one placement per Hosted Session)
+   353b6526  after the fault: harness-1 gen 2 READY; new harness-3 / harness-4 READY
+-- 727aafb4  after the fault: harness-2 (existing) still READY; NEW harness-3 / harness-4 -> 409
+--           runtime_placement_recovery_required: every new Hosted Session of the tenant is refused
+== 3/3 head runs identical. No production WRITERS_STOPPED producer exists, so nothing clears it.
+
+!! Design section 3 row 1: network failure / timeout -> keep unresolved, block reuse. Here a timeout on a
+!! process the Broker still owns and can re-attest becomes permanent LOST, and legacy LOST blocks the tenant.

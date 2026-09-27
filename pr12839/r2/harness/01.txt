@@ -1,0 +1,18 @@
+Round 2: suites pass, round-1 F1/F2 are fixed
+Head 727aafb482 vs design-only head 353b6526 (same probe file, log-only); real Broker JVMs + bundled worker + H2 over TCP
+
+++ runtime-broker suite 374 run, 0 fail, 1 skip (needs -Dqwen.runtime.worker.bundle; rerun 15/15); fault gates 28/28
+++ managed-agent-server suite 112/112 on the PR head; TS provider suites 44/44
+
+## B1  worker (and its tree) SIGKILLed under a live Broker; Shell call left an escaped writer (ppid 1)
+-- 353b6526  warm #1 503 runtime_provision_failed -> binding FAILED; warm #2 -> generation 2 READY (replacement)
+-- 353b6526  call-1 UNKNOWN; reconcile 409 evidence_unavailable; escaped writer keeps writing beside gen 2
+++ 727aafb4  warm #1 503 runtime_provision_failed -> binding LOST; warm #2/#3 503 runtime_broker_runtime_lost
+++ 727aafb4  call-1 ABANDONED; reconcile ABANDONED; get + same-key retry return the ABANDONED receipt
+++ 727aafb4  release 503 runtime_reconciliation_required; no replacement worker (workers=0)
+
+## C1  two Brokers: B commits LOST, stale A still holds the Session context
+-- 353b6526  A.release 409 busy but binding -> FAILED; A.create key-2 accepted; B warm -> generation 2 READY
+++ 727aafb4  A.release 503 runtime_reconciliation_required; A.create 409 runtime_admission_closed
+++ 727aafb4  binding stays LOST; call-1 ABANDONED; B warm keeps answering runtime_broker_runtime_lost
+== 3/3 head runs identical
