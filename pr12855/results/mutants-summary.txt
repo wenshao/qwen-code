@@ -1,0 +1,25 @@
+Targeted mutants against the PR's own suites (harness/mutate.mjs), worktree at d6d8cff4a0.
+
+TS suites: managed-session-authority.extension, managed-extension-projection,
+managed-operation-grant-gate, http-managed-session-store (4 files, 205 tests).
+  T1  taskViews: ascending task ID on a createdAt tie            LIVES
+  T4  rebuild: accept a revision that no longer chains           LIVES
+  T6  grant: issue for an ended record with nothing to deliver   killed
+  T8  HTTP store: stop sending the resources a body names        killed
+  T9  replay: same command with other content replays            killed
+  (TS lines in mutants.log are valid.)
+
+Java suites: ManagedExtension*Test, ManagedAgentApiContractTest, PlannedTaskContractTest
+(30 unit tests) + ManagedAgentMySqlIT (11) on MariaDB 10.11.18.
+  The FIRST pass in mutants.log is INVALID for J4/J6/J7/J8: the ITs reuse fixed IDs and the
+  database was not fresh ("Duplicate entry 'mysql-upgrade-session_upgrade'"). mutate.mjs now
+  drops the database before every Java run; the valid results are in mutants-java.json:
+  J4  announce: drop the tenant check on the public Session      LIVES
+  J6  apply: drop the recordRef byteLength match                 LIVES
+  J7  list: accept limit up to 1000                              LIVES
+  J8  list: next_cursor from the first row of the page           LIVES
+  J11 announce: dedupe key without the revision                  killed
+
+J4 live (s8-tenant.mjs): PR jar -> tenant-B writer commits, tenant A stream untouched
+(s8-tenant-pr.log). J4 jar (only ManagedExtensionRecordStore.class differs) -> the tenant-B
+commit fails 404 session_not_found from appendPublicEventIfAbsent; no event reaches tenant A.

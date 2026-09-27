@@ -1,0 +1,18 @@
+Costs the design leaves open, measured
+Real stack as in figure 1 (JVM and MariaDB both UTC); apply() timed on the PR jar's own class via reflection
+## open question 1: cold reopen reads every Stage H revision body
+== Session                                   journal tx  reopen  requests made by the reopen
+!! 1 Monitor, 2,003 revisions (observations)    2,006   20.9 s    2,003 GET resource (serial, ~9.7 ms each)
+++ control: 2,006 session_metadata commits      2,006    0.9 s    0 GET resource
+!! at the 10,000-observation cap: ~100 s per reopen by extrapolation (linear, one read per revision)
+## Triage stage 2 note 2: apply() parses every line of every commit under the head lock
+== transaction                                   bytes     apply()
+++ typical (1 event + marker)                    1,463     10 us
+++ one 64 KiB tool result                       65,799    129 us
+!! one 1 MiB line (per-line cap)             1,048,439    2.2 ms
+!! 8 MiB transaction (cap), 256 lines        8,336,133    6.5 ms
+== host load average 26 during the run; commit round trip p50 is 20-80 ms on this rig
+## open question 2: units on the wire (same int64 field in the spec, no unit stated)
+!! GET /v1/agents/sessions/{id}         created_at 1790518645        (seconds)
+!! GET /v1/agents/sessions/{id}/tasks   created_at 1790518645124     (milliseconds)
+== Ajv on spec 1.17.0 rejects a bad state, a missing kind, an extra field - and accepts seconds in a task
