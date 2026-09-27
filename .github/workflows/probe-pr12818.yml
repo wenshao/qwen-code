@@ -60,19 +60,21 @@ jobs:
           node -e "const fs = require('node:fs'); for (const key of ['HOME', 'USERPROFILE']) { const dir = process.env[key]; if (dir) fs.mkdirSync(dir, { recursive: true }); }"
           git config --global core.autocrlf false
           export TMPDIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
-          # Git Bash lane: the environment CI's test_windows step gives vitest.
-          bash probe/run.sh inherit 20 base-full head-full head-repeat probe base-M3 head-M3 head-M1 base-M2 head-M2
-          # cmd.exe lane: Git Bash markers dropped in-process.
-          bash probe/run.sh cmd 20 base-full head-full base-repeat head-repeat probe base-M2 head-M2 head-M1
-          # PowerShell 7 ComSpec lane (deferred item 3).
-          PWSH_PATH='C:\Program Files\PowerShell\7\pwsh.exe' bash probe/run.sh pwsh 1 base-full head-full probe
+          # Deferred items: child_process path (item 2), other cancel tests (item 1),
+          # and more ConPTY-path release samples.
+          bash probe/run2.sh inherit 20 cp-repeat cp-probe d1-none d1-M2 d2-none d2-M2
+          bash probe/run2.sh cmd 20 cp-repeat cp-probe d1-none d1-M2 d2-none d2-M2
+          bash probe/run.sh inherit 50 head-repeat
+          bash probe/run.sh cmd 50 head-repeat
           echo '===== SUMMARY ====='
-          cat probe-out/*/summary.tsv
+          cat probe-out/*/summary.tsv probe-out2/*/summary.tsv
           echo '===== PROBES ====='
-          cat probe-out/*/probe.tsv || true
+          cat probe-out/*/probe.tsv probe-out2/*/probe.tsv || true
 
       - if: '${{ always() }}'
         uses: 'actions/upload-artifact@v4'
         with:
           name: 'probe-out'
-          path: 'probe-out'
+          path: |-
+            probe-out
+            probe-out2
