@@ -1,0 +1,27 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java
+index 23f2832e34..6924ee9156 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java
+@@ -289,6 +289,22 @@ class ManagedWorkspaceAdmissionTest {
+                                 .isEqualTo("unsupported_feature"));
+     }
+ 
++    @Test
++    void boundRetriesThatChangeTheRevisionConflict() {
++        String tenant = "tenant-" + UUID.randomUUID();
++        register(tenant, "ws-a", "storage-a");
++        grant(tenant, "ws-a", "actor-a", true);
++        WorkspaceSelection selection = new WorkspaceSelection("ws-a", ".");
++        service.createWorkspaceSession(tenant, "actor-a", "key", "qwen-code",
++                "1", null, null, List.of(), selection);
++        assertThatThrownBy(() -> service.createWorkspaceSession(tenant,
++                "actor-a", "key", "qwen-code", null, null, null, List.of(),
++                selection))
++                .isInstanceOfSatisfying(ApiException.class, error ->
++                        assertThat(error.getCode())
++                                .isEqualTo("idempotency_conflict"));
++    }
++
+     @Test
+     void storeCannotCreateOrDispatchBoundTurnsWhenServiceIsBypassed() {
+         String tenant = "tenant-" + UUID.randomUUID();

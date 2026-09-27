@@ -1,0 +1,33 @@
+== 1. main jar (V12)
+[base1] up (pid 26845)
+main: create K_main (no revision)               error.code=undefined id="7bc0e0f8-a57f-4661-aeff-af6aa81f1437" agent_revision=undefined
+== 2. r1 jar (81c22146)
+[r1] up (pid 26881)
+r1: create K_r1_omit                            error.code=undefined id="753ed34f-ed0f-4305-b321-5b7032bd31ac" agent_revision="1"
+r1: create K_r1_named ("1")                     error.code=undefined id="2ed7d198-f62f-4fd0-b7b9-e97ebe175a80" agent_revision="1"
+== 3. r2 jar (a52ec991), revision 1
+$SCRATCH/rig/upgrade-r2.sh: line 14: 26881 Killed: 9               env "$@" $R/spring.sh $J/$jar $PORT 33830 $DB > $LOG/$name.log 2>&1
+[r2-rev1] up (pid 26950)
+retry K_main, omitted                           error.code=undefined id="7bc0e0f8-a57f-4661-aeff-af6aa81f1437" agent_revision="1"
+retry K_r1_omit, omitted                        error.code=undefined id="753ed34f-ed0f-4305-b321-5b7032bd31ac" agent_revision="1"
+retry K_r1_named, naming "1"                    error.code="idempotency_conflict" id=undefined agent_revision=undefined
+create K1 naming "1"                            error.code=undefined id="fa2b20f1-9073-4f10-a6f0-ee85c5a11fd2" agent_revision="1"
+create K0 omitted                               error.code=undefined id="6b433ab2-e7a1-4703-ac99-3c46ef1f3b21" agent_revision="1"
+== 4. r2 jar, QWEN_MANAGED_AGENT_REVISION=2
+[r2-rev2] up (pid 27034)
+retry K1 naming "1"                             error.code=undefined id="fa2b20f1-9073-4f10-a6f0-ee85c5a11fd2" agent_revision="1"
+retry K1 naming "2"                             error.code="idempotency_conflict" id=undefined agent_revision=undefined
+retry K1 omitted                                error.code="idempotency_conflict" id=undefined agent_revision=undefined
+retry K0 omitted                                error.code=undefined id="6b433ab2-e7a1-4703-ac99-3c46ef1f3b21" agent_revision="1"
+retry K0 naming "2"                             error.code="idempotency_conflict" id=undefined agent_revision=undefined
+retry K_main, omitted                           error.code=undefined id="7bc0e0f8-a57f-4661-aeff-af6aa81f1437" agent_revision="1"
+new create naming "1"                           error.code="unsupported_feature" id=undefined agent_revision=undefined
+new create naming "2"                           error.code=undefined id="85c01db4-0c6b-43b9-9f23-21a0c19bb35a" agent_revision="2"
+new create omitted                              error.code=undefined id="f90299e7-629b-4d3f-b6dc-2886e78f3161" agent_revision="2"
+== 5. rollback: main jar on the V13 schema
+[base2] up (pid 27156)
+main: retry K_main                              error.code=undefined id="7bc0e0f8-a57f-4661-aeff-af6aa81f1437" agent_revision=undefined
+agent_revision	count(*)
+1	5
+2	2
+DONE

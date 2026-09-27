@@ -1,0 +1,16 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedEventStreamService.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedEventStreamService.java
+index c3eccc00b6..bef22aa0bc 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedEventStreamService.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedEventStreamService.java
+@@ -233,7 +233,10 @@ public class ManagedEventStreamService {
+     private static AtomicBoolean callbacks(SseEmitter emitter) {
+         AtomicBoolean closed = new AtomicBoolean();
+         emitter.onCompletion(() -> closed.set(true));
+-        emitter.onTimeout(() -> closed.set(true));
++        emitter.onTimeout(() -> {
++            closed.set(true);
++            emitter.complete();
++        });
+         emitter.onError(error -> closed.set(true));
+         return closed;
+     }
