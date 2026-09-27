@@ -92,6 +92,18 @@ public static class IlLauncher {
     IntPtr ldup; if (!DuplicateTokenEx(linked, 0x02000000, IntPtr.Zero, 2, 1, out ldup)) return info + "linked dup err " + Marshal.GetLastWin32Error();
     return info + Launch(ldup, cmdline);
   }
+  [DllImport("advapi32.dll", SetLastError=true)] static extern bool SaferCreateLevel(uint scope, uint level, uint flags, out IntPtr h, IntPtr reserved);
+  [DllImport("advapi32.dll", SetLastError=true)] static extern bool SaferComputeTokenFromLevel(IntPtr level, IntPtr inTok, out IntPtr outTok, uint flags, IntPtr reserved);
+  public static string RunSafer(string cmdline) {
+    IntPtr lvl, tok, sid;
+    if (!SaferCreateLevel(2, 0x20000, 1, out lvl, IntPtr.Zero)) return "SaferCreateLevel err " + Marshal.GetLastWin32Error();
+    if (!SaferComputeTokenFromLevel(lvl, IntPtr.Zero, out tok, 0, IntPtr.Zero)) return "SaferComputeTokenFromLevel err " + Marshal.GetLastWin32Error();
+    string before = Il(tok);
+    ConvertStringSidToSid("S-1-16-8192", out sid);
+    var tml = new TOKEN_MANDATORY_LABEL(); tml.Label.Sid = sid; tml.Label.Attributes = 0x20;
+    bool setOk = SetTokenInformation(tok, 25, ref tml, Marshal.SizeOf(tml) + GetLengthSid(sid));
+    return "safer basic-user token il(before)=" + before + " il(after)=" + Il(tok) + " setIL=" + setOk + " -> " + Launch(tok, cmdline);
+  }
   public static string Run(string cmdline, string ilSid) {
     IntPtr tok, dup, sid;
     if (!OpenProcessToken(GetCurrentProcess(), 0x02000000, out tok)) return "OpenProcessToken err " + Marshal.GetLastWin32Error();
@@ -114,8 +126,12 @@ public static class IlLauncher {
 Write-Host '== medium-IL launch:' ([IlLauncher]::Run("`"$node`" `"$P\probe.mjs`" medium-il $batPid `"$P\work`" `"$P\out\medium-il.txt`"", 'S-1-16-8192'))
 Write-Host '== low-IL launch:' ([IlLauncher]::Run("`"$node`" `"$P\probe.mjs`" low-il $batPid `"$P\work-low`" `"$P\out\low-il.txt`"", 'S-1-16-4096'))
 
-# 3e. genuinely unelevated (UAC limited) token of the same admin user
-Write-Host '== uac-limited launch:' ([IlLauncher]::RunLimited("`"$node`" `"$P\probe.mjs`" uac-limited $batPid `"$P\work`" `"$P\out\uac-limited.txt`""))
+# 3e. SAFER "Basic User" token (what `runas /trustlevel:0x20000` builds): same user,
+#     Administrators set to deny-only, privileges stripped, Medium IL -- the shape of an
+#     unelevated admin shell's filtered token. (This runner's token is TokenElevationTypeDefault,
+#     so there is no UAC linked token to borrow; RunLimited below records that.)
+Write-Host '== safer-basic-user launch:' ([IlLauncher]::RunSafer("`"$node`" `"$P\probe.mjs`" safer-basic-user $batPid `"$P\work`" `"$P\out\safer-basic-user.txt`""))
+Write-Host '== uac-limited diagnostic:' ([IlLauncher]::RunLimited("`"$node`" `"$P\probe.mjs`" uac-limited $batPid `"$P\work`" `"$P\out\uac-limited.txt`""))
 
 # 3f. a different, non-admin local user
 $pw = 'Pr12787-' + [guid]::NewGuid().ToString('N').Substring(0, 12) + '!a'
@@ -126,19 +142,26 @@ try {
   Write-Host "== std-user exit=$($proc.ExitCode)"
 } catch { Write-Host "== std-user launch failed: $_" }
 
-# 4. Side measurement: how long the real bat wait-loop idles when stdin is NUL
-#    (atomicReplace spawns it with stdio:'ignore'); waits on the live bat PID.
-$wait = "$P\wait-loop.bat"
-$lines = @(
-  '@echo off', 'set /a TRIES=0', ':wait', 'set /a TRIES+=1', 'if %TRIES% GTR 30 goto proceed',
-  "tasklist /FI `"PID eq $batPid`" 2>nul | find `"$batPid`" >nul && (timeout /t 1 >nul & goto wait)",
-  ':proceed', "echo tries=%TRIES% > `"$P\out\wait-end.txt`"")
-Set-Content $wait ($lines -join "`r`n") -NoNewline -Encoding ascii
-node -e "const {spawn}=require('child_process');const fs=require('fs');const t0=Date.now();const c=spawn('cmd.exe',['/c',process.argv[1]],{detached:true,stdio:'ignore',windowsHide:true});c.on('exit',()=>{console.log('PROBE_WAITLOOP '+JSON.stringify({ms:Date.now()-t0,end:fs.existsSync(process.argv[2])?fs.readFileSync(process.argv[2],'utf8').trim():null}))});" $wait "$P\out\wait-end.txt"
-
-Write-Host '== bat still alive?'
-Get-CimInstance Win32_Process -Filter "ProcessId=$batPid" | Select-Object ProcessId,Name
 Write-Host '== results'
 Get-ChildItem "$P\out" | ForEach-Object { Write-Host "-- $($_.Name)"; Get-Content $_.FullName }
 New-Item -ItemType Directory -Force "$env:GITHUB_WORKSPACE\probe-out" | Out-Null
 Copy-Item "$P\out\*" "$env:GITHUB_WORKSPACE\probe-out\"
+
+# 4. Side measurement (bounded): the product's bat wait-loop, spawned the way atomicReplace
+#    spawns it (detached, stdio ignore, windowsHide), watching a PID that stays alive.
+$wait = "$P\wait-loop.bat"
+$lines = @(
+  '@echo off', "echo start %TIME% > `"$P\out\wait-start.txt`"", 'set /a TRIES=0', ':wait', 'set /a TRIES+=1',
+  "echo tries=%TRIES% %TIME% > `"$P\out\wait-progress.txt`"", 'if %TRIES% GTR 30 goto proceed',
+  "tasklist /FI `"PID eq $batPid`" 2>nul | find `"$batPid`" >nul && (timeout /t 1 >nul & goto wait)",
+  ':proceed', "echo proceed tries=%TRIES% %TIME% > `"$P\out\wait-end.txt`"")
+Set-Content $wait ($lines -join "`r`n") -NoNewline -Encoding ascii
+node -e "const {spawn}=require('child_process');const c=spawn('cmd.exe',['/c',process.argv[1]],{detached:true,stdio:'ignore',windowsHide:true});c.unref();require('fs').writeFileSync(process.argv[2],String(c.pid));" $wait "$P\waitpid.txt"
+$waitPid = (Get-Content "$P\waitpid.txt").Trim()
+Start-Sleep -Seconds 75
+Write-Host "== wait-loop after 75s (cmd pid=$waitPid)"
+Get-CimInstance Win32_Process -Filter "ProcessId=$waitPid" | Select-Object ProcessId,Name | Format-Table | Out-String | Write-Host
+Get-CimInstance Win32_Process -Filter "ParentProcessId=$waitPid" | Select-Object ProcessId,Name,CommandLine,CreationDate | Format-List | Out-String | Write-Host
+foreach ($f in 'wait-start.txt','wait-progress.txt','wait-end.txt') { $x = "$P\out\$f"; Write-Host "-- $f :" $(if (Test-Path $x) { Get-Content $x } else { '(missing)' }) }
+taskkill /T /F /PID $waitPid | Out-Null
+Copy-Item "$P\out\wait-*.txt" "$env:GITHUB_WORKSPACE\probe-out\" -ErrorAction SilentlyContinue

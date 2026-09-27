@@ -43,6 +43,8 @@ function runCase(armName, acquireLock, scenario) {
     fs.writeFileSync(path.join(`${standaloneDir}.new`, 'payload.txt'), 'staged install');
     fs.writeFileSync(`${standaloneDir}.deferred`, String(batPid));
   }
+  // aged: marker older than PENDING_SWAP_STALE_MS (15 min), exercising the #12810 escape
+  if (scenario === 'aged') { const t = (Date.now() - 16 * 60 * 1000) / 1000; fs.utimesSync(`${standaloneDir}.deferred`, t, t); }
   // theft: lock held by the exited CLI (dead PID), the shape a deferred swap leaves behind
   if (scenario === 'theft') fs.writeFileSync(lockPath, '999999999');
   // steal-lock: lock held by the live bat PID itself, no marker
@@ -59,7 +61,7 @@ const result = {
   label, node: process.version, platform: process.platform, pid: process.pid,
   user: user(), token: whoamiGroups(), batPid, rawProbe: rawProbe(batPid), cases: [],
 };
-for (const scenario of ['fast', 'theft', 'steal-lock']) {
+for (const scenario of ['fast', 'theft', 'aged', 'steal-lock']) {
   result.cases.push(runCase('base', lockBase, scenario));
   result.cases.push(runCase('pr', lockPr, scenario));
 }
