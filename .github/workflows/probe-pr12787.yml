@@ -1,0 +1,23 @@
+name: probe-pr12787-eperm
+on:
+  push:
+    branches: ['probe/pr12787-**']
+jobs:
+  win:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: probe
+        shell: pwsh
+        run: ./probe/run.ps1 2>&1 | Tee-Object -FilePath probe-log.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-pr12787
+          path: |
+            probe-log.txt
+            C:/probe/out/
