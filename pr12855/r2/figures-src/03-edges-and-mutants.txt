@@ -1,0 +1,19 @@
+Deletion race, edge cases and targeted mutants (head 34e32da78c + main)
+Real stack; mutants run the PR's own suites (TS 5 files / 228 tests; Java 39 unit + 12 MariaDB IT, fresh DB per run)
+## race: a view-changing Stage H commit vs DELETE of the public Session, delay swept 0..30 ms, 186 trials per jar
+-- 2331792cd8 (plain status read): 8/186 trials put task.updated after session.deleted (all at 0-2 ms)
+==   events: 1 session.created, 2 task.updated, 3 session.delete.requested, 4 session.deleted, 5 task.updated
+++ 34e32da78c (locking read):      0/186; the commit itself still succeeds in 186/186
+## unknown outcome: proxy delivers commit monitor-1:3 and drops the response; writer A then crashes
+++ writer B takes over at lease expiry (61 s): replayed=true, rev 3, same resource, no new event; other content -> conflict
+!! pre-existing: if A's process stays up, its store renews the lease every 30 s even after close() fails
+## pagination, SSE, isolation, errors, deletion, rollback
+++ 50 tasks, 8 created_at ties, limits 1..100: public/WebShell pages == authority order; live SSE; 404/400 as specified
+++ sequential delete: commit succeeds, session.deleted stays last; reopen over a non-chaining journal fails as designed
+!! revision committed while main ran -> after re-upgrade the Java row says rev 4, the authority rev 5 (see OQ7)
+## mutants: 18/22 killed
+++ killed  J11 J12 J13 J14 J15 J16 J17 J18   J19 no lock (killed by the new mid-commit deletion IT)
+++ killed  J20 depth > 64   J21 non-finite numbers   J22 extra lines before the marker   T1 T4 T12 T15 T16 T17
+-- lives   J8 next_cursor from FIRST row / J7 limit cap 100 -> 1000   (every pagination test uses limit=1)
+-- lives   J23 unreadable line answers 409 instead of 400   (tests check the code, not the status)
+-- lives   J6 recordRef byteLength match
