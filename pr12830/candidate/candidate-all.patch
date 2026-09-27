@@ -1,0 +1,191 @@
+diff --git a/docs/design/2026-09-27-managed-agent-task-contract.md b/docs/design/2026-09-27-managed-agent-task-contract.md
+index 4eae19fb82..7520e13ca4 100644
+--- a/docs/design/2026-09-27-managed-agent-task-contract.md
++++ b/docs/design/2026-09-27-managed-agent-task-contract.md
+@@ -71,8 +71,8 @@ routes. The version becomes `1.14.0` because routes are added.
+ | `definitionRevision` | `definition_revision` | `definitionRevision` | `int64`, at least 1.                   |
+ | `runtimeState`       | `runtime_state`       | `runtimeState`       | `TaskRuntimeState`, same five values.  |
+ | (none)               | `created_at`          | `createdAt`          | Added, required.                       |
+-| `startedAt`          | `started_at`          | `startedAt`          | Epoch milliseconds, not an ISO string. |
+-| `settledAt`          | `settled_at`          | `settledAt`          | Epoch milliseconds, not an ISO string. |
++| `startedAt`          | `started_at`          | `startedAt`          | Integer epoch, not an ISO string.      |
++| `settledAt`          | `settled_at`          | `settledAt`          | Integer epoch, not an ISO string.      |
+ | `outputCursor`       | `output_cursor`       | `outputCursor`       | Opaque, at most 512 characters.        |
+ | `artifactRefs`       | `artifact_refs`       | `artifactRefs`       | At most 100 unique Artifact IDs.       |
+ | `actionCapabilities` | `action_capabilities` | `actionCapabilities` | `TaskActionCapability`, unique values. |
+@@ -86,8 +86,12 @@ The design's shape changes in four places:
+ - **`id`.** `PublicSession`, `PublicAction`, `PublicArtifact` and
+   `PublicCommandOperation` name their identifier `id`; WebShell keeps
+   `taskId`, as it keeps `actionId` and `operationId`.
+-- **Timestamps.** The public API uses `int64` epoch milliseconds everywhere
+-  (`created_at`, `expires_at`), and the server fills them from `clock.millis()`.
++- **Timestamps.** Integers, not ISO strings, in each surface's existing unit.
++  The server stores `clock.millis()`; the public API divides it by 1000 and
++  returns Unix epoch seconds (`PublicSession`, `PublicTurn`, `PublicEvent`,
++  `PublicItem`), while WebShell returns milliseconds. `PublicTask` and
++  `PublicTaskEvent` use seconds, `WebShellTask` and `WebShellTaskEvent` use
++  milliseconds, and their schema descriptions say so.
+ - **`created_at`.** The list is ordered by creation, and a `pending` task has
+   no `started_at`, so the view needs a creation time.
+ - **Bounded `artifact_refs`.** A long-running Monitor can rotate many
+@@ -154,9 +158,12 @@ Cancel reuses the command operation model instead of a new one:
+   its physical execution settles, and an unknown outcome becomes
+   `recovery_blocked`. This follows design section 3.2: a logical settle never
+   covers a process that has not drained.
+-- The route accepts a cancel only while `action_capabilities` contains
+-  `cancel`. A settled task never advertises it, so the same rule covers both
+-  cases.
++- A retry with the same `Idempotency-Key` replays the original operation
++  before any capability check, as the cwd route does, so a caller that lost the
++  `202` still gets its operation after the task settles.
++- The route accepts a cancel with a new key only while
++  `action_capabilities` contains `cancel`. A settled task never advertises it,
++  so the same rule covers both cases.
+ 
+ ### 4.5 WebShell adapter
+ 
+diff --git a/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md b/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md
+index 561ecbb55a..8d5b02b56a 100644
+--- a/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md
++++ b/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md
+@@ -58,8 +58,8 @@ Java 契约测试就会失败。因为新增了路由，版本升为 `1.14.0`。
+ | `definitionRevision` | `definition_revision` | `definitionRevision` | `int64`，至少为 1。                       |
+ | `runtimeState`       | `runtime_state`       | `runtimeState`       | `TaskRuntimeState`，同样五个值。          |
+ | （无）               | `created_at`          | `createdAt`          | 新增，必填。                              |
+-| `startedAt`          | `started_at`          | `startedAt`          | epoch 毫秒，不是 ISO 字符串。             |
+-| `settledAt`          | `settled_at`          | `settledAt`          | epoch 毫秒，不是 ISO 字符串。             |
++| `startedAt`          | `started_at`          | `startedAt`          | 整数 epoch，不是 ISO 字符串。             |
++| `settledAt`          | `settled_at`          | `settledAt`          | 整数 epoch，不是 ISO 字符串。             |
+ | `outputCursor`       | `output_cursor`       | `outputCursor`       | 不透明，最多 512 个字符。                 |
+ | `artifactRefs`       | `artifact_refs`       | `artifactRefs`       | 最多 100 个不重复的 Artifact ID。         |
+ | `actionCapabilities` | `action_capabilities` | `actionCapabilities` | `TaskActionCapability`，值不重复。        |
+@@ -71,8 +71,10 @@ Java 契约测试就会失败。因为新增了路由，版本升为 `1.14.0`。
+ 
+ - **`id`。** `PublicSession`、`PublicAction`、`PublicArtifact` 和 `PublicCommandOperation`
+   都把自身标识命名为 `id`；WebShell 保留 `taskId`，与它保留 `actionId` 和 `operationId` 一致。
+-- **时间戳。** 公共 API 统一用 `int64` epoch 毫秒（`created_at`、`expires_at`），
+-  服务端由 `clock.millis()` 填写。
++- **时间戳。** 用整数而不是 ISO 字符串，单位沿用各自接口面的现状。服务端存
++  `clock.millis()`；公共 API 除以 1000 返回 Unix epoch 秒（`PublicSession`、`PublicTurn`、
++  `PublicEvent`、`PublicItem`），WebShell 返回毫秒。`PublicTask` 和 `PublicTaskEvent` 用秒，
++  `WebShellTask` 和 `WebShellTaskEvent` 用毫秒，并在 schema 描述里写明。
+ - **`created_at`。** 列表按创建顺序排列，而 `pending` 任务没有 `started_at`，所以视图需要创建时间。
+ - **`artifact_refs` 有上限。** 长时间运行的 Monitor 可能轮转出很多 Artifact。视图最多列出 100 个，
+   Session 的 artifact 路由仍能读取全部 Artifact。
+@@ -123,7 +125,9 @@ Runtime endpoint、Pod、绝对路径、原始 PID、SecretHandle 和本地 side
+ - `202` 和 `completed` 的 operation 表示 authority 已记录这次取消，不表示任务已停止。
+   任务只有在物理执行结算后才变为 `cancelled`，结果未知时变为 `recovery_blocked`。
+   这遵循设计第 3.2 节：逻辑结算不能覆盖尚未 drain 的进程。
+-- 只有 `action_capabilities` 含 `cancel` 时路由才受理取消。已结算的任务从不提供它，
++- 同一 `Idempotency-Key` 的重试先于任何能力检查重放原 operation（与 cwd 路由一致），
++  因此丢失 `202` 的调用方在任务结算后仍能拿回自己的 operation。
++- 只有 `action_capabilities` 含 `cancel` 时路由才受理新 key 的取消。已结算的任务从不提供它，
+   所以同一条规则覆盖两种情况。
+ 
+ ### 4.5 WebShell 适配层
+diff --git a/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json b/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
+index 00a51b9b37..05dd0a7e50 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
++++ b/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
+@@ -1802,7 +1802,7 @@
+         "x-qwen-implementation-status": "planned",
+         "responses": {
+           "202": {
+-            "description": "Cancel durably recorded for the task owner, with Idempotency-Key replay. 202 and a completed operation mean acceptance, not a stop: the task becomes cancelled only after its physical execution settles, and an unknown outcome becomes recovery_blocked. 409 task_action_unavailable when action_capabilities lacks cancel, which includes every settled task; 409 idempotency_conflict when the key was used with another request.",
++            "description": "Cancel durably recorded for the task owner, with Idempotency-Key replay. 202 and a completed operation mean acceptance, not a stop: the task becomes cancelled only after its physical execution settles, and an unknown outcome becomes recovery_blocked. A retry with the same key replays the original operation before the capability check, so a cancel whose task has since settled still returns its operation. 409 task_action_unavailable when a new key finds action_capabilities without cancel, which includes every settled task; 409 idempotency_conflict when the key was used with another request.",
+             "content": {
+               "application/json": {
+                 "schema": {
+@@ -5621,15 +5621,18 @@
+           },
+           "created_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "started_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "settled_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "output_cursor": {
+             "type": "string",
+@@ -5758,7 +5761,8 @@
+           },
+           "created_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "state": {
+             "$ref": "#/components/schemas/TaskState"
+@@ -5929,15 +5933,18 @@
+           },
+           "createdAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "startedAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "settledAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "outputCursor": {
+             "type": "string",
+@@ -6066,7 +6073,8 @@
+           },
+           "createdAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "state": {
+             "$ref": "#/components/schemas/TaskState"
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+index d608ad368f..a17cbfc932 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+@@ -89,8 +89,7 @@ class ManagedAgentApiContractTest {
+     private static final String KNOWN_GAPS = "openapi/contract-known-gaps.txt";
+     private static final List<String> GAP_CATEGORIES = List.of("route",
+             "record", "request", "response");
+-    private static final List<String> API_PREFIXES = List.of("/v1/agents",
+-            "/v1/agent-automations", "/v1/agent-channels",
++    private static final List<String> API_PREFIXES = List.of("/v1/",
+             "/api/agent/web-shell/v1");
+     private static final String WEB_SHELL = "/api/agent/web-shell/v1";
+     private static final String TENANT = TenantContextFilter.HEADER;
+@@ -171,8 +170,12 @@ class ManagedAgentApiContractTest {
+         handlerMapping.getHandlerMethods().keySet().forEach(info -> {
+             for (String pattern : info.getPatternValues()) {
+                 if (API_PREFIXES.stream().anyMatch(pattern::startsWith)) {
+-                    for (RequestMethod method
+-                            : info.getMethodsCondition().getMethods()) {
++                    Set<RequestMethod> methods =
++                            info.getMethodsCondition().getMethods();
++                    if (methods.isEmpty()) {
++                        mapped.add("ANY " + pattern);
++                    }
++                    for (RequestMethod method : methods) {
+                         mapped.add(method.name() + " " + pattern);
+                     }
+                 }
