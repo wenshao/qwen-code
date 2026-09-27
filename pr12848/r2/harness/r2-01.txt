@@ -1,0 +1,20 @@
+#12848 round 2 at b89b7b38: the round-1 findings, re-run on the real stack
+782c1774 (round 1) -> a209f3ac (merge of c6c76750 + fixes) -> b89b7b38 (squash on main 302e7d88; 46-file patch identical)
+
+## Durability again, now on main's schema (V1..V15)
+++ author's six-Workspace driver, fresh MySQL 8.4.7 DB    HOSTED_WORKSPACE_TOOLS_OK (40.4 s), rows identical to round 1
+++ stop Spring -> restart mysqld -> fresh Spring -> reader  HOSTED_SHELL_RETAINED_OUTPUT_OK
+++ round-1 DB (V13, 100 MiB retained) opened by the new jar  V14+V15 applied, round-1 output still reads back OK
+## F1 preview (fixture model)
+++ T1  16 KB, tail line, exit 2          model sees FINAL-42-TAIL and "Exit Code: 2" after the gap marker
+++ T2  200 KB (> 64 KiB buffer), exit 4  "Exit Code: 4" arrives; stream tail past the buffer does not (documented)
+++ T3  70 KB of \x01 + exit 3            record 54,061 B < 65,536 (worst case)
+++ T4  900 CJK+emoji lines, exit 5       tail + exit present; preview has no U+FFFD
+++ real qwen3.8-max, same build.sh      ran once in 6/6 trials (round-1 head: re-ran in 5/6)
+## F2 refusal (fixture model; the real model never sent is_background in 4/4 trials, either arm)
+++ F2a is_background:true                function error, turn_complete, 0 Broker starts, reload + next turn OK
+++ F2b write_file + background Shell     both answered "not executed", 0 starts; corrected Shell then ran once
+++ F2c Shell ok -> refused -> Shell ok   one turn: inter.txt = r1,r3; 1 acquire, 2 starts, 1 release
+++ F2d unknown `directory` argument      function error, corrected call ran once
+## M13 / M11 live
+++ publisher: no token 401, wrong token 401; listener closed after 3 completed turns and after a model-error turn

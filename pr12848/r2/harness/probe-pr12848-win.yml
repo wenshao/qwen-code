@@ -1,0 +1,54 @@
+name: probe-pr12848-win
+on:
+  push:
+    branches: ['probe/pr12848-**']
+jobs:
+  win:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [main, pr]
+    steps:
+      - shell: powershell
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select arm
+        shell: bash
+        run: |
+          if [ "${{ matrix.arm }}" = main ]; then git checkout --detach 302e7d88ef366991295e41dd9b158a13ab29cd74; else git checkout --detach b89b7b38621a8b2ba3f4a72993097b5fdbd7b352; fi
+          git log --oneline -1
+      - name: Point temp at a short-alias-free directory
+        shell: powershell
+        run: |
+          $temp = Join-Path $env:RUNNER_WORKSPACE 'qwen-code-temp'
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+          "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack pnpm install --frozen-lockfile --reporter=append-only
+      - run: npm run build
+      - name: Run the files that failed in the a209f3ac dispatch
+        shell: bash
+        continue-on-error: true
+        env:
+          NO_COLOR: true
+          HOME: ${{ runner.temp }}/qwen-ci-home
+          USERPROFILE: ${{ runner.temp }}/qwen-ci-home
+        run: |
+          node -e "for (const k of ['HOME','USERPROFILE']) require('node:fs').mkdirSync(process.env[k], { recursive: true })"
+          git config --global core.autocrlf false
+          export TMPDIR="${RUNNER_TEMP}"
+          mkdir -p probe-out
+          (cd packages/cli && npx vitest run src/commands/batch-task.test.ts src/llm.test.tsx src/serve/local-process-runtime-activator.test.ts src/serve/managed-runtime-tool-v3-routes.test.ts src/serve/routes/workspace-git-branches.test.ts src/serve/routes/workspace-git-worktrees.test.ts src/serve/workspace-route-runtime.test.ts src/startup/worktreeStartup.test.ts src/utils/managed-npm-update.test.ts src/utils/relaunch.test.ts  --coverage.enabled=false > ../../probe-out/cli-${{ matrix.arm }}.txt 2>&1; echo "cli rc=$?" >> ../../probe-out/cli-${{ matrix.arm }}.txt)
+          (cd packages/core && npx vitest run src/managed-runtime/local-shell-result-capture.test.ts src/managed-runtime/managed-session-authority.test.ts src/services/git-worktree-marker.test.ts src/services/session-writer-lease.test.ts src/services/worktreeSessionService.test.ts src/tools/managed-tool-file-history-protocol.test.ts src/utils/git-worktrees.test.ts  --coverage.enabled=false > ../../probe-out/core-${{ matrix.arm }}.txt 2>&1; echo "core rc=$?" >> ../../probe-out/core-${{ matrix.arm }}.txt)
+          grep -hE "Test Files|Tests  |FAIL  |rc=" probe-out/*.txt || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-${{ matrix.arm }}
+          path: probe-out/
