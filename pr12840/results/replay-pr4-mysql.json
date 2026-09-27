@@ -1,0 +1,340 @@
+{
+  "tenant": "rig840-6c7d4549",
+  "checks": [
+    {
+      "name": "S1 Session advertises snapshots and resync",
+      "pass": true,
+      "detail": {
+        "items": true,
+        "snapshots": true,
+        "artifacts": false,
+        "resync": true
+      }
+    },
+    {
+      "name": "S1 Session validates against PublicSession",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "S1 paging limit=7 via next_cursor: every sequence once, in order",
+      "pass": true,
+      "detail": {
+        "n": 13,
+        "first": 1,
+        "last": 13,
+        "dups": 0,
+        "gaps": 0,
+        "inversions": 0
+      }
+    },
+    {
+      "name": "S1 non-final pages: has_more true, next_cursor = last sequence",
+      "pass": true,
+      "detail": "1 pages"
+    },
+    {
+      "name": "S1 final page: has_more false, next_cursor null",
+      "pass": true,
+      "detail": {
+        "n": 6,
+        "has_more": false,
+        "next_cursor": null
+      }
+    },
+    {
+      "name": "S1 limit=last_event_id (13) returns has_more false",
+      "pass": true
+    },
+    {
+      "name": "S1 limit=1000 -> 200",
+      "pass": true,
+      "detail": "200 "
+    },
+    {
+      "name": "S1 limit=1001 -> 400",
+      "pass": true,
+      "detail": "400 invalid_limit"
+    },
+    {
+      "name": "S1 limit=0 -> 400",
+      "pass": true,
+      "detail": "400 invalid_limit"
+    },
+    {
+      "name": "S1 after=-1 -> 400",
+      "pass": true,
+      "detail": "400 invalid_event_cursor"
+    },
+    {
+      "name": "S1 WebShell transcript limit=1000 -> 200, 1001 -> 400",
+      "pass": true,
+      "detail": "200 / 400 invalid_limit"
+    },
+    {
+      "name": "S1 every event validates against PublicEvent",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "S1 every event has schema_version 1 and projection_version 1",
+      "pass": true
+    },
+    {
+      "name": "S1 every event item_id names an Item of the snapshot",
+      "pass": true,
+      "detail": "6 events name an Item; missing 0"
+    },
+    {
+      "name": "S1 every content_part_id names a Part of that Item",
+      "pass": true,
+      "detail": "3 events name a Part; missing 0"
+    },
+    {
+      "name": "S1 deltas grouped by content_part_id rebuild every text Part exactly",
+      "pass": true,
+      "detail": "3 text Parts; mismatched 0"
+    },
+    {
+      "name": "S2 Session reports replay_floor_sequence=8",
+      "pass": true,
+      "detail": {
+        "replay_floor_sequence": 8,
+        "snapshot_through_sequence": 13
+      }
+    },
+    {
+      "name": "S2 JSON after=floor-1 -> 409 cursor_expired with both watermarks",
+      "pass": true,
+      "detail": {
+        "code": "cursor_expired",
+        "message": "The replay cursor is older than the replay floor.",
+        "request_id": "d814def2-d7d0-4d69-b534-7bba0449c3b6",
+        "replay_floor_sequence": 8,
+        "snapshot_through_sequence": 13
+      }
+    },
+    {
+      "name": "S2 409 envelope validates against ErrorEnvelope",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "S2 JSON after=floor -> 200",
+      "pass": true,
+      "detail": "200 first=9"
+    },
+    {
+      "name": "S2 Last-Event-ID below the floor wins over after=floor -> 409",
+      "pass": true,
+      "detail": 409
+    },
+    {
+      "name": "S2 Last-Event-ID=floor wins over after=0 -> 200",
+      "pass": true,
+      "detail": 200
+    },
+    {
+      "name": "S2 public SSE below floor: exactly one resync frame, no id, stream closed by server",
+      "pass": true,
+      "detail": {
+        "frames": 1,
+        "event": "agent.session.resync_required",
+        "id": null,
+        "closedBy": "server-closed",
+        "ms": 14
+      }
+    },
+    {
+      "name": "S2 public resync frame validates against SessionResyncRequired",
+      "pass": true,
+      "detail": {
+        "type": "agent.session.resync_required",
+        "session_id": "2da4802a-785e-40b5-988f-8c3a200a949d",
+        "replay_floor_sequence": 8,
+        "snapshot_through_sequence": 13,
+        "action": "reload_snapshot"
+      }
+    },
+    {
+      "name": "S2 public SSE: Last-Event-ID below floor wins over after -> resync",
+      "pass": true,
+      "detail": [
+        "agent.session.resync_required"
+      ]
+    },
+    {
+      "name": "S2 public SSE at floor: events floor+1..last, stream stays open",
+      "pass": true,
+      "detail": {
+        "n": 5,
+        "first": 9,
+        "last": 13,
+        "dups": 0,
+        "gaps": 0,
+        "inversions": 0,
+        "closedBy": "idle"
+      }
+    },
+    {
+      "name": "S2 WebShell SSE below floor: one resync frame, no id, closed",
+      "pass": true,
+      "detail": {
+        "frames": 1,
+        "id": null,
+        "closedBy": "server-closed"
+      }
+    },
+    {
+      "name": "S2 WebShell resync frame validates against WebShellResyncRequired",
+      "pass": true,
+      "detail": {
+        "type": "agent.session.resync_required",
+        "sessionId": "2da4802a-785e-40b5-988f-8c3a200a949d",
+        "replayFloorSequence": 8,
+        "snapshotThroughSequence": 13,
+        "action": "reload_snapshot"
+      }
+    },
+    {
+      "name": "S2 transcript reload resumes at or above the floor",
+      "pass": true,
+      "detail": {
+        "lastSequence": 13,
+        "coveredSequence": 13
+      }
+    },
+    {
+      "name": "S2 WebShell stream after transcript.lastSequence: no resync, stays open",
+      "pass": true,
+      "detail": {
+        "frames": 0,
+        "closedBy": "idle"
+      }
+    }
+  ],
+  "s1": {
+    "id": "2da4802a-785e-40b5-988f-8c3a200a949d",
+    "last": 13
+  },
+  "paging": [
+    {
+      "status": 200,
+      "n": 7,
+      "first": 1,
+      "last": 7,
+      "has_more": true,
+      "next_cursor": "7"
+    },
+    {
+      "status": 200,
+      "n": 6,
+      "first": 8,
+      "last": 13,
+      "has_more": false,
+      "next_cursor": null
+    }
+  ],
+  "identitySample": [
+    {
+      "seq": 6,
+      "type": "turn.accepted",
+      "item_id": "item_turn_305ce02bca404624839c9714c9f2a679_input",
+      "content_part_id": null,
+      "legacy": null,
+      "text": null
+    },
+    {
+      "seq": 7,
+      "type": "turn.started",
+      "item_id": null,
+      "content_part_id": null,
+      "legacy": null,
+      "text": null
+    },
+    {
+      "seq": 8,
+      "type": "item.output_text.delta",
+      "item_id": "item_turn_305ce02bca404624839c9714c9f2a679_assistant",
+      "content_part_id": "part_turn_305ce02bca404624839c9714c9f2a679_output_text_8",
+      "legacy": "part_turn_305ce02bca404624839c9714c9f2a679_output_text",
+      "text": "REPLY_88: part one, still part one. Part two answered \"second turn INTERLEAVE\"."
+    },
+    {
+      "seq": 9,
+      "type": "turn.completed",
+      "item_id": null,
+      "content_part_id": null,
+      "legacy": null,
+      "text": null
+    }
+  ],
+  "parts": [
+    {
+      "key": "item_turn_d1caeff1741f4f198931f5498cd91b4b_assistant/part_turn_d1caeff1741f4f198931f5498cd91b4b_output_text_4",
+      "type": "output_text",
+      "first": 4,
+      "last": 4,
+      "text": "REPLY_87: the event replay rig answered \"first turn\"."
+    },
+    {
+      "key": "item_turn_305ce02bca404624839c9714c9f2a679_assistant/part_turn_305ce02bca404624839c9714c9f2a679_output_text_8",
+      "type": "output_text",
+      "first": 8,
+      "last": 8,
+      "text": "REPLY_88: part one, still part one. Part two answered \"second turn INTERLEAVE\"."
+    },
+    {
+      "key": "item_turn_44613a8061874677965f4e903459f7e2_assistant/part_turn_44613a8061874677965f4e903459f7e2_output_text_12",
+      "type": "output_text",
+      "first": 12,
+      "last": 12,
+      "text": "REPLY_89: the event replay rig answered \"third turn\"."
+    }
+  ],
+  "expired": {
+    "error": {
+      "code": "cursor_expired",
+      "message": "The replay cursor is older than the replay floor.",
+      "request_id": "d814def2-d7d0-4d69-b534-7bba0449c3b6",
+      "replay_floor_sequence": 8,
+      "snapshot_through_sequence": 13
+    }
+  },
+  "publicResync": {
+    "status": 200,
+    "why": "server-closed",
+    "ms": 14,
+    "frames": [
+      {
+        "id": null,
+        "event": "agent.session.resync_required",
+        "data": {
+          "type": "agent.session.resync_required",
+          "session_id": "2da4802a-785e-40b5-988f-8c3a200a949d",
+          "replay_floor_sequence": 8,
+          "snapshot_through_sequence": 13,
+          "action": "reload_snapshot"
+        }
+      }
+    ]
+  },
+  "webShellResync": {
+    "status": 200,
+    "why": "server-closed",
+    "frames": [
+      {
+        "id": null,
+        "event": "agent.session.resync_required",
+        "data": {
+          "type": "agent.session.resync_required",
+          "sessionId": "2da4802a-785e-40b5-988f-8c3a200a949d",
+          "replayFloorSequence": 8,
+          "snapshotThroughSequence": 13,
+          "action": "reload_snapshot"
+        }
+      }
+    ]
+  },
+  "summary": "30/30 checks passed"
+}

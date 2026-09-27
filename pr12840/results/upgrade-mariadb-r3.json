@@ -1,0 +1,194 @@
+{
+  "label": "mariadb_r3",
+  "db": "p840_up_mariadb_r3",
+  "tenant": "rig-up-mariadb_r3-mujssiwe",
+  "steps": [
+    "1. main's jar on an empty database: real Turns and empty Sessions",
+    "2. randomized legacy events appended by SQL (V13 columns only)",
+    "3. main's jar materializes the legacy events",
+    "4. the PR jar migrates V14 + V15",
+    "5. backfilled identity vs main's Snapshot",
+    "6. rollback: main's jar on the V15 schema writes, then the PR jar again"
+  ],
+  "checks": [
+    {
+      "name": "V15 is recorded as a JDBC (Java) migration from the packaged jar",
+      "pass": true,
+      "detail": [
+        "14 SQL V14__managed_event_replay.sql 49ms 1",
+        "15 JDBC db.migration.V15__managed_event_identity 868ms 1"
+      ]
+    },
+    {
+      "name": "backfill vs main's Snapshot: 1606 events, 448 text Parts, 0 disagreements",
+      "pass": true,
+      "detail": {
+        "events": 1606,
+        "withItem": 1179,
+        "withPart": 538,
+        "items": 734,
+        "textParts": 448,
+        "problems": {
+          "versions": 0,
+          "itemMissing": 0,
+          "partMissing": 0,
+          "deltaNoIdentity": 0,
+          "emptyWithIdentity": 0,
+          "acceptedNoItem": 0,
+          "toolNoItem": 0,
+          "toolNotToolItem": 0,
+          "otherWithIdentity": 0,
+          "textMismatch": 0
+        },
+        "samples": {}
+      }
+    },
+    {
+      "name": "every text Part of the Snapshot is named by at least one event",
+      "pass": true,
+      "detail": {
+        "textParts": 448,
+        "named": 448
+      }
+    },
+    {
+      "name": "events that main's jar wrote on the V15 schema keep no identity after roll-forward (V15 does not run again)",
+      "pass": true,
+      "detail": {
+        "written": [
+          {
+            "seq": 2,
+            "type": "turn.accepted",
+            "item_id": null,
+            "content_part_id": null
+          },
+          {
+            "seq": 4,
+            "type": "item.output_text.delta",
+            "item_id": null,
+            "content_part_id": null
+          }
+        ],
+        "snapshotItems": 2
+      }
+    }
+  ],
+  "mainFlyway": [
+    "Migrating schema `p840_up_mariadb_r3` to version \"1 - managed agent core\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"2 - managed agent projection\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"3 - runtime broker\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"4 - managed session store\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"5 - managed session lifecycle\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"6 - managed turn retry\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"7 - managed workspace binding\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"8 - managed workspace registry\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"9 - managed workspace creation command\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"10 - managed runtime context\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"11 - workspace execution\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"12 - runtime broker schema alignment\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"13 - managed session agent revision\"",
+    "Successfully applied 13 migrations to schema `p840_up_mariadb_r3`, now at version v13 (execution time 00:00.570s)"
+  ],
+  "legacy": {
+    "sessions": 60,
+    "events": 1519,
+    "deltas": 586,
+    "empty": 54,
+    "reasoning": 224,
+    "tools": 486,
+    "gaps": 0,
+    "customItem": 60
+  },
+  "materializeMs": 3016,
+  "before": {
+    "events": 1606,
+    "items": 734,
+    "parts": 651,
+    "columns": "tenant_id,session_id,sequence_id,event_id,turn_id,event_type,data_json,terminal,source_key,created_at"
+  },
+  "prFlyway": [
+    "Migrating schema `p840_up_mariadb_r3` to version \"14 - managed event replay\"",
+    "Migrating schema `p840_up_mariadb_r3` to version \"15 - managed event identity\"",
+    "Successfully applied 2 migrations to schema `p840_up_mariadb_r3`, now at version v15 (execution time 00:00.917s)"
+  ],
+  "history": [
+    "14 SQL V14__managed_event_replay.sql 49ms 1",
+    "15 JDBC db.migration.V15__managed_event_identity 868ms 1"
+  ],
+  "differential": {
+    "events": 1606,
+    "withItem": 1179,
+    "withPart": 538,
+    "items": 734,
+    "textParts": 448,
+    "problems": {
+      "versions": 0,
+      "itemMissing": 0,
+      "partMissing": 0,
+      "deltaNoIdentity": 0,
+      "emptyWithIdentity": 0,
+      "acceptedNoItem": 0,
+      "toolNoItem": 0,
+      "toolNotToolItem": 0,
+      "otherWithIdentity": 0,
+      "textMismatch": 0
+    },
+    "samples": {}
+  },
+  "rollbackStart": [
+    "Schema `p840_up_mariadb_r3` has a version (15) that is newer than the latest available migration (13) !",
+    "Schema `p840_up_mariadb_r3` is up to date. No migration necessary."
+  ],
+  "rollForwardFlyway": [
+    "Schema `p840_up_mariadb_r3` is up to date. No migration necessary."
+  ],
+  "rollback": {
+    "session": "2da5e8e8-bf31-41fd-be9c-c8939ef4e655",
+    "events": [
+      {
+        "seq": 1,
+        "type": "session.created",
+        "item_id": null,
+        "content_part_id": null
+      },
+      {
+        "seq": 2,
+        "type": "turn.accepted",
+        "item_id": null,
+        "content_part_id": null
+      },
+      {
+        "seq": 3,
+        "type": "turn.started",
+        "item_id": null,
+        "content_part_id": null
+      },
+      {
+        "seq": 4,
+        "type": "item.output_text.delta",
+        "item_id": null,
+        "content_part_id": null
+      },
+      {
+        "seq": 5,
+        "type": "turn.completed",
+        "item_id": null,
+        "content_part_id": null
+      }
+    ],
+    "items": [
+      {
+        "id": "item_turn_04b1049fb59a41c2912bdeeb81cba666_input",
+        "parts": [
+          "part_turn_04b1049fb59a41c2912bdeeb81cba666_input_0"
+        ]
+      },
+      {
+        "id": "item_turn_04b1049fb59a41c2912bdeeb81cba666_assistant",
+        "parts": [
+          "part_turn_04b1049fb59a41c2912bdeeb81cba666_output_text_4"
+        ]
+      }
+    ]
+  }
+}

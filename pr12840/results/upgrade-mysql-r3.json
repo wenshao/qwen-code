@@ -1,0 +1,198 @@
+{
+  "label": "mysql_r3",
+  "db": "p840_up_mysql_r3",
+  "tenant": "rig-up-mysql_r3-mujst6td",
+  "steps": [
+    "1. main's jar on an empty database: real Turns and empty Sessions",
+    "2. randomized legacy events appended by SQL (V13 columns only)",
+    "3. main's jar materializes the legacy events",
+    "4. the PR jar migrates V14 + V15",
+    "5. backfilled identity vs main's Snapshot",
+    "6. rollback: main's jar on the V15 schema writes, then the PR jar again"
+  ],
+  "checks": [
+    {
+      "name": "V15 is recorded as a JDBC (Java) migration from the packaged jar",
+      "pass": true,
+      "detail": [
+        "14 SQL V14__managed_event_replay.sql 33ms 1",
+        "15 JDBC db.migration.V15__managed_event_identity 347ms 1"
+      ]
+    },
+    {
+      "name": "backfill vs main's Snapshot: 1634 events, 435 text Parts, 0 disagreements",
+      "pass": true,
+      "detail": {
+        "events": 1634,
+        "withItem": 1187,
+        "withPart": 530,
+        "items": 725,
+        "textParts": 435,
+        "problems": {
+          "versions": 0,
+          "itemMissing": 0,
+          "partMissing": 0,
+          "deltaNoIdentity": 0,
+          "emptyWithIdentity": 0,
+          "acceptedNoItem": 0,
+          "toolNoItem": 0,
+          "toolNotToolItem": 0,
+          "otherWithIdentity": 0,
+          "textMismatch": 0
+        },
+        "samples": {}
+      }
+    },
+    {
+      "name": "every text Part of the Snapshot is named by at least one event",
+      "pass": true,
+      "detail": {
+        "textParts": 435,
+        "named": 435
+      }
+    },
+    {
+      "name": "events that main's jar wrote on the V15 schema keep no identity after roll-forward (V15 does not run again)",
+      "pass": true,
+      "detail": {
+        "written": [
+          {
+            "seq": 2,
+            "type": "turn.accepted",
+            "item_id": null,
+            "content_part_id": null
+          },
+          {
+            "seq": 4,
+            "type": "item.output_text.delta",
+            "item_id": null,
+            "content_part_id": null
+          }
+        ],
+        "snapshotItems": 2
+      }
+    }
+  ],
+  "mainFlyway": [
+    "MySQL 8.4 is newer than this version of Flyway and support has not been tested. The latest supported version of MySQL is 8.1.",
+    "Migrating schema `p840_up_mysql_r3` to version \"1 - managed agent core\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"2 - managed agent projection\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"3 - runtime broker\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"4 - managed session store\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"5 - managed session lifecycle\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"6 - managed turn retry\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"7 - managed workspace binding\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"8 - managed workspace registry\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"9 - managed workspace creation command\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"10 - managed runtime context\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"11 - workspace execution\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"12 - runtime broker schema alignment\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"13 - managed session agent revision\"",
+    "Successfully applied 13 migrations to schema `p840_up_mysql_r3`, now at version v13 (execution time 00:00.468s)"
+  ],
+  "legacy": {
+    "sessions": 60,
+    "events": 1547,
+    "deltas": 602,
+    "empty": 78,
+    "reasoning": 223,
+    "tools": 504,
+    "gaps": 0,
+    "customItem": 60
+  },
+  "materializeMs": 371,
+  "before": {
+    "events": 1634,
+    "items": 725,
+    "parts": 628,
+    "columns": "tenant_id,session_id,sequence_id,event_id,turn_id,event_type,data_json,terminal,source_key,created_at"
+  },
+  "prFlyway": [
+    "MySQL 8.4 is newer than this version of Flyway and support has not been tested. The latest supported version of MySQL is 8.1.",
+    "Migrating schema `p840_up_mysql_r3` to version \"14 - managed event replay\"",
+    "Migrating schema `p840_up_mysql_r3` to version \"15 - managed event identity\"",
+    "Successfully applied 2 migrations to schema `p840_up_mysql_r3`, now at version v15 (execution time 00:00.380s)"
+  ],
+  "history": [
+    "14 SQL V14__managed_event_replay.sql 33ms 1",
+    "15 JDBC db.migration.V15__managed_event_identity 347ms 1"
+  ],
+  "differential": {
+    "events": 1634,
+    "withItem": 1187,
+    "withPart": 530,
+    "items": 725,
+    "textParts": 435,
+    "problems": {
+      "versions": 0,
+      "itemMissing": 0,
+      "partMissing": 0,
+      "deltaNoIdentity": 0,
+      "emptyWithIdentity": 0,
+      "acceptedNoItem": 0,
+      "toolNoItem": 0,
+      "toolNotToolItem": 0,
+      "otherWithIdentity": 0,
+      "textMismatch": 0
+    },
+    "samples": {}
+  },
+  "rollbackStart": [
+    "MySQL 8.4 is newer than this version of Flyway and support has not been tested. The latest supported version of MySQL is 8.1.",
+    "Schema `p840_up_mysql_r3` has a version (15) that is newer than the latest available migration (13) !",
+    "Schema `p840_up_mysql_r3` is up to date. No migration necessary."
+  ],
+  "rollForwardFlyway": [
+    "MySQL 8.4 is newer than this version of Flyway and support has not been tested. The latest supported version of MySQL is 8.1.",
+    "Schema `p840_up_mysql_r3` is up to date. No migration necessary."
+  ],
+  "rollback": {
+    "session": "40cf0f7b-b451-4036-8abe-62dc3cddf54d",
+    "events": [
+      {
+        "seq": 1,
+        "type": "session.created",
+        "item_id": null,
+        "content_part_id": null
+      },
+      {
+        "seq": 2,
+        "type": "turn.accepted",
+        "item_id": null,
+        "content_part_id": null
+      },
+      {
+        "seq": 3,
+        "type": "turn.started",
+        "item_id": null,
+        "content_part_id": null
+      },
+      {
+        "seq": 4,
+        "type": "item.output_text.delta",
+        "item_id": null,
+        "content_part_id": null
+      },
+      {
+        "seq": 5,
+        "type": "turn.completed",
+        "item_id": null,
+        "content_part_id": null
+      }
+    ],
+    "items": [
+      {
+        "id": "item_turn_be2f885cff164cd0a1084621aeaaf55d_input",
+        "parts": [
+          "part_turn_be2f885cff164cd0a1084621aeaaf55d_input_0"
+        ]
+      },
+      {
+        "id": "item_turn_be2f885cff164cd0a1084621aeaaf55d_assistant",
+        "parts": [
+          "part_turn_be2f885cff164cd0a1084621aeaaf55d_output_text_4"
+        ]
+      }
+    ]
+  }
+}

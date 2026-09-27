@@ -1,0 +1,30 @@
+PR #12840 verification, 2026-09-27. Heads: 42bdee4104 -> d760dd572e -> 349fb3ba28 -> 6bba5132bc (merge main) -> cf72a892b4 (final)
+
+CI-equivalent (mvn -Pmysql-integration clean verify checkstyle:check, mariadb:10.11.18, JDK 21):
+  42bdee4104  128 unit + 10 IT, 0 Checkstyle violations
+  d760dd572e  130 unit + 10 IT, 0
+  349fb3ba28  130 unit + 10 IT, 0
+  cf72a892b4  135 unit + 10 IT, 0   (jar entries: 374/375 CRC-identical to 349fb3ba28; only openapi/managed-agent-public-api.openapi.json differs)
+Web Shell (cf72a892b4): generate:managed-agent-api -> no diff; vitest client/components/managed 73/73; tsc --noEmit clean
+
+V15, one Session of 1,200,000 legacy events, -Xmx256m, MySQL 8.4.7:
+  42bdee4104  not up after 123 s / 15 min; main thread in ConnectionImpl.rollback via Flyway TransactionalExecutionTemplate (MySQLNamedLockTemplate); old gen 99.79 %; SIGTERM ignored
+              with -XX:+ExitOnOutOfMemoryError: "Terminating due to java.lang.OutOfMemoryError: Java heap space" right after "Migrating ... to version 15"
+  d760dd572e  not up after 248 s; same stack; old gen 99.81 %; SIGTERM ignored for 10 s -> SIGKILL; with ExitOnOutOfMemoryError: OOM after 4 s; V15 not in flyway_schema_history
+  349fb3ba28  up after 91 s; 15 JDBC 86206 ms success=1; 1200001 rows, 1188000 item_id, 936000 content_part_id, 252000 distinct parts
+  300,000 events: 42bdee4104 23476 ms, d760dd572e 15595 ms (both OK)
+Shared V13 dump (10,637 events, longest Session 9,509): MD5 of (tenant, session, seq, item_id, content_part_id, versions) = 97172c7531124444105dd216dd2eb9ac for 42bdee4104, d760dd572e and 349fb3ba28
+
+Retraction probe (RetractionIdentityProbeTest):
+  42bdee4104  seed 12840, 400 cases -> 356 failures (e.g. "#5 empty delta names part_..._reasoning_5")
+  d760dd572e  seeds 12840(400), 1, 2, 3 (1000 each) -> 0 failures
+  349fb3ba28  same seeds -> 0 failures
+
+Mutants (mutate.py): 42bdee4104 13/16 killed (M2 has_more >=, M12 single-append previous, M14 V15 holes survive)
+                     d760dd572e 15/16 (M14 survives; holes cannot exist: main's materializer throws "Message projection event sequence has a gap")
+                     349fb3ba28 17/17 applicable killed (M14 anchor gone; M17/M18 V15 paging mutants killed by the page-spanning test)
+
+Merge: 6bba5132bc spec vs an independent trial merge (PR description + " v1.17 implements event replay...", version 1.17.0): 0 differing JSON nodes
+
+One S3 run under heavy host load paused 91 s: the server closed the blocked stream after 978 contiguous events (2..979, no gap/dup),
+consistent with Tomcat's default 60 s write timeout; a client resumes with Last-Event-ID. Not specific to this PR; later runs (57-69 s pauses) pass.
