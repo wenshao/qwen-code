@@ -1,0 +1,15 @@
+F3 / F4 - real boot v2 worker with an injected publisher (startManagedRuntimeAttestationWorker)
+Context installed + workspace activated over HTTP; the publisher's accept() fails once (e.g. activation lost at receipt time)
+## F3  v3 call whose receipt step failed
+== install context -> 200     activate workspace -> 200
+!! v3 execute                  -> 200 {"state":"unknown"}      side effect on disk: yes
+!! v3 status                   -> 200 {"state":"unknown","lastSequence":2}
+-- release workspace (+0 s)    -> 409 managed_activation_conflict
+-- release workspace (+3 s)    -> 409 managed_activation_conflict   (hasActiveSession(): state !== 'settled')
+-- v3 execute again            -> 200 unknown; accept() never retried (1 call total) - nothing on this worker can clear it
+## v2 control, same worker
+++ execute -> 200 settled success     status -> 200 settled     release (+0 s / +3 s) -> 200 released / 200 released
+## F4  v2 routes naming the callId of a v3 journal entry
+-- v2 status   -> 500 text/html "<!DOCTYPE html>..."   (ManagedToolExecutor.status throws ManagedToolConflictError)
+-- v2 cancel   -> 500 text/html "<!DOCTYPE html>..."   (the v2 status/cancel handlers have no try/catch; stack on stderr)
+++ v2 execute  -> 409 {"code":"managed_runtime_identity_conflict"}   (execute catches it - the expected shape)

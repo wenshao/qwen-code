@@ -1,0 +1,26 @@
+F1 - healthy storage, large Shell output reported "storage_failed" and blocked
+Real Tool v3 HTTP host (Session authority + O1b store + real Shell), fresh Session per run; macOS Node 24 and Linux Node 22
+## stdout size (random bytes)    PR head 8e9151f1                          head + candidate patch
+== 1 MiB exactly                 5/5 complete  committed                   5/5 complete  committed
+-- 1 MiB + 9 B                   5/5 unavailable storage_failed BLOCKED    5/5 complete  committed
+-- 10 MiB + 1 KiB                3/3 unavailable storage_failed BLOCKED    3/3 complete  committed
+-- 10 MiB + 8 KiB                3/3 unavailable storage_failed BLOCKED    3/3 complete  committed
+-- 10 MiB + 32 KiB               3/3 unavailable storage_failed BLOCKED    3/3 complete  committed
+-- 1 MiB + 64 KiB                5/5 unavailable storage_failed BLOCKED    8/8 complete  committed
+-- 10 MiB + 64 KiB               3/3 unavailable storage_failed BLOCKED    3/3 complete  committed
+-- 20 MiB + 64 KiB               4/4 unavailable storage_failed BLOCKED    3/3 complete  committed
+-- 10 MiB + 100 KiB              5/5 unavailable storage_failed BLOCKED    8/8 complete  committed
+-- 10 MiB + 128 KiB              3/3 unavailable storage_failed BLOCKED    3/3 complete  committed
+== 10 MiB + 512 KiB, + 960 KiB   6/6 complete  committed                   6/6 complete  committed
+== 4 MiB, 4 MiB + 9 B            10/10 complete  committed                 10/10 complete  committed
+== 100 MiB + 9 B                 4/4 complete  committed                   3/3 complete  committed
+
+!! head: 29/29 runs ending 1 KiB-128 KiB past a 1 MiB boundary are blocked, and 5/5 at 1 MiB + 9 B;
+!!       checkpoint stays await_runtime, so the model can never continue. The PR's own 100 MiB test is an exact multiple.
+++ candidate: 63/63 committed on macOS; results_ready; successor re-read of 10.1 MiB matches the generator digest.
+## Linux (node:22-bookworm, CI's Node) - real ShellExecutionService + LocalShellResultCapture + O1b store
+-- head       1 MiB + 64 KiB 5/5 unavailable | 10 MiB + 64 KiB 5/5 unavailable | 10 MiB + 128 KiB 4/5 unavailable
+++ candidate  same sizes 15/15 complete; exact 1 MiB / 10 MiB / 10.5 MiB 15/15 complete on both arms
+## head moved during verification -> 2210712573 (executor replay check only; core untouched) - re-run on the new head
+-- 2210712573        1 MiB + 64 KiB, 10 MiB + 64 KiB, 20 MiB + 64 KiB, 10 MiB + 100 KiB: 12/12 BLOCKED; 10 MiB exact 3/3 ok
+++ + candidate       same 15 runs 15/15 complete committed; PR suites core 544/544, cli 830/830

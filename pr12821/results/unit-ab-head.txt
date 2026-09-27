@@ -1,0 +1,64 @@
+
+ RUN  v3.2.7 $SCRATCH/wt-cand/packages/core
+      Coverage enabled with v8
+
+ ❯ src/managed-runtime/local-shell-result-capture.test.ts (8 tests | 2 failed) 9578ms
+   ✓ foreground Shell local result capture > retains 100 MiB or 1 GiB of raw pipe bytes with bounded memory  6031ms
+   ✓ foreground Shell local result capture > does not count slow persistence against the post-exit pipe drain  1534ms
+   ✓ foreground Shell local result capture > marks an inherited pipe tail incomplete after the drain boundary  1040ms
+   ✓ foreground Shell local result capture > can seal accepted bytes when a running process is cancelled 264ms
+   × foreground Shell local result capture > serializes overlapping writes that reach a segment boundary 184ms
+     → expected [ 'stdout#0', 'stdout#0', 'stdout#2' ] to deeply equal [ 'stdout#0', 'stdout#1' ]
+   × foreground Shell local result capture > seals a real pipe that ends just past a segment boundary 320ms
+     → expected 'unavailable' to be 'complete' // Object.is equality
+   ✓ foreground Shell local result capture > stops publishing after the Session writer lease is lost 137ms
+   ✓ foreground Shell local result capture > keeps a successful physical outcome when segment storage refuses bytes 67ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/managed-runtime/local-shell-result-capture.test.ts > foreground Shell local result capture > serializes overlapping writes that reach a segment boundary
+AssertionError: expected [ 'stdout#0', 'stdout#0', 'stdout#2' ] to deeply equal [ 'stdout#0', 'stdout#1' ]
+
+- Expected
++ Received
+
+  [
+    "stdout#0",
+-   "stdout#1",
++   "stdout#0",
++   "stdout#2",
+  ]
+
+ ❯ src/managed-runtime/local-shell-result-capture.test.ts:357:25
+    355|       });
+    356|       const envelope = await capture.finalize('success', []);
+    357|       expect(published).toEqual(['stdout#0', 'stdout#1']);
+       |                         ^
+    358|       expect(envelope.capture?.captureStatus).toBe('complete');
+    359|       const stdout = parseToolResultManifestBytes(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/managed-runtime/local-shell-result-capture.test.ts > foreground Shell local result capture > seals a real pipe that ends just past a segment boundary
+AssertionError: expected 'unavailable' to be 'complete' // Object.is equality
+
+Expected: "complete"
+Received: "unavailable"
+
+ ❯ src/managed-runtime/local-shell-result-capture.test.ts:393:47
+    391|       capture.setProcessResult(await handle.result);
+    392|       const envelope = await capture.finalize('success', []);
+    393|       expect(envelope.capture?.captureStatus).toBe('complete');
+       |                                               ^
+    394|       const stdout = parseToolResultManifestBytes(
+    395|         await resources.read(envelope.capture!.manifest!),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 passed (8)
+   Start at  13:46:22
+   Duration  14.02s (transform 257ms, setup 12ms, collect 361ms, tests 9.58s, environment 0ms, prepare 47ms)
+
+JUNIT report written to $SCRATCH/wt-cand/packages/core/junit.xml

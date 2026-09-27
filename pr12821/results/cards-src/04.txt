@@ -1,0 +1,15 @@
+Failure paths on the PR head - all fail closed, no re-execution, retained bytes stay readable
+Same real host; exact-MiB outputs (so F1 cannot interfere); successor process re-reads what was retained
+## scenario                       capture / decision                    Session phase    retained bytes (successor)        runs
+++ slow store, 150 ms/segment     complete / committed                  results_ready    20 MiB sealed, digest == gen       1
+++ (21 segments ~3.2 s > 1 s drain bound; persistence time is not charged to the post-exit drain)
+++ inherited pipe (grandchild)    partial, producer_lost / blocked      await_runtime    2 MiB prefix incomplete, == gen    1
+++ cancel after 1 s               cancelled SIGTERM, complete / committed results_ready  8 MiB sealed, digest == gen        1
+++ store refuses stdout#3+        unavailable, storage_failed / blocked await_runtime    3 segments kept, exit 0 kept       1
+++ host SIGKILL before receipt    (no HTTP answer)                      await_runtime    20 MiB sealed, digest == gen       1
+++                                no tool.receipt; successor prepare() rejected: "not committed before dispatch"
+## ACK and replay
+++ blocked receipt ACK            200 blocked; identical repeat 200; upgrade blocked -> committed = 409
+++ duplicate execute (rows 1-4)  byte-identical response, side-effect log still 1
+## real product binary: node dist/cli.js managed-runtime-worker (boot v2 fixture, no publisher injected)
+++ v3 execute/status/cancel/acknowledge -> 404, empty body     authorized v2 status control -> 200 unknown

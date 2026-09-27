@@ -1,0 +1,12 @@
+F2 - every v3 Shell call pins 2 MiB of segment buffers for the life of the worker
+node --expose-gc; real compiled ManagedToolExecutor + LocalShellResultCapture + O1b store; `echo hi` x100; ArrayBuffer held after full GC
+## calls     v3 on PR head (after committed ACK)     v2 on PR head       v3 + candidate release
+-- 1         +2.0 MiB                                  0.1 MiB            0.0 MiB
+-- 10        +20.0 MiB                                 0.1 MiB            0.0 MiB
+-- 25        +50.1 MiB                                 0.1 MiB            0.1 MiB
+-- 50        +100.1 MiB                                0.1 MiB            0.1 MiB
+-- 100       +200.3 MiB                                0.1 MiB            0.3 MiB
+== cause: stream() allocates Buffer.allocUnsafe(1 MiB) for stdout and stderr up front; the JournalEntry keeps
+==        captureSink (readonly) and ManagedToolExecutor never removes entries, even after the committed ACK.
+!! design: "a committed acknowledgement permits temporary capture state to be released" - nothing releases it.
+++ candidate: once finish() has run, the stream drops its buffer (state.buffer = Buffer.alloc(0)); 184/184 core, 807/807 cli

@@ -1,0 +1,21 @@
+F1 root cause - Node resumes the paused pipe on child exit; two write() calls share one segment buffer
+Trace of the compiled ShellExecutionService (head 8e9151f1) with a 5 ms raw-capture sink; 4 MiB stdout, Node v24.18.1
+## ms       event (stdout pipe)
+== 413.04   stdout.resume()        by shellExecutionService.js:851 (write#61 finished)
+== 413.21     write#62 start  depth=1   (pipe paused again inside the data handler)
+!! 419.48   stdout.resume()        by flushStdio (node:internal/child_process:331)  <- child exited
+-- 419.59     write#63 start  depth=2   <<< second write while write#62 is still pending
+== 419.83     write#62 end
+## what LocalShellResultCapture does with it (1 MiB + 9 B run through the HTTP host, store calls logged)
+== pub stdout#0 len=1048576      write A fills the buffer and awaits publishSegment(ordinal 0)
+-- pub stdout#0 len=1048576      write B sees used === SEGMENT_BYTES, publishes ordinal 0 again (same bytes: store says ok)
+-- pub stdout#2 len=2            ordinal++ ran twice; ordinal 1 never exists
+-- seal-req stdout count=3 len=2097154   (the process wrote 1048585 bytes)
+-- seal stdout -> refused managed_tool_result_conflict  => captureStatus unavailable, storage_failed, receipt blocked
+## why the PR's tests pass
+!! pause() is advisory: Node's flushStdio() resumes every paused stdio stream when the child exits.
+!! the overlap only corrupts accounting when write A is awaiting a boundary publish; the PR's 100 MiB fixture
+!! is an exact multiple of 1 MiB, so its final chunk ends exactly on the boundary.
+## candidate (+14/-2 in local-shell-result-capture.ts): serialize write()/finish() per stream
+++ return (state.queue = state.queue.then(() => this.append(state, chunk)));
+++ new unit test (two overlapping writes at a boundary) + real-pipe test (1 MiB + 64 KiB): head 0/3 each, candidate 3/3

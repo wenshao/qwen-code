@@ -1,0 +1,17 @@
+What works - 100 MiB + 9 B of random stdout + 3 MiB stderr through a real Tool v3 host, then a successor
+Host = Session writer lease + openManagedSession + O1b writable store + LocalShellResultSession + ManagedToolExecutor + v3 routes; curl over HTTP
+## host A (worker-a): POST /internal/managed-runtime/v3/execute  (node gen.mjs: NUL, invalid UTF-8, split UTF-8, random)
+++ execute            200 in 5.5 s   state settled, executionStatus success
+++                    capture complete, captureReason null, deliveryStatus committed, manifest 1503 B
+++ Session events     5:tool.intent  7:tool.receipt  8:checkpoint.committed  -> phase results_ready
+++ execute (repeat)   200, body byte-identical            side-effect log: 1 run
+++ status             200 settled lastSequence 2 committed
+++ acknowledge        200 settled committed (receipt seq 7)      repeat identical -> 200
+++ acknowledge        historyRevision 8 instead of 7 -> 409 (rejected)
+== SIGTERM            executor.close -> server.close -> store.close -> session.close -> releaseActivation -> authority.close
+## host B (worker-b, new process): writer lease + O1b read-only store
+++ recorded()         committed, historyRevision 7 (unchanged after replacement)
+++ stdout             sealed, 101 segments, 104857609 B re-read in 1 MiB ranges
+++                    sha256 9b5939f775ec5ec1... == generator's own digest; last 5 bytes 94e31ab954 == generator
+++ stderr             sealed, 3 segments, 3145728 B, sha256 3d258625a8634417... == generator
+++ prepare() again    rejected: "Original Shell execution was not committed before dispatch."
