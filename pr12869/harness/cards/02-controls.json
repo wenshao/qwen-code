@@ -1,0 +1,64 @@
+{
+  "title": "Controls: nothing is reclaimed unless it is the same machine, a new boot, and the option is on",
+  "subtitle": "PR #12869 · same dedicated host, same disks, same SQL · each control ran on real state left behind by real workers",
+  "blocks": [
+    {
+      "table": [
+        [
+          "control",
+          "identity seen by the Broker",
+          "watched for",
+          "bindings",
+          "holders",
+          "an authorized warm"
+        ],
+        [
+          "option OFF (default), durable on,\nafter the R2 power-loss reboot",
+          "same machine-id\nNEW boot id",
+          "3 min 54 s",
+          "== unchanged\n== READY 5, LOST 1, RECOVERY_BLOCKED 1",
+          "5 kept",
+          "503 reconcile_timeout\nafter 120.2 s"
+        ],
+        [
+          "option ON, foreign machine-id\n(the disk shows up on another host)",
+          "machine-id 01234567…\nNEW boot id",
+          "4 min 42 s",
+          "== unchanged\n== READY 5, LOST 1, RECOVERY_BLOCKED 1",
+          "5 kept",
+          "503 reconcile_timeout\nafter 120.1 s"
+        ],
+        [
+          "option ON, worker-only death\n(SIGKILL of the worker, same boot)",
+          "same machine-id\nsame boot id",
+          "3 min 32 s\n(until the R1 reboot)",
+          "LOST\nloss=registered-process-exit, no stop evidence",
+          "kept",
+          "503 runtime_lost\nno replacement worker"
+        ],
+        [
+          "option ON, systemctl soft-reboot\n(userspace restarts, kernel keeps running)",
+          "same machine-id\nSAME boot id",
+          "3 min 56 s\n(until the R6 reboot)",
+          "LOST x4\nloss=registered-process-exit, no stop evidence",
+          "4 kept",
+          "503 runtime_lost"
+        ]
+      ]
+    },
+    {
+      "pre": "full codes: runtime_broker_reconcile_timeout (\"Managed Runtime reconciliation timed out.\") · runtime_broker_runtime_lost"
+    },
+    {
+      "label": "worker-only death, R1 arm D: the detached descendant keeps writing into the Workspace",
+      "pre": "17:35:36.618Z  killing worker pid=5037 only; escaped writer pid=5057; marker=105675 B\n17:35:41.528Z  binding LOST after 4908 ms (scheduled scan, no request)  loss=registered-process-exit  stop=-\n17:35:41.549Z  warm -> 503 runtime_broker_runtime_lost  \"Runtime is lost; recovery requires complete evidence and cleanup\"\n17:35:44.561Z  escaped writer alive=true  marker 105675 -> 109875 B (+4200)\n17:35:44.601Z  holder of st-d: still rs-D-d16dbe          execution call-escape: ABANDONED\n17:38:29.733Z  last line before the reboot:  nonce-D-8de41d26 seq=1872 ... pid=5057      (still pinned, still writing)"
+    },
+    {
+      "label": "soft-reboot: every process of the old userspace is gone, the kernel boot id is not",
+      "pre": "18:20:54.723Z  sudo systemctl soft-reboot            boot_id 34a428aa-81fa-4945-9db0-97800b4fcbf4\n18:20:56.472Z  last line of escaped writer A         (killed by the soft-reboot)\n18:21:29.775Z  boot_id 34a428aa-81fa-4945-9db0-97800b4fcbf4   uptime 1503 s   <- unchanged\n18:21:29.910Z  st-a..st-d = LOST(registered-process-exit / no stop evidence)   holders=4\n18:22:00.579Z  warm -> 503 runtime_broker_runtime_lost\n18:25:11.956Z  after the next REAL reboot (R6): RELEASED x4, loss=registered-process-exit kept, stop=trusted-host-reboot"
+    },
+    {
+      "note": "All four controls stay blocked, which is the safe side. The soft-reboot row is worth one sentence in the README: on systemd >= 254 a soft-reboot kills every writer but does not count as a reboot here, so the storage stays pinned until a full reboot."
+    }
+  ]
+}

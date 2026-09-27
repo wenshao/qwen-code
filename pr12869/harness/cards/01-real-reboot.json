@@ -1,0 +1,116 @@
+{
+  "title": "Real reboot on a dedicated Linux host: every saved generation is reclaimed without a request",
+  "subtitle": "PR #12869 · Ubuntu 24.04.4 LTS, kernel 6.8.0-117, ext4 · the real server jar under systemd + MySQL 8.4.11 + bundled worker · trusted-local-reboot-recovery=true · production HostIdentity.linux()",
+  "blocks": [
+    {
+      "label": "four reboots of the same machine (machine-id f03cd9a6… never changed)",
+      "table": [
+        [
+          "run",
+          "server",
+          "host went down by",
+          "down at",
+          "boot id before → after",
+          "escaped writers: last line",
+          "server start, new boot",
+          "all generations RELEASED"
+        ],
+        [
+          "R1",
+          "66bde476",
+          "systemctl reboot",
+          "17:39:08.744Z",
+          "54961b1e → a73b4c14",
+          "17:39:10.831Z",
+          "17:51:34Z (note)",
+          "++ 17:51:38.078Z  4 of 4"
+        ],
+        [
+          "R2",
+          "66bde476",
+          "power loss",
+          "17:56:16Z",
+          "a73b4c14 → 34a428aa",
+          "17:56:17.121Z",
+          "18:07:06.644Z (after controls)",
+          "++ 18:07:10.201Z  7 of 7"
+        ],
+        [
+          "R6",
+          "66bde476 + candidate",
+          "systemctl reboot",
+          "18:24:50.949Z",
+          "34a428aa → 734e2d4c",
+          "(dead since the soft-reboot)",
+          "18:25:04.590Z",
+          "++ 18:25:11.956Z  5 of 5"
+        ],
+        [
+          "R7",
+          "f8bf5d74 (PR head)",
+          "power loss",
+          "18:29:36Z",
+          "734e2d4c → 2e4fbbbb",
+          "18:29:36.946Z",
+          "18:29:54.512Z",
+          "++ 18:29:57.972Z  7 of 7"
+        ]
+      ]
+    },
+    {
+      "pre": "R6 and R7 were hands-off: MySQL and the server came back through systemd/Docker restart policies.\nR6: 21.0 s from the reboot command to the last RELEASED.   R7: 21 s from the power cut, 3.5 s after the server process started."
+    },
+    {
+      "label": "R7 at the PR head, arm by arm (SQL + durable registrations + /proc, read before the power cut and after the recovery)",
+      "table": [
+        [
+          "arm",
+          "before the power cut",
+          "after the reboot, no Broker request sent"
+        ],
+        [
+          "A  st-a",
+          "READY, holder, escaped writer alive\n1 SETTLED + 1 in-flight (EXECUTING) + 130 PREPARED",
+          "++ RELEASED  loss=trusted-host-reboot  stop=trusted-host-reboot\n++ holder cleared · 131 ABANDONED without result · 1 SETTLED keeps its result"
+        ],
+        [
+          "B  st-b",
+          "READY, holder, one polled in-flight call",
+          "++ RELEASED · holder cleared · call ABANDONED"
+        ],
+        [
+          "C  st-c",
+          "READY, holder; then access revoked, Session DELETED,\nRegistry REMOVED/storage changed, mount removed from the config",
+          "++ RELEASED · the original holder cleared"
+        ],
+        [
+          "D  st-d",
+          "worker SIGKILLed at 18:29:18: LOST, loss=registered-process-exit,\nno stop evidence, holder pinned, escaped writer still writing",
+          "++ RELEASED  loss=registered-process-exit @18:29:20 (unchanged)\n++ stop=trusted-host-reboot @18:29:57 · holder cleared"
+        ],
+        [
+          "E  st-e",
+          "worker died before READY: RECOVERY_BLOCKED, no lease, no endpoint",
+          "++ RELEASED  loss+stop=trusted-host-reboot"
+        ],
+        [
+          "F  st-f",
+          "READY, holder",
+          "++ RELEASED · holder cleared"
+        ],
+        [
+          "G  st-f",
+          "binding warmed 18:29:36.239Z, 0.5 s before the power cut",
+          "++ registration survived the power loss · RELEASED"
+        ]
+      ]
+    },
+    {
+      "label": "R7 totals",
+      "pre": "bindings      READY 5, LOST 1, RECOVERY_BLOCKED 1      ->  RELEASED 7\nholders       5                                        ->  0\nexecutions    nonterminal 132 (130 PREPARED, 2 EXECUTING) ->  0   (all ABANDONED, none replayed, none with a result)\nregistrations READY 5, RETIRED 2                       ->  RETIRED 7, each still carrying the ORIGINAL boot id 734e2d4c…\nprocesses     5 workers, 2 escaped writers             ->  none; no worker was launched by the recovery"
+    },
+    {
+      "note": "R1: the first in-guest reboot moved Docker's data root of this VM onto a fresh data disk, so the MySQL container (not its data directory, which sits on the root disk) had to be re-created by hand; the server crash-looped under systemd until the database answered at 17:51:34Z and then recovered in 4 s. R6 and R7 needed no manual step."
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "title": "F1: with the option on, the 5-second scan refuses healthy requests, and a Hosted Session that hits it is blocked",
+  "subtitle": "PR #12869 · same host, same boot, healthy READY binding, live worker · one turn = warm + acquire(new Runtime Session) + execute + release, sent back to back",
+  "blocks": [
+    {
+      "label": "healthy turns against the embedded Broker (real server jar, MySQL 8.4.11)",
+      "table": [
+        [
+          "server",
+          "trusted-local-reboot-recovery",
+          "window",
+          "turns",
+          "refused",
+          "what the refused request got"
+        ],
+        [
+          "66bde476",
+          "true",
+          "120 s",
+          "592",
+          "-- 3   (1 warm, 2 acquire)",
+          "503 runtime_reconciliation_required"
+        ],
+        [
+          "66bde476",
+          "false",
+          "120 s",
+          "555",
+          "++ 0",
+          ""
+        ],
+        [
+          "66bde476 + candidate",
+          "true",
+          "120 s",
+          "566",
+          "++ 0",
+          ""
+        ],
+        [
+          "f8bf5d74 (PR head)",
+          "true",
+          "180 s",
+          "871",
+          "-- 6   (5 warm, 1 acquire)",
+          "503 runtime_reconciliation_required"
+        ],
+        [
+          "f8bf5d74 (PR head)",
+          "false",
+          "180 s",
+          "847",
+          "++ 0",
+          ""
+        ],
+        [
+          "f8bf5d74 + candidate",
+          "true",
+          "180 s",
+          "837",
+          "++ 0",
+          ""
+        ]
+      ]
+    },
+    {
+      "label": "the refusals sit on the scan period (f8bf5d74, option on)",
+      "pre": "18:30:57.687Z  turn 204  acquire  503 runtime_reconciliation_required  \"Maintenance observation completed; retry using current authorization\"\n18:31:57.748Z  turn 489  warm     503 runtime_reconciliation_required\n18:32:07.764Z  turn 541  warm     503 runtime_reconciliation_required\n18:32:47.870Z  turn 746  warm     503 runtime_reconciliation_required\n18:32:52.846Z  turn 770  warm     503 runtime_reconciliation_required\n18:32:57.854Z  turn 796  warm     503 runtime_reconciliation_required\n== scan period measured from last_reconciled_at: 5011-5016 ms; the refusing window is about 20 ms wide (warm sent 20 ms before the scan's write: 5 of 5 refused)\n== every healthy READY binding is re-claimed, re-attested and rewritten by each scan: record_version +3 and operation_generation +1 every 5 s"
+    },
+    {
+      "label": "full chain at f8bf5d74: packaged Hosted Harness + scripted model + the same server; turn 2's acquire is delivered (unchanged) while the scan holds its claim",
+      "pre": "++ turn 1   admit=202  turn_complete(end_turn)  recoveryBlocked=false      write_file note-1.txt -> success\n     warm 200 · acquire 200 · prepare 200 · start 200 · status 200 · release 200\n-- turn 2   admit=202  no terminal event        recoveryBlocked=true\n     warm 200 · acquire 503 runtime_reconciliation_required\n-- turn 3   admit=409  hosted_turn_recovery_required                        (no Broker request at all)\n== Broker side afterwards: binding READY, generation 1, worker alive, no holder  ->  nothing was wrong with the Runtime"
+    },
+    {
+      "label": "same delivery with the candidate (+13/-1 lines in recoverBinding: waiters of a healthy observation receive its result)",
+      "pre": "++ turn 1   admit=202  turn_complete(end_turn)  recoveryBlocked=false\n++ turn 2   admit=202  turn_complete(end_turn)  recoveryBlocked=false      acquire 200 (delivered while the scan held its claim)\n++ turn 3   admit=202  turn_complete(end_turn)  recoveryBlocked=false\n++ real reboot with the candidate jar (R6): 5 of 5 generations RELEASED 21.0 s after the reboot command"
+    },
+    {
+      "label": "unit level (new test MaintenanceProbeWaiterTest, in-memory repositories, attestation parked by a gate)",
+      "pre": "-- f8bf5d74    Tests run: 1, Errors: 1    RuntimeBrokerException: Maintenance observation completed; retry using current authorization\n++ candidate   Tests run: 1, Failures: 0, Errors: 0   ·  broker 411/0 (2 skipped) · fault gates 40/40 · server 145/0 · WorkspaceRecoveryWorkerIT 1/1"
+    }
+  ]
+}

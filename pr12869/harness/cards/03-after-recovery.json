@@ -1,0 +1,22 @@
+{
+  "title": "After the recovery: receipts stay facts, current authorization decides what may start next",
+  "subtitle": "PR #12869 at f8bf5d74 · run R7, 18:29:58Z, new boot 2e4fbbbb… · requests sent to the embedded Broker with the rig's bearer token",
+  "blocks": [
+    {
+      "label": "evidence stored on the saved bindings (host domain of both = original machine f03cd9a6… : ORIGINAL boot 734e2d4c… : resource)",
+      "pre": "st-a  loss=JOURNAL_LOST / trusted-host-reboot      @18:29:57.416050709Z    stop=WRITERS_STOPPED / trusted-host-reboot  @18:29:57.416055251Z\nst-c  loss=JOURNAL_LOST / trusted-host-reboot      @18:29:57.382160418Z    stop=WRITERS_STOPPED / trusted-host-reboot  @18:29:57.382174876Z\nst-d  loss=JOURNAL_LOST / registered-process-exit  @18:29:20.004783293Z    stop=WRITERS_STOPPED / trusted-host-reboot  @18:29:57.479346126Z\nst-e  loss=JOURNAL_LOST / trusted-host-reboot      @18:29:57.403839584Z    stop=WRITERS_STOPPED / trusted-host-reboot  @18:29:57.403842876Z\n== st-d keeps the loss evidence of the worker-only death; st-e never had a lease (the worker died before READY)"
+    },
+    {
+      "label": "old receipts",
+      "pre": "A call-settled     SETTLED    success   result kept\nA call-escape      ABANDONED  -         no result     loss_evidence_id=4c0234a8-…:1:journal-lost\nA prep-0..prep-129 ABANDONED  x130      no result     (more than one 100-row batch)\nC call-settled     SETTLED    success   result kept"
+    },
+    {
+      "label": "C: access revoked, Session deleted, Registry changed, mount removed  (refusals are the expected result)",
+      "pre": "++ POST runtimes:warm          -> 409 workspace_unavailable  \"Workspace execution authority is unavailable.\"\n++ POST tool-sessions:acquire  -> 409 workspace_unavailable\n== no new generation, no worker, no holder for st-c"
+    },
+    {
+      "label": "A: still authorized",
+      "pre": "++ POST runtimes:warm          -> 200 ready   543 ms        (generation 2, new worker)\n++ POST tool-sessions:acquire  -> 200 acquired               (new Runtime Session rs-A2-6bf065, holder claimed again)\n++ POST executions             -> settled success\n     settled-before-reboot\n     after-reboot\n     nonce-A-aa1e0b2a seq=122 at=2026-09-27T18:29:36.924Z boot=734e2d4c-7a41-4d72-a42b-9847d99443ef pid=2297     <- last line of the old writer\n++ POST executions on the ORIGINAL Runtime Session -> 404 runtime_session_not_found     (old-session.txt was not created)"
+    }
+  ]
+}
