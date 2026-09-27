@@ -1,0 +1,76 @@
+name: 'probe-pr12815-windows'
+
+on:
+  push:
+    branches: ['probe/pr12815-**']
+
+defaults:
+  run:
+    shell: 'bash'
+
+jobs:
+  windows:
+    runs-on: 'windows-2022'
+    timeout-minutes: 120
+    permissions:
+      contents: 'read'
+    steps:
+      - uses: 'actions/checkout@v4'
+
+      # Mirrors ci.yml test_windows on the hosted fallback.
+      - name: 'Point temp at a short-alias-free directory'
+        shell: 'powershell'
+        run: |-
+          $temp = Join-Path $env:RUNNER_WORKSPACE 'qwen-code-temp'
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+          "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+
+      - name: 'Record the step environment'
+        run: |-
+          git log --oneline -1
+          echo "MSYSTEM=${MSYSTEM-<unset>} TERM=${TERM-<unset>} ComSpec=${ComSpec-<unset>}"
+          node -e "console.log('node sees MSYSTEM=' + process.env.MSYSTEM + ' TERM=' + process.env.TERM + ' ComSpec=' + process.env.ComSpec)"
+          which -a sleep bash || true
+          cmd //d //s //c "where sleep & where bash" || true
+          node -v; systeminfo | head -5 || true
+
+      - name: 'Install dependencies'
+        run: |-
+          set +e
+          corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+          echo "install exit=$?"
+          node -e "require.resolve('vitest/package.json', { paths: ['packages/cli'] }); console.log('vitest resolvable')"
+          ls packages/web-templates/dist/index.js packages/acp-bridge/dist/index.js packages/cli/src/generated/git-commit.ts
+
+      - name: 'Run arms'
+        env:
+          NO_COLOR: 'true'
+          HOME: '${{ runner.temp }}/qwen-ci-home'
+          USERPROFILE: '${{ runner.temp }}/qwen-ci-home'
+          OPENAI_API_KEY: ''
+          DASHSCOPE_API_KEY: ''
+          QWEN_API_KEY: ''
+          GEMINI_API_KEY: ''
+          QWEN_DEFAULT_AUTH_TYPE: ''
+        run: |-
+          node -e "const fs = require('node:fs'); for (const key of ['HOME', 'USERPROFILE']) { const dir = process.env[key]; if (dir) fs.mkdirSync(dir, { recursive: true }); }"
+          git config --global core.autocrlf false
+          export TMPDIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+          bash probe/run.sh inherit 20 base-full head-full base-repeat head-repeat head-unskip probe
+          bash probe/run.sh cmd 20 base-repeat head-repeat head-unskip probe
+          bash probe/run.sh bash 20 base-repeat head-repeat head-unskip probe
+          echo '===== SUMMARY ====='
+          cat probe-out/*/summary.tsv
+          echo '===== PROBES ====='
+          cat probe-out/*/probe.tsv || true
+
+      - if: '${{ always() }}'
+        uses: 'actions/upload-artifact@v4'
+        with:
+          name: 'probe-out'
+          path: 'probe-out'
