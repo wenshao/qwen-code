@@ -55,7 +55,7 @@ writeFileSync(
   join(PROJ, 'src', 'App.tsx'),
   'export const App = () => <div>hello</div>;\n',
 );
-const codeMode = scenario.startsWith('exec') || scenario === 'eager-cm';
+const codeMode = scenario.startsWith('exec') || scenario.startsWith('eager-cm');
 writeFileSync(
   join(QHOME, 'settings.json'),
   JSON.stringify(
@@ -64,7 +64,7 @@ writeFileSync(
       mcpServers: {
         echo: { command: process.execPath, args: [`${SP}/rig/mcp-echo.mjs`] },
       },
-      tools: { codeModeOnly: codeMode, ...(scenario === 'eager-cm' ? { eager: ['read_file'] } : {}) },
+      tools: { codeModeOnly: codeMode, ...(scenario === 'eager-cm' ? { eager: ['read_file'] } : scenario === 'eager-cm2' ? { eager: ['read_file', 'agent'] } : {}) },
     },
     null,
     2,
@@ -84,6 +84,7 @@ const SUBTYPE = {
   'path-builtin': 'statusline-setup',
   'direct-exec': 'probe-exec',
   'eager-cm': 'general-purpose',
+  'eager-cm2': 'general-purpose',
   'path2-open': 'probe-open',
 }[scenario];
 const twoQueries = scenario.startsWith('path2');
