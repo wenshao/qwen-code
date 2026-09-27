@@ -1,0 +1,87 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java
+index 0ab321e873..07a707b850 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java
+@@ -68,6 +68,28 @@ class PlannedTaskContractTest {
+             leaked.put(field, "x");
+             reject("leaks " + field, leaked);
+         }
++        reject("unknown state", task("paused", 2L, null));
++        reject("unknown capability", task("running", 2L, null, "pause"));
++        ObjectNode team = task("running", 2L, null);
++        team.put("kind", "team");
++        reject("unknown kind", team);
++        ObjectNode revision = task("running", 2L, null);
++        revision.put("definition_revision", 0);
++        reject("definition_revision 0", revision);
++        ObjectNode cursor = task("running", 2L, null);
++        cursor.put("output_cursor", "c".repeat(513));
++        reject("output_cursor over 512", cursor);
++        ObjectNode refs = task("running", 2L, null);
++        for (int i = 0; i <= 100; i++) {
++            refs.withArray("artifact_refs").add("artifact-" + i);
++        }
++        reject("101 artifact refs", refs);
++        ObjectNode repeated = task("running", 2L, null);
++        repeated.withArray("artifact_refs").add("artifact-1").add("artifact-1");
++        reject("duplicate artifact ref", repeated);
++        ObjectNode session = task("running", 2L, null);
++        session.put("object", "agent.session");
++        checkPublic("PublicTask", "wrong object", session, false);
+         ObjectNode untyped = task("running", 2L, null);
+         untyped.remove("object");
+         checkPublic("PublicTask", "missing object", untyped, false);
+@@ -102,6 +124,17 @@ class PlannedTaskContractTest {
+         check("PublicTaskEvent", "artifact with truncated", event("artifact")
+                 .put("artifact_id", "artifact-1").put("truncated", true),
+                 false);
++        check("PublicTaskEvent", "output over 16384 characters",
++                event("output").put("text", "x".repeat(16385)), false);
++        check("PublicTaskEvent", "empty type", event(""), false);
++        check("PublicTaskEvent", "state_changed with artifact_id",
++                event("state_changed").put("state", "running")
++                        .put("artifact_id", "artifact-1"), false);
++        check("PublicTaskEvent", "output with artifact_id", event("output")
++                .put("text", "x").put("artifact_id", "artifact-1"), false);
++        check("PublicTaskEvent", "artifact with runtime_state",
++                event("artifact").put("artifact_id", "artifact-1")
++                        .put("runtime_state", "ready"), false);
+         for (String field : List.of("cursor", "schema_version",
+                 "projection_version")) {
+             ObjectNode partial = event("output").put("text", "x");
+@@ -124,11 +157,24 @@ class PlannedTaskContractTest {
+         tasks.put("next_cursor", "cursor-1");
+         check("PublicTaskList", "more tasks with a cursor", tasks, true);
+ 
++        ObjectNode full = JSON.createObjectNode().put("object", "list")
++                .put("has_more", true).put("next_cursor", "cursor-1");
++        for (int i = 0; i <= 100; i++) {
++            full.withArray("data").add(task("running", 2L, null));
++        }
++        check("PublicTaskList", "101 tasks", full, false);
++        ObjectNode page = JSON.createObjectNode().put("object", "page")
++                .put("has_more", false);
++        page.putArray("data");
++        checkPublic("PublicTaskList", "wrong object", page, false);
++
+         ObjectNode events = JSON.createObjectNode().put("object", "list")
+                 .put("has_more", false);
+         events.putArray("data").add(event("output").put("text", "x"));
+         events.putNull("next_cursor");
+         check("PublicTaskEventList", "null event cursor", events, false);
++        events.remove("next_cursor");
++        check("PublicTaskEventList", "missing event cursor", events, false);
+         events.put("next_cursor", "cursor-1");
+         check("PublicTaskEventList", "last page keeps its position", events,
+                 true);
+@@ -167,6 +213,10 @@ class PlannedTaskContractTest {
+         cancel.remove("idempotencyKey");
+         checkPublic("WebShellTaskCancelRequest", "cancel without a key",
+                 cancel, false);
++        ObjectNode query = JSON.createObjectNode().put("sessionId", SESSION)
++                .put("limit", 101);
++        checkPublic("WebShellTaskQueryRequest", "tasks over the limit",
++                query, false);
+         ObjectNode events = JSON.createObjectNode().put("sessionId", SESSION)
+                 .put("taskId", "task-1").put("after", "cursor-1")
+                 .put("limit", 100);

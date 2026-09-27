@@ -1,0 +1,19 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+index f78076a4a0..869ecabbc4 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+@@ -175,8 +175,12 @@ class ManagedAgentApiContractTest {
+         handlerMapping.getHandlerMethods().keySet().forEach(info -> {
+             for (String pattern : info.getPatternValues()) {
+                 if (API_PREFIXES.stream().anyMatch(pattern::startsWith)) {
+-                    for (RequestMethod method
+-                            : info.getMethodsCondition().getMethods()) {
++                    Set<RequestMethod> methods =
++                            info.getMethodsCondition().getMethods();
++                    if (methods.isEmpty()) {
++                        mapped.add("ANY " + pattern);
++                    }
++                    for (RequestMethod method : methods) {
+                         mapped.add(method.name() + " " + pattern);
+                     }
+                 }

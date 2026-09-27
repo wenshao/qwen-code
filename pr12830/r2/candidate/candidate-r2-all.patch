@@ -1,0 +1,232 @@
+diff --git a/docs/design/2026-09-27-managed-agent-task-contract.md b/docs/design/2026-09-27-managed-agent-task-contract.md
+index 1475afdab9..8cf96503f4 100644
+--- a/docs/design/2026-09-27-managed-agent-task-contract.md
++++ b/docs/design/2026-09-27-managed-agent-task-contract.md
+@@ -84,8 +84,8 @@ resources:
+ | `definitionRevision` | `definition_revision` | `definitionRevision` | `int64`, at least 1.                   |
+ | `runtimeState`       | `runtime_state`       | `runtimeState`       | `TaskRuntimeState`, same five values.  |
+ | (none)               | `created_at`          | `createdAt`          | Added, required.                       |
+-| `startedAt`          | `started_at`          | `startedAt`          | Epoch milliseconds, not an ISO string. |
+-| `settledAt`          | `settled_at`          | `settledAt`          | Epoch milliseconds, not an ISO string. |
++| `startedAt`          | `started_at`          | `startedAt`          | Integer epoch, not an ISO string.      |
++| `settledAt`          | `settled_at`          | `settledAt`          | Integer epoch, not an ISO string.      |
+ | `outputCursor`       | `output_cursor`       | `outputCursor`       | Opaque, at most 512 characters.        |
+ | `artifactRefs`       | `artifact_refs`       | `artifactRefs`       | The newest 100 at most, unique.        |
+ | `actionCapabilities` | `action_capabilities` | `actionCapabilities` | `TaskActionCapability`, unique values. |
+@@ -106,8 +106,12 @@ The design's shape changes in five places:
+   operations, event items and the planned Action family do not. `PublicTask`, `PublicTaskList` and
+   `PublicTaskEventList` carry it too, because adding a required field later
+   would break clients.
+-- **Timestamps.** The public API uses `int64` epoch milliseconds everywhere
+-  (`created_at`, `expires_at`), and the server fills them from `clock.millis()`.
++- **Timestamps.** Integers, not ISO strings, in each surface's existing unit.
++  The server stores `clock.millis()`; the public API divides it by 1000 and
++  returns Unix epoch seconds (`PublicSession`, `PublicTurn`, `PublicEvent`,
++  `PublicItem`), while WebShell returns milliseconds. `PublicTask` and
++  `PublicTaskEvent` use seconds, `WebShellTask` and `WebShellTaskEvent` use
++  milliseconds, and their schema descriptions say so.
+ - **`created_at`.** The list is ordered by creation, and a `pending` task has
+   no `started_at`, so the view needs a creation time.
+ - **Bounded `artifact_refs`.** A long-running Monitor can rotate many
+diff --git a/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md b/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md
+index d2552a7d01..bef5eb4fc7 100644
+--- a/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md
++++ b/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md
+@@ -67,8 +67,8 @@ operation 模型；本变更选择接受它可见。
+ | `definitionRevision` | `definition_revision` | `definitionRevision` | `int64`，至少为 1。                       |
+ | `runtimeState`       | `runtime_state`       | `runtimeState`       | `TaskRuntimeState`，同样五个值。          |
+ | （无）               | `created_at`          | `createdAt`          | 新增，必填。                              |
+-| `startedAt`          | `started_at`          | `startedAt`          | epoch 毫秒，不是 ISO 字符串。             |
+-| `settledAt`          | `settled_at`          | `settledAt`          | epoch 毫秒，不是 ISO 字符串。             |
++| `startedAt`          | `started_at`          | `startedAt`          | 整数 epoch，不是 ISO 字符串。             |
++| `settledAt`          | `settled_at`          | `settledAt`          | 整数 epoch，不是 ISO 字符串。             |
+ | `outputCursor`       | `output_cursor`       | `outputCursor`       | 不透明，最多 512 个字符。                 |
+ | `artifactRefs`       | `artifact_refs`       | `artifactRefs`       | 最多最新的 100 个，不重复。               |
+ | `actionCapabilities` | `action_capabilities` | `actionCapabilities` | `TaskActionCapability`，值不重复。        |
+@@ -84,8 +84,10 @@ operation 模型；本变更选择接受它可见。
+ - **`object`。** Session、Turn、Item、Artifact 和 Workspace 资源都带 `object` 判别字段，
+   它们的列表带 `object: "list"`；operation、事件条目和 planned 的 Action 家族不带。`PublicTask`、
+   `PublicTaskList` 和 `PublicTaskEventList` 也带上它，因为以后再加必填字段会破坏客户端。
+-- **时间戳。** 公共 API 统一用 `int64` epoch 毫秒（`created_at`、`expires_at`），
+-  服务端由 `clock.millis()` 填写。
++- **时间戳。** 用整数而不是 ISO 字符串，单位沿用各自接口面的现状。服务端存
++  `clock.millis()`；公共 API 除以 1000 返回 Unix epoch 秒（`PublicSession`、`PublicTurn`、
++  `PublicEvent`、`PublicItem`），WebShell 返回毫秒。`PublicTask` 和 `PublicTaskEvent` 用秒，
++  `WebShellTask` 和 `WebShellTaskEvent` 用毫秒，并在 schema 描述里写明。
+ - **`created_at`。** 列表按创建顺序排列，而 `pending` 任务没有 `started_at`，所以视图需要创建时间。
+ - **`artifact_refs` 有上限。** 长时间运行的 Monitor 可能轮转出很多 Artifact。视图列出最新的
+   100 个，按从旧到新排列；更早的 Artifact 仍可通过 Session 的 artifact 路由读取。
+diff --git a/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json b/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
+index e221647f2f..014d3df6c7 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
++++ b/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
+@@ -5695,15 +5695,18 @@
+           },
+           "created_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "started_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "settled_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "output_cursor": {
+             "type": "string",
+@@ -5899,7 +5902,8 @@
+           },
+           "created_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "state": {
+             "$ref": "#/components/schemas/TaskState"
+@@ -6047,15 +6051,18 @@
+           },
+           "createdAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "startedAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "settledAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "outputCursor": {
+             "type": "string",
+@@ -6248,7 +6255,8 @@
+           },
+           "createdAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "state": {
+             "$ref": "#/components/schemas/TaskState"
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+index f78076a4a0..869ecabbc4 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+@@ -175,8 +175,12 @@ class ManagedAgentApiContractTest {
+         handlerMapping.getHandlerMethods().keySet().forEach(info -> {
+             for (String pattern : info.getPatternValues()) {
+                 if (API_PREFIXES.stream().anyMatch(pattern::startsWith)) {
+-                    for (RequestMethod method
+-                            : info.getMethodsCondition().getMethods()) {
++                    Set<RequestMethod> methods =
++                            info.getMethodsCondition().getMethods();
++                    if (methods.isEmpty()) {
++                        mapped.add("ANY " + pattern);
++                    }
++                    for (RequestMethod method : methods) {
+                         mapped.add(method.name() + " " + pattern);
+                     }
+                 }
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java
+index 0ab321e873..07a707b850 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java
+@@ -68,6 +68,28 @@ class PlannedTaskContractTest {
+             leaked.put(field, "x");
+             reject("leaks " + field, leaked);
+         }
++        reject("unknown state", task("paused", 2L, null));
++        reject("unknown capability", task("running", 2L, null, "pause"));
++        ObjectNode team = task("running", 2L, null);
++        team.put("kind", "team");
++        reject("unknown kind", team);
++        ObjectNode revision = task("running", 2L, null);
++        revision.put("definition_revision", 0);
++        reject("definition_revision 0", revision);
++        ObjectNode cursor = task("running", 2L, null);
++        cursor.put("output_cursor", "c".repeat(513));
++        reject("output_cursor over 512", cursor);
++        ObjectNode refs = task("running", 2L, null);
++        for (int i = 0; i <= 100; i++) {
++            refs.withArray("artifact_refs").add("artifact-" + i);
++        }
++        reject("101 artifact refs", refs);
++        ObjectNode repeated = task("running", 2L, null);
++        repeated.withArray("artifact_refs").add("artifact-1").add("artifact-1");
++        reject("duplicate artifact ref", repeated);
++        ObjectNode session = task("running", 2L, null);
++        session.put("object", "agent.session");
++        checkPublic("PublicTask", "wrong object", session, false);
+         ObjectNode untyped = task("running", 2L, null);
+         untyped.remove("object");
+         checkPublic("PublicTask", "missing object", untyped, false);
+@@ -102,6 +124,17 @@ class PlannedTaskContractTest {
+         check("PublicTaskEvent", "artifact with truncated", event("artifact")
+                 .put("artifact_id", "artifact-1").put("truncated", true),
+                 false);
++        check("PublicTaskEvent", "output over 16384 characters",
++                event("output").put("text", "x".repeat(16385)), false);
++        check("PublicTaskEvent", "empty type", event(""), false);
++        check("PublicTaskEvent", "state_changed with artifact_id",
++                event("state_changed").put("state", "running")
++                        .put("artifact_id", "artifact-1"), false);
++        check("PublicTaskEvent", "output with artifact_id", event("output")
++                .put("text", "x").put("artifact_id", "artifact-1"), false);
++        check("PublicTaskEvent", "artifact with runtime_state",
++                event("artifact").put("artifact_id", "artifact-1")
++                        .put("runtime_state", "ready"), false);
+         for (String field : List.of("cursor", "schema_version",
+                 "projection_version")) {
+             ObjectNode partial = event("output").put("text", "x");
+@@ -124,11 +157,24 @@ class PlannedTaskContractTest {
+         tasks.put("next_cursor", "cursor-1");
+         check("PublicTaskList", "more tasks with a cursor", tasks, true);
+ 
++        ObjectNode full = JSON.createObjectNode().put("object", "list")
++                .put("has_more", true).put("next_cursor", "cursor-1");
++        for (int i = 0; i <= 100; i++) {
++            full.withArray("data").add(task("running", 2L, null));
++        }
++        check("PublicTaskList", "101 tasks", full, false);
++        ObjectNode page = JSON.createObjectNode().put("object", "page")
++                .put("has_more", false);
++        page.putArray("data");
++        checkPublic("PublicTaskList", "wrong object", page, false);
++
+         ObjectNode events = JSON.createObjectNode().put("object", "list")
+                 .put("has_more", false);
+         events.putArray("data").add(event("output").put("text", "x"));
+         events.putNull("next_cursor");
+         check("PublicTaskEventList", "null event cursor", events, false);
++        events.remove("next_cursor");
++        check("PublicTaskEventList", "missing event cursor", events, false);
+         events.put("next_cursor", "cursor-1");
+         check("PublicTaskEventList", "last page keeps its position", events,
+                 true);
+@@ -167,6 +213,10 @@ class PlannedTaskContractTest {
+         cancel.remove("idempotencyKey");
+         checkPublic("WebShellTaskCancelRequest", "cancel without a key",
+                 cancel, false);
++        ObjectNode query = JSON.createObjectNode().put("sessionId", SESSION)
++                .put("limit", 101);
++        checkPublic("WebShellTaskQueryRequest", "tasks over the limit",
++                query, false);
+         ObjectNode events = JSON.createObjectNode().put("sessionId", SESSION)
+                 .put("taskId", "task-1").put("after", "cursor-1")
+                 .put("limit", 100);

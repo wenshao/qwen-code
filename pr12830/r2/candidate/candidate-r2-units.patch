@@ -1,0 +1,126 @@
+diff --git a/docs/design/2026-09-27-managed-agent-task-contract.md b/docs/design/2026-09-27-managed-agent-task-contract.md
+index 1475afdab9..8cf96503f4 100644
+--- a/docs/design/2026-09-27-managed-agent-task-contract.md
++++ b/docs/design/2026-09-27-managed-agent-task-contract.md
+@@ -84,8 +84,8 @@ resources:
+ | `definitionRevision` | `definition_revision` | `definitionRevision` | `int64`, at least 1.                   |
+ | `runtimeState`       | `runtime_state`       | `runtimeState`       | `TaskRuntimeState`, same five values.  |
+ | (none)               | `created_at`          | `createdAt`          | Added, required.                       |
+-| `startedAt`          | `started_at`          | `startedAt`          | Epoch milliseconds, not an ISO string. |
+-| `settledAt`          | `settled_at`          | `settledAt`          | Epoch milliseconds, not an ISO string. |
++| `startedAt`          | `started_at`          | `startedAt`          | Integer epoch, not an ISO string.      |
++| `settledAt`          | `settled_at`          | `settledAt`          | Integer epoch, not an ISO string.      |
+ | `outputCursor`       | `output_cursor`       | `outputCursor`       | Opaque, at most 512 characters.        |
+ | `artifactRefs`       | `artifact_refs`       | `artifactRefs`       | The newest 100 at most, unique.        |
+ | `actionCapabilities` | `action_capabilities` | `actionCapabilities` | `TaskActionCapability`, unique values. |
+@@ -106,8 +106,12 @@ The design's shape changes in five places:
+   operations, event items and the planned Action family do not. `PublicTask`, `PublicTaskList` and
+   `PublicTaskEventList` carry it too, because adding a required field later
+   would break clients.
+-- **Timestamps.** The public API uses `int64` epoch milliseconds everywhere
+-  (`created_at`, `expires_at`), and the server fills them from `clock.millis()`.
++- **Timestamps.** Integers, not ISO strings, in each surface's existing unit.
++  The server stores `clock.millis()`; the public API divides it by 1000 and
++  returns Unix epoch seconds (`PublicSession`, `PublicTurn`, `PublicEvent`,
++  `PublicItem`), while WebShell returns milliseconds. `PublicTask` and
++  `PublicTaskEvent` use seconds, `WebShellTask` and `WebShellTaskEvent` use
++  milliseconds, and their schema descriptions say so.
+ - **`created_at`.** The list is ordered by creation, and a `pending` task has
+   no `started_at`, so the view needs a creation time.
+ - **Bounded `artifact_refs`.** A long-running Monitor can rotate many
+diff --git a/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md b/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md
+index d2552a7d01..bef5eb4fc7 100644
+--- a/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md
++++ b/docs/design/2026-09-27-managed-agent-task-contract.zh-CN.md
+@@ -67,8 +67,8 @@ operation 模型；本变更选择接受它可见。
+ | `definitionRevision` | `definition_revision` | `definitionRevision` | `int64`，至少为 1。                       |
+ | `runtimeState`       | `runtime_state`       | `runtimeState`       | `TaskRuntimeState`，同样五个值。          |
+ | （无）               | `created_at`          | `createdAt`          | 新增，必填。                              |
+-| `startedAt`          | `started_at`          | `startedAt`          | epoch 毫秒，不是 ISO 字符串。             |
+-| `settledAt`          | `settled_at`          | `settledAt`          | epoch 毫秒，不是 ISO 字符串。             |
++| `startedAt`          | `started_at`          | `startedAt`          | 整数 epoch，不是 ISO 字符串。             |
++| `settledAt`          | `settled_at`          | `settledAt`          | 整数 epoch，不是 ISO 字符串。             |
+ | `outputCursor`       | `output_cursor`       | `outputCursor`       | 不透明，最多 512 个字符。                 |
+ | `artifactRefs`       | `artifact_refs`       | `artifactRefs`       | 最多最新的 100 个，不重复。               |
+ | `actionCapabilities` | `action_capabilities` | `actionCapabilities` | `TaskActionCapability`，值不重复。        |
+@@ -84,8 +84,10 @@ operation 模型；本变更选择接受它可见。
+ - **`object`。** Session、Turn、Item、Artifact 和 Workspace 资源都带 `object` 判别字段，
+   它们的列表带 `object: "list"`；operation、事件条目和 planned 的 Action 家族不带。`PublicTask`、
+   `PublicTaskList` 和 `PublicTaskEventList` 也带上它，因为以后再加必填字段会破坏客户端。
+-- **时间戳。** 公共 API 统一用 `int64` epoch 毫秒（`created_at`、`expires_at`），
+-  服务端由 `clock.millis()` 填写。
++- **时间戳。** 用整数而不是 ISO 字符串，单位沿用各自接口面的现状。服务端存
++  `clock.millis()`；公共 API 除以 1000 返回 Unix epoch 秒（`PublicSession`、`PublicTurn`、
++  `PublicEvent`、`PublicItem`），WebShell 返回毫秒。`PublicTask` 和 `PublicTaskEvent` 用秒，
++  `WebShellTask` 和 `WebShellTaskEvent` 用毫秒，并在 schema 描述里写明。
+ - **`created_at`。** 列表按创建顺序排列，而 `pending` 任务没有 `started_at`，所以视图需要创建时间。
+ - **`artifact_refs` 有上限。** 长时间运行的 Monitor 可能轮转出很多 Artifact。视图列出最新的
+   100 个，按从旧到新排列；更早的 Artifact 仍可通过 Session 的 artifact 路由读取。
+diff --git a/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json b/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
+index e221647f2f..014d3df6c7 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
++++ b/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
+@@ -5695,15 +5695,18 @@
+           },
+           "created_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "started_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "settled_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "output_cursor": {
+             "type": "string",
+@@ -5899,7 +5902,8 @@
+           },
+           "created_at": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Unix epoch seconds, as in PublicSession.created_at."
+           },
+           "state": {
+             "$ref": "#/components/schemas/TaskState"
+@@ -6047,15 +6051,18 @@
+           },
+           "createdAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "startedAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "settledAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "outputCursor": {
+             "type": "string",
+@@ -6248,7 +6255,8 @@
+           },
+           "createdAt": {
+             "type": "integer",
+-            "format": "int64"
++            "format": "int64",
++            "description": "Epoch milliseconds, as in WebShellSession.createdAt."
+           },
+           "state": {
+             "$ref": "#/components/schemas/TaskState"
