@@ -1,0 +1,55 @@
+# Verification probe for QwenLM/qwen-code#12864 (not for upstream): runs the
+# PR's new Windows "Hosted process suite" step, extracted verbatim from
+# ci.yml, on a GitHub-hosted windows-2022 runner, plus mutation arms.
+name: 'probe pr12864 windows'
+on:
+  push:
+    branches: ['probe/pr12864-**']
+permissions:
+  contents: 'read'
+defaults:
+  run:
+    shell: 'bash'
+jobs:
+  windows:
+    runs-on: 'windows-2022'
+    timeout-minutes: 100
+    steps:
+      - name: 'Checkout'
+        uses: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10' # v6.0.3
+      - name: 'Point temp at a short-alias-free directory'
+        shell: 'powershell'
+        run: |-
+          $temp = Join-Path $env:RUNNER_WORKSPACE 'qwen-code-temp'
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+          "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "TEMP set to $temp"
+      - name: 'Set up Node.js 22.x (hosted)'
+        uses: 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e' # v6.4.0
+        with:
+          node-version: '22.x'
+          package-manager-cache: false
+          registry-url: 'https://registry.npmjs.org/'
+      - name: 'Install dependencies'
+        run: |-
+          corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+      - name: 'Environment'
+        run: |-
+          node -v; git rev-parse HEAD; uname -a; echo "MSYSTEM=${MSYSTEM:-}"; ls -la dist/cli.js
+          powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).Caption + ' ' + (Get-CimInstance Win32_OperatingSystem).Version"
+      - name: 'Extract the steps verbatim'
+        run: |-
+          node probe/extract-step.mjs .github/workflows/ci.yml test_windows 'Hosted process suite' probe/pr-step.sh
+          node probe/extract-step.mjs probe/ci-main.yml test_windows 'Hosted portable process smoke' probe/main-step.sh
+      - name: 'Run arms'
+        run: 'bash probe/run-arms.sh'
+      - name: 'Summary'
+        if: 'always()'
+        run: 'cat probe-out/summary.txt || true'
+      - name: 'Upload'
+        if: 'always()'
+        uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
+        with:
+          name: 'probe-out'
+          path: 'probe-out/'

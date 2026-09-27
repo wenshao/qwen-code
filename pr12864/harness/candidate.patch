@@ -1,0 +1,62 @@
+diff --git a/scripts/tests/check-failsafe-reports.test.js b/scripts/tests/check-failsafe-reports.test.js
+index f8a4451cee..f540bd8e07 100644
+--- a/scripts/tests/check-failsafe-reports.test.js
++++ b/scripts/tests/check-failsafe-reports.test.js
+@@ -140,6 +140,15 @@ describe('check-failsafe-reports', () => {
+     expect(check('non-hosted', listed).output).toContain(
+       '-Dfailsafe.includesFile=/work/selected.txt narrowed this run',
+     );
++    const excluded = module(
++      'excluded',
++      ['com.example.OrdersIT'],
++      { 'com.example.OrdersIT': [1, 0] },
++      '<property name="failsafe.excludesFile" value="/work/dropped.txt"/>',
++    );
++    expect(check('non-hosted', excluded).output).toContain(
++      '-Dfailsafe.excludesFile=/work/dropped.txt narrowed this run',
++    );
+   });
+ 
+   it('rejects a report that records no properties', () => {
+diff --git a/scripts/tests/hosted-process-ci.test.js b/scripts/tests/hosted-process-ci.test.js
+index 085667c9a0..e0729a8737 100644
+--- a/scripts/tests/hosted-process-ci.test.js
++++ b/scripts/tests/hosted-process-ci.test.js
+@@ -163,7 +163,7 @@ describe('Hosted real-process gates', () => {
+     // The report check sees a test selection only when Maven passes it as a
+     // user property. Set in the workflow (MAVEN_OPTS included) or in a POM,
+     // it would narrow the run unrecorded.
+-    const selection = /it\.test|includesFile|excludesFile|<test>/;
++    const selection = /it\.test|includesFile|excludesFile|<test\b/;
+     expect(read('.github/workflows/sdk-java.yml')).not.toMatch(selection);
+     expect(pom).not.toMatch(selection);
+     expect(read('packages/sdk-java/runtime-broker/pom.xml')).not.toMatch(
+@@ -223,6 +223,28 @@ describe('Hosted real-process gates', () => {
+     expect(its.filter((file) => !/^Hosted.*IT\.java$/.test(file))).toContain(
+       'ManagedAgentMySqlIT.java',
+     );
++    // An integration test in a module that neither check names runs in no
++    // job, and nothing notices, so every module holding one must be named.
++    const checked = ['mysql-integration', 'hosted-harness-mysql'].flatMap(
++      (name) =>
++        java.jobs[name].steps
++          .filter((step) =>
++            step.run?.startsWith('node scripts/check-failsafe-reports.js '),
++          )
++          .flatMap((step) => step.run.split(' ').slice(3)),
++    );
++    const sdkJava = new URL('../../packages/sdk-java/', import.meta.url);
++    for (const module of readdirSync(sdkJava)) {
++      const tests = new URL(`${module}/src/test/java/`, sdkJava);
++      if (
++        existsSync(tests) &&
++        readdirSync(tests, { recursive: true }).some((file) =>
++          String(file).endsWith('IT.java'),
++        )
++      ) {
++        expect(checked, module).toContain(`packages/sdk-java/${module}`);
++      }
++    }
+     const upload = job.steps.find(
+       (step) => step.name === 'Upload Hosted process reports',
+     );

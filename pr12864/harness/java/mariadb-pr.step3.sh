@@ -1,0 +1,1 @@
+mvn --batch-mode --no-transfer-progress -Pmysql-integration -Dmysql.url='jdbc:mysql://127.0.0.1:23864/managed_agent_test?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false' -Dmysql.user=root -Dmysql.password=runtime-broker clean verify checkstyle:check

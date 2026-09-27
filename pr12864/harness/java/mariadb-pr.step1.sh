@@ -1,0 +1,1 @@
+mvn --batch-mode --no-transfer-progress -Pmysql-integration -Dmysql.url='jdbc:mysql://127.0.0.1:23864/runtime_broker_test?allowPublicKeyRetrieval=true&useSSL=false' -Dmysql.user=root -Dmysql.password=runtime-broker clean verify
