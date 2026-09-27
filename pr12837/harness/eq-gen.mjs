@@ -1,0 +1,28 @@
+// Directed revision pairs where the next revision differs only in JSON spelling.
+import * as fs from 'node:fs';
+const fx = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const pair = (k, a, bText, label) => console.log(`{"k":"${k}","label":${JSON.stringify(label)},"a":${JSON.stringify(a)},"b":${bText}}`);
+const m = fx.monitorRunSuccessorCases.find((c) => c.valid && c.id !== 'unchanged').previous;
+const ms = JSON.stringify(m);
+const cr = JSON.stringify(m.commandRef);
+const rev = JSON.stringify(Object.fromEntries(Object.entries(m.commandRef).reverse()));
+pair('monitorSucc', m, ms, 'identical');
+pair('monitorSucc', m, ms.replace(cr, rev), 'commandRef keys reordered');
+pair('monitorSucc', m, ms.replace(`"maxEvents":${m.maxEvents}`, `"maxEvents":${m.maxEvents}.0`), 'maxEvents as N.0');
+pair('monitorSucc', m, ms.replace(`"maxEvents":${m.maxEvents}`, `"maxEvents":${m.maxEvents / 1000}e3`), 'maxEvents as Ne3');
+pair('monitorSucc', m, ms.replace(`"debounceMs":${m.debounceMs}`, `"debounceMs":${m.debounceMs},"debounceMs":${m.debounceMs}`), 'duplicate key, same value');
+pair('monitorSucc', m, ms.replace(`"debounceMs":${m.debounceMs}`, `"debounceMs":${m.debounceMs + 1},"debounceMs":${m.debounceMs}`), 'duplicate key, last wins = unchanged');
+pair('monitorSucc', m, ms.replace(`"debounceMs":${m.debounceMs}`, `"debounceMs":${m.debounceMs},"debounceMs":${m.debounceMs + 1}`), 'duplicate key, last wins = changed');
+pair('monitorSucc', m, ms.replace(`"notifiedThrough":${m.notifiedThrough}`, `"notifiedThrough":-0`), 'notifiedThrough -0');
+const g = fx.grantSuccessorCases.find((c) => c.valid && c.id === 'renewal-extends-lease');
+const gs = JSON.stringify(g.next);
+pair('grantSucc', g.previous, gs, 'renewal as fixture');
+pair('grantSucc', g.previous, gs.replace(JSON.stringify(g.next.sessionKey), JSON.stringify(Object.fromEntries(Object.entries(g.next.sessionKey).reverse()))), 'renewal, sessionKey keys reordered');
+pair('grantSucc', g.previous, gs.replace(`"operationRevision":${g.next.operationRevision}`, `"operationRevision":${g.next.operationRevision}.0`), 'renewal, revision as N.0');
+pair('grantSucc', g.previous, gs.replace(`"leaseDurationMs":${g.next.leaseDurationMs}`, `"leaseDurationMs":${g.next.leaseDurationMs}.000`), 'renewal, lease as N.000');
+pair('grantSucc', g.previous, gs.replace(`"expiresAt":${g.next.expiresAt}`, `"expiresAt":${g.next.expiresAt}.0`), 'renewal, expiresAt as N.0');
+const r = fx.runSuccessorCases.find((c) => c.valid && c.previous.definition !== null) ?? fx.runSuccessorCases.find((c) => c.valid);
+const rs = JSON.stringify(r.next);
+pair('runSucc', r.previous, rs, `run fixture ${r.id}`);
+if (r.next.definition) pair('runSucc', r.previous, rs.replace(`"definitionRevision":${r.next.definition.definitionRevision}`, `"definitionRevision":${r.next.definition.definitionRevision}.0`), 'run, pin revision as N.0');
+if (r.next.runtime) pair('runSucc', r.previous, rs.replace(JSON.stringify(r.next.runtime), JSON.stringify({ generation: r.next.runtime.generation, runtimeBindingId: r.next.runtime.runtimeBindingId })), 'run, runtime keys reordered');
