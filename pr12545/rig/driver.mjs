@@ -32,9 +32,16 @@ const AGENTS = {
   'probe-reader': { tools: ['read_file', 'grep_search', 'glob'] },
 };
 mkdirSync(join(QHOME, 'agents'), { recursive: true });
+// Written only for the empty-list scenarios, so every other scenario's Agent
+// tool description (which lists agent types) stays byte-comparable across rounds.
+if (scenario.includes('empty')) {
+  AGENTS['probe-empty'] = { tools: [] };
+  AGENTS['probe-empty-deny'] = { tools: [], disallowedTools: ['write_file'] };
+}
 for (const [name, spec] of Object.entries(AGENTS)) {
   const lines = ['---', `name: ${name}`, `description: PR12545 probe agent ${name}`];
-  if (spec.tools) lines.push('tools:', ...spec.tools.map((t) => `  - ${t}`));
+  if (spec.tools && spec.tools.length === 0) lines.push('tools: []');
+  else if (spec.tools) lines.push('tools:', ...spec.tools.map((t) => `  - ${t}`));
   if (spec.disallowedTools)
     lines.push('disallowedTools:', ...spec.disallowedTools.map((t) => `  - ${t}`));
   lines.push('---', `You are the ${name} probe. Follow the task exactly.`, '');
@@ -83,6 +90,8 @@ const SUBTYPE = {
   path2: 'probe-reader',
   'path-builtin': 'statusline-setup',
   'direct-exec': 'probe-exec',
+  empty: 'probe-empty',
+  'empty-deny': 'probe-empty-deny',
   'eager-cm': 'general-purpose',
   'eager-cm2': 'general-purpose',
   'path2-open': 'probe-open',

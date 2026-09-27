@@ -1,7 +1,7 @@
 // node cmp-arms.mjs <SP> <armA> <armB> <scenario>...
 import { readFileSync } from 'node:fs';
 const [SP, A, B, ...scs] = process.argv.slice(2);
-const norm = (v, arm) => String(JSON.stringify(v)).replaceAll(`runs/${arm}-`, 'runs/ARM-').replace(/pid=\d+/g, 'pid=N').replace(/wt-(head|base|fix)[23]?/g, 'wt-ARM').replace(/call-(main|sub1|sub2)-\d+/g, 'call-X');
+const norm = (v, arm) => String(JSON.stringify(v)).replaceAll(`runs/${arm}-`, 'runs/ARM-').replace(/pid=\d+/g, 'pid=N').replace(/wt-(head|base|fix|merge)[234]?/g, 'wt-ARM').replace(/call-(main|sub1|sub2)-\d+/g, 'call-X');
 for (const sc of scs) {
   const load = (arm) => JSON.parse(readFileSync(`${SP}/runs/${arm}-${sc}/result.json`, 'utf8')).records.filter((r) => r.role !== 'aux');
   const a = load(A), b = load(B);

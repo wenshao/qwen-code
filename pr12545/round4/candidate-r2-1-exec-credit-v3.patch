@@ -1,0 +1,161 @@
+diff -ru -x generated -x *.js -x *.map -x *.d.ts a/packages/core/src/agents/background-agent-resume.ts b/packages/core/src/agents/background-agent-resume.ts
+--- a/packages/core/src/agents/background-agent-resume.ts
++++ b/packages/core/src/agents/background-agent-resume.ts
+@@ -76,6 +76,7 @@
+   extractParentToolNames,
+ } from './runtime/agent-core.js';
+ import { toolConfigAllowsSkill } from './runtime/subagent-plan-tool-policy.js';
++import { ToolMode } from '../tools/code-mode.js';
+ import { ToolNames } from '../tools/tool-names.js';
+ import type {
+   AgentExternalInput,
+@@ -129,12 +130,16 @@
+  */
+ function subagentWillHaveSkillTool(
+   subagentConfig: SubagentConfig | undefined,
++  codeModeOnly = false,
+ ): boolean {
+   const tools = subagentConfig?.tools;
+-  return toolConfigAllowsSkill({
+-    tools: tools?.length ? tools : ['*'],
+-    disallowedTools: subagentConfig?.disallowedTools,
+-  });
++  return toolConfigAllowsSkill(
++    {
++      tools: tools?.length ? tools : ['*'],
++      disallowedTools: subagentConfig?.disallowedTools,
++    },
++    codeModeOnly,
++  );
+ }
+ 
+ interface TranscriptRecovery {
+@@ -981,6 +986,7 @@
+                 includeDeferredToolsReminder: false,
+                 includeAvailableSkillsReminder: subagentWillHaveSkillTool(
+                   target.subagentConfig,
++                  activeAgentConfig.getToolMode?.() === ToolMode.CodeModeOnly,
+                 ),
+               })
+             )[0],
+diff -ru -x generated -x *.js -x *.map -x *.d.ts a/packages/core/src/agents/runtime/agent-core.ts b/packages/core/src/agents/runtime/agent-core.ts
+--- a/packages/core/src/agents/runtime/agent-core.ts
++++ b/packages/core/src/agents/runtime/agent-core.ts
+@@ -604,7 +604,10 @@
+    * disallowed `skill` was still shown every skill it could not load.
+    */
+   private willHaveSkillTool(): boolean {
+-    return toolConfigAllowsSkill(this.toolConfig);
++    return toolConfigAllowsSkill(
++      this.toolConfig,
++      this.runtimeContext.getToolMode?.() === ToolMode.CodeModeOnly,
++    );
+   }
+ 
+   /**
+diff -ru -x generated -x *.js -x *.map -x *.d.ts a/packages/core/src/agents/runtime/subagent-plan-tool-policy.test.ts b/packages/core/src/agents/runtime/subagent-plan-tool-policy.test.ts
+--- a/packages/core/src/agents/runtime/subagent-plan-tool-policy.test.ts
++++ b/packages/core/src/agents/runtime/subagent-plan-tool-policy.test.ts
+@@ -251,5 +251,19 @@
+     ])('withholds skills for %s', (_label, toolConfig) => {
+       expect(toolConfigAllowsSkill(toolConfig)).toBe(false);
+     });
++
++    it('credits the exec gateway only under CodeModeOnly', () => {
++      const execList = { tools: [ToolNames.EXEC, ToolNames.READ_FILE] };
++      expect(toolConfigAllowsSkill(execList, true)).toBe(true);
++      expect(toolConfigAllowsSkill(execList, false)).toBe(false);
++      expect(toolConfigAllowsSkill(execList)).toBe(false);
++      expect(
++        toolConfigAllowsSkill(
++          { ...execList, disallowedTools: [ToolNames.SKILL] },
++          true,
++        ),
++      ).toBe(false);
++      expect(toolConfigAllowsSkill({ tools: [] }, true)).toBe(false);
++    });
+   });
+ });
+diff -ru -x generated -x *.js -x *.map -x *.d.ts a/packages/core/src/agents/runtime/subagent-plan-tool-policy.ts b/packages/core/src/agents/runtime/subagent-plan-tool-policy.ts
+--- a/packages/core/src/agents/runtime/subagent-plan-tool-policy.ts
++++ b/packages/core/src/agents/runtime/subagent-plan-tool-policy.ts
+@@ -126,6 +126,7 @@
+  */
+ export function toolConfigAllowsSkill(
+   toolConfig: ToolConfig | undefined,
++  codeModeOnly = false,
+ ): boolean {
+   if (EXCLUDED_TOOLS_FOR_SUBAGENTS.has(ToolNames.SKILL)) {
+     return false;
+@@ -145,7 +146,12 @@
+   // list holding only inline declarations inherits: both take the explicit
+   // branch there, which declares no registry tool.
+   const inheritsRegistry = names.includes('*');
+-  return inheritsRegistry || names.includes(ToolNames.SKILL);
++  // Under CodeModeOnly, naming `exec` inherits every code-mode-callable
++  // binding (`prepareTools()`), and `skill` is one of them.
++  const reachesThroughExec = codeModeOnly && names.includes(ToolNames.EXEC);
++  return (
++    inheritsRegistry || names.includes(ToolNames.SKILL) || reachesThroughExec
++  );
+ }
+ 
+ /**
+diff -ru -x generated -x *.js -x *.map -x *.d.ts a/packages/core/src/subagents/subagent-manager.test.ts b/packages/core/src/subagents/subagent-manager.test.ts
+--- a/packages/core/src/subagents/subagent-manager.test.ts
++++ b/packages/core/src/subagents/subagent-manager.test.ts
+@@ -4284,6 +4284,31 @@
+         );
+       });
+ 
++      // Under CodeModeOnly an explicit list naming `exec` inherits every
++      // code-mode-callable binding, `skill` included, so the agent can load
++      // skills through the exec gateway and must keep its manager. The parent
++      // is a real CodeModeOnly Config: dropping the tool-mode argument at the
++      // createAgentHeadless call site turns this case red.
++      it('keeps the manager for an exec-only agent under CodeModeOnly', async () => {
++        const codeModeParent = makeFakeConfig({ codeModeOnly: true });
++        vi.spyOn(codeModeParent, 'getSkillManager').mockReturnValue(
++          sessionManager,
++        );
++        vi.spyOn(codeModeParent, 'getSubagentManager').mockReturnValue(manager);
++        vi.spyOn(codeModeParent, 'getToolRegistry').mockReturnValue(
++          mockToolRegistry,
++        );
++
++        const context = await launch(
++          { tools: [ToolNames.EXEC] },
++          codeModeParent,
++        );
++        expect(context.getSkillManager()).toBe(sessionManager);
++        expect(context.getToolRegistry().getAllToolNames()).toContain(
++          ToolNames.SKILL,
++        );
++      });
++
+       // The rebuilt registry's tools are per-subagent instances: the nested
+       // Agent tool subscribes to the *shared session* SubagentManager in its
+       // constructor and releases only in dispose(), which is what
+diff -ru -x generated -x *.js -x *.map -x *.d.ts a/packages/core/src/subagents/subagent-manager.ts b/packages/core/src/subagents/subagent-manager.ts
+--- a/packages/core/src/subagents/subagent-manager.ts
++++ b/packages/core/src/subagents/subagent-manager.ts
+@@ -85,6 +85,7 @@
+   rebuildToolRegistryOnOverride,
+ } from '../tools/agent/agent.js';
+ import { toolConfigAllowsSkill } from '../agents/runtime/subagent-plan-tool-policy.js';
++import { ToolMode } from '../tools/code-mode.js';
+ import type { SkillManager } from '../skills/skill-manager.js';
+ 
+ const AGENT_CONFIG_DIR = 'agents';
+@@ -1190,7 +1191,10 @@
+         modelConfig.reasoningEffort,
+       );
+ 
+-      const skillsAvailable = toolConfigAllowsSkill(toolConfig);
++      const skillsAvailable = toolConfigAllowsSkill(
++        toolConfig,
++        runtimeContext.getToolMode?.() === ToolMode.CodeModeOnly,
++      );
+       const { context: subagentContext, cleanup } =
+         await this.buildSubagentContextOverride(
+           runtimeContext,

@@ -32,9 +32,16 @@ const AGENTS = {
   'probe-reader': { tools: ['read_file', 'grep_search', 'glob'] },
 };
 mkdirSync(join(QHOME, 'agents'), { recursive: true });
+// Written only for the empty-list scenarios, so every other scenario's Agent
+// tool description (which lists agent types) stays byte-comparable across rounds.
+if (scenario.includes('empty')) {
+  AGENTS['probe-empty'] = { tools: [] };
+  AGENTS['probe-empty-deny'] = { tools: [], disallowedTools: ['write_file'] };
+}
 for (const [name, spec] of Object.entries(AGENTS)) {
   const lines = ['---', `name: ${name}`, `description: PR12545 probe agent ${name}`];
-  if (spec.tools) lines.push('tools:', ...spec.tools.map((t) => `  - ${t}`));
+  if (spec.tools && spec.tools.length === 0) lines.push('tools: []');
+  else if (spec.tools) lines.push('tools:', ...spec.tools.map((t) => `  - ${t}`));
   if (spec.disallowedTools)
     lines.push('disallowedTools:', ...spec.disallowedTools.map((t) => `  - ${t}`));
   lines.push('---', `You are the ${name} probe. Follow the task exactly.`, '');
@@ -73,7 +80,9 @@ writeFileSync(
 
 
 // ---------- resume scenario: launch in background, restart, send_message ----------
-const SUBTYPE = { resume: 'probe-deny', 'resume-open': 'probe-open', 'resume-allow': 'probe-allow' }[scenario];
+const SDK_TOOLS = { 'sdk-str': 'read_file', 'sdk-arr': ['read_file'] }[scenario];
+const sdkMode = SDK_TOOLS !== undefined;
+const SUBTYPE = sdkMode ? 'probe-sdk' : { resume: 'probe-deny', 'resume-open': 'probe-open', 'resume-allow': 'probe-allow', 'resume-empty': 'probe-empty' }[scenario];
 if (!SUBTYPE) throw new Error(`unknown scenario ${scenario}`);
 function textOf(content) {
   if (typeof content === 'string') return content;
@@ -120,12 +129,29 @@ const env = { ...process.env };
 for (const k of Object.keys(env)) if (/_proxy$/i.test(k) || k.startsWith('QWEN_') || k.startsWith('OPENAI_') || k.startsWith('DASHSCOPE')) delete env[k];
 Object.assign(env, { HOME, QWEN_HOME: QHOME, QWEN_RUNTIME_DIR: QHOME, NO_COLOR: '1' });
 const SESSION = '6d1f2c1e-1254-4c5a-9e00-0000000' + String(12545 + (arm === 'base' ? 1 : 0)).padStart(5, '0');
+const SDK_AGENT = { name: 'probe-sdk', description: 'PR12545 SDK session probe agent', systemPrompt: 'You are the SDK probe.', level: 'session', tools: SDK_TOOLS };
 async function launch(extra, prompt) {
-  const args = [`${WT}/dist/cli.js`, ...extra, '-p', prompt, '--approval-mode', 'yolo', '--auth-type', 'openai',
+  const io = sdkMode ? ['--input-format', 'stream-json', '--output-format', 'stream-json'] : ['-p', prompt];
+  const args = [`${WT}/dist/cli.js`, ...extra, ...io, '--approval-mode', 'yolo', '--auth-type', 'openai',
     '--openai-api-key', 'fake-key', '--openai-base-url', server.baseUrl, '--model', 'fake-model'];
   const child = spawn(process.execPath, args, { cwd: PROJ, env });
   let stdout = '', stderr = '';
   child.stdout.on('data', (d) => (stdout += d));
+  if (sdkMode) {
+    const startRecords = records.length;
+    child.stdin.write(JSON.stringify({ type: 'control_request', request_id: 'init-1', request: { subtype: 'initialize', agents: [SDK_AGENT] } }) + '\n');
+    child.stdin.write(JSON.stringify({ type: 'user', session_id: SESSION, message: { role: 'user', content: prompt }, parent_tool_use_id: null }) + '\n');
+    // Close stdin once the child agent has made its request (launch) or the revive
+    // outcome is back, plus a short settle so notifications drain.
+    const poll = setInterval(() => {
+      const mine = records.slice(startRecords);
+      const done = phase === 1
+        ? mine.some((r) => r.role === 'sub1') && mine.filter((r) => r.role === 'main').length >= 2
+        : mine.some((r) => r.role === 'main' && r.lastMsgRole === 'tool');
+      if (done) { clearInterval(poll); setTimeout(() => child.stdin.end(), 3000); }
+    }, 200);
+    child.on('close', () => clearInterval(poll));
+  }
   child.stderr.on('data', (d) => (stderr += d));
   const killer = setTimeout(() => child.kill('SIGKILL'), 240_000);
   const code = await new Promise((r) => child.on('close', r));
