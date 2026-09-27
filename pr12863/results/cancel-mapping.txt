@@ -1,0 +1,11 @@
+A. cancel a PREPARED call (never sent)
+  Broker: PREPARED -> SETTLED, executionStatus=cancelled, dispatchGeneration=0
+  H0c executionOf: intent -> settled
+  H0b isTransitionAllowed(execution, intent, settled) = false
+  H0b isRunSuccessor(admitted/intent -> cancelled/settled) = false   <- H0c mapping
+  H0b isRunSuccessor(admitted/intent -> cancelled/not_started_proven) = true   <- the mapping #12863 names for a never-sent call
+B. cancel an EXECUTING call; the Runtime reports cancelled
+  Broker: EXECUTING -> SETTLED, executionStatus=cancelled, dispatchGeneration=1
+  H0c executionOf: dispatch_started -> settled
+  H0b isTransitionAllowed(execution, dispatch_started, settled) = true
+  H0b isRunSuccessor(running/dispatch_started -> cancelled/settled) = true   <- H0c mapping
