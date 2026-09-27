@@ -1,0 +1,56 @@
+name: probe-pr11799-win
+'on':
+  push:
+    branches:
+      - probe/pr11799-**
+permissions:
+  contents: read
+jobs:
+  win:
+    name: node-repl desktop-relay / windows-2022
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      QWEN_SKIP_PREPARE: '1'
+      QWEN_SKIP_NOTICE_GENERATION: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout (PR head d61ead12d5 + this workflow)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - name: Set up Node.js 22.x
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 22.x
+          package-manager-cache: false
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile --prefer-offline --reporter=append-only
+      - name: Census
+        run: |
+          mkdir -p probe-out
+          {
+            node -v
+            node -p "process.platform + ' ' + process.arch + ' ' + require('os').release()"
+            git log -1 --format='%H %s' HEAD^ || true
+            node -e "const r=require('child_process').spawnSync('/bin/ps',['-p',String(process.pid),'-o','command='],{encoding:'utf8'});console.log('PROBE_JSON '+JSON.stringify({probe:'spawnSync /bin/ps',status:r.status,error:r.error&&r.error.code,stdout:r.stdout}))"
+          } 2>&1 | tee probe-out/census.txt
+      - name: Arm A - node-repl suite at PR head (unmodified)
+        continue-on-error: true
+        working-directory: packages/node-repl
+        run: |
+          set +e
+          npx vitest run --reporter=verbose > ../../probe-out/armA-head.txt 2>&1
+          rc=$?
+          echo "PROBE_JSON {\"arm\":\"A-head\",\"exit\":$rc}" | tee -a ../../probe-out/armA-head.txt
+          tail -40 ../../probe-out/armA-head.txt
+          exit $rc
+      - name: Summary
+        if: always()
+        run: grep -h -E 'PROBE_JSON|FAIL|✗|×|Tests +[0-9]|Test Files' probe-out/*.txt || true
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: probe-pr11799-win
+          path: probe-out/
