@@ -3,8 +3,8 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import { FIXTURES, PORT, RefMapper, api, commitMonitor, createPublicSession, javaRows, openLog, openSession, say, tsViewAsRow } from './lib.mjs';
-openLog('s10-merge-events');
-const MW = `${process.env.SPD}/wt-merge`;
+openLog(process.env.MW ? 'new-s10-events' : 's10-merge-events');
+const MW = process.env.MW ?? `${process.env.SPD}/wt-merge`;
 const require = createRequire(`${MW}/package.json`);
 const Ajv2020 = require('ajv/dist/2020').default;
 const addFormats = require('ajv-formats').default ?? require('ajv-formats');

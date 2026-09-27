@@ -3,7 +3,7 @@
 // Compares the authority's view with every Java surface after each revision.
 import fs from 'node:fs';
 import {
-  FIXTURES, RefMapper, api, commitMonitor, createPublicSession, javaRows,
+  FIXTURES, RefMapper, outboxOf, api, commitMonitor, createPublicSession, javaRows,
   journalCounts, openLog, openSession, say, sql, tsViewAsRow, TENANT,
 } from './lib.mjs';
 
@@ -75,9 +75,9 @@ const lastTx = sql(
 say('input-tx', lastTx);
 
 const tsViews = session.authority.taskViews();
-const outbox = session.authority.extensionOutbox();
+const outbox = outboxOf(session.authority, ["monitor-1", "monitor-2"]);
 say('ts-taskViews', tsViews);
-say('ts-outbox', outbox.map((r) => r.recordId));
+say('ts-outbox', outbox);
 
 const list = await api('GET', `/v1/agents/sessions/${sessionId}/tasks`, { actor: 'alice' });
 say('public-list', { status: list.status, body: list.json });
@@ -144,7 +144,7 @@ await session.close();
 const b = await openSession({ sessionId, writerId: 'writer-b' });
 const viewsB = b.session.authority.taskViews();
 out.coldReopenEqual = JSON.stringify(viewsB) === JSON.stringify(tsViews);
-say('cold-reopen writer-b', { equal: out.coldReopenEqual, outbox: b.session.authority.extensionOutbox().map((r) => r.recordId) });
+say('cold-reopen writer-b', { equal: out.coldReopenEqual, outbox: outboxOf(b.session.authority, ["monitor-1", "monitor-2"]) });
 let grantB;
 try {
   grantB = b.session.authority.issueOperationGrant({

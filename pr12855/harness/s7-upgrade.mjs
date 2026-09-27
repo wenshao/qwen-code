@@ -9,7 +9,7 @@ import {
 const PHASE = process.env.PHASE;
 const PORT = 18856;
 const STATE = `${process.env.RIG_OUT}/s7-state.json`;
-openLog(`s7-upgrade-${PHASE}`);
+openLog(`${process.env.WT ? 'new-' : ''}s7-upgrade-${PHASE}`);
 const meta = async (session, sessionKey, id) =>
   session.authority.commitDomainRecord(
     { operation: 'setMetadata', commandId: id, sessionKey, contentDigest: Buffer.from(id).toString('hex').padEnd(64, '0').slice(0, 64) },

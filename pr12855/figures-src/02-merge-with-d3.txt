@@ -1,22 +1,18 @@
-Merging main (D3 #12840, landed after this PR opened) into d6d8cff4a0
-Local trial merge only (not pushed): origin/main 36710ff690 into the PR head; MariaDB 10.11.18, JDK 21
-## git merge: 3 text conflicts, and one it does not report
+D3 (#12840) landed during the review: the conflict git did not report, and the rebase
+d6d8cff4a0 (first head) vs main 36710ff690 - local trial merge; the author's rebase 343ddbd364 + audits 4694587593, 2331792cd8
+## git merge of d6d8cff4a0 with main: 3 text conflicts, and one it does not report
 !! ManagedAgentService.java        CAPABILITIES: D3 (true,true,false,true) vs H0c (true,false,false,false,true)
 !! openapi.json info               both sides claim "version": "1.17.0" with a different v1.17 sentence
 !! ManagedAgentApiContractTest     imports / injected store / expected capabilities JSON
 -- db/migration                    V14__managed_event_replay.sql (D3) + V14__managed_extension_record.sql (H0c)
 ==                                 different file names -> git merges both silently
-## naive merge, packaged jar, fresh database
--- Caused by: org.flywaydb.core.api.FlywayException: Found more than one migration with version 14
--- APPLICATION FAILED TO START (managedSessionStore -> flywayInitializer)
-## trial resolution that passes
-++ rename V14__managed_extension_record.sql -> V16__ (D3 also took V15)
-++ CAPABILITIES = (items true, snapshots true, artifacts false, resync true, tasks true)
-++ spec 1.18.0; description keeps D3's v1.17 sentence and adds the H0c sentence as v1.18
-++ contract test: both stores injected; expected capabilities {...,"resync":true,"tasks":true}
-## results on the resolved merge
-++ mvn -Pmysql-integration clean verify checkstyle:check: 148 unit + 11 MariaDB IT pass, 0 Checkstyle
-++ web-shell managed tests 73/73 (generated types still match the merged spec)
-++ live: chain A 8/8 revisions TS == Java; D3 event page with task.updated validates against spec 1.18.0
+-- naive merge jar: FlywayException: Found more than one migration with version 14 -> APPLICATION FAILED TO START
+## trial resolution (V16, capabilities incl. resync+tasks, spec 1.18.0): 148 unit + 11 MariaDB IT pass
+++ the author's rebase 343ddbd364 == that trial merge except the V16 wording in 2 design docs + 5 test lines
+## current head 2331792cd8
+++ mvn -Pmysql-integration clean verify checkstyle:check: 150 unit + 11 MariaDB IT pass, 0 Checkstyle
+++ core managed-runtime 26 files / 1652 tests; web-shell managed 73/73; Hosted E2E --session-failover passes
+++ fresh MariaDB applies V14 (D3 replay), V15 (D3 identity), V16 (H0c) in order
+++ upgrade main(D3, V15) -> PR (V16) -> main on one live Session: old Session keeps committing both ways
+++ D3 event page with task.updated validates against spec 1.18.0; 12/12 real task/Session bodies valid
 == sample: {"schema_version":1,"projection_version":1,"sequence":2,"type":"task.updated","data":{"state":"pending",...}}
-!! also update "Flyway V14" in the H0c design (en + zh-CN) and the PR body

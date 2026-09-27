@@ -1,5 +1,5 @@
-Edge cases on the real stack, upgrade path, and targeted mutants
-Same rig as figure 1; mutants run the PR's own suites (TS 4 files / 205 tests; Java 30 unit + 11 MariaDB IT, fresh DB per run)
+Edge cases on the real stack, upgrade path, and targeted mutants (head 2331792cd8)
+Same rig as figure 1; mutants run the PR's own suites (TS 4 files / 216 tests; Java 32 unit + 11 MariaDB IT, fresh DB per run)
 ## unknown outcome: proxy delivers commit monitor-1:3 to Java and drops the response; writer A then crashes
 ++ Java committed it (row rev 3, task.updated #3); writer A saw "fetch failed" and stopped writing
 ++ writer B takes over at lease expiry (61 s), retries monitor-1:3: replayed=true, rev 3, same resource, no new event
@@ -9,15 +9,15 @@ Same rig as figure 1; mutants run the PR's own suites (TS 4 files / 205 tests; J
 ++ public and WebShell pages == authority order at every limit; has_more always matches next_cursor
 ## SSE / other surfaces / isolation / errors
 ++ task.updated arrives live on ?stream=true; items, WebShell transcript, Session GET unaffected
-++ foreign tenant 404; unknown task 404 task_not_found; bad cursor 400; limit 0/101 400; 12/12 bodies valid vs 1.17.0
-!! public Session deleted, Stage H commit still succeeds and appends task.updated after session.deleted (invisible)
-## upgrade main (V13) -> PR (V14) -> main on one database with a live Session
-++ V14 applies; old Session: capabilities.tasks=true, empty list, keeps committing; main restarts on V14 and commits
+++ foreign tenant 404; unknown task 404 task_not_found; bad cursor 400; limit 0/101 400
+++ public Session deleted: commit still succeeds, session.deleted stays the last event (was not so on d6d8cff4a0)
+## rolling back / forward between main (D3) and this head on one database
 !! revision committed while main ran -> after re-upgrade the Java row says rev 4, the authority says rev 5
+++ live, unmutated: reopen over a non-chaining journal fails "session log is corrupt ... cannot follow its revision 2"
 ## mutants (killed = a PR test fails)
-++ killed  J11 dedupe key w/o revision  T6 grant after end  T8 nested resources  T9 replay other content
+++ killed  J11 dedupe key  J12 time clamp  J13 trailing tokens  J14 closed payload  J15 blocked sets start
+++ killed  J16 one command, two records  J17 announce after delete  J18 no commit marker
+++ killed  T12 time clamp  T15 blocked start  T16 two records  T1 tie order  T4 corrupt reopen (both lived on d6d8cff4a0)
 -- lives   J7 limit cap 100 -> 1000          (limit only probed with 0)
 -- lives   J8 next_cursor from FIRST row     (every pagination test uses limit=1)
 -- lives   J6 recordRef byteLength check     J4 announce tenant check (live: no leak, commit 404s instead)
--- lives   T1 taskViews tie order ascending  T4 rebuild accepts a non-chaining revision
-++ live, unmutated: reopen over a non-chaining journal fails "session log is corrupt ... cannot follow its revision 2"

@@ -1,6 +1,6 @@
 // S11: a Monitor that ends settled -> task state completed, on the real stack.
 import { FIXTURES, RefMapper, allEvents, api, commitMonitor, createPublicSession, javaRows, openLog, openSession, projection, say, tsViewAsRow } from './lib.mjs';
-openLog('s11-completed');
+openLog(process.env.WT ? "new-s11-completed" : "s11-completed");
 const BODY = projection.MANAGED_EXTENSION_RECORD_BODIES.monitor_run;
 const pub = await createPublicSession({ actor: 'alice' });
 const { session, sessionKey } = await openSession({ sessionId: pub.id, writerId: 'done-a', create: true });

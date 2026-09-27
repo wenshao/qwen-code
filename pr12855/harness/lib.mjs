@@ -188,18 +188,18 @@ export class RefMapper {
   }
 }
 
-export function command(sessionKey, commandId, record) {
+export function command(sessionKey, commandId, record, operation = 'commitMonitorRun') {
   return {
-    operation: 'commitMonitorRun',
+    operation,
     commandId,
     sessionKey,
     contentDigest: createHash('sha256').update(JSON.stringify(record)).digest('hex'),
   };
 }
 
-export async function commitMonitor(session, sessionKey, commandId, record, input) {
+export async function commitMonitor(session, sessionKey, commandId, record, input, operation) {
   return session.authority.commitExtensionRecord(
-    command(sessionKey, commandId, record),
+    command(sessionKey, commandId, record, operation),
     { domain: 'monitor_run', record, ...(input ? { input } : {}) },
     { class: 'trusted_entry' },
   );
@@ -255,4 +255,18 @@ export async function allEvents(sessionId, { tenant = TENANT, actor = 'alice', p
     if (r.json.data.length < 100) return out;
     after = r.json.data.at(-1).sequence;
   }
+}
+
+/**
+ * The outbox as the design defines it (records whose delivery is pending).
+ * 2331792cd8 removed the authority's extensionOutbox() accessor, so derive
+ * it from each record with the PR's own isExtensionDeliveryPending.
+ */
+export function outboxOf(authority, recordIds, domain = 'monitor_run') {
+  if (typeof authority.extensionOutbox === 'function') return authority.extensionOutbox().map((r) => r.recordId).sort();
+  return recordIds
+    .map((id) => authority.extensionRecord(domain, id))
+    .filter((r) => r && projection.isExtensionDeliveryPending(r.run))
+    .map((r) => r.recordId)
+    .sort();
 }

@@ -4,7 +4,7 @@
 import { FIXTURES, RefMapper, commitMonitor, openLog, openSession, say } from './lib.mjs';
 import { randomUUID } from 'node:crypto';
 const PORT = Number(process.env.PORT);
-openLog('s9-corrupt');
+openLog(process.env.WT ? 'new-s9-corrupt' : 's9-corrupt');
 const sessionId = randomUUID();
 const { session, sessionKey } = await openSession({ sessionId, writerId: 'bypass', create: true, port: PORT });
 const refs = new RefMapper(session.resources);

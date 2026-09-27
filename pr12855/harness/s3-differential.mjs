@@ -12,7 +12,7 @@ import {
   openSession, projection, say, tsViewAsRow,
 } from './lib.mjs';
 
-openLog('s3-differential');
+openLog(process.env.LOGNAME_S3 ?? 's3-differential');
 const BODY = projection.MANAGED_EXTENSION_RECORD_BODIES.monitor_run;
 let seed = 12855;
 const rand = () => {
@@ -67,7 +67,7 @@ function mutations(body, perField) {
 
 const cases = [];
 // A: the 8 fixture chains both sides must refuse
-for (const c of FIXTURES.monitorChainRejectCases) cases.push({ label: `reject:${c.id}`, prefix: c.accepted, next: c.next });
+for (const c of FIXTURES.monitorChainRejectCases) cases.push({ label: `reject:${c.id}`, prefix: c.accepted, next: c.next, reuseCommandOf: c.reuseCommandOf });
 // B: the 31 Monitor start cases as first revisions
 for (const c of FIXTURES.monitorRunStartCases) cases.push({ label: `start:${c.id}`, prefix: [], next: c.monitorRun, fixtureValid: c.valid });
 // C: every accepted transition, and single-field mutations of it
@@ -112,6 +112,8 @@ async function runCase(c) {
     const next = await refs.remap(c.next);
     for (let i = 0; i < prefix.length; i++) await commitMonitor(session, sessionKey, `p${i}`, prefix[i]);
     const ts = tsVerdict(prefix, next);
+    // one command opens at most one record (rule added in the audit rounds)
+    if (c.reuseCommandOf !== undefined) ts.accept = false;
     const before = journalCounts(sessionId);
     // bypass writer: the TS chain check is off, so Java alone decides
     session.authority.assertExtensionRevision = () => {};
@@ -126,7 +128,8 @@ async function runCase(c) {
     }
     let java;
     try {
-      await commitMonitor(session, sessionKey, 'candidate', submit);
+      if (c.reuseCommandOf !== undefined) await commitMonitor(session, sessionKey, `p${c.reuseCommandOf}`, submit, undefined, 'openAnotherRecord');
+      else await commitMonitor(session, sessionKey, 'candidate', submit);
       java = { accept: true };
     } catch (e) {
       java = { accept: false, code: `${e.status ?? ''}:${e.remoteCode ?? e.code ?? e.name}`, message: String(e.message).slice(0, 160) };
@@ -164,7 +167,7 @@ await Promise.all(
   }),
 );
 const secs = ((Date.now() - started) / 1000).toFixed(1);
-fs.writeFileSync(`${process.env.RIG_OUT ?? '.'}/s3-results.json`, JSON.stringify(results, null, 1));
+fs.writeFileSync(`${process.env.RIG_OUT ?? '.'}/${process.env.LOGNAME_S3 ?? 's3'}-results.json`, JSON.stringify(results, null, 1));
 
 const agree = results.filter((r) => r.ts && r.ts.accept === r.java.accept);
 const disagree = results.filter((r) => r.ts && r.ts.accept !== r.java.accept);

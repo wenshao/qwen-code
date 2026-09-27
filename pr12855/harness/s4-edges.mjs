@@ -7,7 +7,7 @@ import {
   createPublicSession, javaRows, journalCounts, openLog, openSession, say, sleep,
 } from './lib.mjs';
 
-openLog('s4-edges');
+openLog(process.env.WT ? 'new-s4-pagination' : 's4-edges');
 const chainA = FIXTURES.monitorChainCases[0].revisions.map((r) => r.monitorRun);
 
 // ---------- 1. pagination with ties ----------
@@ -63,7 +63,7 @@ if (!process.env.SKIP_PAGINATION) {
 }
 
 // ---------- 2. lost response, retry from a new writer ----------
-{
+if (!process.env.SKIP_LOST) {
   const pub = await createPublicSession({ actor: 'alice' });
   const sessionId = pub.id;
   // proxy that forwards everything but drops the response of one commit

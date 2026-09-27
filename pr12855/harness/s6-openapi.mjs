@@ -7,7 +7,7 @@ import {
   FIXTURES, RefMapper, WT, api, commitMonitor, createPublicSession, openLog, openSession, say,
 } from './lib.mjs';
 
-openLog('s6-openapi');
+openLog(process.env.WT ? "new-s6-openapi" : "s6-openapi");
 const require = createRequire(`${WT}/package.json`);
 const Ajv2020 = require('ajv/dist/2020').default;
 const addFormats = require('ajv-formats').default ?? require('ajv-formats');

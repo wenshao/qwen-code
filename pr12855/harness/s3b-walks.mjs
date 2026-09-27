@@ -7,11 +7,11 @@
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import {
-  FIXTURES, RefMapper, allEvents, api, commitMonitor, createPublicSession, javaRows,
+  FIXTURES, RefMapper, allEvents, outboxOf, api, commitMonitor, createPublicSession, javaRows,
   openLog, openSession, projection, say, tsViewAsRow,
 } from './lib.mjs';
 
-openLog(`s3b-walks-seed${process.env.SEED ?? 4242}`);
+openLog(`${process.env.WT ? 'new-' : ''}s3b-walks-seed${process.env.SEED ?? 4242}`);
 const BODY = projection.MANAGED_EXTENSION_RECORD_BODIES.monitor_run;
 let seed = Number(process.env.SEED ?? 4242);
 const rand = () => {
@@ -121,7 +121,7 @@ for (let w = 0; w < WALKS; w++) {
   const tsViews = session.authority.taskViews();
   const list = await api('GET', `/v1/agents/sessions/${sessionId}/tasks?limit=100`, { actor: 'alice' });
   const wsList = await api('POST', '/api/agent/web-shell/v1/tasks/query', { actor: 'alice', body: { sessionId, limit: 100 } });
-  const outboxTs = session.authority.extensionOutbox().map((r) => r.recordId).sort();
+  const outboxTs = outboxOf(session.authority, chains.map((c) => c.id));
   const pending = new Set(projection.MANAGED_EXTENSION_RECORD_BODIES && ['planned', 'sending', 'partial', 'accepting', 'unknown']);
   const outboxJava = javaRows(sessionId).filter((r) => pending.has(r[9])).map((r) => r[0]).sort();
   const taskEvents = (await allEvents(sessionId)).filter((e) => e.type === 'task.updated').length;
@@ -139,7 +139,7 @@ for (let w = 0; w < WALKS; w++) {
   const b = await openSession({ sessionId, writerId: `walk-${w}-b` });
   endChecks.at(-1).reopenEqual =
     JSON.stringify(b.session.authority.taskViews()) === JSON.stringify(tsViews) &&
-    JSON.stringify(b.session.authority.extensionOutbox().map((r) => r.recordId).sort()) === JSON.stringify(outboxTs);
+    JSON.stringify(outboxOf(b.session.authority, chains.map((c) => c.id))) === JSON.stringify(outboxTs);
   await b.session.close();
 }
 const combos = [...seen.entries()].sort((a, b) => b[1] - a[1]);
