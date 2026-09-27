@@ -1,0 +1,21 @@
+Four red CI jobs, two causes, both introduced by this PR
+Hosted no-tool processes / MySQL + Runtime Broker MariaDB (one Java test); Lint & Static + Test (ubuntu) (one import)
+
+## EmbeddedRuntimeBrokerTest.rejectsUnsupportedBrokerRoutesBeforeAnySideEffects:97
+-- CI (both Java jobs) and local: expected: 501  but was: 409
+== the test still asserts that executions:prepare and executions/{id}:start are unsupported
+-- PR head, managed-agent-server unit suite: 101 run, 1 failure
+!! the PR's reproduction command (-Dtest=WorkspaceRuntimeTest) never runs this class
+++ candidate (+7/-2): :resolve stays 501, prepare/start with an empty body -> 409,
+++   still no store interaction -> 101/101 + checkstyle
+
+## Serve pre-listen import boundary
+-- Lint & Static  npm run check:serve-fast-path-bundle: "closure includes pre-listen runtime modules"
+-- Test (ubuntu)  fast-path.test.ts "keeps the runQwenServe static source graph free of ACP
+--                runtime modules" -> local 113/114
+++ base daaac2223: "Startup bundle closure checks passed."
+>> run-qwen-serve.ts > hosted-harness-profile.ts > broker-managed-runtime-provider.ts
+>>   > managed-runtime-provider.ts > acp-session-bridge.ts > acp-bridge > core > tools/shell.ts
+== cause: the new pre-listen import of resolveManagedRuntimeBrokerBaseUrl (a 25-line URL check)
+++ candidate (+40/-28): move it to a leaf managed-runtime-broker-url.ts
+++   -> bundle closure checks passed, fast-path.test.ts 114/114

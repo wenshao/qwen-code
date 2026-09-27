@@ -1,0 +1,190 @@
+diff --git a/packages/cli/src/serve/hosted-workspace-broker.ts b/packages/cli/src/serve/hosted-workspace-broker.ts
+index df3a15605f..5c9fc46931 100644
+--- a/packages/cli/src/serve/hosted-workspace-broker.ts
++++ b/packages/cli/src/serve/hosted-workspace-broker.ts
+@@ -22,6 +22,16 @@ function object(value: unknown): Record<string, unknown> {
+   return value as Record<string, unknown>;
+ }
+ 
++/** A Broker reply that definitely refused the request (no effect taken). */
++export class HostedWorkspaceBrokerRejection extends Error {
++  constructor(
++    readonly status: number,
++    readonly code: unknown,
++  ) {
++    super(`Runtime Broker returned HTTP ${status}.`);
++  }
++}
++
+ export class HostedWorkspaceBroker {
+   private readonly baseUrl: URL;
+   private readonly identity: {
+@@ -196,7 +206,7 @@ export class HostedWorkspaceBroker {
+     }
+     const parsed = object(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+     if (!response.ok)
+-      throw new Error(`Runtime Broker returned HTTP ${response.status}.`);
++      throw new HostedWorkspaceBrokerRejection(response.status, parsed['code']);
+     if (
+       parsed['protocolVersion'] !== 1 ||
+       parsed['harnessSessionId'] !== this.key.sessionId ||
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index 333533edfe..a340da5a76 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -21,6 +21,7 @@ import {
+   HostedWorkspaceToolTurn,
+   HostedToolRecoveryRequiredError,
+ } from './hosted-workspace-tool-turn.js';
++import { HostedWorkspaceBrokerRejection } from './hosted-workspace-broker.js';
+ 
+ const broker = vi.hoisted(() => ({
+   warm: vi.fn(),
+@@ -30,7 +31,8 @@ const broker = vi.hoisted(() => ({
+   cancel: vi.fn(),
+   release: vi.fn(),
+ }));
+-vi.mock('./hosted-workspace-broker.js', () => ({
++vi.mock('./hosted-workspace-broker.js', async (importOriginal) => ({
++  ...(await importOriginal<typeof import('./hosted-workspace-broker.js')>()),
+   HostedWorkspaceBroker: class {
+     warm = broker.warm;
+     acquire = broker.acquire;
+@@ -313,3 +315,52 @@ it('keeps an empty Runtime error visible to the model instead of reporting succe
+   });
+   expect(result[0].functionResponse?.response).not.toHaveProperty('output');
+ });
++
++it('fails a turn without recovery when the Broker refuses acquisition before claiming storage', async () => {
++  broker.acquire.mockRejectedValue(
++    new HostedWorkspaceBrokerRejection(409, 'workspace_busy'),
++  );
++  const refused = turn.execute(
++    calls,
++    parts,
++    'model',
++    new AbortController().signal,
++  );
++  await expect(refused).rejects.toBeInstanceOf(HostedWorkspaceBrokerRejection);
++  await expect(refused).rejects.not.toBeInstanceOf(
++    HostedToolRecoveryRequiredError,
++  );
++  await expect(turn.finish()).resolves.toBeUndefined();
++  expect(broker.prepare).not.toHaveBeenCalled();
++  expect(broker.release).not.toHaveBeenCalled();
++});
++
++it('keeps an unobserved acquisition recovery blocked', async () => {
++  broker.acquire.mockRejectedValue(new Error('socket hang up'));
++  await expect(
++    turn.execute(calls, parts, 'model', new AbortController().signal),
++  ).rejects.toBeInstanceOf(HostedToolRecoveryRequiredError);
++  await expect(turn.finish()).rejects.toBeInstanceOf(
++    HostedToolRecoveryRequiredError,
++  );
++});
++
++it('refuses a batch that cannot fit the inline Session limit before acquiring', async () => {
++  const call = {
++    ...calls[0],
++    name: 'write_file',
++    args: { file_path: 'big.txt', content: 'y'.repeat(70 * 1024) },
++  };
++  const refused = turn.execute(
++    [call],
++    [{ functionCall: { id: call.callId, name: call.name, args: call.args } }],
++    'model',
++    new AbortController().signal,
++  );
++  await expect(refused).rejects.toThrow('inline Session limit');
++  await expect(refused).rejects.not.toBeInstanceOf(
++    HostedToolRecoveryRequiredError,
++  );
++  expect(broker.acquire).not.toHaveBeenCalled();
++  await expect(turn.finish()).resolves.toBeUndefined();
++});
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index 617f73843f..20625bbdb0 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -15,11 +15,19 @@ import type { ManagedSession } from '@qwen-code/qwen-code-core/managed-runtime/m
+ import type { ManagedHarnessHandle } from '@qwen-code/qwen-code-core/managed-runtime/managed-harness-factory.js';
+ import { normalizeWorkspaceRelativePath } from './managed-workspace-binding.js';
+ import { WORKSPACE_CAPABILITY_DIGEST } from './managed-workspace-activation.js';
++import { HTTP_MANAGED_SESSION_STORE_CONTRACT } from '@qwen-code/qwen-code-core/managed-runtime/http-managed-session-store.js';
+ import {
+   HostedWorkspaceBroker,
++  HostedWorkspaceBrokerRejection,
+   type HostedWorkspaceBrokerOptions,
+ } from './hosted-workspace-broker.js';
+ 
++// Codes the Broker raises before it claims Workspace storage.
++const DEFINITE_ACQUIRE_REFUSALS = new Set([
++  'workspace_busy',
++  'workspace_unavailable',
++]);
++
+ export const HOSTED_WORKSPACE_FILE_PROFILE = 'hosted-workspace-files/1';
+ 
+ const pathProperty = {
+@@ -131,8 +139,19 @@ export class HostedWorkspaceToolTurn {
+         toolName: call.name,
+         input: { ...call.args, file_path: relativeFile },
+       });
+-      if (Buffer.byteLength(payloadJson) > 256 * 1024)
+-        throw new Error('Hosted tool input exceeds 256 KiB.');
++      // The exact argument resource must fit the inline Session Store limit;
++      // refuse before any Runtime or Workspace storage is claimed.
++      if (
++        Buffer.byteLength(
++          JSON.stringify({
++            harnessSessionId:
++              this.session.authority.sessionHeader.sessionKey.sessionId,
++            runtimeSessionId: this.promptId,
++            payloadJson,
++          }),
++        ) > HTTP_MANAGED_SESSION_STORE_CONTRACT.maxInlineResourceBytes
++      )
++        throw new Error('Hosted tool input exceeds the inline Session limit.');
+       return {
+         call,
+         payloadJson,
+@@ -153,14 +172,33 @@ export class HostedWorkspaceToolTurn {
+       signal.removeEventListener('abort', onAbort);
+     }
+     signal.throwIfAborted();
+-    const reserved: string[] = [];
+-    try {
+-      // Acquisition may have taken effect even when its reply is lost.
++    // The assistant record adds a small envelope around these parts.
++    if (
++      Buffer.byteLength(JSON.stringify(parts)) + 4096 >
++      HTTP_MANAGED_SESSION_STORE_CONTRACT.maxInlineResourceBytes
++    )
++      throw new Error('Hosted tool batch exceeds the inline Session limit.');
++    if (!this.acquired) {
++      // Acquisition may have taken effect even when its reply is lost; only a
++      // definite refusal raised before the storage claim proves it did not.
+       this.uncertain = true;
+-      if (!this.acquired) {
++      try {
+         await this.broker.acquire();
+-        this.acquired = true;
++      } catch (cause) {
++        if (
++          cause instanceof HostedWorkspaceBrokerRejection &&
++          DEFINITE_ACQUIRE_REFUSALS.has(String(cause.code))
++        ) {
++          this.uncertain = false;
++          throw cause;
++        }
++        throw new HostedToolRecoveryRequiredError(cause);
+       }
++      this.acquired = true;
++    }
++    const reserved: string[] = [];
++    try {
++      this.uncertain = true;
+       const messageId = await this.commit('assistant', parts, model);
+       const bindings = [];
+       for (const [ordinal, request] of requests.entries()) {

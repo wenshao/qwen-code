@@ -1,0 +1,114 @@
+diff --git a/packages/cli/src/serve/broker-managed-runtime-provider.ts b/packages/cli/src/serve/broker-managed-runtime-provider.ts
+index a2fecd57e7..cb2f94d4bf 100644
+--- a/packages/cli/src/serve/broker-managed-runtime-provider.ts
++++ b/packages/cli/src/serve/broker-managed-runtime-provider.ts
+@@ -18,7 +18,7 @@ import {
+   managedToolDigest,
+   type ManagedToolInvocationReference,
+ } from '@qwen-code/qwen-code-core/tools/managed-tool-protocol.js';
+-import { isLoopbackBind } from './loopback-binds.js';
++import { resolveManagedRuntimeBrokerBaseUrl } from './managed-runtime-broker-url.js';
+ import {
+   ManagedRuntimeProviderError,
+   type ManagedRuntimeExecutionIdentity,
+@@ -103,31 +103,7 @@ export interface ManagedRuntimeBrokerClientOptions {
+   readonly fetch?: typeof fetch;
+ }
+ 
+-export function resolveManagedRuntimeBrokerBaseUrl(raw: string): URL {
+-  let url: URL;
+-  try {
+-    url = new URL(raw);
+-  } catch {
+-    throw new Error('Managed Runtime Broker URL is invalid.');
+-  }
+-  if (
+-    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+-    url.username ||
+-    url.password ||
+-    url.search ||
+-    url.hash ||
+-    (url.pathname !== '/' && url.pathname !== '')
+-  ) {
+-    throw new Error('Managed Runtime Broker URL must be an HTTP(S) origin.');
+-  }
+-  if (url.protocol === 'http:' && !isLoopbackBind(url.hostname)) {
+-    throw new Error(
+-      'Managed Runtime Broker URL must use HTTPS outside the loopback interface.',
+-    );
+-  }
+-  url.pathname = '/';
+-  return url;
+-}
++export { resolveManagedRuntimeBrokerBaseUrl };
+ 
+ async function readBoundedResponseText(
+   response: Response,
+diff --git a/packages/cli/src/serve/hosted-harness-profile.ts b/packages/cli/src/serve/hosted-harness-profile.ts
+index 37312c1ff7..9d5975a1fa 100644
+--- a/packages/cli/src/serve/hosted-harness-profile.ts
++++ b/packages/cli/src/serve/hosted-harness-profile.ts
+@@ -4,7 +4,7 @@
+  * SPDX-License-Identifier: Apache-2.0
+  */
+ 
+-import { resolveManagedRuntimeBrokerBaseUrl } from './broker-managed-runtime-provider.js';
++import { resolveManagedRuntimeBrokerBaseUrl } from './managed-runtime-broker-url.js';
+ import type { ServeOptions } from './types.js';
+ import { isHostedHarnessCapabilityDigest } from './hosted-harness-contract.js';
+ import { isLoopbackBind } from './loopback-binds.js';
+diff --git a/packages/cli/src/serve/hosted-workspace-broker.ts b/packages/cli/src/serve/hosted-workspace-broker.ts
+index 12754884de..df3a15605f 100644
+--- a/packages/cli/src/serve/hosted-workspace-broker.ts
++++ b/packages/cli/src/serve/hosted-workspace-broker.ts
+@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
+ import { setTimeout as delay } from 'node:timers/promises';
+ import type { ManagedSessionKey } from '@qwen-code/qwen-code-core/managed-runtime/managed-session-records.js';
+ import type { ManagedToolResultPayload } from './managed-runtime-tool-executor.js';
+-import { resolveManagedRuntimeBrokerBaseUrl } from './broker-managed-runtime-provider.js';
++import { resolveManagedRuntimeBrokerBaseUrl } from './managed-runtime-broker-url.js';
+ import { WORKSPACE_CAPABILITY_DIGEST } from './managed-workspace-activation.js';
+ 
+ export interface HostedWorkspaceBrokerOptions {
+diff --git a/packages/cli/src/serve/managed-runtime-broker-url.ts b/packages/cli/src/serve/managed-runtime-broker-url.ts
+new file mode 100644
+index 0000000000..7b50886c1a
+--- /dev/null
++++ b/packages/cli/src/serve/managed-runtime-broker-url.ts
+@@ -0,0 +1,36 @@
++/**
++ * @license
++ * Copyright 2026 Qwen Team
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++// Leaf module: the serve pre-listen profile validator imports this, so it must
++// not pull the Broker provider (and through it the ACP bridge) into the
++// fast-path closure.
++import { isLoopbackBind } from './loopback-binds.js';
++
++export function resolveManagedRuntimeBrokerBaseUrl(raw: string): URL {
++  let url: URL;
++  try {
++    url = new URL(raw);
++  } catch {
++    throw new Error('Managed Runtime Broker URL is invalid.');
++  }
++  if (
++    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
++    url.username ||
++    url.password ||
++    url.search ||
++    url.hash ||
++    (url.pathname !== '/' && url.pathname !== '')
++  ) {
++    throw new Error('Managed Runtime Broker URL must be an HTTP(S) origin.');
++  }
++  if (url.protocol === 'http:' && !isLoopbackBind(url.hostname)) {
++    throw new Error(
++      'Managed Runtime Broker URL must use HTTPS outside the loopback interface.',
++    );
++  }
++  url.pathname = '/';
++  return url;
++}

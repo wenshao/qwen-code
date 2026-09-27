@@ -1,0 +1,25 @@
+What holds: Broker contract, gates, and edge cases that did not break
+Direct Broker HTTP against the embedded Broker (MySQL rows inspected); fixture model through the packaged Harness
+
+## Deferred prepare/start
+++ prepare -> PREPARED, no file; reference_json = 4 reference fields + dispatchMode, no input
+++ start, same object with reordered keys -> 409 runtime_idempotency_conflict, no file
+++ start, exact bytes -> settled/success; replay after settle -> same record, no second effect
+++ immediate /executions carrying dispatchMode -> 400 runtime_reference_invalid
+++ :start on an immediate execution -> 409 runtime_execution_conflict
+++ cancel a prepared call -> settled/cancelled; a later start runs nothing
+++ payload with an extra top-level key -> 400 runtime_payload_invalid
+## Gates
+++ base daaac2223 + Broker flags -> "does not enable Runtime Broker tools in this slice"
+++ PR without Broker config: toolProfile -> 400 hosted_tool_profile_unavailable (same for /2)
+++ default no-tool Session on a Broker-enabled Harness: tool call -> turn_error, zero Broker
+++   requests (not even warm); loading it with toolProfile -> 409 hosted_tool_profile_conflict
+## Hypotheses tested and refuted
+++ read_file of a 107 KB file: output truncated to 374 lines (25.5 KB) -> turn_complete
+++ provider error after a committed write -> turn_error, released, next turn + reload fine
+++ cancel inside the post-tool model call -> turn_complete(cancelled), released, next turn fine
+++ absolute file_path from the model -> turn_error before any Broker effect, next turn fine
+## Mutation sample (existing tests)
+++ killed: start skips digest check; lost start re-sends start; checkpoint after dispatch
+-- survived: immediate endpoint accepts dispatchMode AND deferred dispatch without payload
+--   (both guards removed together: runtime-broker suite still 367/367 green)

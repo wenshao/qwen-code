@@ -1,0 +1,15 @@
+F2: an over-64 KiB tool input is refused only after the Workspace is claimed
+write_file with 70 KiB content: passes the 256 KiB Harness/Broker check, fails the 64 KiB inline Session Store limit
+
+## PR head (ws-l)
+>> POST /runtimes:warm -> 200    POST /tool-sessions:acquire -> 200    (no prepare, no start)
+-- J  recovery blocked: "resource bytes exceed the 65536-byte inline limit"
+++ bigw.txt absent: nothing was dispatched (fail-closed as designed)
+-- st-l stays held by J's Runtime Session; no release is attempted
+-- K  new Session in the same Workspace: acquire -> 409 workspace_busy -> also blocked (F1)
+-- J  next prompt -> 409 hosted_turn_recovery_required
+
+## Candidate (ws-n): sizes checked with the other pre-dispatch refusals, before acquire
+++ J  turn_error; no acquire, no storage held
+++ K  acquire 200 > prepare > start > release; K.txt written
+++ J  next prompt -> turn_complete

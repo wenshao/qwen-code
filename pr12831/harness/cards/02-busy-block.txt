@@ -1,0 +1,21 @@
+F1: a definite workspace_busy refusal permanently blocks the Session
+Two Sessions share one Workspace storage; the second tool turn starts while the first still holds it
+
+## Real model, two threads of ws-g prompted together (PR head)
+>> thread C  POST /tool-sessions:acquire -> 200
+>> thread D  POST /tool-sessions:acquire -> 409 workspace_busy  (raised before the storage claim)
+++ C  turn_complete 12.2 s, c.txt written
+-- D  no terminal event, recoveryBlocked=true, d.txt never written
+-- D  after C released the storage: new prompt -> 409 hosted_turn_recovery_required
+== harness: "turn ... is recovery blocked: Error: Runtime Broker returned HTTP 409."
+
+## Same real-model run on the candidate (ws-f)
+!! C  acquire -> 409 workspace_busy -> turn_error (not blocked)
+++ D  turn_complete, d.txt written
+++ C  retry -> turn_complete, c.txt written
+
+## Fixture A/B, A held inside its final model call      PR head             candidate
+   B turn 1 (acquire -> 409 workspace_busy)              recovery blocked    turn_error
+   B turn 2 after A released                             409                 turn_complete
+   B detach + reload                                     409                 200
+   B.txt / B2.txt                                        absent / absent     absent / written

@@ -1,0 +1,23 @@
+Real stack: gated Workspace file tools work end to end
+PR #12831 @ 0cc53954 | macOS, Node 22.23.2, Java 21 | native MySQL 8.4.7 + Spring jar (Session Store, embedded Broker, local-process worker) + packaged Harness
+
+## Real model (qwen3.8-max), two saved Workspaces prompted at the same time
+>> ws-b/child  write_file todo.md > read_file > edit "- tag" -> "- tag v1.0" > read_file   turn_complete 17.3 s
+>> ws-h/child  read_file (not found) > write_file notes.txt > read_file                  turn_complete 14.4 s
+++ roots/b/child/todo.md    = "- build\n- test\n- tag v1.0\n"
+++ roots/h/child/notes.txt  = "workspace B\n"
+++ decoy todo.md in the Harness launch directory unchanged
+++ detach, reload without toolProfile -> 409; reload with toolProfile -> 200
+++ follow-up "what is the third bullet? no tools" -> "- tag v1.0" (tool history replayed)
+== tool results carry the worker's absolute path; the model repeats it to the user (note N2)
+
+## The PR's own driver, unchanged, on real MySQL instead of H2
+>> integration-tests/helpers/hosted-workspace-tool-turn-driver.ts against the MySQL-backed Spring
+++ PR head    HOSTED_WORKSPACE_TOOLS_OK  5.1 s   proof.txt = "after" in both Workspaces
+++ candidate  HOSTED_WORKSPACE_TOOLS_OK  4.3 s   (warm gate, 2 batches, lost start ACK, replay,
+==                                                Shell refusal, unknown-outcome blocking)
+
+## Other lanes run locally
+++ mvn -P hosted-workspace-tools: HostedWorkspaceToolTurnIT 1/1, WorkspaceRuntimeTest 9/9
+++ integration-tests vitest.hosted.config.ts (default no-tool processes): 8/8
+++ runtime-broker module: 367 run, 0 failures (1 skipped)

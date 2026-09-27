@@ -1,0 +1,20 @@
+[setup] arm=chk model=qwen3.8-max harness=http://127.0.0.1:50600 decoy=$SP/rig/run/harness-real-chk/todo.md
+[C] admit=202 terminal=turn_error recoveryBlocked=false 6674ms
+[C text] 
+[D] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 16445ms
+[D tool] call write_file({"file_path":"d.txt","content":"from thread D\n"}) id=call_97493bec44cb4536a494bcf5
+[D tool] result write_file status=success "Successfully created and wrote to new file: $TMP
+[D tool] call read_file({"file_path":"d.txt"}) id=call_7b0ca1b1b6524f1db6b6ab60
+[D tool] result read_file status=success "from thread D\n"
+[D text] Created `d.txt` at `$SP/rig/roots/f/child/d.txt` and read it back. Content: ``` from thread D ```
+[C/D broker] POST /tool-sessions:acquire -> 200
+[C/D broker] POST /tool-sessions:acquire -> 409 workspace_busy
+[C/D broker] POST /tool-sessions/f107bc1b-2e79-4a1d-8bc6-7706116df0fe:release -> 200
+[C retry] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 13120ms
+[C retry tool] call write_file({"file_path":"c.txt","content":"from thread C\n"}) id=call_fa7d750519d84c87bcfc3583
+[C retry tool] result write_file status=success "Successfully created and wrote to new file: $TMP
+[C retry tool] call read_file({"file_path":"c.txt"}) id=call_28095ae23f3945fa8da0e5c8
+[C retry tool] result read_file status=success "from thread C\n"
+[C retry text] Created c.txt and verified by reading it back. Its content is: ``` from thread C ```
+[fs] c.txt=true d.txt=true
+[log] Hosted Harness turn 6b155f27-4f2d-4bf5-a186-197e4c8eb9b9 failed: Error: Runtime Broker returned HTTP 409.

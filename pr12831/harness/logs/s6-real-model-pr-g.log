@@ -1,0 +1,41 @@
+[setup] arm=pr model=qwen3.8-max harness=http://127.0.0.1:50453 decoy=$SP/rig/run/harness-real-pr/todo.md
+[A1] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 17341ms
+[A1 tool] call write_file({"file_path":"todo.md","content":"- build\n- test\n- tag\n"}) id=call_04b0a4cb49ed4450a2729633
+[A1 tool] result write_file status=success "Successfully created and wrote to new file: $TMP
+[A1 tool] call read_file({"file_path":"todo.md"}) id=call_f492b284b1bd49fe96030011
+[A1 tool] result read_file status=success "- build\n- test\n- tag\n"
+[A1 tool] call edit({"file_path":"todo.md","old_string":"- tag","new_string":"- tag v1.0"}) id=call_bfaca931d90a4a9ab083529e
+[A1 tool] result edit status=success "The file: $SP/…
+[A1 tool] call read_file({"file_path":"todo.md"}) id=call_9d820af6f16844c2bbece609
+[A1 tool] result read_file status=success "- build\n- test\n- tag v1.0\n"
+[A1 text] Created, read back, and edited. Final contents of `todo.md`: ```markdown - build - test - tag v1.0 ``` One note: the edit tool's `old_string` `- tag` is a prefix-match risk if more items starting with "tag" existed; it m
+[B1] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 14400ms
+[B1 tool] call read_file({"file_path":"notes.txt"}) id=call_df423b0729a244979864fdf5
+[B1 tool] result read_file status=error "Could not read file because no file was found at the specified path."
+[B1 tool] call write_file({"file_path":"notes.txt","content":"workspace B\n"}) id=call_4af2f50924934f02b58c957b
+[B1 tool] result write_file status=success "Successfully created and wrote to new file: $TMP
+[B1 tool] call read_file({"file_path":"notes.txt"}) id=call_fe4481f37561439c93a77187
+[B1 tool] result read_file status=success "workspace B\n"
+[B1 text] Created `notes.txt` (resolved to the session working directory: `.../scratchpad/rig/roots/h/child/notes.txt`) and read it back. Content: ``` workspace B ```
+[fs] roots/b/child/todo.md="- build\n- test\n- tag v1.0\n"
+[fs] roots/h/child/notes.txt="workspace B\n"
+[fs] decoy="DECOY in the Harness launch directory"
+[A detach] 204
+[A reload (no profile)] 409
+[A reload (profile)] 200
+[A2] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3750ms
+[A2 text] `- tag v1.0` That's from my last read of `todo.md` in the previous turn — no tools needed. (If the file has changed since then, this answer wouldn't reflect it.)
+[C] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 12185ms
+[C tool] call write_file({"file_path":"c.txt","content":"from thread C\n"}) id=call_a3595223d2f94c7ba6d8905a
+[C tool] result write_file status=success "Successfully created and wrote to new file: $TMP
+[C tool] call read_file({"file_path":"c.txt"}) id=call_0625f2dfba6a4433aedfa9fc
+[C tool] result read_file status=success "from thread C\n"
+[C text] Created `c.txt` and read it back successfully. Content: ``` from thread C ``` Resolved path: `$SP/rig/roots/g/child/c.tx
+[D] admit=202 terminal=<none> recoveryBlocked=true 4443ms
+[D text] 
+[C/D broker] POST /tool-sessions:acquire -> 200
+[C/D broker] POST /tool-sessions:acquire -> 409 workspace_busy
+[C/D broker] POST /tool-sessions/6bef4b3a-ee70-4474-a543-b2bf1514b65e:release -> 200
+[D after the other finished] new prompt -> 409 {"error":"hosted_turn_recovery_required","code":"hosted_turn_recovery_required"}
+[fs] c.txt=true d.txt=false
+[log] Hosted Harness turn c71217ec-546c-4936-97a9-343f216b4fd2 is recovery blocked: Error: Runtime Broker returned HTTP 409.

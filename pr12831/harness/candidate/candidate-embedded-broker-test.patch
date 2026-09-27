@@ -1,0 +1,22 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/EmbeddedRuntimeBrokerTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/EmbeddedRuntimeBrokerTest.java
+index 526a20766d..334d5e8d6d 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/EmbeddedRuntimeBrokerTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/EmbeddedRuntimeBrokerTest.java
+@@ -94,10 +94,15 @@ class EmbeddedRuntimeBrokerTest {
+                         "Bearer broker-token");
+                 connection.setDoOutput(true);
+                 connection.getOutputStream().write("{}".getBytes());
+-                assertThat(connection.getResponseCode()).isEqualTo(501);
++                // Deferred prepare/start are implemented; an envelope-less body
++                // is still refused before any store access.
++                boolean resolve = route.endsWith(":resolve");
++                assertThat(connection.getResponseCode())
++                        .isEqualTo(resolve ? 501 : 409);
+                 assertThat(new String(connection.getErrorStream()
+                         .readAllBytes(), java.nio.charset.StandardCharsets.UTF_8))
+-                        .contains("runtime_broker_operation_unsupported");
++                        .contains(resolve ? "runtime_broker_operation_unsupported"
++                                : "protocol");
+                 connection.disconnect();
+             }
+             org.mockito.Mockito.verifyNoInteractions(store);
