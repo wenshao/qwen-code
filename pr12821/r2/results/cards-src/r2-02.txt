@@ -1,0 +1,35 @@
+Round 2 test strength - 28 one-line mutants on 33256a5ea9, scored by the PR's own suites
+M01-M18 as in round 1; M19-M28 revert each round-2 fix. core: capture + session tests; cli: tool-v3-routes + context-worker tests
+## id   mutant                                                     round 1   round 2
+-- M01  accept() admits a non-complete capture as committed        survived  survived
+-- M02  advance() resolves await_runtime for a blocked receipt     survived  survived
+-- M03  prepare() skips the await_runtime phase check              survived  survived
+++ M04  prepare() accepts a checkpoint from another activation     KILLED    KILLED
+-- M05  recorded() skips the stored identity comparison            survived  survived
+-- M06  accept() skips the re-read digest check                    survived  survived
+++ M07  accept() skips the sealed-prefix check                     KILLED    KILLED
+-- M08  finish() seals an incomplete stream                        survived  survived
+-- M09  write() ignores the failure latch                          survived  survived
+-- M10  drain timer keeps running while persistence is pending     survived  survived
+++ M11  inherited pipe tail reported complete                      KILLED    KILLED
+++ M12  executeV3 skips the args digest check                      KILLED    KILLED
+-- M13  executeV3 admits background Shell                          survived  survived
+++ M14  acknowledgeV3 accepts a different second ACK               KILLED    KILLED
+-- M15  acknowledgeV3 lets committed ACK a non-complete capture    survived  survived
+++ M16  receipt failure settles instead of unknown                 survived  KILLED
+++ M17  v3 routes mounted without an injected publisher            KILLED    KILLED
+++ M18  v2 status/cancel ignore v3 journal entries                 survived  KILLED
+## fix reverts (M19-M28)
+++ M19  F1 revert: write() not queued                                        KILLED
+-- M20  F1 revert: finish() not queued                                       survived
+-- M21  F2 revert: segment buffer kept after finish                          survived
+++ M22  F3 revert: unknown entry pins the workspace                          KILLED
+++ M23  F3 over-fix: running entry no longer pins the workspace              KILLED
+++ M24  F4 revert: v2 status/cancel rethrow the conflict                     KILLED
+++ M25  F5 revert: v3 invalid body code                                      KILLED
+++ M26  F5 revert: "acknowledged differently" code                           KILLED
+-- M27  F5 revert: "receipt conflicts" code                                  survived
+-- M28  F5 revert: "has not settled" code                                    survived
+!! original guards 8/18 killed (round 1: 6/18); fix reverts 6/10 killed; total 14/28
+== unpinned fixes: finish() queue (service already awaits the last write), F2 buffer release, 2 of the 3 new ACK-conflict codes
+== O1C_STRESS=1 (1 GiB, slow store) on 33256a5: passes in 67 s - the new queue keeps in-flight <= 2 and memory bounded

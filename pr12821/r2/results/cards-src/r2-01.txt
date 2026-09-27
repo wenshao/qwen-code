@@ -1,0 +1,27 @@
+Round 2 - fixes in 33256a5ea9 verified on the real host (same harness and sizes as round 1)
+Fresh build of 33256a5 (core + cli dist); Session authority + O1b store + v3 routes over HTTP; successor re-reads; macOS Node 24, Linux Node 22
+## finding  head         result
+-- F1       87d8a8767c   trigger sizes 12/12 BLOCKED (29/29 + 5/5 at 8e9151f1)
+++          33256a5ea9   30/30 committed: +9 B, +1/32/64/100/128 KiB tails at 1/10/20 MiB, 10 MiB, 100 MiB + 9 B
+++                       Linux node:22, real ShellExecutionService + capture + O1b: 30/30 complete
+-- F2       87d8a8767c   100 x echo hi: +200.3 MiB ArrayBuffer held after the committed ACK
+++          33256a5ea9   +0.3 MiB
+-- F3       87d8a8767c   unknown call: workspace release 409 at +0 s and +3 s, forever
+++          33256a5ea9   release 200 at +0 s / +3 s; Broker retry -> unknown, command not re-run
+++                       call still running (sleep 3): release mid-run -> 409 managed_activation_conflict
+-- F4       87d8a8767c   v2 status / cancel on a v3 callId -> 500 text/html, stack on stderr
+++          33256a5ea9   409 {"code":"managed_runtime_identity_conflict"}, nothing on stderr
+-- F5       87d8a8767c   bad v3 body 400 managed_tool_result_invalid; ACK mismatch 409 identity_conflict
+++          33256a5ea9   bad body / malformed JSON 400 managed_runtime_attestation_invalid
+++                       mismatched or changed ACK 409 managed_tool_result_conflict; unseen callId ACK 200 unknown
+== F3 note  re-activation after release stays 409: release is permanent, as it is for v2
+## regression paths re-run on 33256a5ea9 (each: one execution, successor re-read)
+++ 100 MiB + 9 B + 3 MiB stderr   committed, results_ready, 104857609 B re-read == generator, prepare() rejected
+++ slow store, 150 ms/segment     committed, 20 MiB == generator
+++ inherited pipe                 partial / producer_lost -> blocked, 2 MiB prefix readable
+++ cancel after 1 s               cancelled SIGTERM, 8 MiB sealed == generator, committed
+++ store refuses stdout#3+        unavailable -> blocked, exit 0 kept, 3 segments retained
+++ SIGKILL before receipt         20 MiB sealed, no tool.receipt, successor prepare() rejected
+++ PR suites core 545/545, cli 830/830; Java HttpRuntimeTransportTest 52/52, 0 skipped (TS interop ran, 1.07 s)
+!! note: the Java v3 client classifies by status only, so it reports every 409 as managed_runtime_identity_conflict
+!!       (same O1a class, non-retryable - harmless, but managed_tool_result_conflict never reaches Java callers)
