@@ -1,0 +1,21 @@
+Round 3 at c6c76750: F3 is fixed on the real stack
+MySQL 8.4.7 + Spring jar + embedded Broker + local-process worker, packaged Harness; CI 23/23 green at this head
+
+## Real model reads this repository's Chinese design doc (225 KB, 87k chars)
+>> 1st read_file -> "Tool execution settled as success, but its output exceeds the 65536-byte
+>>   durable Session limit and was omitted. Request a smaller offset/limit range."
+++ the model re-reads in 7 offset/limit ranges and answers in three sentences
+++ turn_complete 60.7 s; Runtime released; next prompt admitted
+## Fixture: 176 KB Chinese file (ws-r4a)
+++ turn_complete, Runtime released, next prompt + reload 200, another Session writes twice
+## Regression at c6c76750
+++ PR driver on MySQL: HOSTED_WORKSPACE_TOOLS_OK 3.6 s (unknown outcomes still block)
+++ F1 busy refusal -> turn_error then completes; F2 70 KiB input -> turn_error before acquire
+++ serve units 396/396, default no-tool processes 8/8
+## Extra probe: 90 KB final answer after a tool batch (ws-r4d)
+!! turn_error, the answer is dropped (the write already applied); not blocked, Runtime
+!!   released, reload 200. Same 64 KiB bound as the default no-tool path, on base too.
+## Unchanged, deferred by the author as lifecycle follow-ups
+-- Store 503 before any reservation, definite :start refusal: Session blocked, storage held
+## Mutation sample on the fix: 5/6 killed
+== survivor: removing the read_file "Request a smaller offset/limit range." hint

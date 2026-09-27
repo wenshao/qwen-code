@@ -1,0 +1,46 @@
+[arm] r2: harness http://127.0.0.1:59134; Store via proxy http://127.0.0.1:59133; Broker via proxy http://127.0.0.1:59132
+[Q1] --- ws-r4a: read_file of a Chinese document (175999 bytes UTF-8, 63999 chars)
+[Q1] D: admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 870ms
+[Q1 broker] POST /runtimes:warm -> 200
+[Q1 broker] POST /tool-sessions:acquire -> 200
+[Q1 broker] POST /executions:prepare -> 200
+[Q1 broker] POST /executions/2fab3791-37ad-46c4-aec3-2714aae57df7:start -> 200
+[Q1 broker] GET /executions/2fab3791-37ad-46c4-aec3-2714aae57df7 -> 200
+[Q1 broker] POST /tool-sessions/29a64597-ad7d-4539-befc-3c72dee5c1a0:release -> 200
+[Q1] harness: undefined
+[Q1] execution rows: [["SETTLED","success","68"],["SETTLED","cancelled","4"]]; held storages=["2632e288","28ca26d0","cddc081c","37b425c8","335f0a9c","343b8688","3ae1185e","bc0eabfa","95eb0643","32182c86","8e83ed6c"]
+[Q1 D] next prompt -> 202; reload -> 200
+[Q1] E (other Session, same Workspace): admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 634ms E.txt=written
+[Q1] E retry: admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 337ms E2.txt=written
+[Q2] --- ws-r4b: Session Store answers 503 to the first commit after acquire (the assistant tool-call record)
+[Q2] G: admit=202 terminal=<none> recoveryBlocked=true 416ms injected=1
+[Q2 broker] POST /runtimes:warm -> 200
+[Q2 broker] POST /tool-sessions:acquire -> 200
+[Q2] store commits after t0: 200,200,200,503-injected
+[Q2] harness: Hosted Harness turn 1d7957d0-875b-49a6-bcb7-e7c3adb86e5c is recovery blocked: ManagedSessionStoreHttpError: Managed Session Store returned HTTP 503.
+[Q2] G.txt=absent; prepared executions=74 total; held storages=["2632e288","28ca26d0","cddc081c","1d7957d0","37b425c8","335f0a9c","343b8688","3ae1185e","bc0eabfa","95eb0643","32182c86","8e83ed6c"]
+[Q2 G] next prompt -> 409 {"error":"hosted_turn_recovery_required","code":"hosted_turn_recovery_required"}; reload -> 409
+[Q2] K (other Session, same Workspace): admit=202 terminal=turn_error recoveryBlocked=false 417ms K.txt=absent
+[Q3] --- ws-r4c: the Broker definitely refuses :start (payload bytes rewritten by the proxy)
+[Q3] J: admit=202 terminal=<none> recoveryBlocked=true 420ms
+[Q3 broker] POST /runtimes:warm -> 200
+[Q3 broker] POST /tool-sessions:acquire -> 200
+[Q3 broker] POST /executions:prepare -> 200
+[Q3 broker] POST /executions/855c3dc1-5b82-441e-891b-128fb9671032:start -> 409 (rewritten) runtime_idempotency_conflict
+[Q3 broker] POST /executions/855c3dc1-5b82-441e-891b-128fb9671032:cancel -> 200
+[Q3] GET /executions/{id} polls: 0
+[Q3] harness: Hosted Harness turn fb99003b-dd95-4124-bd63-5c897f8280e7 is recovery blocked: Error: Runtime Broker returned HTTP 409 (runtime_idempotency_conflict).
+[Q3] J.txt=absent; held storages=["2632e288","28ca26d0","cddc081c","1d7957d0","37b425c8","fb99003b","335f0a9c","343b8688","3ae1185e","bc0eabfa","95eb0643","32182c86","8e83ed6c"]
+[Q3 J] next prompt -> 409 {"error":"hosted_turn_recovery_required","code":"hosted_turn_recovery_required"}; reload -> 409
+[Q4] --- ws-r4d: tool batch settles, then the final assistant answer is 90 KB (30,000 CJK chars)
+[Q4] F: admit=202 terminal=turn_error recoveryBlocked=false 632ms
+[Q4 broker] POST /runtimes:warm -> 200
+[Q4 broker] POST /tool-sessions:acquire -> 200
+[Q4 broker] POST /executions:prepare -> 200
+[Q4 broker] POST /executions/23b5fb75-a122-4fda-b54d-46451dcd826f:start -> 200
+[Q4 broker] POST /tool-sessions/8ad11212-81e7-4d71-98b5-1b528405f9c8:release -> 200
+[Q4] harness: Hosted Harness turn 8ad11212-81e7-4d71-98b5-1b528405f9c8 failed: ManagedSessionRecordError: resource bytes exceed the 65536-byte inline limit; OSS storage is not enabled.
+[Q4] bf.txt=written; held storages=["2632e288","28ca26d0","cddc081c","1d7957d0","37b425c8","fb99003b","335f0a9c","343b8688","3ae1185e","bc0eabfa","95eb0643","32182c86","8e83ed6c"]
+[Q4 F] next prompt -> 202; reload -> 200
+[Q4] K (other Session, same Workspace): admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 634ms K.txt=written
+[model] CJKREAD#0 CJKREAD#1 TEXT#0 WRITE_E#0 WRITE_E#1 WRITE_E2#0 WRITE_E2#1 WRITE_G#0 WRITE_K#0 WRITE_J#0 BIGFINAL#0 BIGFINAL#1 TEXT#0 WRITE_K#0 WRITE_K#1
