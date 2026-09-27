@@ -1,0 +1,29 @@
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalRuntimeStore.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalRuntimeStore.java
+@@ -116,7 +116,13 @@
+ 
+     static boolean linuxProcessAbsent(Path stat, String expected) {
+         try {
+-            return !expected.equals(linuxStartIdentity(Files.readString(stat)));
++            String text = Files.readString(stat);
++            if (!expected.equals(linuxStartIdentity(text))) {
++                return true;
++            }
++            // A zombie (Z) or dead (X) task has exited; its PID stays reserved until reaped.
++            String state = text.substring(text.lastIndexOf(')') + 1).strip();
++            return state.startsWith("Z") || state.startsWith("X");
+         } catch (java.nio.file.NoSuchFileException absent) {
+             return true;
+         } catch (IOException | IllegalArgumentException uncertain) {
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/LocalProcessRuntimeProvisioner.java
+@@ -424,7 +424,8 @@
+                         resource.save(registration.withState(LocalRuntimeStore.State.RETIRED));
+                     }
+                     if (lastLease == null) {
+-                        return RuntimeObservation.unknown(handle);
++                        // Never published: no dispatch reached it. Make the outcome terminal.
++                        return RuntimeObservation.conflict(handle);
+                     }
+                     String domain = handle.getValue().get("hostId") + ":" + handle.getValue().get("bootId")
+                             + ":" + handle.getValue().get("resourceId");

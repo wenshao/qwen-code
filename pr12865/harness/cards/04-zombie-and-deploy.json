@@ -1,0 +1,10 @@
+{
+  "title": "F2 zombie counts as alive  ·  F3 deployment prerequisites",
+  "subtitle": "Real Linux (Ubuntu 24.04, kernel 6.8, systemd 255); fault-gate rig with production HostIdentity.linux()",
+  "blocks": [
+    {"label": "F2 - adopted worker dies after its Broker crashed; container PID 1 does not reap (sleep infinity + docker exec)", "pre": "!! worker 162: state=Z ppid=1 starttime=17100140   (/proc/162/stat still present, start ticks unchanged)\n-- second Broker warm -> 503 runtime_broker_reconcile_timeout  8213 ms   binding READY, lossEvidence=null\n-- second Broker warm -> 503 runtime_broker_reconcile_timeout  8174 ms   binding READY, lossEvidence=null\n== same scenario, PID 1 = tini (--init): stat absent\n++ second Broker warm -> 503 runtime_broker_runtime_lost  765 ms   binding LOST, lossEvidence=JOURNAL_LOST"},
+    {"label": "F3a - stock container image: /etc/machine-id is an empty file (maven:3.9.11-eclipse-temurin-21)", "pre": "-- Spring with durable=true: BeanCreationException ... java.lang.IllegalArgumentException: Linux host/boot identity is invalid\n-- DurableLocalProcessRuntimeProvisionerTest on that host: 20/21, rejectsUnsafeDirectoryAndInvalidOsIdentity:281 same exception\n== (CI's self-hosted ECS runner logs show an iZ…Z VM hostname and a github-runner user, i.e. not a container, so CI is likely unaffected)"},
+    {"label": "F3b - systemd: main process SIGKILLed after forking a child (stand-in for Broker + worker)", "pre": "-- KillMode=control-group (default): child KILLED by systemd\n++ KillMode=process:                 child ALIVE (ppid 1)"},
+    {"note": "Fail-closed in every case, but none of these prerequisites is in the README: a non-empty /etc/machine-id, an orphan-reaping PID 1, and a service manager that does not kill the Broker's cgroup when the Broker dies (systemd default, and any container whose main process is the Broker)."}
+  ]
+}

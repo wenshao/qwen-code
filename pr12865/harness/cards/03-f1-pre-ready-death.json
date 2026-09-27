@@ -1,0 +1,17 @@
+{
+  "title": "F1: a worker that dies before READY wedges its binding in a retryable loop",
+  "subtitle": "Real Broker JVMs + real worker, production HostIdentity.linux(); rig operation lease 2 s, so each loop costs 4 x 2 s = 8 s (production: 4 x 30 s = 120 s)",
+  "blocks": [
+    {"table": [
+      ["Scenario", "Default (ephemeral)", "Durable (this PR)"],
+      ["LEGACY: worker SIGKILL during boot,\nBroker alive", "++ 2nd warm READY, new worker (0.6 s)", "-- 409 recovery_blocked, then\n-- 503 reconcile_timeout every 8.1 s"],
+      ["MANAGED: same", "== 409 recovery_blocked, terminal\n== (25-71 ms)", "-- 409 once, then\n-- 503 reconcile_timeout every 8.1 s"],
+      ["Broker + worker SIGKILL before READY\n(LEGACY and MANAGED)", "n/a", "-- 409 once, then 503 every 8.1 s"],
+      ["worker cmd exits at boot (/bin/false),\nthen fixed + Broker restart", "++ LEGACY: READY after fix\n== MANAGED: 409, terminal", "-- still 503 every 8.1 s after the fix\n-- record LAUNCHING pid=0 (LEGACY) / RETIRED"],
+      ["node path wrong: spawn throws,\nnothing forked; then fixed", "n/a", "-- record LAUNCHING pid=0\n-- 503 every 8.1 s after the fix"],
+      ["control: worker dies AFTER READY", "", "++ LOST + JOURNAL_LOST, 503 runtime_lost\n++ in 0.2-0.8 s"]
+    ]},
+    {"label": "state after 4 attempts (every durable row)", "pre": "binding  state=RECOVERY_BLOCKED  lease=null  lossEvidence=null  stopEvidence=null   no new worker\nrecord   state=RETIRED (or LAUNCHING pid=0)   .ready 0-277 B\nwhy      observeDurable(): RETIRED/absent && lastLease == null  -> UNKNOWN  -> reconcileLoop retries to the deadline\n         LAUNCHING/INTENT -> UNKNOWN; observation never spawns, so nothing ever advances these records\ntrigger  also a Broker crash between saving REGISTERED and writing the boot bytes: the worker reads EOF and\n         exits 1 after 417 ms ('boot payload is invalid'), which leaves the same REGISTERED -> RETIRED record"},
+    {"note": "Safety holds (no relaunch), but no terminal state is ever reached. Clients see a retryable 503 that costs the full operation deadline on each attempt. For LEGACY this turns a failure the default mode recovers from into a permanent wedge. With the 3-line candidate A, the same runs return 409 runtime_broker_resource_conflict (non-retryable) in about 100 ms."}
+  ]
+}

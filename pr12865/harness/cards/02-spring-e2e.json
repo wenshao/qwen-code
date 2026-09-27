@@ -1,0 +1,9 @@
+{
+  "title": "Production wiring on real Linux: Spring server SIGKILL, then restart",
+  "subtitle": "managed-agent-server fat jar (head 3433bd8b38) + MySQL 8.4 + real worker (dist/cli.js); Ubuntu 24.04 / Linux 6.8 aarch64; container PID 1 = tini",
+  "blocks": [
+    {"label": "QWEN_MANAGED_AGENT_RUNTIME_DURABLE_LOCAL_PROCESS=true", "pre": "POST /internal/runtime-broker/v1/runtimes:warm   -> 200 ready:true   0.65 s   worker pid 97 (ppid 35 = Spring JVM)\n== record READY pid=97 started=ticks:17128922 endpoint=http://127.0.0.1:43751/   dir 0700, files 0600\n== handle: hostId=6a7c…2b13 bootId=08fabd5c-… pidNamespace=pid:[4026532582] timeNamespace=time:[4026532642]\n!! kill -9 35 (Spring JVM)                          worker 97 alive, ppid 1\n== restart Spring (pid 174)\n++ POST /runtimes:warm                            -> 200 ready:true   0.20 s   same worker 97, same endpoint, gen 1, 0 new workers\n== SQL binding: gen 1 READY endpoint :43751 (record_version 4 -> 7, no loss evidence)\n++ SIGTERM Spring (graceful shutdown)             worker 97 still alive: durable close detaches"},
+    {"label": "default: durable-local-process=false (same flow, fresh DB)", "pre": "POST /runtimes:warm   -> 200 ready:true   0.62 s   worker pid 533 (ppid 472)\n!! kill -9 472 (Spring JVM); restart Spring (pid 575)\n-- POST /runtimes:warm   -> 503 runtime_broker_reconcile_timeout (retryable)   119.37 s\n-- POST /runtimes:warm   -> 503 runtime_broker_reconcile_timeout (retryable)   119.33 s\n-- worker 533 orphaned (ppid 1, RSS ~114 MB); binding stays READY gen 1"},
+    {"note": "The production factory LocalProcessRuntimeProvisioner.durable() + HostIdentity.linux() + env-var binding work end to end: a restarted Broker adopts the original worker in 0.2 s, where the default mode spends the full 4 x 30 s operation deadline per warm and leaves an orphan. 119 s is also the production cost of each retry in finding F1."}
+  ]
+}

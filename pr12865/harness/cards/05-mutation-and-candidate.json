@@ -1,0 +1,26 @@
+{
+  "title": "Test discrimination (Linux) and a candidate for F1/F2",
+  "subtitle": "Mutants applied one at a time inside the Linux container; killers are from DurableLocalProcessRuntimeProvisionerTest unless noted",
+  "blocks": [
+    {"table": [
+      ["#", "Mutant", "Result"],
+      ["M1", "stat ENOENT no longer proves absence", "++ killed (journalLoss…, unreadableOrMalformed…)"],
+      ["M2", "stat read error treated as death", "++ killed (unreadableOrMalformedProcStat…)"],
+      ["M3", "sameBoot ignores time namespace", "++ killed (hostOrBootChange…[time-namespace])"],
+      ["M4", "record permission check dropped", "++ killed (rejectsUnsafe…, unsafeRecords…[permission])"],
+      ["M5", "start-tick bounds check on field 18", "== survived: equivalent (parseLong still throws IAE)"],
+      ["M6", "start ticks read from field 21", "++ killed (3 tests)"],
+      ["M7", "recreate record when lock exists, record missing", "++ killed (unsafeRecords…[missing])"],
+      ["M8", "Registration.process(): PID match w/o start ticks", "!! survived: unit + 10 durable gates"],
+      ["M9", "durable release() kills the worker", "++ killed (restartAndConcurrentObservers…)"],
+      ["M10", "durable close() kills workers", "++ killed (4 tests)"],
+      ["M11", "provision skips host/boot check", "++ killed (hostOrBootChange… x4)"],
+      ["M12", "observe skips host/boot check", "++ killed (hostOrBootChange… x4)"],
+      ["M13", "no liveness recheck after attest", "!! survived unit; gates failed 1 of 2 runs"],
+      ["M14", "canReconcile drops RECOVERY_BLOCKED", "++ killed (brokerAdopts…[RECOVERY_BLOCKED])"],
+      ["M15", "ensureBinding never reconciles RECOVERY_BLOCKED", "++ killed (brokerAdopts…[RECOVERY_BLOCKED])"],
+      ["M16", "observe accepts a different saved lease", "!! survived: unit + 10 durable gates"]
+    ]},
+    {"label": "candidate A (observe: RETIRED before any lease -> CONFLICT) + B (stat state Z/X counts as exited), +9/-2", "pre": "++ F1 P1/P1b LEGACY+MANAGED: 409 runtime_broker_resource_conflict, non-retryable, 75-125 ms (was 503 after 8.1 s)\n++ F2 zombie (non-reaping PID 1): LOST + JOURNAL_LOST, 503 runtime_lost in 0.43-0.49 s (was READY forever)\n++ runtime-broker suite 399 / 0 fail / 2 skip · durable unit 21/21 · durable gates 10/10\n!! not covered by A: LAUNCHING records (spawn failure, /bin/false). They still loop and need a design decision."}
+  ]
+}

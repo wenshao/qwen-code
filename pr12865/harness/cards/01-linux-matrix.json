@@ -1,0 +1,20 @@
+{
+  "title": "PR #12865 on real Linux: what ran and what passed",
+  "subtitle": "head 3433bd8b38 · colima VM Ubuntu 24.04.4, kernel 6.8.0-117 aarch64 · JDK 21.0.9, Maven 3.9.11, Node 22.23 · container PID 1 = tini unless noted",
+  "blocks": [
+    {"table": [
+      ["Suite / scenario", "Identity source", "Result"],
+      ["runtime-broker unit suite (mvn test)", "test HOST + real /proc ticks", "++ 399 run, 0 fail, 2 skip (bundle-only, same as CI)"],
+      ["  DurableLocalProcessRuntimeProvisionerTest", "", "++ 21/21   (20/21 when /etc/machine-id is empty)"],
+      ["Stage F fault gates (-Pfault-gates)", "production HostIdentity.linux()", "++ 38/38, 0 skip"],
+      ["  DurableLocalRuntimeFaultGateTest", "production HostIdentity.linux()", "++ 10/10 (both boot protocols)"],
+      ["managed-agent-server suite", "-", "++ 141/141"],
+      ["Spring + MySQL 8.4 E2E, SIGKILL server", "production durable() factory", "++ adopted same worker in 0.20 s"],
+      ["  same flow, default mode", "-", "== 503 after 119.4 s per warm, orphan worker"],
+      ["Mutation (16 mutants, unit tests)", "-", "12 killed · 1 equivalent · 3 survived"],
+      ["Worker dies before READY (F1)", "production HostIdentity.linux()", "-- binding wedged, 503 retry loop"],
+      ["Adopted worker becomes a zombie (F2)", "production HostIdentity.linux()", "-- death never detected"]
+    ]},
+    {"note": "This is the first run of the production Linux procfs/namespace branch. Adoption, fencing and no-relaunch hold on Linux: no negative case spawned a second worker. The problems are in the terminal path after a worker dies, and in deployment prerequisites."}
+  ]
+}
