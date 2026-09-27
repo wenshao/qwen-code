@@ -1,0 +1,114 @@
+diff --git a/packages/cli/src/serve/hosted-shell-publisher.test.ts b/packages/cli/src/serve/hosted-shell-publisher.test.ts
+index 1831d8c478..9d79ff550e 100644
+--- a/packages/cli/src/serve/hosted-shell-publisher.test.ts
++++ b/packages/cli/src/serve/hosted-shell-publisher.test.ts
+@@ -520,12 +520,47 @@ it('bounds escaped model preview bytes for inline outcome resources', () => {
+   expect(Buffer.byteLength(JSON.stringify(parts))).toBeLessThan(50 * 1024);
+ });
+ 
+-it('bounds many text parts and drops an incomplete final UTF-8 character', () => {
+-  const parts = boundedShellPreview(
+-    Array.from({ length: 10_000 }, () => ({ text: 'x' })),
+-  );
+-  expect(parts).toEqual([{ text: 'x'.repeat(8 * 1024) }]);
+-  expect(boundedShellPreview([{ text: 'x'.repeat(8191) + '中' }])).toEqual([
+-    { text: 'x'.repeat(8191) },
++it('keeps both ends of a long preview, where Shell reports failures', () => {
++  const [part] = boundedShellPreview(
++    Array.from({ length: 10_000 }, (_, index) => ({
++      text: index === 9_999 ? '\nExit Code: 3' : 'x',
++    })),
++  ) as Array<{ text: string }>;
++  expect(Buffer.byteLength(part.text)).toBeLessThanOrEqual(8 * 1024);
++  expect(part.text.startsWith('x'.repeat(2 * 1024))).toBe(true);
++  expect(part.text).toContain('preview truncated');
++  expect(part.text.endsWith('\nExit Code: 3')).toBe(true);
++  expect(boundedShellPreview([{ text: 'x'.repeat(8192) }])).toEqual([
++    { text: 'x'.repeat(8192) },
+   ]);
+ });
++
++it('never splits a UTF-8 character at either cut', () => {
++  const [part] = boundedShellPreview([{ text: '中'.repeat(5_000) }]) as Array<{
++    text: string;
++  }>;
++  expect(part.text).not.toContain('\uFFFD');
++  expect(Buffer.byteLength(part.text)).toBeLessThanOrEqual(8 * 1024);
++});
++
++it('requires the publisher capability and stops listening once closed', async () => {
++  const { descriptor } = await fixture();
++  const post = (authorization?: string) =>
++    fetch(descriptor.url, {
++      method: 'POST',
++      headers: {
++        'Content-Type': 'application/json',
++        ...(authorization ? { Authorization: authorization } : {}),
++      },
++      body: JSON.stringify({
++        operation: 'finish',
++        executionCallId: 'execution-a',
++        stream: 'stdout',
++        complete: false,
++      }),
++    });
++  expect((await post()).status).toBe(401);
++  expect((await post(`Bearer ${'A'.repeat(43)}`)).status).toBe(401);
++  await publisher!.close();
++  await expect(post(`Bearer ${descriptor.token}`)).rejects.toThrow();
++});
+diff --git a/packages/cli/src/serve/managed-shell-publisher.ts b/packages/cli/src/serve/managed-shell-publisher.ts
+index 565b897853..5468f80d59 100644
+--- a/packages/cli/src/serve/managed-shell-publisher.ts
++++ b/packages/cli/src/serve/managed-shell-publisher.ts
+@@ -130,23 +130,35 @@ async function rpc(
+   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+ }
+ 
++const PREVIEW_BYTES = 8 * 1024;
++const PREVIEW_HEAD_BYTES = 2 * 1024;
++const PREVIEW_GAP =
++  '\n[... preview truncated; the end of the output follows ...]\n';
++
+ export function boundedShellPreview(parts: readonly unknown[]): unknown[] {
+-  let remaining = 8 * 1024;
+-  let text = '';
+-  for (const part of parts) {
+-    if (
+-      !part ||
+-      typeof part !== 'object' ||
+-      !('text' in part) ||
+-      typeof part.text !== 'string'
++  const text = parts
++    .map((part) =>
++      part &&
++      typeof part === 'object' &&
++      'text' in part &&
++      typeof part.text === 'string'
++        ? part.text
++        : '',
+     )
+-      continue;
+-    const bytes = Buffer.from(part.text).subarray(0, remaining);
+-    remaining -= bytes.byteLength;
+-    text += new TextDecoder().decode(bytes, { stream: true });
+-    if (remaining === 0) break;
+-  }
+-  return text ? [{ text }] : [];
++    .join('');
++  const bytes = Buffer.from(text);
++  if (bytes.byteLength <= PREVIEW_BYTES) return text ? [{ text }] : [];
++  // Shell failures and the exit status are reported last: keep both ends.
++  const head = new TextDecoder().decode(bytes.subarray(0, PREVIEW_HEAD_BYTES), {
++    stream: true,
++  });
++  let start =
++    bytes.byteLength -
++    (PREVIEW_BYTES - PREVIEW_HEAD_BYTES - Buffer.byteLength(PREVIEW_GAP));
++  while (start < bytes.byteLength && (bytes[start]! & 0xc0) === 0x80) start++;
++  return [
++    { text: head + PREVIEW_GAP + bytes.subarray(start).toString('utf8') },
++  ];
+ }
+ 
+ class RemoteShellCapture implements ManagedShellCaptureSink {

@@ -1,0 +1,22 @@
+Fault, scale and lifecycle probes on the real stack (fixture model, MySQL 8.4.7)
+Each probe uses a fresh Workspace storage; "next" = a text turn in the same Session afterwards
+
+## Works as designed
+++ P3  two run_shell_command calls in one response    2 prepare / 2 start / 2 ACK, two.txt = "one\ntwo\n"
+++ P4  write_file + run_shell_command in one response  Shell sees the file, both committed
+++ P5  300 MiB stdout                                 58.9 s (5.3 MiB/s), 304 rows / 314,604,250 B, committed
+++ P8  45 s command (> Broker's 30 s worker request)  settled once, success, 793 status polls
+++ C1  cancel while streaming 1 GiB (after 22 MB)     cancelled ~2.3 s later, capture committed,
+++                                                    0 `yes` processes left, post-command line never ran
+++ P1  70 KB of \x01 + exit 3 (worst-case escaping)   record 55,578 B < 65,536, committed, next OK
+++ core shell.test.ts 361/361 (PR ran 3 selected) - lint + prettier on all 26 changed TS files clean
+++ Harness RSS 209 MiB idle; peaks 422 MiB (300 MB run) and 479 MiB (135 MB run): not proportional
+
+## Findings / notes
+!! F2 P7  is_background:true -> whole turn_error in 109 ms ("Hosted Shell requires a foreground command")
+!!        core Shell's sleep guard tells the model to use is_background / Monitor, neither exists here
+!!        (real model in 2/2 trials took the `# intentional-sleep` escape instead)
+!! N1 P6  `yes` with timeout 20 s -> killed, capture complete: 135,360,328 B stored by ONE 20 s call
+!!        (extrapolated ~0.8 GB at the default 120 s timeout, ~4 GB at the 600 s max; no cap)
+!! N2     64 MiB call: 1,097 writers:renew vs 68 tool-results:publish Store requests (one lease renewal,
+!!        i.e. a locked Session-head UPDATE, per 64 KiB raw write) -> 4.4 MiB/s

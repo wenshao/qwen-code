@@ -1,0 +1,21 @@
+F1  The model-facing Shell preview keeps only the first 8 KiB: failures and the exit code are cut off
+Same build.sh (600 progress lines, ERROR on stderr, exit 3), same prompt, same model qwen3.8-max
+
+## What the model receives for `sh build.sh` (31,897 B of tool text) at the PR head
+!! "Shell execution: error. Output preview is truncated. Complete stdout and stderr are retained ..."
+!! "Output: compiling module 1 ... ok" ... "compiling module 156 ... ok (cache war"   <- preview ends here
+-- missing: "ERROR: undefined symbol foo_bar ..."   "BUILD FAILED ..."   "Exit Code: 3"
+== the core Shell tool itself keeps head AND tail on purpose (shell.ts: keep='both' preserves
+==   "its trailing exit/error summary (where shell failures report)")
+
+## Real-model trials: how many times build.sh ran (runs.log lines)
+-- Hosted Shell, PR head                  2  2  1  2  2  2    re-ran in 5/6 trials
+++ Hosted Shell, candidate head+tail      2  1  1  1  1  1    1/6 (that run already had the answer)
+++ Ordinary Shell tool, same bundle, -p   1  1  1             0/3
+!! PR-head re-run the model chose: sh build.sh >/tmp/build.stdout 2>/tmp/build.err; echo "EXIT_CODE=$?"
+
+## Deterministic probe P2: 16 KB of output, then "FINAL-42-TAIL", exit 2
+-- PR head    model saw 8,540 B   tail=false  Exit Code=false
+++ candidate  model saw 8,540 B   tail=true   Exit Code=true   (2 KiB head + marker + 6 KiB tail, same budget)
+++ worst case P1 (70 KB of \x01 + exit 3, 6x JSON escaping): record 55,578 B at head, 54,068 B with candidate
+++   (limit 65,536); candidate + 2 tests: 900/900 in the nine CLI files; new test fails on the head version

@@ -1,0 +1,20 @@
+#12848 on a real stack: MySQL 8.4.7 instead of H2
+Packaged dist/cli.js Harness + Spring jar (Session Store + embedded Broker) + separate workers, head 782c1774 (= 7a41a5d4 minus an IT-only commit)
+
+## 1. The PR's own six-Workspace driver, unchanged, pointed at MySQL-backed Spring
+++ HOSTED_WORKSPACE_TOOLS_OK: six Workspaces, parallel warmup, file replay, 100 MiB Shell,
+++   lost start ACK, publication faults, cancellation, at-most-once effects        (43.2 s)
+== ws-a / ws-b  file profile  : child/proof.txt = "after", <mount>/proof.txt absent (decoy untouched)
+== ws-c..ws-f   Shell profile : child/shell-once.txt = "x" in all four (each side effect exactly once)
+== SQL rows  content 107 / 104,858,219 B (max 1,048,576) - page 3 - manifest 4 - all PUBLISHED
+== executions SETTLED success 10, cancelled 1
+
+## 2. Durability beyond the author's check: stop Spring -> restart mysqld -> fresh Spring -> author's reader
+++ HOSTED_SHELL_RETAINED_OUTPUT_OK   stdout 104,857,735 B  sha256 4e257fe64b08bd69...  stderr 51eeb9b8...
+++ tails "stdout-tail\0" / "stderr-tail\0" and execution/turn identity re-verified by a separate process
+
+## 3. Real model (qwen3.8-max via DashScope), hosted-workspace-shell/1
+== prompt: run `pwd && cat marker.txt && echo created-by-shell > from-shell.txt && ls`
+++ pwd = .../roots1/g/child (the saved Workspace), marker.txt = "WORKSPACE marker for ws-g"
+++ from-shell.txt written in the Workspace; Harness launch dir (has a DECOY marker.txt) untouched
+++ follow-up turn answers from durable history without tools; turn_complete(end_turn) both turns

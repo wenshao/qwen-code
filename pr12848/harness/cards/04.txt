@@ -1,0 +1,20 @@
+Mutation check: which new guards do the PR's tests actually pin?
+One-line mutants in a clean checkout of the PR head; tests = the author's own focused suites
+
+## TypeScript - 10/20 killed (nine CLI files 899 tests; five core files 44 tests)
+++ killed  M2 per-stream write queue - M3 8 KiB preview budget - M4 blocked receipt stops turn
+++         M8 publisher URL shape - M9 immutable registration - M10 registration needs activation
+++         C1 contiguous ordinals - C3 readRange identity - C5 turn relabel guard - C7 publish size cap
+-- alive   M13 publisher bearer check deleted       M11 turn never closes its publisher
+-- alive   M1 raw-write offset check - M6/M7 accept/receipt equality - M5 notice text (IT asserts it)
+-- alive   M12 finalize ignores worker failure - C2 seal check - C4 prepare activation clause - C6 read length
+## Java - 5/10 killed (MAS: store IT + WorkspaceRuntimeTest; broker: 6 classes, 195 tests)
+++ killed  J1 writer fencing - J2 immutable resourceId - J3 digest check - J8 URL shape - J10 executionCallId
+-- alive   J4 kind whitelist - J5 local-process only - J6 ACK needs settled - J7 v3 only for Shell - J9 digest format
+
+## M13 and M11 also pass the author's full six-Workspace driver on MySQL (43.4 s / 39.3 s)
+== live publisher, same probe on three arms:
+++ PR head  no token -> 401, wrong token -> 401; listener gone after each turn (ECONNREFUSED)
+-- M13      no token -> 409 hosted_shell_publication_failed (request reached the handler)
+-- M11      publisher listeners after turns 1/2/3: 1 -> 2 -> 3 (leaked, still accepting)
+++ candidate test (auth 401 + closed port): passes on head, kills M13
