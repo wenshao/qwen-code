@@ -1,0 +1,28 @@
+PR #11959 round 4: r3 = 1bb0e56e (round 3) vs r4 = 4d9bbdef (autofix round 8), real dist/cli.js, fresh QWEN_HOME per cell
+
+1) A cache already on disk with a far-future fetchedAt (QWEN_CODE_MODELS_DEV_REFRESH=off)
+planted cache (fetchedAt 2099) -> observable r3                   r4                  
+all-invalid entries: claude-fable-5 window   200.0k               ->  1000.0k             
+deepseek-v3 key: deepseek-v3-0324 window     163.8k               ->  131.1k              
+deepseek-v3 key: deepseek-v3-0324 max_tokens 64000                ->  32000               
+refreshed 1,048,576: qwen3-coder-plus window 1048.6k              ->  1000.0k             
+
+2) Cache poisoned by r1 (models: {}), then the same URL recovers: the first r4 session no longer starts at 200K
+== h1-r1-poisons [r1] mirror=bad: claude-fable-5 window this run = 1000.0k
+   cache: models=0 etag="etag-bad"
+== h2-r1-same-url-recovered [r1] mirror=good: claude-fable-5 window this run = 200.0k
+   cache: models=0 etag="etag-bad"
+== h3-r4-same-url-recovered [r4] mirror=good: claude-fable-5 window this run = 1000.0k
+   cache: models=194 etag="mirror-etag-1"
+== h4-r4-next-start [r4] mirror=good: claude-fable-5 window this run = 1000.0k
+   cache: models=194 etag="mirror-etag-1"
+
+3) Bundled snapshot, /context -d (base3 = merge-base 700620f4)
+model                base3          r3             r4            
+qwen3-coder-plus     1000.0k        1048.6k        1000.0k       
+MiniMax-M2.5         196.6k         204.8k         204.8k        
+glm-4.7              202.8k         204.8k         204.8k        
+claude-fable-5       200.0k         1000.0k        1000.0k       
+qwen3-coder-plus is back at the vendor-declared 1,000,000; MiniMax-M2.5 / glm-4.7 still differ from the provider presets (196,608 / 202,752)
+
+[figure complete]

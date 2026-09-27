@@ -1,0 +1,32 @@
+PR #11959 round 4 (r4 = 4d9bbdef): earlier fixes and open items, real CLI
+
+F1: lifecycle steps 5-6 (/foreign = 200 with a gateway error body)
+== 5-foreign-200-body (/foreign): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-26T15:32:34.202Z etag="mirror-etag-1" models=194
+== 6-next-run-after-foreign (/foreign): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-26T15:32:34.202Z etag="mirror-etag-1" models=194
+
+F2: channels that can set QWEN_CODE_MODELS_DEV_URL
+r4    project-.env           requests-to-planted-host=0  global-cache=-
+r4    project-.qwen/.env     requests-to-planted-host=0  global-cache=-
+r4    project-settings.env   requests-to-planted-host=0  global-cache=-
+r4    user-.env              requests-to-planted-host=1  global-cache=planted
+r4    user-settings.env      requests-to-planted-host=0  global-cache=-
+r4    shell                  requests-to-planted-host=1  global-cache=planted
+
+F3: QWEN_CODE_MAX_OUTPUT_TOKENS=32768, wire max_tokens (main turn / memory turn)
+model                base3                  r4                    
+qwq-32b              32768/32768 (n=2)      32768/32768 (n=2)     
+Qwen/QwQ-32B         32768/32768 (n=2)      32768/32768 (n=2)     
+kimi-k2-thinking     32768/32768 (n=2)      32768/32768 (n=2)     
+glm-4.7              16384/16384 (n=2)      16384/16384 (n=2)     
+
+Open: near-empty projection (/partial) and one null entry (/nullentry)
+== p1-good [r4] (/api.json): claude-fable-5 window this run = 1000.0k; cache models=194 source=http://mirror/api.json
+== p2-partial-200 [r4] (/partial): claude-fable-5 window this run = 1000.0k; cache models=1 source=http://mirror/partial
+== p3-next-start [r4] (/partial): claude-fable-5 window this run = 200.0k; cache models=1 source=http://mirror/partial
+== n1-real-payload [r4] (/api.json): cache models=194; requests to /api.json so far: 1
+== n2-one-null-entry [r4] (/nullentry): cache <none>; requests to /nullentry so far: 1
+== n3-next-start [r4] (/nullentry): cache <none>; requests to /nullentry so far: 2
+
+[figure complete]
