@@ -1,0 +1,33 @@
+// Image-only message in the middle of the history, then a normal text turn:
+// is the latest (text) turn still editable?
+import { open, typeAndSend, waitText, sleep, rows, shot, mkLog, openEditor, modelLog, S, PORTS } from './lib.mjs';
+const arm = process.argv[2] ?? 'after';
+const log = mkLog(`s2c-${arm}`);
+const { browser, page, net } = await open(arm);
+await typeAndSend(page, 'ALPHA first question');
+await waitText(page, 'Reply to ALPHA');
+await sleep(1000);
+await page.setInputFiles('input[type=file][hidden]', [`${S}/fixtures/green.png`]);
+await sleep(1200);
+await page.locator('[data-web-shell-composer-editor] .cm-content').click();
+await page.keyboard.press('Enter');
+await page.waitForFunction(() => (document.body.innerText.match(/Reply to /g) ?? []).length >= 2, null, { timeout: 30000 });
+await sleep(1500);
+log('image-only turn: model parts', modelLog(arm).filter((r) => r.isMain && r.lastRole === 'user').at(-1).lastParts.join('+'));
+await typeAndSend(page, 'CHARLIE third question');
+await waitText(page, 'Reply to CHARLIE');
+await sleep(2000);
+const sid = page.url().split('/session/')[1];
+log('rows', await rows(page));
+const snaps = await (await fetch(`http://127.0.0.1:${PORTS[arm].proxy}/session/${sid}/rewind/snapshots`)).json();
+log('GET rewind/snapshots ->', snaps.snapshots.map((s) => `turnIndex=${s.turnIndex} promptSuffix=${s.promptId.split('########')[1]}`));
+const t0 = Date.now();
+await openEditor(page);
+await page.fill('textarea[aria-label="Edit message"]', 'DELTA edit of the latest turn');
+await page.keyboard.press('Enter');
+await sleep(4000);
+log('requests', net.filter((r) => r.t >= t0 && /rewind|prompt$/.test(r.u)).map((r) => `${r.m} ${r.u.replace(/[0-9a-f-]{36}/g, ':id')}`));
+log('toasts', await page.$$eval('[data-web-shell-toast]', (ts) => ts.map((t) => t.innerText.replace(/\s+/g, ' ').trim())));
+log('rows after edit attempt', await rows(page));
+await shot(page, `s2c-${arm}-latest-after-image-turn`);
+await browser.close();

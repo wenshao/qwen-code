@@ -1,0 +1,44 @@
+// Background notification before the last user turn, then a conversation-only
+// rewind of that last turn through the daemon REST API while the page is attached.
+import { open, typeAndSend, waitText, sleep, rows, assistantLines, shot, mkLog, modelLog, PORTS } from './lib.mjs';
+const arm = process.argv[2];
+const log = mkLog(`s5a-${arm}`);
+const { browser, page } = await open(arm);
+await typeAndSend(page, 'BGJOB start a background job');
+await waitText(page, 'Background job started.');
+await waitText(page, 'NOTIF-REPLY', 30000);
+await sleep(6000);
+await typeAndSend(page, 'KILO after the notification');
+await waitText(page, 'Reply to KILO');
+await sleep(2000);
+const sid = page.url().split('/session/')[1];
+log('arm', arm, 'session', sid);
+log('rows before rewind', await rows(page));
+log('assistant before rewind', await assistantLines(page));
+await shot(page, `s5a-${arm}-0-before-rewind`);
+const base = `http://127.0.0.1:${PORTS[arm].proxy}`;
+const snaps = await (await fetch(`${base}/session/${sid}/rewind/snapshots`)).json();
+log('snapshots', snaps.snapshots.map((s) => `${s.turnIndex}:${s.promptId.split('########')[1]}`));
+const target = snaps.snapshots.find((s) => s.turnIndex === 1);
+const rw = await fetch(`${base}/session/${sid}/rewind`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ promptId: target.promptId, rewindFiles: false }) });
+log('rewind status', rw.status, JSON.stringify(await rw.json()).slice(0, 160));
+await sleep(2500);
+const liveRows = await rows(page); const liveAsst = await assistantLines(page);
+log('LIVE rows after rewind', liveRows);
+log('LIVE assistant after rewind', liveAsst);
+await shot(page, `s5a-${arm}-1-live-after-rewind`);
+await page.reload();
+await waitText(page, 'BGJOB start', 60000);
+await sleep(2500);
+const rRows = await rows(page); const rAsst = await assistantLines(page);
+log('RELOAD rows', rRows);
+log('RELOAD assistant', rAsst);
+log('live == reload ?', JSON.stringify(liveRows) === JSON.stringify(rRows) && JSON.stringify(liveAsst) === JSON.stringify(rAsst));
+await shot(page, `s5a-${arm}-2-after-reload`);
+// send a follow-up so the model's context after the rewind is visible
+await typeAndSend(page, 'MIKE follow-up after rewind');
+await waitText(page, 'Reply to MIKE');
+await sleep(1500);
+log('assistant after follow-up', await assistantLines(page));
+await shot(page, `s5a-${arm}-3-followup`);
+await browser.close();

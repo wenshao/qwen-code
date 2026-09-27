@@ -1,0 +1,63 @@
+// Test-plan step 2: edit messages carrying an image and a file, including an
+// attachment-only message, and again after a reload (attachments by reference).
+import { open, typeAndSend, waitText, sleep, rows, assistantLines, shot, mkLog, openEditor, modelLog, S } from './lib.mjs';
+const arm = process.argv[2] ?? 'after';
+const log = mkLog(`s2-${arm}`);
+const { browser, page, net } = await open(arm);
+const lastMain = () => { const m = modelLog(arm).filter((r) => r.isMain && r.lastRole === 'user'); const r = m.at(-1); return { ctx: r.ctx, parts: r.lastParts.join("+"), hasFile: r.lastHasFile, img: /image/i.test(r.lastSnippet) ? (r.lastSnippet.match(/[^"]{0,60}image[^"]{0,80}/i) ?? [""])[0] : null }; };
+const attach = async (files) => {
+  await page.setInputFiles('input[type=file][hidden]', files);
+  await sleep(1200);
+};
+await typeAndSend(page, 'ALPHA first question');
+await waitText(page, 'Reply to ALPHA');
+await sleep(800);
+await attach([`${S}/fixtures/green.png`, `${S}/fixtures/notes.txt`]);
+await typeAndSend(page, 'VICTOR with an image and a file');
+await waitText(page, 'Reply to VICTOR');
+await sleep(1500);
+log('rows', await rows(page));
+log('model saw (original)', lastMain());
+await openEditor(page);
+await page.fill('textarea[aria-label="Edit message"]', 'WHISKEY edited, attachments kept');
+await shot(page, `s2-${arm}-0-editor-with-attachments`);
+await page.keyboard.press('Enter');
+await waitText(page, 'Reply to WHISKEY');
+await sleep(1500);
+log('rows after edit', await rows(page));
+log('model saw (edited)', lastMain());
+await shot(page, `s2-${arm}-1-after-edit`);
+// referenced attachments: reload so blocks carry attachment ids, then edit again
+await page.reload();
+await waitText(page, 'Reply to WHISKEY', 60000);
+await sleep(2500);
+const m0 = Date.now();
+await openEditor(page);
+await page.fill('textarea[aria-label="Edit message"]', 'XRAY edited after reload');
+await page.keyboard.press('Enter');
+await waitText(page, 'Reply to XRAY');
+await sleep(1500);
+log('attachment reads during edit-after-reload', net.filter((r) => r.t >= m0 && /attachment/.test(r.u)).map((r) => `${r.m} ${r.u.replace(/[0-9a-f-]{36}/g, ':id')}`));
+log('rows after edit-after-reload', await rows(page));
+log('model saw (edited after reload)', lastMain());
+// attachment-only message
+await attach([`${S}/fixtures/green.png`]);
+await page.locator('[data-web-shell-composer-editor] .cm-content').click();
+await page.keyboard.press('Enter');
+await page.waitForFunction(() => (document.body.innerText.match(/Reply to /g) ?? []).length >= 3, null, { timeout: 30000 });
+await sleep(2000);
+log('rows after attachment-only send', await rows(page));
+log('model saw (attachment-only)', lastMain());
+await openEditor(page);
+const val = await page.inputValue('textarea[aria-label="Edit message"]');
+const sendEnabled = await page.locator('button', { hasText: /^Send$/ }).last().isEnabled();
+log('attachment-only editor value', JSON.stringify(val), 'Send enabled with empty text:', sendEnabled);
+await shot(page, `s2-${arm}-2-attachment-only-editor`);
+const nBefore = modelLog(arm).filter((r) => r.isMain).length;
+await page.locator('button', { hasText: /^Send$/ }).last().click();
+await page.waitForFunction((n) => true, nBefore);
+await sleep(4000);
+log('model requests after resending attachment-only', modelLog(arm).filter((r) => r.isMain).length - nBefore, lastMain());
+log('rows final', await rows(page));
+await shot(page, `s2-${arm}-3-final`);
+await browser.close();

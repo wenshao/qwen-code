@@ -1,0 +1,36 @@
+// Same root cause, API view: rewind to the snapshot the daemon labels
+// turnIndex=1 (the image-only turn) and see which turn is really cut.
+import { open, typeAndSend, waitText, sleep, rows, assistantLines, mkLog, modelLog, S, PORTS } from './lib.mjs';
+const arm = process.argv[2] ?? 'after';
+const log = mkLog(`s2d-${arm}`);
+const { browser, page } = await open(arm);
+await typeAndSend(page, 'ALPHA first question');
+await waitText(page, 'Reply to ALPHA');
+await sleep(1000);
+await page.setInputFiles('input[type=file][hidden]', [`${S}/fixtures/green.png`]);
+await sleep(1200);
+await page.locator('[data-web-shell-composer-editor] .cm-content').click();
+await page.keyboard.press('Enter');
+await page.waitForFunction(() => (document.body.innerText.match(/Reply to /g) ?? []).length >= 2, null, { timeout: 30000 });
+await sleep(1500);
+await typeAndSend(page, 'CHARLIE third question');
+await waitText(page, 'Reply to CHARLIE');
+await sleep(2000);
+const sid = page.url().split('/session/')[1];
+const base = `http://127.0.0.1:${PORTS[arm].proxy}`;
+const snaps = (await (await fetch(`${base}/session/${sid}/rewind/snapshots`)).json()).snapshots;
+const t1 = snaps.find((s) => s.turnIndex === 1);
+log('rewinding to snapshot turnIndex=1 (promptSuffix', t1.promptId.split('########')[1], '= the image-only turn)');
+const r = await fetch(`${base}/session/${sid}/rewind`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ promptId: t1.promptId, rewindFiles: false }) });
+log('rewind', r.status, JSON.stringify(await r.json()).slice(0, 120));
+await sleep(2000);
+log('LIVE rows', await rows(page));
+await page.reload();
+await waitText(page, 'Reply to ALPHA', 60000);
+await sleep(2500);
+log('RELOAD rows', await rows(page));
+await typeAndSend(page, 'MIKE follow-up');
+await waitText(page, 'Reply to MIKE');
+await sleep(1500);
+log('model context for follow-up', modelLog(arm).filter((x) => x.isMain && x.lastRole === 'user').at(-1).ctx);
+await browser.close();
