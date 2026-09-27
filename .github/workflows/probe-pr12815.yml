@@ -61,9 +61,15 @@ jobs:
           node -e "const fs = require('node:fs'); for (const key of ['HOME', 'USERPROFILE']) { const dir = process.env[key]; if (dir) fs.mkdirSync(dir, { recursive: true }); }"
           git config --global core.autocrlf false
           export TMPDIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
-          bash probe/run.sh inherit 20 base-full head-full base-repeat head-repeat head-unskip probe
+          # Round 2: a real cmd.exe lane (MSYSTEM dropped in-process), plus
+          # the guard suite's skip counts as a lane fingerprint for ECS.
           bash probe/run.sh cmd 20 base-repeat head-repeat head-unskip probe
-          bash probe/run.sh bash 20 base-repeat head-repeat head-unskip probe
+          cp probe/guard-cmdlane.test.ts packages/cli/src/serve/probe-guard-cmdlane.test.ts
+          mkdir -p probe-out/guard
+          for f in daemon-git-worktree-guard.test.ts probe-guard-cmdlane.test.ts; do
+            ( cd packages/cli && npx vitest run "src/serve/$f" --reporter=default --reporter=json --outputFile.json="../../probe-out/guard/$f.json" > "../../probe-out/guard/$f.log" 2>&1 ) || true
+            node -e "const r=require('./probe-out/guard/$f.json'); console.log('GUARD $f total=' + r.numTotalTests + ' passed=' + r.numPassedTests + ' failed=' + r.numFailedTests + ' skipped=' + r.numPendingTests)" | tee -a probe-out/guard/summary.tsv
+          done
           echo '===== SUMMARY ====='
           cat probe-out/*/summary.tsv
           echo '===== PROBES ====='

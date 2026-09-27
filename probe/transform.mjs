@@ -144,5 +144,12 @@ switch (arm) {
     console.error(`TRANSFORM_FAILED unknown arm ${arm}`);
     process.exit(1);
 }
+// A real cmd.exe lane: the Git Bash step exports MSYSTEM, and the MSYS2
+// layers between the step and vitest restore it, so drop it in-process.
+out = replaceOnce(
+  out,
+  'interface Expected {',
+  "if (process.env['PROBE_UNSET_GITBASH'] === '1') {\n  delete process.env['MSYSTEM'];\n  delete process.env['TERM'];\n}\n\ninterface Expected {",
+);
 fs.writeFileSync(TARGET, out);
 console.log(`ARM_WRITTEN ${arm} repeats=${repeats}`);

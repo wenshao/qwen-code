@@ -7,7 +7,7 @@ mkdir -p "$OUT"
 lane_env() {
   case $LANE in
     inherit) env "$@" ;;
-    cmd) env -u MSYSTEM -u TERM "$@" ;;
+    cmd) env PROBE_UNSET_GITBASH=1 "$@" ;;
     bash) env MSYSTEM=MINGW64 "$@" ;;
   esac
 }
