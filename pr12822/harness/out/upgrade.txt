@@ -1,0 +1,47 @@
+== 1. main jar (V1..V12) creates Sessions
+[base1] up (pid 86439)
+{"id":"ea848644-a85d-4813-b328-78c24e468a3c","object":"agent.session","agent_id":"rig-agent","status":"active","created_at":1790490296,"updated_at":1790490296,"metadata":{},"active_turn":{"id":"turn_249ee0a594684c4fbc01db80ef9e9ec4","object":"agent.turn","session_id":"ea848644-a85d-4813-b328-78c24e468a3c","status":"accepted","created_at":1790490296},"last_event_id":2} [replay=false]
+version	description
+12	runtime broker schema alignment
+== 2. PR jar, default revision: V13 applies to the populated schema
+[pr-rev1] up (pid 86592)
+Migrating schema `p822_up` to version "13 - managed session agent revision"
+Successfully applied 1 migration to schema `p822_up`, now at version v13 (execution time 00:00.020s)
+old session: agent_revision="1" status="active" last_event_id=5
+id="e5ff2bb1-d9c6-459e-99b6-3b0db75b6a4f" agent_revision="1"
+== 3. PR jar restarted with QWEN_MANAGED_AGENT_REVISION=2
+[pr-rev2] up (pid 86715)
+old session:   agent_revision="1"
+rev-1 session: agent_revision="1"
+new session, no revision:      agent_revision="2"
+new session, revision 2:       agent_revision="2"
+retry of k-r1 naming rev 1:    error.code="unsupported_feature" id=undefined agent_revision=undefined
+retry of k-r1 without revision:id="e5ff2bb1-d9c6-459e-99b6-3b0db75b6a4f" agent_revision="1"
+retry of k-r1 naming rev 2:    error.code=undefined id="e5ff2bb1-d9c6-459e-99b6-3b0db75b6a4f" agent_revision="1"
+agent_revision	count(*)
+2	2
+1	2
+== 4. rollback: main jar on the V13 schema
+[base2] up (pid 86780)
+Successfully validated 13 migrations (execution time 00:00.023s)
+Schema `p822_up` is up to date. No migration necessary.
+main creates: id="d3b3ea3b-58f0-4cda-80ac-8470c206d1fc" status="active"
+list on main: 5 sessions
+session_id	agent_revision	created_at
+ea848644-a85d-4813-b328-78c24e468a3c	1	1790490296029
+e5ff2bb1-d9c6-459e-99b6-3b0db75b6a4f	1	1790490303357
+8f48237d-8d7a-469a-8fbc-9a56122fc343	2	1790490307776
+069c8591-6397-4f1c-9e5b-4a5770a53781	2	1790490307821
+d3b3ea3b-58f0-4cda-80ac-8470c206d1fc	1	1790490312259
+== 5. invalid revision settings
+[pr-empty] EXITED
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'managedAgentService' defined in URL [jar:nested:$SCRATCH/jars/pr-server.jar/!BOOT-INF/classes/!/c
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'managedAgentStore' defined in URL [jar:nested:$SCRATCH/jars/pr-server.jar/!BOOT-INF/classes/!/com/alibaba/
+Caused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [com.alibaba.qwen.code.managedagent.store.ManagedAgentStore]: Constructor threw exception
+[pr-long] EXITED
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'managedAgentService' defined in URL [jar:nested:$SCRATCH/jars/pr-server.jar/!BOOT-INF/classes/!/c
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'managedAgentStore' defined in URL [jar:nested:$SCRATCH/jars/pr-server.jar/!BOOT-INF/classes/!/com/alibaba/
+Caused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [com.alibaba.qwen.code.managedagent.store.ManagedAgentStore]: Constructor threw exception
+[pr-space] up (pid 86856)
+(started with a revision containing a space)
+DONE

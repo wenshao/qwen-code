@@ -1,0 +1,108 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/api/ApiExceptionHandler.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/api/ApiExceptionHandler.java
+index 1fffce597e..82f2b16e4e 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/api/ApiExceptionHandler.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/api/ApiExceptionHandler.java
+@@ -9,6 +9,9 @@ import org.springframework.http.HttpStatus;
+ import org.springframework.http.MediaType;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.http.converter.HttpMessageNotReadableException;
++import org.springframework.web.ErrorResponse;
++import org.springframework.web.HttpMediaTypeException;
++import org.springframework.web.HttpRequestMethodNotSupportedException;
+ import org.springframework.web.bind.ServletRequestBindingException;
+ import org.springframework.web.bind.MethodArgumentNotValidException;
+ import org.springframework.web.bind.annotation.ExceptionHandler;
+@@ -51,6 +54,21 @@ public class ApiExceptionHandler {
+                 "The request body is invalid.");
+     }
+ 
++    // Spring's own 405, 406 and 415 keep their status; the catch-all below
++    // would answer 500 and log a stack trace for a client error.
++    @ExceptionHandler({HttpRequestMethodNotSupportedException.class,
++            HttpMediaTypeException.class})
++    public ResponseEntity<Map<String, Object>> protocol(Exception error,
++            HttpServletRequest request) {
++        ErrorResponse details = (ErrorResponse) error;
++        HttpStatus status = HttpStatus.valueOf(
++                details.getStatusCode().value());
++        return ResponseEntity.status(status).headers(details.getHeaders())
++                .contentType(MediaType.APPLICATION_JSON)
++                .body(envelope(request, status.name().toLowerCase(),
++                        "The request method or media type is not supported."));
++    }
++
+     @ExceptionHandler(Exception.class)
+     public ResponseEntity<Map<String, Object>> unexpected(Exception error,
+             HttpServletRequest request) {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ApiProtocolErrorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ApiProtocolErrorTest.java
+new file mode 100644
+index 0000000000..fb3f22b55c
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ApiProtocolErrorTest.java
+@@ -0,0 +1,66 @@
++package com.alibaba.qwen.code.managedagent;
++
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
++
++import com.alibaba.qwen.code.managedagent.api.TenantContextFilter;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.context.annotation.Import;
++import org.springframework.http.MediaType;
++import org.springframework.test.web.servlet.MockMvc;
++
++@SpringBootTest(properties = {
++        "spring.datasource.url=jdbc:h2:mem:managed-agent-protocol;MODE=MySQL;"
++                + "DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE",
++        "spring.datasource.driver-class-name=org.h2.Driver",
++        "spring.datasource.username=sa",
++        "spring.datasource.password=",
++        "qwen.managed-agent.harness.enabled=false"
++})
++@AutoConfigureMockMvc
++@Import(ManagedAgentServerIntegrationTest.FixtureConfiguration.class)
++class ApiProtocolErrorTest {
++    private static final String SESSIONS = "/v1/agents/sessions";
++
++    @Autowired
++    private MockMvc mvc;
++
++    @Test
++    void unacceptableRepresentationIsNotAServerError() throws Exception {
++        mvc.perform(get(SESSIONS).header(TenantContextFilter.HEADER, "t1")
++                        .header("X-Request-Id", "req-406")
++                        .accept(MediaType.TEXT_HTML))
++                .andExpect(status().isNotAcceptable())
++                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
++                .andExpect(jsonPath("$.error.code").value("not_acceptable"))
++                .andExpect(jsonPath("$.error.request_id").value("req-406"));
++    }
++
++    @Test
++    void unsupportedMethodKeepsItsStatus() throws Exception {
++        mvc.perform(put(SESSIONS + "/s1").header(TenantContextFilter.HEADER, "t1")
++                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
++                .andExpect(status().isMethodNotAllowed())
++                .andExpect(header().exists("Allow"))
++                .andExpect(jsonPath("$.error.code")
++                        .value("method_not_allowed"));
++    }
++
++    @Test
++    void unsupportedMediaTypeKeepsItsStatus() throws Exception {
++        mvc.perform(post(SESSIONS).header(TenantContextFilter.HEADER, "t1")
++                        .header("Idempotency-Key", "k1")
++                        .contentType(MediaType.TEXT_PLAIN).content("hello"))
++                .andExpect(status().isUnsupportedMediaType())
++                .andExpect(jsonPath("$.error.code")
++                        .value("unsupported_media_type"));
++    }
++}
