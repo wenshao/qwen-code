@@ -153,6 +153,31 @@ const PROBES = `  // --- PR 12818 probes: measure, never assert ---
 
 `;
 
+
+const QUOTING = `  it('PROBE quoting through the Shell tool', async () => {
+    const root = workspace();
+    fs.mkdirSync(path.join(root, 'child'));
+    const origin = await startWorker({ ...BOOT, mountRoot: root, capabilityDigest: WORKSPACE_CAPABILITY_DIGEST });
+    const request = fixedInstallation('quoting-session', 'child');
+    expect((await post(origin, CONTEXT, request)).status).toBe(200);
+    expect((await post(origin, ACTIVATION, activation(request))).status).toBe(200);
+    const node = process.execPath;
+    const cases = [
+      ['q1 starts+ends with "', \`"\${node}" -e "console.log(1+1)"\`],
+      ['q2 ends without "', \`"\${node}" -e "console.log(1+2)" && echo tail\`],
+      ['q3 starts without "', \`echo head && "\${node}" -e "console.log(1+3)"\`],
+      ['q4 single quotes', \`'\${node}' -e 'console.log(1+4)'\`],
+      ['q5 all args quoted', \`"\${node}" "-p" "6"\`],
+    ];
+    for (const [label, command] of cases) {
+      const body = await (await post(origin, EXECUTE, shell(request.sessionId, label.slice(0, 2), command))).json();
+      const text = JSON.stringify(body.result?.responseParts ?? body).replace(/\\\\\\\\/g, '\\\\');
+      console.log('PROBE_JSON ' + JSON.stringify({ probe: 'quoting', label, shell: getShellConfiguration().shell, status: body.result?.executionStatus, command, text: text.slice(0, 900) }));
+    }
+  }, 60_000);
+
+`;
+
 let out;
 const [file, mutant] = arm.split('-');
 switch (arm) {
@@ -168,6 +193,9 @@ switch (arm) {
   case 'head-repeat':
     out = replaceN(head, RELEASE, RELEASE.replace("it('", `it.each(${ITER})('`).replace("', async", " #%i', async"));
     out = replaceN(out, HEAD_DIRLOSS, HEAD_DIRLOSS.replace('  )(', `  ).each(${ITER})(`).replace("lost',", "lost #%i',"));
+    break;
+  case 'quoting':
+    out = replaceN(head, ANCHOR, QUOTING + ANCHOR);
     break;
   case 'probe':
     out = replaceN(head, ANCHOR, PROBES + ANCHOR);
@@ -206,6 +234,18 @@ switch (arm) {
       );
     }
 }
+// PROBE_FIX swaps in a candidate WAIT_30_SECONDS (A3: per-shell quoting;
+// A4: a leading command so the string does not start with a quote).
+const WAIT_DEF = '  const WAIT_30_SECONDS = `"${process.execPath}" -e "setTimeout(String, 30000)"`;';
+const FIXES = {
+  A3: "  const WAIT_30_SECONDS =\n    getShellConfiguration().shell === 'cmd'\n      ? `\"${process.execPath}\" -e \"setTimeout(String, 30000)\"`\n      : `'${process.execPath}' -e 'setTimeout(String, 30000)'`;",
+  A4: '  const WAIT_30_SECONDS = `echo started > started.txt && "${process.execPath}" -e "setTimeout(String, 30000)"`;',
+};
+if (process.env.PROBE_FIX && out.includes(WAIT_DEF)) {
+  out = replaceN(out, WAIT_DEF, FIXES[process.env.PROBE_FIX]);
+  console.log('FIX_APPLIED ' + process.env.PROBE_FIX);
+}
+
 // Lanes: PROBE_UNSET_GITBASH drops the Git Bash markers in-process (the MSYS2
 // layers between a Git Bash step and vitest restore them otherwise), and
 // PROBE_COMSPEC points ComSpec at another shell.

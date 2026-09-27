@@ -13,6 +13,8 @@ try { r = JSON.parse(fs.readFileSync(jsonFile, 'utf8')); } catch {
 }
 const short = (t) => t.startsWith('refuses release while an invocation is active, and allows') ? 'release'
   : t.startsWith('retains status and cancel') ? 'dir-loss'
+  : t.startsWith('cancels an in-flight call of an installed Session') ? 'd1(context-worker cancel)'
+  : t.startsWith('cancels an in-flight shell execution') ? 'd2(tool-worker cancel)'
   : t.startsWith('PROBE') ? t.replace(/ #[+-]?\d+$/, '').replace(/'/g, '') : null;
 const groups = new Map();
 for (const f of r.testResults) for (const a of f.assertionResults) {

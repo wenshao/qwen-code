@@ -2,7 +2,7 @@
 # probe/run.sh <lane: inherit|cmd|pwsh> <repeats> <arms...>; run from the repo root.
 set -u
 LANE=$1; REPEATS=$2; shift 2
-OUT=probe-out/$LANE
+OUT=probe-out${PROBE_TAG:+-$PROBE_TAG}/$LANE
 mkdir -p "$OUT"
 lane_env() {
   case $LANE in
@@ -23,7 +23,7 @@ for ARM in "$@"; do
   node probe/transform.mjs "$ARM" "$REPEATS" || continue
   case $ARM in
     *-full) FILTER=() ;;
-    probe) FILTER=(-t 'PROBE' --silent=false) ;;
+    probe|quoting) FILTER=(-t 'PROBE' --silent=false) ;;
     *) FILTER=(-t 'refuses release while an invocation is active|retains status and cancel for an active invocation') ;;
   esac
   START=$(date +%s)
