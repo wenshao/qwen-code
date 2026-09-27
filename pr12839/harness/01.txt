@@ -1,0 +1,21 @@
+Baseline claims re-run on PR head 353b6526
+Real Broker JVMs + bundled worker (dist/cli.js 0.24.6) + file-backed H2 over TCP, JDK 21, macOS; runtime-broker unchanged e0b8bea..main 5deddb7
+
+## Existing FG3 process-crash gates (mvn -Pfault-gates -Dtest=ProcessCrashFaultGateTest)
+++ aWorkerKilledMidExecutionLeavesItUnknownWithoutEvidence             8.46 s  PASS
+++ aHostCrashPinsTheLostGenerationBehindTheUnsettledCall               7.29 s  PASS   (author's #12670 reproduction)
+++ aRestartedBrokerAdoptsTheWorkerAndNeverRunsTheCallTwice [1] [2] [3]  6.96 / 6.35 / 11.25 s  PASS
+++ theProductionProvisionerCannotAdoptAfterARestart                    11.30 s  PASS   (orphan worker keeps running)
+== Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+
+## P3  production local-process provisioner: orderly shutdown, then restart (new probe)
+   first Broker: warm + acquire, then orderly close (stdin EOF -> service.close -> provisioner.close)
+++ worker 99810 exited 439 ms after close
+!! binding ce7870ef state after close: READY  (not retired; lease endpoint still recorded)
+   restart, lease 2000 ms   warm #1 -> runtime_broker_reconcile_timeout (retryable) after  8334 ms = 4.17 x lease
+   restart, lease 2000 ms   warm #2 -> runtime_broker_reconcile_timeout (retryable) after  8741 ms = 4.37 x lease
+   restart, lease 5000 ms   warm #1 -> runtime_broker_reconcile_timeout (retryable) after 20509 ms = 4.10 x lease
+   restart, lease 5000 ms   warm #2 -> runtime_broker_reconcile_timeout (retryable) after 20684 ms = 4.14 x lease
+   binding stays READY after every attempt; restarted Broker starts no worker (workers=0)
+== 3 runs: 12/12 warms time out at 4.07-4.37 x lease; production EmbeddedRuntimeBroker LEASE = 30 s -> ~120 s each
+++ Confirms design section 1: UNKNOWN even though the worker has exited; the timeout leaves the binding READY

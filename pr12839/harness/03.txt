@@ -1,0 +1,24 @@
+F2  A stale Broker admits into, then retires, the pinned LOST generation
+P2 / P2b probes, legacy placement, RecoverableProcessProvisioner (pid records), two live Broker JVMs on one H2
+
+## Setup: Broker A warm + acquire runtime-session-1, call-1 = "echo start >> marker; sleep 20";
+##        SIGSTOP A, SIGKILL A's worker tree; Broker B warm
+++ B warm -> runtime_broker_runtime_lost; binding LOST; call-1 EXECUTING      (#12670 pin holds)
+
+## P2  (run 3 of 3)   SIGCONT A, then A.release(runtime-session-1)
+-- A.release -> 409 runtime_session_busy ... but the binding is now FAILED
+--   releaseUnusableSession calls invalidateBinding before its busy check; claimOperation accepts
+--   LOST (isActive) and compareAndSet allows LOST -> FAILED
+-- B warm -> generation 2 READY; call-2 on generation 2 SETTLED success; call-1 still UNKNOWN
+
+## P2b (run 3 of 3)   SIGCONT A, then A polls and submits
+++ A reconcile while EXECUTING -> IN_FLIGHT; after A marks call-1 UNKNOWN -> 409 evidence_unavailable
+++   binding stays LOST: polls are safe (requireAnswerableBinding rejects LOST first)
+-- A create key-2 -> accepted: new row on generation 1 AFTER the loss commit (no binding recheck)
+-- its dispatch finds the lease dead -> invalidateBinding -> binding FAILED; row UNKNOWN; never ran
+-- B warm -> generation 2 READY
+== P2: 3/3 runs identical.  P2b: 3/3 runs identical.
+
+!! Confirms section 4's late-insertion premise in a stronger form: no parking is needed.
+!! New: the same stale context retires LOST -> FAILED (release, new-call dispatch) and frees the
+!! placement. Section 4 limits its FAILED rule to "this recovery flow"; section 8 has no row for it.

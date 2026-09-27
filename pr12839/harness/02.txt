@@ -1,0 +1,19 @@
+F1  Worker dies under a live Broker: placement reused beside an escaped writer
+P1 probe, legacy placement, production LocalProcessRuntimeProvisioner, one Broker JVM (run 3 of 3; runs 1-2 identical)
+
+## call-1 (generation 1): perl escape.pl; echo start >> marker; sleep 30
+   escape.pl: fork -> setsid -> fork, then append "old <ms>" to ./escaped every 200 ms
+      +0 ms  binding 08bdfe38 generation 1 READY; worker 1098, tree below it [1136, 1140]
+      +2 ms  escaped writer pid 1139, parent pid 1 (not in the worker's tree or process group)
+     +31 ms  SIGKILL whole worker tree (rig.killWorker = FG3's own kill)
+    +212 ms  call-1 -> UNKNOWN, result null
+    +450 ms  warm #1 -> 503 runtime_provision_failed  (lease unusable -> invalidateBinding)
+-- +565 ms  generation 1 -> FAILED while call-1 is still UNKNOWN  (failBinding: no unsettled-execution check)
+-- +1754 ms  warm #2 -> generation 2 READY (binding 849cd66f), same directory
+-- +3070 ms  call-2 on generation 2 -> SETTLED success (first write stamped T)
+-- +6080 ms  escaped writer: 16 of 36 writes landed AFTER T; still alive
+== identical in 3/3 runs (16/16/16 writes after the replacement's first write)
+
+!! Design section 3 row "Worker PID gone ... -> Block" and the "Old writer" acceptance gate already fail here,
+!! without any Broker restart. Section 1 lists only the restart paths; the FG3 gate
+!! aWorkerKilledMidExecutionLeavesItUnknownWithoutEvidence asserts this replacement ("a new one serves new work").

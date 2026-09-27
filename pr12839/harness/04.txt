@@ -1,0 +1,19 @@
+Rollout and boot-barrier premises
+P4: merged Broker meets an ABANDONED row. P5: bundled worker (dist/cli.js managed-runtime-worker) boot barrier
+
+## P4  row settled normally, then execution_state set to 'ABANDONED' (VARCHAR(32), no CHECK constraint)
+-- get        -> IllegalArgumentException: No enum constant ...ToolExecutionRecord.State.ABANDONED
+-- cancel     -> same exception  (HTTP sendError maps it to 400 runtime_broker_invalid_request; from code)
+-- reconcile  -> 503 runtime_execution_reconcile_failed
+!! create (same idempotency key) -> 409 runtime_execution_conflict "execution identity is already in use"
+++ release    -> 409 runtime_session_busy   (SQL pin execution_state <> 'SETTLED' fails closed)
+++ marker = [ran]: nothing re-executed
+== 3/3 runs identical. Confirms "old binaries cannot read the enum"; pins are SQL literals, not isSettled()
+
+## P5  worker stdin boot barrier (design section 5 premise for W0e-2)
+++ empty boot (stdin closed before first byte)       -> exit 1 after 363 ms, 0 stdout bytes, boot rejected
+++ partial boot, then EOF                            -> exit 1 after 365 ms, 0 stdout bytes
+++ launcher holding the only write end SIGKILLed     -> worker gone 90 ms later, 0 stdout bytes, boot rejected
+!! launcher alive but silent (stdin open, no bytes)  -> exit 1 only after 30356 ms (30 s boot timeout)
+== Premise holds: an incomplete boot never admits tools. A stalled launcher leaves a 30 s window with a
+== live worker PID and no identity record, which the per-seed lock in section 5 must cover.
