@@ -1,0 +1,37 @@
+[SECTION] B v1
+[PASS] B.1 start before preflight has no effect (worker refuses the execute) :: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[B.1] row after the refused start: UNKNOWN/-
+[B.1b] DEFAULT approval, preflight + start with NO confirm: preflight=ok {"shouldProceed":true} start=ok {"executionStatus":"success","result":{"llmContent":"Succ fileWritten=true
+[PASS] B.2 a cancel decision never executes :: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[PASS] B.3 approval decision is immutable (same repeats, different refused) :: same=ok undefined flipped=refused status=409 code=managed_runtime_identity_conflict BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[PASS] B.4 changed arguments under one call identity are refused :: refused status=409 code=managed_runtime_identity_conflict BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[PASS] B.5 tampered argsDigest / invocationId are refused :: refused status=409 code=managed_runtime_identity_conflict BrokerResponseError: Managed Runtime Broker returned HTTP 409. | refused status=409 code=managed_runtime_identity_conflict BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[PASS] B.6 foreign Session reference refused before any worker request :: provider=refused status=409 code=managed_runtime_identity_conflict ManagedRuntimeProviderProtocolError: Managed Runtime provider Session identity conflicts. broker=400 runtime_control_operation_invalid reserve=409 runtime_reference_conflict wire=0
+[FAIL] B.7 public control route refuses unknown kinds/fields and transport-only operations before dispatch :: 400 runtime_control_operation_invalid | 400 managed_runtime_attestation_invalid | 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid wire=2
+[PASS] B.8 after all refusals the approved invocation still runs once
+[FAIL] B.9 file-history binding: foreign owner refused before any worker request; foreign directory refused; own binding accepted :: owner=409 managed_runtime_identity_conflict runtime=409 managed_runtime_identity_conflict wireBeforeCwd=>0 cwd=409 managed_runtime_identity_conflict own=200
+[B] release ok true
+[B] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[SECTION] C v1
+[PASS] C-v1.1 provider reservation + payloadJson start fails before dispatch :: 409 runtime_execution_conflict wire=0
+[FAIL] C-v1.2 start with an unknown field is refused :: 200 undefined
+[FAIL] C-v1.3 reservation refuses payload/tool fields beside or inside the reference :: 200 undefined | 400 runtime_reference_invalid
+[PASS] C-v1.4 immediate raw route refuses a seven-field provider reference :: 400 runtime_reference_invalid
+[C-v1] raw reserve in provider-owned Session: 200  {"protocolVersion":1,"harnessSessionId":"9eae4837-3f78-47ce-a524-625bc464140c","runtimeSessionId":"d5f1a636-da00-4d85-968b-6b711d61b147","executionCallId":"6e6b9b82-141d-4968-a44b-76c206e8b0e6","statu
+[FAIL] C-v1.5 raw reservation + start without payloadJson fails before dispatch :: 400 runtime_payload_invalid wire=1
+[FAIL] C-v1.6 raw tool call cannot enter a provider-owned Session (no effect) :: start=200  row=UNKNOWN/- result=null wire=/v2/execute -> 409
+[PASS] C-v1.7 the provider invocation is unaffected by the refused mixes
+[C-v1] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[C-v1] ["7-field PREPARED/-","5-field UNKNOWN/-","7-field SETTLED/success"]
+[SECTION] C v2
+[PASS] C-v2.1 provider reservation + payloadJson start fails before dispatch :: 409 runtime_execution_conflict wire=0
+[FAIL] C-v2.2 start with an unknown field is refused :: 200 undefined
+[FAIL] C-v2.3 reservation refuses payload/tool fields beside or inside the reference :: 200 undefined | 400 runtime_reference_invalid
+[PASS] C-v2.4 immediate raw route refuses a seven-field provider reference :: 400 runtime_reference_invalid
+[C-v2] raw reserve in provider-owned Session: 200  {"protocolVersion":1,"harnessSessionId":"abb55894-fb39-4aee-8313-44d53b937145","runtimeSessionId":"2535744e-71eb-423b-a42e-6a10bbd8c0aa","executionCallId":"4feceaa5-e3ef-4db0-bf6e-51bdcf2851fa","statu
+[FAIL] C-v2.5 raw reservation + start without payloadJson fails before dispatch :: 400 runtime_payload_invalid wire=1
+[FAIL] C-v2.6 raw tool call cannot enter a provider-owned Session (no effect) :: start=200  row=UNKNOWN/- result=null wire=/v2/execute -> 409
+[PASS] C-v2.7 the provider invocation is unaffected by the refused mixes
+[C-v2] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[C-v2] ["7-field PREPARED/-","7-field SETTLED/success","5-field UNKNOWN/-"]
+[SUMMARY] 13/23 checks passed — failed: B.7, B.9, C-v1.2, C-v1.3, C-v1.5, C-v1.6, C-v2.2, C-v2.3, C-v2.5, C-v2.6

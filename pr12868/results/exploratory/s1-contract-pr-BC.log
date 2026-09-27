@@ -1,0 +1,35 @@
+[SECTION] B v1
+[PASS] B.1 start before preflight has no effect (worker refuses the execute) :: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[B.1] row after the refused start: UNKNOWN/-
+[B.1b] DEFAULT approval, preflight + start with NO confirm: preflight=ok {"shouldProceed":true} start=ok {"executionStatus":"success","result":{"llmContent":"Succ fileWritten=true
+[PASS] B.2 a cancel decision never executes :: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[PASS] B.3 approval decision is immutable (same repeats, different refused) :: same=ok undefined flipped=refused status=409 code=managed_runtime_identity_conflict BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[PASS] B.4 changed arguments under one call identity are refused :: refused status=409 code=managed_runtime_identity_conflict BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[PASS] B.5 tampered argsDigest / invocationId are refused :: refused status=409 code=managed_runtime_identity_conflict BrokerResponseError: Managed Runtime Broker returned HTTP 409. | refused status=409 code=managed_runtime_identity_conflict BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[PASS] B.6 foreign Session reference refused before any worker request :: provider=refused status=409 code=managed_runtime_identity_conflict ManagedRuntimeProviderProtocolError: Managed Runtime provider Session identity conflicts. broker=400 runtime_control_operation_invalid reserve=409 runtime_reference_conflict wire=0
+[PASS] B.7 public control route refuses unknown kinds/fields and transport-only operations before dispatch :: 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid wire=0
+[PASS] B.8 after all refusals the approved invocation still runs once
+[B] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[SECTION] C v1
+[PASS] C-v1.1 provider reservation + payloadJson start fails before dispatch :: 409 runtime_execution_conflict wire=0
+[PASS] C-v1.2 start with an unknown field is refused :: 400 runtime_broker_invalid_request
+[PASS] C-v1.3 reservation refuses payload/tool fields beside or inside the reference :: 400 runtime_reference_invalid | 400 runtime_reference_invalid
+[PASS] C-v1.4 immediate raw route refuses a seven-field provider reference :: 400 runtime_reference_invalid
+[C-v1] raw reserve in provider-owned Session: 200  {"protocolVersion":1,"harnessSessionId":"da9fe091-81a7-4352-95e8-e01f78628248","runtimeSessionId":"32ebef54-1d32-4b6b-98ad-f02e05761c1f","executionCallId":"641d001e-7bdd-4b45-b430-e4e02b83747f","statu
+[PASS] C-v1.5 raw reservation + start without payloadJson fails before dispatch :: 400 runtime_payload_invalid wire=0
+[PASS] C-v1.6 raw tool call cannot enter a provider-owned Session (no effect) :: start=200  row=UNKNOWN/- result=null wire=/v2/execute -> 409
+[PASS] C-v1.7 the provider invocation is unaffected by the refused mixes
+[C-v1] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[C-v1] ["5-field UNKNOWN/-","7-field SETTLED/success"]
+[SECTION] C v2
+[PASS] C-v2.1 provider reservation + payloadJson start fails before dispatch :: 409 runtime_execution_conflict wire=0
+[PASS] C-v2.2 start with an unknown field is refused :: 400 runtime_broker_invalid_request
+[PASS] C-v2.3 reservation refuses payload/tool fields beside or inside the reference :: 400 runtime_reference_invalid | 400 runtime_reference_invalid
+[PASS] C-v2.4 immediate raw route refuses a seven-field provider reference :: 400 runtime_reference_invalid
+[C-v2] raw reserve in provider-owned Session: 200  {"protocolVersion":1,"harnessSessionId":"e861b632-d495-4e99-a7b6-061e38ce266b","runtimeSessionId":"395617ad-1412-432a-85c0-662977dda427","executionCallId":"94ebc6c0-ae2f-4c79-ab9b-0067fbdb4ca5","statu
+[PASS] C-v2.5 raw reservation + start without payloadJson fails before dispatch :: 400 runtime_payload_invalid wire=0
+[PASS] C-v2.6 raw tool call cannot enter a provider-owned Session (no effect) :: start=200  row=UNKNOWN/- result=null wire=/v2/execute -> 409
+[PASS] C-v2.7 the provider invocation is unaffected by the refused mixes
+[C-v2] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409.
+[C-v2] ["5-field UNKNOWN/-","7-field SETTLED/success"]
+[SUMMARY] 22/22 checks passed
