@@ -104,3 +104,4 @@ for (const module of modules) {
   }
 }
 process.exitCode = failed ? 1 : 0;
+// probe
