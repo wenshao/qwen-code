@@ -1,0 +1,44 @@
+[setup] arm=r2 model=qwen3.8-max harness=http://127.0.0.1:59039 decoy=$SP/rig/run/harness-real-r2/todo.md
+[A1] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 19469ms
+[A1 tool] call write_file({"file_path":"todo.md","content":"- build\n- test\n- tag\n"}) id=call_01d2bb4177794f1895e6aa93
+[A1 tool] result write_file status=success "Successfully created and wrote to new file: $TMP
+[A1 tool] call read_file({"file_path":"todo.md"}) id=call_3a221b03f86b460d974174b1
+[A1 tool] result read_file status=success "- build\n- test\n- tag\n"
+[A1 tool] call edit({"file_path":"todo.md","old_string":"- tag","new_string":"- tag v1.0"}) id=call_d8945fb7a01c4356bd16a670
+[A1 tool] result edit status=success "The file: $SP/…
+[A1 tool] call read_file({"file_path":"todo.md"}) id=call_b89f042d10b84abd8f45b7c4
+[A1 tool] result read_file status=success "- build\n- test\n- tag v1.0\n"
+[A1 text] Created, read back, and edited. Final content of `todo.md` (resolved to `.../scratchpad/rig/roots3/g/child/todo.md`): ```markdown - build - test - tag v1.0 ``` The read-back after the edit confirms the change (3 bullets,
+[B1] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 8209ms
+[B1 tool] call write_file({"file_path":"notes.txt","content":"workspace B\n"}) id=call_aeb683c0cb3c4e4facc58024
+[B1 tool] result write_file status=success "Successfully created and wrote to new file: $TMP
+[B1 tool] call read_file({"file_path":"notes.txt"}) id=call_8774e1646c814a0f9590af1d
+[B1 tool] result read_file status=success "workspace B\n"
+[B1 text] Created `notes.txt` and read it back. Content: ``` workspace B ``` The file resolved to `$SP/rig/roots3/h/child/notes.tx
+[fs] roots/g/child/todo.md="- build\n- test\n- tag v1.0\n"
+[fs] roots/h/child/notes.txt="workspace B\n"
+[fs] decoy="DECOY in the Harness launch directory"
+[A detach] 204
+[A reload (no profile)] 409
+[A reload (profile)] 200
+[A2] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2029ms
+[A2 text] The exact third bullet is: ``` - tag v1.0 ```
+[C] admit=202 terminal=turn_error recoveryBlocked=false 3137ms
+[C text] 
+[D] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 6825ms
+[D tool] call write_file({"file_path":"d.txt","content":"from thread D"}) id=call_78fa18401ddf4c90ad08389d
+[D tool] result write_file status=success "Successfully created and wrote to new file: $TMP
+[D tool] call read_file({"file_path":"d.txt"}) id=call_ce7f23c454e24e8dbd4003d3
+[D tool] result read_file status=success "from thread D"
+[D text] Created `d.txt` and read it back. Content: ``` from thread D ```
+[C/D broker] POST /tool-sessions:acquire -> 200
+[C/D broker] POST /tool-sessions:acquire -> 409 workspace_busy
+[C/D broker] POST /tool-sessions/975c7219-5ded-4077-9e75-60f83d28b743:release -> 200
+[C retry] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 10494ms
+[C retry tool] call write_file({"file_path":"c.txt","content":"from thread C"}) id=call_72dc6c8c2ea74c228189c778
+[C retry tool] result write_file status=success "Successfully created and wrote to new file: $TMP
+[C retry tool] call read_file({"file_path":"c.txt"}) id=call_6b77cb2f291043998951eea0
+[C retry tool] result read_file status=success "from thread C"
+[C retry text] Created `c.txt` at `$SP/rig/roots3/i/child/c.txt` and read it back. Content: ``` from thread C ```
+[fs] c.txt=true d.txt=true
+[log] Hosted Harness turn 82d61529-da35-406e-8267-7be91982b141 failed: Error: Runtime Broker returned HTTP 409 (workspace_busy).

@@ -1,0 +1,20 @@
+F3: a settled read whose output exceeds 64 KiB still blocks the Session and holds the Workspace
+read_file truncates at 25,000 characters; dense CJK text is ~3 bytes per character in UTF-8
+
+## Real model, a real document from this repository (25749df4)
+>> ws-w: docs/design/2026-09-10-opentui-parity-defect-sweep.zh-CN.md (225 KB, 87k chars)
+>> "please read defect-sweep.zh-CN.md and summarise it in three sentences"
+>> acquire 200 > prepare > start 200 > execution SETTLED success > cancel
+-- "recovery blocked: resource bytes exceed the 65536-byte inline limit"
+-- no terminal event; next prompt -> 409 hosted_turn_recovery_required; storage st-w held
+
+## Fixture: 176 KB Chinese file (ws-q)
+-- read executed (SETTLED success), result not persisted -> blocked, next prompt 409, reload 409
+-- every other Session of ws-q: acquire 409 workspace_busy -> turn_error, on each retry
+
+## Candidate: record a definite error for the settled call instead of failing closed
+++ same real-model prompt (ws-z): first read returns "Tool output ... exceeds the durable
+++   Session limit; request a smaller range"; the model re-reads with offset/limit in 400-line
+++   pages (6 reads, 2167 lines) and answers; turn_complete 55.7 s; storage released
+++ fixture (ws-x): turn_complete, next prompt + reload 200, other Session writes normally
+++ PR driver on the candidate: HOSTED_WORKSPACE_TOOLS_OK (unknown outcomes still block)

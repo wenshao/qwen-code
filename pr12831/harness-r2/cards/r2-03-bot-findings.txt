@@ -1,0 +1,19 @@
+The bot's two non-blocking findings, measured on the real stack
+Both keep the Workspace storage held, so every other Session of that Workspace loses tools until W0e
+
+## (1) Store 503 on the assistant commit, nothing reserved (ws-r)
+>> acquire 200 ; POST /transactions:commit -> 503 (injected, not forwarded) ; no prepare
+-- G recovery blocked; next prompt 409; reload 409; G.txt absent (nothing dispatched)
+-- st-r stays held -> other Sessions: acquire 409 workspace_busy -> turn_error
+++ candidate: release when nothing was reserved -> G still awaits recovery (Store state
+++   unknown), but the storage is returned and K in the same Workspace completes
+
+## (2) Definite :start refusal (payload bytes rewritten -> 409 runtime_idempotency_conflict)
+-- PR: 2,129 GET /executions/{id} polls over 120.5 s, then recovery blocked, storage held
+++ candidate: cancel the original reservation at once, only for the three codes startExecution
+++   raises before dispatch -> 0 polls, settles as cancelled, turn_complete, reload 200
+== not every 4xx: the PR's own driver hides outcomes with 409 runtime_broker_execution_unknown
+
+## Blast radius (bot: "not a Workspace-wide wedge")
+-- after F3, (1) and (2): a new Session in each of the 3 Workspaces -> 409 workspace_busy,
+--   turn_error; tools stay unavailable there until recovery, the same as N3 by design
