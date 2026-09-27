@@ -1,0 +1,72 @@
+### ctx
+model                base3          r3             r3-off        
+claude-fable-5       200.0k         1000.0k        200.0k        
+claude-sonnet-4-6    200.0k         1000.0k        200.0k        
+claude-sonnet-4-5    200.0k         200.0k         200.0k        
+qwen-flash           262.1k         1000.0k        262.1k        
+qwen3-coder-plus     1000.0k        1048.6k        1000.0k       
+MiniMax-M2.5         196.6k         204.8k         196.6k        
+glm-4.7              202.8k         204.8k         202.8k        
+deepseek-flash       1000.0k        1000.0k        1000.0k       
+deepseek-v3          131.1k         131.1k         131.1k        
+deepseek-v3-0324     131.1k         131.1k         131.1k        
+qwen-long            262.1k         10000.0k       262.1k        
+gpt-4                131.1k         8.2k           131.1k        
+qwen-math-plus       262.1k         4.1k           262.1k        
+### lifecycle
+== 1-first-run (/api.json): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-27T10:18:48.510Z etag="mirror-etag-1" models=194
+mirror requests so far:        1
+== 2-second-run-within-24h (/api.json): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-27T10:18:48.510Z etag="mirror-etag-1" models=194
+mirror requests so far:        1
+== 3-after-25h-conditional (/api.json): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-27T10:18:53.624Z etag="mirror-etag-1" models=194
+mirror requests so far:        2
+== 4-server-500 (/fail500): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-26T09:18:55.422Z etag="mirror-etag-1" models=194
+mirror requests so far:        3
+   cache byte-identical after 500: yes
+== 5-foreign-200-body (/foreign): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-26T09:18:55.422Z etag="mirror-etag-1" models=194
+mirror requests so far:        4
+== 6-next-run-after-foreign (/foreign): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-26T09:18:55.422Z etag="mirror-etag-1" models=194
+mirror requests so far:        5
+### heal
+== h1-r1-poisons [r1] mirror=bad: claude-fable-5 window this run = 1000.0k
+   cache: models=0 etag="etag-bad" fetchedAt=2026-09-27T10:19:04.436Z
+   mirror requests: 1  last: {"t":"2026-09-27T10:19:04.432Z","path":"/flip","inm":null,"flip":"bad","status":200}
+== h2-r1-same-url-recovered [r1] mirror=good: claude-fable-5 window this run = 200.0k
+   cache: models=0 etag="etag-bad" fetchedAt=2026-09-27T10:19:04.436Z
+   mirror requests: 1  last: {"t":"2026-09-27T10:19:04.432Z","path":"/flip","inm":null,"flip":"bad","status":200}
+== h3-r3-same-url-recovered [r3] mirror=good: claude-fable-5 window this run = 200.0k
+   cache: models=194 etag="mirror-etag-1" fetchedAt=2026-09-27T10:19:09.465Z
+   mirror requests: 2  last: {"t":"2026-09-27T10:19:09.462Z","path":"/flip","inm":null,"flip":"good","status":200}
+== h4-r3-next-start [r3] mirror=good: claude-fable-5 window this run = 1000.0k
+   cache: models=194 etag="mirror-etag-1" fetchedAt=2026-09-27T10:19:09.465Z
+   mirror requests: 2  last: {"t":"2026-09-27T10:19:09.462Z","path":"/flip","inm":null,"flip":"good","status":200}
+### channels
+r3    project-.env           requests-to-planted-host=0  global-cache=-
+r3    project-.qwen/.env     requests-to-planted-host=0  global-cache=-
+r3    project-settings.env   requests-to-planted-host=0  global-cache=-
+r3    user-.env              requests-to-planted-host=1  global-cache=planted
+r3    user-settings.env      requests-to-planted-host=0  global-cache=-
+r3    shell                  requests-to-planted-host=1  global-cache=planted
+
+### partial
+== p1-good [r3] (/api.json): claude-fable-5 window this run = 1000.0k; cache models=194 source=http://mirror/api.json
+== p2-partial-200 [r3] (/partial): claude-fable-5 window this run = 1000.0k; cache models=1 source=http://mirror/partial
+== p3-next-start [r3] (/partial): claude-fable-5 window this run = 200.0k; cache models=1 source=http://mirror/partial
+### nullentry
+== n1-real-payload [r3] (/api.json): cache models=194; requests to /api.json so far: 1
+== n2-one-null-entry [r3] (/nullentry): cache <none>; requests to /nullentry so far: 1
+== n3-next-start [r3] (/nullentry): cache <none>; requests to /nullentry so far: 2
+### hang
+base3-sayhi                        exit=0 wall=1612ms model requests=2
+r3-refresh-off-sayhi               exit=0 wall=1629ms model requests=2
+r3-blackhole-peer-sayhi            exit=0 wall=1624ms model requests=2
+base3-contextd                     exit=0 wall=1442ms model requests=0
+r3-refresh-off-contextd            exit=0 wall=1444ms model requests=0
+r3-blackhole-peer-contextd         exit=0 wall=1447ms model requests=0
+peer saw 2 hanging catalog requests

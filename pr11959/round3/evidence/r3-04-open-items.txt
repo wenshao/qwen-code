@@ -1,0 +1,22 @@
+PR #11959 round 3 (r3 = 1bb0e56e): open items, measured through the real CLI
+
+1) Near-empty projection: a 200 carrying one model (/partial) still replaces the whole catalog
+== p1-good [r3] (/api.json): claude-fable-5 window this run = 1000.0k; cache models=194 source=http://mirror/api.json
+== p2-partial-200 [r3] (/partial): claude-fable-5 window this run = 1000.0k; cache models=1 source=http://mirror/partial
+== p3-next-start [r3] (/partial): claude-fable-5 window this run = 200.0k; cache models=1 source=http://mirror/partial
+
+2) One null model entry in the real payload (/nullentry): the whole refresh fails and is retried every start
+== n1-real-payload [r3] (/api.json): cache models=194; requests to /api.json so far: 1
+== n2-one-null-entry [r3] (/nullentry): cache <none>; requests to /nullentry so far: 1
+== n3-next-start [r3] (/nullentry): cache <none>; requests to /nullentry so far: 2
+
+3) Catalog peer accepts and never answers (/hang): does 'qwen -p' wait for the 10 s fetch timeout?
+base3-sayhi                        exit=0 wall=1674ms model requests=2
+r3-refresh-off-sayhi               exit=0 wall=1661ms model requests=2
+r3-blackhole-peer-sayhi            exit=0 wall=1632ms model requests=2
+base3-contextd                     exit=0 wall=1435ms model requests=0
+r3-refresh-off-contextd            exit=0 wall=1419ms model requests=0
+r3-blackhole-peer-contextd         exit=0 wall=1467ms model requests=0
+peer saw 2 hanging catalog requests
+
+[figure complete]

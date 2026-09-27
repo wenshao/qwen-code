@@ -1,0 +1,22 @@
+PR #11959 round 3: base3 700620f4 / r2 9088f00b / r3 1bb0e56e - real CLI bundles, real DashScope (Alibaba Cloud Model Studio) endpoint
+
+A) user sets an explicit budget: QWEN_CODE_MAX_OUTPUT_TOKENS=32768
+  base3  qwq-plus          sent max_tokens=32768 exit 0  hello
+  r2     qwq-plus          sent max_tokens=8192 exit 0  Hello! I'm Qwen Code, a CLI agent here to help with software engineering tasks. How can I assist
+  r3     qwq-plus          sent max_tokens=32768 exit 0  hello
+
+  base3  kimi-k2-thinking  sent max_tokens=32768 exit 1  [API Error: <400> InternalError.Algo.InvalidParameter: Range of max_tokens should be [1, 16384]]
+  r2     kimi-k2-thinking  sent max_tokens=16384 exit 0  hello
+  r3     kimi-k2-thinking  sent max_tokens=32768 exit 1  [API Error: <400> InternalError.Algo.InvalidParameter: Range of max_tokens should be [1, 16384]]
+
+  base3  qvq-max           sent max_tokens=32768 exit 1  [API Error: <400> InternalError.Algo.InvalidParameter: Range of max_tokens should be [1, 8192]]
+  r2     qvq-max           sent max_tokens=8192 exit 0  hello
+  r3     qvq-max           sent max_tokens=32768 exit 1  [API Error: <400> InternalError.Algo.InvalidParameter: Range of max_tokens should be [1, 8192]]
+
+B) nothing configured: the catalog default still applies on r3
+  base3  kimi-k2-thinking  sent max_tokens=32000 exit 1  [API Error: <400> InternalError.Algo.InvalidParameter: Range of max_tokens should be [1, 16384]]
+  r3     kimi-k2-thinking  sent max_tokens=16384 exit 0  hello
+  base3  qvq-max           sent max_tokens=32000 exit 1  [API Error: <400> InternalError.Algo.InvalidParameter: Range of max_tokens should be [1, 8192]]
+  r3     qvq-max           sent max_tokens=8192 exit 0  hello
+
+[figure complete]

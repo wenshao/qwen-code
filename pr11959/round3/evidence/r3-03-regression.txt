@@ -1,0 +1,37 @@
+PR #11959 round 3 (r3 = 1bb0e56e, main merged): round-2 fixes re-checked through the real CLI
+
+1) 'Context window' from /context -d (base3 = merge-base 700620f4)
+model                base3          r3             r3-off        
+claude-fable-5       200.0k         1000.0k        200.0k        
+qwen-flash           262.1k         1000.0k        262.1k        
+claude-sonnet-4-5    200.0k         200.0k         200.0k        
+deepseek-v3          131.1k         131.1k         131.1k        
+deepseek-v3-0324     131.1k         131.1k         131.1k        
+
+2) F1: lifecycle steps 5-6 on r3 (/foreign = 200 with a gateway error body)
+== 5-foreign-200-body (/foreign): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-26T09:20:57.121Z etag="mirror-etag-1" models=194
+mirror requests so far:        4
+== 6-next-run-after-foreign (/foreign): claude-fable-5 context window in this run = 1000.0k
+cache: source=http://mirror/api.json fetchedAt=2026-09-26T09:20:57.121Z etag="mirror-etag-1" models=194
+mirror requests so far:        5
+
+3) Heal guard: cache poisoned by r1, same URL recovers
+== h1-r1-poisons [r1] mirror=bad: claude-fable-5 window this run = 1000.0k
+   cache: models=0 etag="etag-bad"
+== h2-r1-same-url-recovered [r1] mirror=good: claude-fable-5 window this run = 200.0k
+   cache: models=0 etag="etag-bad"
+== h3-r3-same-url-recovered [r3] mirror=good: claude-fable-5 window this run = 200.0k
+   cache: models=194 etag="mirror-etag-1"
+== h4-r3-next-start [r3] mirror=good: claude-fable-5 window this run = 1000.0k
+   cache: models=194 etag="mirror-etag-1"
+
+4) F2: channels that can set QWEN_CODE_MODELS_DEV_URL (fresh QWEN_HOME per row)
+r3    project-.env           requests-to-planted-host=0  global-cache=-
+r3    project-.qwen/.env     requests-to-planted-host=0  global-cache=-
+r3    project-settings.env   requests-to-planted-host=0  global-cache=-
+r3    user-.env              requests-to-planted-host=1  global-cache=planted
+r3    user-settings.env      requests-to-planted-host=0  global-cache=-
+r3    shell                  requests-to-planted-host=1  global-cache=planted
+
+[figure complete]
