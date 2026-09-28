@@ -1,0 +1,22 @@
+{
+  "title": "R2: head 7236322a43 (rebased onto W0e-1 9e42875b12), re-verified on real Linux",
+  "subtitle": "colima Ubuntu 24.04.4 · kernel 6.8.0-117 aarch64 · JDK 21.0.9 · Maven 3.9.11 · Node 22.23 · PID 1 = tini unless noted · same rig as R1",
+  "blocks": [
+    {"table": [
+      ["Check", "R2 result"],
+      ["PR code diff vs its base", "== patch-id 0c42007d… identical to R1; range-diff: design-doc context only"],
+      ["runtime-broker mvn test", "++ 402 run, 0 fail, 2 skip (R1: 399; +3 from base fix)"],
+      ["Stage F -Pfault-gates (production HostIdentity.linux())", "++ 38/38, 0 skip (durable 10/10)"],
+      ["managed-agent-server mvn test", "++ 141/141"],
+      ["Spring + MySQL 8.4: kill -9 Spring, restart, warm", "++ same worker 87 adopted in 0.20 s (next warm 17 ms), gen 1"],
+      ["Spring: adopted worker then killed (tini reaps)", "++ 503 not alive -> LOST + loss evidence, record RETIRED, 0 new workers"],
+      ["T1: adopted worker, one attest RESET in confirm", "++ 503 once, next warm OK in 20 ms, READY, same worker"],
+      ["F1: worker dies before READY (P1, P1b, P3b)", "-- unchanged: 409 once, then 503 reconcile_timeout every 8.1 s"],
+      ["F2: zombie after Broker restart (C1)", "-- unchanged: READY forever, 503 after 8.2 s each"],
+      ["F2': zombie under the adopting Broker (Z2, new)", "-- READY forever, 503 managed_runtime_unavailable every call"],
+      ["F3: README prerequisites", "-- unchanged (machine-id, KillMode, reaping init)"],
+      ["candidate A+B re-applied on new head", "++ F1 -> 409 conflict 78-204 ms; C1/Z2 zombie -> LOST; 402/0/2; gates 10/10"]
+    ]},
+    {"note": "The adoption slice is byte-identical and still passes everything on Linux. The base fix works for adopted workers (T1). But its retry test is isUsable(), which for a durable worker is !processAbsent(), so a zombie now keeps the binding READY instead of losing it (Z2). F1 and F3 are unchanged; #12869 (W0e-3) resolves such records only after a trusted host reboot."}
+  ]
+}

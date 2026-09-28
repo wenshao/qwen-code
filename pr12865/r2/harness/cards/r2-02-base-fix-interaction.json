@@ -1,0 +1,9 @@
+{
+  "title": "R2: base fix 9e42875b12 meets durable mode",
+  "subtitle": "confirm failure -> invalidate only if !canRetryFailedConfirm(lease); LocalProcessRuntimeProvisioner.canRetryFailedConfirm = isUsable(lease) -> durable OwnedProcess.alive() = !registration.processAbsent()",
+  "blocks": [
+    {"label": "T1 - adopted worker, one attest RESET during confirm (tini)", "pre": "++ adopt warm                      -> ok   271 ms   binding READY gen 1\n== confirm with attest RESET        -> 503 managed_runtime_unavailable (retryable)  22 ms   binding READY, worker alive\n++ next warm                       -> ok    20 ms   binding READY, same worker, 0 new workers   (LEGACY and MANAGED)"},
+    {"label": "Z2 - adopted worker SIGKILLed while the adopting Broker lives", "pre": "== PID 1 = tini (reaps):   stat absent\n++   warm -> 503 runtime_provision_failed 87 ms, then runtime_broker_runtime_lost; binding LOST, lossEvidence=JOURNAL_LOST\n!! PID 1 does not reap:    worker 885 state=Z ppid=1 starttime unchanged\n--   warm -> 503 managed_runtime_unavailable 49 / 41 / 29 ms; binding READY, lossEvidence=null, forever\n--   (LEGACY and MANAGED identical; before the base fix this path invalidated the binding instead)\n++ candidate B, PID 1 does not reap: warm -> runtime_provision_failed, then runtime_broker_runtime_lost; binding LOST"},
+    {"label": "F1 unchanged on the new head (tini)", "pre": "-- P1  LEGACY/MANAGED : 409 recovery_blocked, then 503 reconcile_timeout 8094 / 8121 / 8075 ms\n-- P1b LEGACY/MANAGED : 409, then 503 reconcile_timeout ~8.1 s each\n-- P3b spawn failure  : record LAUNCHING pid=0, 503 every 8.1 s after the fix\n++ candidate A        : 409 runtime_broker_resource_conflict (non-retryable) 78-204 ms after the first 409"}
+  ]
+}
