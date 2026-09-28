@@ -1,0 +1,287 @@
+[
+  {
+    "file": "01-outage-before-after.png",
+    "title": "Hosted Harness close fails: main vs PR #12881",
+    "subtitle": "Real stack: Spring jar + packaged Hosted Harness (dist/cli.js) + MySQL 8.4.11; a proxy answers 503 to every DELETE /session/:id, then heals",
+    "columns": [
+      {
+        "head": "main 3f5ae3ff (base jar)",
+        "lines": [
+          "## Session with one completed Turn",
+          "POST /close                      -> 404 not_found",
+          "POST /archive (Harness fails)    -> 503 hosted_harness_unavailable",
+          "-- Session 6 s later             : archiving",
+          "== command row ARCHIVE_SESSION   : PENDING",
+          "## Harness healthy again",
+          "-- 6 s later, no client retry    : still archiving",
+          "!! only a client retry with the same key finishes it",
+          "POST /archive (same key)         -> 200 archived",
+          "GET /operations/{id}             -> 404 not_found"
+        ]
+      },
+      {
+        "head": "PR a32bd797 (pr jar)",
+        "lines": [
+          "## Same Session, same outage",
+          "POST /close                      -> 202 close/pending",
+          "Session                          : closing",
+          "POST /events (input)             -> 409 session_not_active",
+          "GET operation (6 s)              -> running, 3 attempts",
+          "== ledger: 3 x DELETE /session/:id answered 503",
+          "## Harness healthy again",
+          "++ worker completes 2.3 s later  : harness_confirmed + receipt",
+          "++ journal writer                : SEALED before completion",
+          "++ Session                       : closed",
+          "== ledger: DELETE /session/:id -> 204 (real Harness)"
+        ]
+      }
+    ],
+    "note": "main leaves the Session archiving until a client retries; the PR's background worker finishes the close by itself once the Harness answers, and only after the Harness sealed the journal writer.",
+    "good": true
+  },
+  {
+    "file": "02-test-plan-real-stack.png",
+    "title": "The PR's reviewer test plan on the real stack",
+    "subtitle": "Every bullet of 'How to verify', driven over HTTP; identical results on MySQL 8.4.11 and MariaDB 10.11.18 (CI's image)",
+    "columns": [
+      {
+        "head": "Public API  /v1/agents/sessions",
+        "lines": [
+          "++ close, every Harness close failing -> 202 pending",
+          "++   Session closing, input 409 session_not_active, op running",
+          "++ closes succeed again -> completed, harness_confirmed, receipt",
+          "++ same key   -> same operation, replayed: true",
+          "++ new key    -> 409 session_state_conflict",
+          "++ archive active  -> 409 session_state_conflict",
+          "++ archive closed  -> 202 completed (java_durable)",
+          "++ unarchive       -> 200 status closed",
+          "++ delete -> completes; GET Session 404; close/archive/delete ops 200",
+          "++ delete new key -> 404; same key -> 202 replayed",
+          "++ close/delete with an active Turn -> 409 turn_active",
+          "++ delete of an active Session -> Harness closed first, writer SEALED",
+          "++ close of a never-run Session -> java_durable",
+          "++ op id of 65 chars -> 400; unknown op id -> 404 operation_not_found"
+        ]
+      },
+      {
+        "head": "WebShell adapter, bound Sessions, stream, contract",
+        "lines": [
+          "++ sessions/close|archive|delete + operations/query, replay",
+          "++ sessions/get after delete -> 404",
+          "++ Workspace-bound Session: close/archive/delete",
+          "++   -> 409 workspace_unavailable, session_lifecycle: false",
+          "++   actor without grant / no actor -> 404 session_not_found",
+          "## SSE subscriber on the Session",
+          "++ close.requested -> closed -> archived -> unarchive.*",
+          "++ -> delete.requested -> deleted; server ends the stream",
+          "## 20 live responses vs the PR's OpenAPI 3.1 schemas (Ajv)",
+          "++ 20/20 on MySQL, 20/20 on MariaDB",
+          "== negative control: 3 tampered bodies -> 0/3 pass"
+        ]
+      }
+    ],
+    "note": "All reviewer test-plan items hold outside the unit tests, through the packaged Hosted Harness and both databases CI uses.",
+    "good": true
+  },
+  {
+    "file": "03-upgrade-v16.png",
+    "title": "Upgrade main -> PR on a database main left mid-operation",
+    "subtitle": "main made the waiting commands through a real Harness outage; the Hosted Harness process stays up across the jar swap",
+    "columns": [
+      {
+        "head": "main jar (Flyway head 15)",
+        "lines": [
+          "archive, Harness healthy        -> 200 archived",
+          "archive, Harness close fails    -> 503, Session ARCHIVING",
+          "delete,  Harness close fails    -> 503, Session DELETING",
+          "== managed_agent_command: COMPLETED / PENDING / PENDING",
+          "== journal writers of both waiting Sessions: ACTIVE"
+        ]
+      },
+      {
+        "head": "PR jar on the same database",
+        "lines": [
+          "++ Flyway V16 applied; PENDING -> MIGRATED, COMPLETED kept",
+          "++ 2 operations op_<32 hex> (35 chars), actor ''",
+          "++ archive completed harness_confirmed, writer SEALED",
+          "++ delete  completed harness_confirmed, Session DELETED",
+          "++ retry of original key, no actor -> replayed, same op",
+          "!! retry of original key with actor -> 409 session_state_conflict",
+          "!! retry of main's completed archive -> 409 session_state_conflict",
+          "++ unarchive of migrated archive -> 200 closed",
+          "== MySQL 8.4.11 and MariaDB 10.11.18: identical"
+        ]
+      }
+    ],
+    "note": "Both amber rows are the documented migration notes (a migrated operation has no actor; completed commands are not converted); a client retrying across the upgrade gets 409 rather than a replay."
+  },
+  {
+    "file": "04-concurrency-lost-workers.png",
+    "title": "Concurrent requests and lost workers",
+    "subtitle": "30 Sessions per race on MySQL 8.4.11 (an earlier MariaDB 10.11.18 run gave the same outcome classes); lost workers on the real Hosted Harness",
+    "columns": [
+      {
+        "head": "Races on one Session (Promise.all)",
+        "lines": [
+          "## close vs input                      (30)",
+          "++ 30 x close 202 / input 409 session_not_active",
+          "## input first, close 0-15 ms later    (30)",
+          "++ 27 x input 202 / close 409 turn_active",
+          "++  3 x input 409 / close 202",
+          "## 3 closes, one key                   (30)",
+          "++ 30 x 202 + 202 replay + 202 replay, 1 operation",
+          "## close vs delete vs rename           (30)",
+          "++ exactly one admitted each time (12/10/8)",
+          "## one key from alice and bob          (10)",
+          "++ never a cross-actor replay",
+          "++ 0 x 500, 0 operations left open, 0 violations"
+        ]
+      },
+      {
+        "head": "Worker lost mid-delivery",
+        "lines": [
+          "## kill -9 while the Harness close is in flight",
+          "claim generation 1, lease ends in 58.3 s",
+          "++ restarted server completes 59.6 s after the kill",
+          "++ generation 2, harness_confirmed, writer SEALED",
+          "## worker paused (SIGSTOP) past a 5 s lease",
+          "++ server B claims (generation 2) and completes",
+          "== paused worker's held close reaches Harness: 204",
+          "++ resumed worker cannot complete it (fenced)",
+          "++ state COMPLETED, generation 2,",
+          "++ exactly 1 session.closed event"
+        ]
+      }
+    ],
+    "note": "Admission serialises on the Session row: no race admitted two lifecycle changes or leaked a 500, and a lost or paused worker never completed an operation it no longer owned.",
+    "good": true
+  },
+  {
+    "file": "05-multi-server.png",
+    "title": "Two servers on one database, each with its own Hosted Harness",
+    "subtitle": "Sessions run on server A (Harness HA); their closes are admitted on server B; MySQL 8.4.11, JVM on UTC",
+    "columns": [
+      {
+        "head": "Both servers healthy",
+        "lines": [
+          "## 8 closes admitted on B back to back",
+          "++ 8/8 harness_confirmed in 2.0-2.6 s",
+          "== B first (HB never held it: live writer -> retry), then A",
+          "## 8 closes admitted on B, 9 s apart",
+          "++ 8/8 harness_confirmed in 1.5-4.1 s",
+          "== attempts by BA (4x) or BBA (4x)",
+          "## A and HA killed (-9), close admitted on B",
+          "++ B completes 66.2 s later, java_durable",
+          "== waits for HA's writer lease (60 s, database time)"
+        ]
+      },
+      {
+        "head": "Retries already at the 60 s backoff",
+        "lines": [
+          "## A cannot reach HA for 180 s, then can (3 closes)",
+          "!! done 7.3 s / 27.4 s / 168.3 s after A reaches HA",
+          "== slowest: attempts BAAAAAAABBA - B won 2 rounds after",
+          "== the heal. Likely cause: retries carry no jitter, so the",
+          "== same server tends to scan first round after round",
+          "## A's Java dies, HA lives on (shared Store URL)",
+          "!! close via B not completed after 150 s (8 attempts)",
+          "!! A's Java back: next 150 s, 2 more attempts, both by B"
+        ]
+      }
+    ],
+    "note": "Within the PR's documented risk ('only the server whose Harness holds the Session can seal it ... several backoff intervals of up to a minute each'). Measured: seconds when healthy; minutes once retries sit at the 60 s cap, because the non-holding server can keep winning the claim."
+  },
+  {
+    "file": "06-stuck-close.png",
+    "title": "Documented limit: a short Store outage that overlaps one close attempt",
+    "subtitle": "Harness -> Store journal commits answer 503 for 5 s (renewals pass); JVM on UTC; MySQL 8.4.11 shown, MariaDB 10.11.18 alike",
+    "columns": [
+      {
+        "head": "Control: outage while the Session is idle",
+        "lines": [
+          "Store commits 503 for 5 s, nobody closes",
+          "close afterwards",
+          "++ completed, harness_confirmed"
+        ]
+      },
+      {
+        "head": "Outage overlaps the first close attempt",
+        "lines": [
+          "Store healthy again after 5 s",
+          "-- +15 s   op running  Harness DELETE: 503 x5",
+          "-- +60 s   op running  503 x6   writer ACTIVE (renewed every 30 s)",
+          "-- +121 s  op running  503 x7   Session closing, input refused",
+          "-- +182 s  op running  503 x8   0 journal commits since outage",
+          "## restart the Hosted Harness, then Java",
+          "!! completes 58-59 s later (old writer lease), java_durable"
+        ]
+      }
+    ],
+    "note": "The PR documents this (Risk & Scope: 'A Harness that stopped writing the Session's journal cannot close it'). Measured trigger is broader than a failed Turn commit: any Store blip that overlaps a close attempt. No operator signal exists yet (no recovery_blocked); the fix belongs in the Harness."
+  },
+  {
+    "file": "07-merge-order.png",
+    "title": "Merge order with the other open V16 PRs",
+    "subtitle": "git merge-tree against current heads; the #12839 trial tree built and tested with Maven",
+    "columns": [
+      {
+        "head": "#12881 + #12839 (W0e, 9e42875b)",
+        "lines": [
+          "++ git: merges cleanly, no conflict",
+          "-- tree has V16__managed_session_operation.sql",
+          "-- and      V16__runtime_loss_evidence.sql",
+          "-- Flyway: Found more than one migration with version 16",
+          "-- every Spring context fails; 6/6 tests error",
+          "!! sdk-java.yml has no merge_group trigger"
+        ]
+      },
+      {
+        "head": "#12881 + #12855 (H0c, ebbce5bf)",
+        "lines": [
+          "!! git conflicts in 9 files:",
+          "   ApiModels, PublicAgentController,",
+          "   WebShellAgentController, ManagedAgentService,",
+          "   openapi.json (both 1.18.0), contract test,",
+          "   ManagedAgentMySqlIT, and the two V16 files",
+          "== visible to whoever merges second"
+        ]
+      }
+    ],
+    "note": "Whichever of #12839 / #12855 lands after this PR must renumber to V17 (and #12855 to contract v1.19). For #12839 git gives no warning; only a Java run on the merged tree shows it."
+  },
+  {
+    "file": "08-mutants.png",
+    "title": "Are the two guards the bot asked about load-bearing?",
+    "subtitle": "Single-site mutants of a32bd797; real stack (two servers) and the PR's own suites (19 tests in the 4 lifecycle classes)",
+    "columns": [
+      {
+        "head": "Real stack, two servers (S4 a+b)",
+        "lines": [
+          "## PR jar",
+          "++ via B: harness_confirmed after HA seals the writer",
+          "++ A+HA dead: java_durable after 66 s",
+          "## M1: drop the hasLiveWriter gate in settle()",
+          "-- via B: java_durable in 0.3 s, HA writer still ACTIVE",
+          "-- A+HA dead: completes in 0.3 s under a live lease",
+          "## M2: any answer confirms",
+          "-- A+HA dead: harness_confirmed (HB answered)"
+        ]
+      },
+      {
+        "head": "PR suites (mvn -o, 4 classes)",
+        "lines": [
+          "++ unmutated                 19/19 pass",
+          "-- M1 no live-writer gate    2 errors",
+          "==    waitsUntilNoHarnessHoldsTheJournalWriter",
+          "==    completesOnceAnAbandonedWriterLeaseExpires",
+          "-- M3 no claimGeneration     1 failure",
+          "==    onlyTheNewestClaimCompletesOrRetries",
+          "-- M2 any answer confirms    4 failures",
+          "==    aReplacedHarnessDoesNotConfirmTheClose, +3"
+        ]
+      }
+    ],
+    "note": "Both guards named in the bot review turn the suites red when removed, and M1/M2 are also caught end to end. Across servers the lease-owner check already refuses a stale worker (paused-worker run); the generation check covers a same-owner re-claim, which the store test pins.",
+    "good": true
+  }
+]
