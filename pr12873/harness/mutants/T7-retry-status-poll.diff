@@ -1,0 +1,11 @@
+--- packages/cli/src/serve/hosted-workspace-broker.ts
++++ packages/cli/src/serve/hosted-workspace-broker.ts
+@@ -131,7 +131,7 @@
+         cancellationSent = true;
+         response = await this.request(`${path}:cancel`, {});
+       }
+-      response ??= await this.request(path);
++      try { response ??= await this.request(path); } catch (e) { if (!(e instanceof TypeError)) throw e; await delay(50); continue; }
+       if (response['executionCallId'] !== id)
+         throw new Error('Runtime execution identity changed.');
+       const status = object(response['status']);

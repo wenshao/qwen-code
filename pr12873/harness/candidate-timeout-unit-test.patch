@@ -1,0 +1,48 @@
+diff --git a/packages/cli/src/serve/hosted-workspace-broker.test.ts b/packages/cli/src/serve/hosted-workspace-broker.test.ts
+index bc46309ade..3b17fd9f2d 100644
+--- a/packages/cli/src/serve/hosted-workspace-broker.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-broker.test.ts
+@@ -153,6 +153,43 @@ it('retries a lost prepare reply with the original reservation', async () => {
+   });
+ });
+ 
++it('retries a timed-out prepare reply with the original reservation', async () => {
++  const requests: Array<Record<string, unknown>> = [];
++  const broker = await fixture((_path, body) => {
++    requests.push(body);
++    return {
++      body: {
++        ...identity,
++        executionCallId: 'reserved',
++        status: { state: 'prepared' },
++      },
++    };
++  });
++  const original = globalThis.fetch;
++  const spy = vi
++    .spyOn(globalThis, 'fetch')
++    .mockImplementationOnce(async (...args) => {
++      // The Broker applies the reservation; its reply outlives the client timeout.
++      await (await original(...args)).text();
++      throw new DOMException(
++        'The operation was aborted due to timeout',
++        'TimeoutError',
++      );
++    });
++  try {
++    await expect(broker.prepare('call', 'sha256:original')).resolves.toBe(
++      'reserved',
++    );
++  } finally {
++    spy.mockRestore();
++  }
++  expect(requests).toHaveLength(2);
++  expect(requests[1]).toEqual({
++    ...requests[0],
++    requestId: expect.any(String),
++  });
++});
++
+ it('stops after two lost prepare replies', async () => {
+   let requests = 0;
+   const broker = await fixture(() => {

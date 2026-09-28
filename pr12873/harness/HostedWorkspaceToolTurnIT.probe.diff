@@ -1,0 +1,16 @@
+55,56c55,57
+<             assertThat(cases).contains(selected);
+<             cases = List.of(selected);
+---
+>             // verification probe: allow probe-driver cases (comma separated)
+>             if (System.getProperty("qwen.fg6a.driver") == null) assertThat(cases).contains(selected);
+>             cases = List.of(selected.split(","));
+157c158
+<                         "integration-tests/helpers/hosted-" + (faults ? "broker-reply-loss" : "workspace-tool-turn")
+---
+>                         "integration-tests/helpers/" + (faults ? System.getProperty("qwen.fg6a.driver", "hosted-broker-reply-loss") : "hosted-workspace-tool-turn")
+187a189,192
+>         // verification probe aliases: recovered probes must match "prepare", blocked ones "prepare-twice"
+>         if (fault.startsWith("prepare-gateway")) fault = "prepare-twice";
+>         else if (fault.startsWith("prepare-") && !fault.equals("prepare-twice")) fault = "prepare";
+>         System.out.println("FG6A_LEDGER " + session.get("fault") + " as " + fault + " rows=" + jdbc.queryForList("SELECT execution_call_id, dispatch_generation, execution_state, execution_status FROM qwen_tool_execution WHERE harness_session_id = ?", session.get("sessionId")));

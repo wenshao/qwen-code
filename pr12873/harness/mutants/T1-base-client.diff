@@ -1,0 +1,31 @@
+--- packages/cli/src/serve/hosted-workspace-broker.ts
++++ packages/cli/src/serve/hosted-workspace-broker.ts
+@@ -68,7 +68,7 @@
+   }
+ 
+   async prepare(callId: string, digest: string): Promise<string> {
+-    const reservation = {
++    const response = await this.request('/executions:prepare', {
+       idempotencyKey: `${this.identity.runtimeSessionId}:${callId}`,
+       turnId: this.identity.runtimeSessionId,
+       toolCallId: callId,
+@@ -79,18 +79,7 @@
+         callId,
+         argsDigest: digest,
+       },
+-    };
+-    let response: Record<string, unknown>;
+-    try {
+-      response = await this.request('/executions:prepare', reservation);
+-    } catch (cause) {
+-      if (
+-        !(cause instanceof TypeError) &&
+-        !(cause instanceof DOMException && cause.name === 'TimeoutError')
+-      )
+-        throw cause;
+-      response = await this.request('/executions:prepare', reservation);
+-    }
++    });
+     const id = response['executionCallId'];
+     if (
+       typeof id !== 'string' ||
