@@ -1,0 +1,24 @@
+// Real model: Shell turn, detach + load, Shell turn.
+import fs from 'node:fs';
+import * as L from './lib.mjs';
+const DB = process.env.DB ?? 'p848d', HTTP = 18848, ST = process.env.ST ?? 'v', ARM = process.env.ARM ?? 'r4';
+L.openLog(`s16-real-reload-${ARM}`);
+const h = await new L.Harness({ name: `real-reload-${ARM}`, brokerUrl: 'http://127.0.0.1:19848', realModel: process.env.REAL_MODEL ?? 'qwen3.8-max' }).start();
+const ws = `ws-${ST}`;
+if (L.sql(DB, `SELECT COUNT(*) FROM managed_workspace_registry WHERE workspace_id='${ws}'`)[0][0] === '0') L.seedRegistry(DB, ws, `st-${ST}`);
+const dir = `${L.RIG}/${process.env.ROOTS ?? 'roots4'}/${ST}/child`;
+fs.mkdirSync(dir, { recursive: true });
+const s = new L.HSession(h, await L.createWorkspaceSession(HTTP, ws), L.storeConnection(h, ws, HTTP));
+await s.create({ toolProfile: 'hosted-workspace-shell/1' });
+const r1 = await s.prompt('Use the shell tool to run: echo first >> notes.txt && cat notes.txt');
+L.say('turn 1', `${L.summarizeTurn(r1)} text=${JSON.stringify(L.assistantText(r1.events ?? []).slice(0, 80))}`);
+await s.detach();
+L.say('reload', `load -> ${(await s.load({ toolProfile: 'hosted-workspace-shell/1' })).status}`);
+const r2 = await s.prompt('Use the shell tool again to run: echo second >> notes.txt && cat notes.txt');
+L.say('turn 2', `${L.summarizeTurn(r2)} text=${JSON.stringify(L.assistantText(r2.events ?? []).slice(0, 80))}`);
+const r3 = await s.submit('Are you still there?');
+L.say('turn 3', `submit -> ${r3.status} ${JSON.stringify(r3.json).slice(0, 100)}`);
+L.say('fs', `notes.txt=${JSON.stringify(fs.readFileSync(`${dir}/notes.txt`, 'utf8'))}`);
+L.say('harness', h.log().split('\n').filter((l) => /blocked/.test(l)).map((l) => l.slice(0, 200)));
+await h.stop();
+process.exit(0);

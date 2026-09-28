@@ -1,0 +1,21 @@
+#12848 round 4 at a4c35e89: F4 fixed on the real stack
+242287c7 (F4 fix + prior-activation guard) -> 71ae9a4a (merge main 0a136f89) -> a4c35e89 (tests); no Java or dependency change
+
+## The same F4 matrix as round 3, now at a4c35e89 (MySQL 8.4.7)
+   scenario, one Hosted Session                   d00068fd (r3)   a4c35e89
+   Shell, detach+load, Shell                      BLOCKED         ok  (trace: shell-1, shell-2)
+   text turn, detach+load, Shell                  BLOCKED         ok
+   Shell, Harness restart + load, Shell           BLOCKED         ok
+   Shell, Harness SIGKILL (no detach), load, Shell x2   -         ok  (load 200 once the old lease expired, 60.4 s)
+   real qwen3.8-max: Shell, detach+load, Shell    BLOCKED         ok in 2/2 (+ a follow-up prompt 202)
+   Shell x6 with a reload after turn 3            BLOCKED at 4    6/6 complete, 6 distinct Runtime Sessions, ONE worker
+   Shell x3 | file, reload, file | reload first   ok              ok
+## Regression coverage
+++ author's extended driver (adds text->reload->Shell, Shell->reload->Shell) on MySQL: passes (41.8 s)
+++ the SAME new driver against the d00068fd bundle: fails in 5.2 s with recovery_blocked / execution_unknown
+++ durability: mysqld restart + fresh Spring + reader -> HOSTED_SHELL_RETAINED_OUTPUT_OK
+## Mutation of the fix (core tests, baseline 47/47): 3/4 killed
+++ rebind reverted -> 2 tests fail      guard removed -> 1 fails      guard without before_model -> 2 fail
+!! alive: guard without the turn_settled exemption - also passes my reload probes and the full driver,
+!!        so that exemption is not reached by any Hosted flow here (defensive, equivalent in practice)
+== CI on a4c35e89: Qwen Code CI, SDK Java, Serve A/B, tui-parity all green
