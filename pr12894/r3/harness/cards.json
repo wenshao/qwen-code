@@ -1,0 +1,57 @@
+[
+ {
+  "name": "r3-01-status",
+  "title": "Round 3 @ 678420df: the round-2 open items are fixed on the real stack; four gaps remain",
+  "subtitle": "PR head as-is, fresh MySQL 8.4.7 schema (V16-V20), same Broker/worker/Harness processes, aliyun-sdk-oss -> OSS double, fault proxy on both HTTP channels",
+  "lines": [
+   "## Fixed and re-measured                                                     before                       unit-test pin",
+   "++ one lost segment request / one 503 on ingress   -> complete               blocked                      yes (M10 killed)",
+   "++ every segment POST 503 for 90 s                  -> complete in 91 s       blocked on the first 503",
+   "++ OSS PUT 403 (non-retryable)                      -> fails in 1.6 s         122 s stall, Shell paused",
+   "++ lost /admissions/prepare reply (once)            -> complete               409 recovery_required        yes (M16 killed)",
+   "++ lost /receipts/commit reply (once)               -> complete               detach 503 / load 409        NO (M18 survives)",
+   "++ control chars in output                          -> ACK 200                ACK 409                      yes (M12 killed)",
+   "++ control chars + crash after receipt              -> recovery ACK 200       recovery ACK 409",
+   "++ range length 2^32+1, \"16\", 10.9, \"5\", -1          -> all 400                200 + truncated             yes (M13 killed)",
+   "++ two owners lost between reserve and dispatch     -> both FENCED, held 0;   capacity exhausted          yes (M11 killed)",
+   "++                                                     new Session succeeds; a 96 s renewing command is not fenced",
+   "++ Hosted preview                                   -> head + tail, error line visible, no worker path  yes (M14, M15 killed)",
+   "",
+   "## Regression (all pass)",
+   "== echo 3/3 | 100 MiB + 5 MiB exit 7 exact | 1 GiB 2/2 exact | 4 sessions x 256 MiB concurrent 4/4 | crash after receipt: 1 continuation",
+   "",
+   "## Still open",
+   "-- crash after /admissions/prepare (reply withheld, Harness SIGKILL): new Harness load -> 409 hosted_turn_recovery_required for 150 s",
+   "--   same after 3 lost prepare replies: FINISHED publication + admission slot, no receipt, no recovery path",
+   "-- outputs > 1 MiB: the final stderr line is evicted from the 32 KiB preview tail (30,000 lines: missing 2/2)",
+   "-- real qwen3.8-max: 2/4 turn_error from read_file(<absolute Workspace path copied from pwd>)",
+   "-- B2 / B4 still have no MySQL regression test (reverts survive the H2 suites)",
+   "",
+   "== unit-test pins for this round's fixes: 8 of 10 mutants killed; survivors: M17 deterministic history id, M18 receipt-commit retry"
+  ],
+  "note": "The author’s file-tool driver passed 3 of 6 runs on this head. All 3 failures timed out at its first TEXT_ONLY step while host load was about 25-50. With the same jar and load down to 17-20, the 6b2bc23c Harness passed 3/3 and this head passed 2/2. I attribute the failures to load, not to the PR, but a 30 s budget for a text-only turn is tight.",
+  "noteColor": "#3fb950"
+ },
+ {
+  "name": "r3-02-stderr-tail",
+  "title": "Remaining preview gap: the final stderr line of a >1 MiB output is not shown to the model",
+  "subtitle": "sh buildlog.sh N: N lines on stdout, then 'ERROR: build failed at step 7 ...' on stderr, exit 3; model input captured from the fake model",
+  "lines": [
+   "   output                                          model input   error line   exit code   worker path",
+   "++ 1,500 lines  (~49 KB)                              4,075 B     visible      3           none",
+   "++ 3,000 lines  (~107 KB)                             4,075 B     visible      3           none",
+   "++ 10,000 lines (~370 KB)                             4,075 B     visible      3           none",
+   "++ CJK 4,000 lines (~180 KB UTF-8)                    8,129 B     visible      2           none   (0 x U+FFFD)",
+   "-- 30,000 lines (~1.1 MB), run 1                      4,075 B     MISSING      3           none",
+   "-- 30,000 lines (~1.1 MB), run 2                      4,075 B     MISSING      3           none",
+   "++ 30,000 lines + sleep 2 before the stderr line      4,075 B     visible      3           none",
+   "++ 30,000 lines with 2>&1                             4,075 B     visible      3           none",
+   "",
+   "== the tail ring holds the last 32 KiB in READ order. Past 1 MiB the capture pauses stdout while a segment publishes;",
+   "== the unpaused stderr line is read first and the buffered stdout that follows pushes it out of the ring.",
+   "== the bytes are durable (stderr segment in OSS), but the model sees 'Exit Code: 3' without the reason."
+  ],
+  "note": "A per-stream tail (for example the last few KiB of stderr kept separately and appended after the stdout tail) would keep the failure reason visible regardless of read interleaving.",
+  "noteColor": "#d29922"
+ }
+]
