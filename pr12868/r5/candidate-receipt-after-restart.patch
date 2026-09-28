@@ -1,0 +1,60 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index f14a5cbc40..1918643786 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -420,7 +420,10 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                 // evidence; anywhere else the terminal receipt stands alone,
+                 // the same rule that lets Broker HTTP read terminal receipts
+                 // without a READY Session.
+-                if (owner == null || owner.getState() != RuntimeSessionRecord.State.READY) {
++                // After this process was replaced the stored state is still
++                // READY, but nothing here can reach the worker for it.
++                if (owner == null || owner.getState() != RuntimeSessionRecord.State.READY
++                        || !sessions.containsKey(runtimeSessionId)) {
+                     return CompletableFuture.completedFuture(stored);
+                 }
+             }
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+index 5a40e80ce7..5c67a406dc 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+@@ -322,6 +322,39 @@ class RuntimeBrokerServiceTest {
+         }
+     }
+ 
++    @Test
++    void terminalProviderCancellationAnswersFromTheReceiptAfterTheBrokerWasReplaced() {
++        var bindings = new InMemoryRuntimeBindingRepository();
++        var sessions = new InMemoryRuntimeSessionRepository();
++        var executions = new InMemoryToolExecutionRepository();
++        var recovery = new RuntimeRecoveryContract.Fixture(bindings, sessions, executions,
++                "provider-terminal-cancel-restart", PROVIDER_SESSION);
++        String harness = recovery.session.getSession().getHarnessSessionId();
++        Map<String, Object> reference = providerReference();
++        var prepared = bindings.admitExecution(sessions, executions,
++                ToolExecutionRecord.prepared("provider-call", "provider-key", recovery.binding.getBindingId(),
++                        recovery.binding.getGeneration(), harness, PROVIDER_SESSION,
++                        (String) reference.get("promptId"), (String) reference.get("callId"),
++                        (String) reference.get("argsDigest"), reference));
++        ToolExecutionRecord settled = executions.requestCancel(
++                prepared.getExecutionCallId(), prepared.getVersion());
++        // The stored Session is still READY: a replaced Broker process does
++        // not rewrite it, and holds no live Session to ask the worker with.
++        assertEquals(RuntimeSessionRecord.State.READY,
++                sessions.findById(recovery.binding.getRequest().getScope(), PROVIDER_SESSION).getState());
++        var transport = new FakeTransport();
++        try (var service = new RuntimeBrokerService(
++                ignored -> { throw new AssertionError("Saved ownership must not resolve current scope"); },
++                new StaticRuntimeProvisioner(recovery.binding.getLease()), transport, bindings, sessions, executions,
++                "restarted", Duration.ofSeconds(10), Duration.ofSeconds(10))) {
++            assertSame(settled, join(service.cancelExecution(
++                    harness, PROVIDER_SESSION, settled.getExecutionCallId())));
++            assertSame(settled, join(service.getExecution(
++                    harness, PROVIDER_SESSION, settled.getExecutionCallId())));
++            assertEquals(0, transport.cancelCalls.get());
++        }
++    }
++
+     @Test
+     void rejectsForeignOrPayloadBearingProviderReservationsAndControls() {
+         try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {

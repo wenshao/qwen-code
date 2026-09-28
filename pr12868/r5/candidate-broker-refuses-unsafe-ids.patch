@@ -1,0 +1,75 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
+index f097454ec1..fcfbc04304 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/BrokerValues.java
+@@ -32,6 +32,23 @@ final class BrokerValues {
+         return value;
+     }
+ 
++    /**
++     * Text the worker admits on its provider envelope: printable and safe to
++     * use as a file name. The Broker releases every Runtime Session through
++     * that envelope, so an id the worker refuses must not be acquired either.
++     */
++    static String requirePathSafe(String value, String name) {
++        if (value.equals(".") || value.contains("..")
++                || value.indexOf('/') >= 0 || value.indexOf('\\') >= 0
++                || value.chars().anyMatch(unit -> unit <= 0x1f
++                        || unit >= 0x7f && unit <= 0x9f
++                        || Character.isSurrogate((char) unit))) {
++            throw new IllegalArgumentException(name
++                    + " must be printable and path-safe");
++        }
++        return value;
++    }
++
+     /**
+      * Text without an unpaired surrogate: the JSON writer turns one into
+      * '?', so two identifiers could reach the Runtime as one.
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index f14a5cbc40..1800705cfb 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -153,11 +153,12 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             String harnessSessionId, String runtimeSessionId,
+             String turnKind) {
+         requireOpen();
+-        String harnessId = BrokerValues.requireId(harnessSessionId,
++        String harnessId = BrokerValues.requirePathSafe(
++                BrokerValues.requireId(harnessSessionId, "harnessSessionId"),
+                 "harnessSessionId");
+-        String runtimeId = BrokerValues.requireWellFormed(
++        String runtimeId = BrokerValues.requirePathSafe(BrokerValues.requireWellFormed(
+                 BrokerValues.requireId(runtimeSessionId, "runtimeSessionId"),
+-                "runtimeSessionId");
++                "runtimeSessionId"), "runtimeSessionId");
+         return resolveScope(harnessId).thenCompose(scope -> {
+             RuntimeSession session = new RuntimeSession(harnessId,
+                     runtimeId, turnKind, scope);
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+index 5a40e80ce7..1bb939b205 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+@@ -322,6 +322,22 @@ class RuntimeBrokerServiceTest {
+         }
+     }
+ 
++    @Test
++    void acquireRefusesSessionIdsTheWorkerWouldRefuseToRelease() {
++        try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
++            for (String id : List.of("a/b", "a\\b", "a..b", ".", "a\u0001b", "a\uD83D\uDE00b")) {
++                assertThrows(IllegalArgumentException.class,
++                        () -> fixture.service.acquire("harness", id, "bootstrap"), id);
++                assertThrows(IllegalArgumentException.class,
++                        () -> fixture.service.acquire(id, PROVIDER_SESSION, "bootstrap"), id);
++            }
++            assertEquals(0, fixture.transport.acquireCalls.get());
++            // Opaque ids stay admitted: only what is unsafe as a file name is refused.
++            join(fixture.service.acquire("harness-1", "Runtime Session 1", "bootstrap"));
++            assertTrue(join(fixture.service.release("harness-1", "Runtime Session 1")));
++        }
++    }
++
+     @Test
+     void rejectsForeignOrPayloadBearingProviderReservationsAndControls() {
+         try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {

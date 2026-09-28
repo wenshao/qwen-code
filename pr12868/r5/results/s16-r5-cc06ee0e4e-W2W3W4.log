@@ -1,0 +1,53 @@
+[GROUP] W2 v1 arm=cc06ee0e4e
+[W2-v1] 700,000 characters of output: start refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409.  | status (sent by the rig) 400 managed_runtime_provider_invalid "Managed Tool JSON exceeds size limit." | cancel (sent by the rig) 400 managed_runtime_provider_invalid "Managed Tool JSON exceeds size limit."
+[W2-v1] 3 MiB of progress (sent by the rig): while running: status 200 state=executing lastSeq=22 firstAvailableSeq=1 progressGap=false events=22 93 KiB | command refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker | once settled: status 400 managed_runtime_provider_invalid "Managed Tool JSON exceeds size limit."
+[W2-v1] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Sess | records=["UNKNOWN/-","UNKNOWN/-"]
+[FAIL] W2-v1.1 status and cancel of a settled large result answer within the 1 MiB budget :: 400 | 400
+[FAIL] W2-v1.2 heavy progress is evicted oldest first and announced through firstAvailableSeq and progressGap
+[FAIL] W2-v1.3 release succeeds :: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[GROUP] W2 v2 arm=cc06ee0e4e
+[W2-v2] 700,000 characters of output: start refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409.  | status (sent by the rig) 400 managed_runtime_provider_invalid "Managed Tool JSON exceeds size limit." | cancel (sent by the rig) 400 managed_runtime_provider_invalid "Managed Tool JSON exceeds size limit."
+[W2-v2] 3 MiB of progress (sent by the rig): while running: status 200 state=executing lastSeq=21 firstAvailableSeq=1 progressGap=false events=21 89 KiB | command refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker | once settled: status 400 managed_runtime_provider_invalid "Managed Tool JSON exceeds size limit."
+[W2-v2] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Sess | records=["UNKNOWN/-","UNKNOWN/-"]
+[FAIL] W2-v2.1 status and cancel of a settled large result answer within the 1 MiB budget :: 400 | 400
+[FAIL] W2-v2.2 heavy progress is evicted oldest first and announced through firstAvailableSeq and progressGap
+[FAIL] W2-v2.3 release succeeds :: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[GROUP] W3 v1 arm=cc06ee0e4e
+[W3-v1] lowercase UUID v4  provider Broker Session READY | acquired | work: success | release 200 | Session now RELEASED
+[W3-v1] lowercase UUID v4  raw      Broker Session READY | acquired | work: worker 200, record SETTLED/success | release 200 | Session now RELEASED
+[W3-v1] uppercase UUID v4  provider Broker Session READY | refused status=- code=managed_tool_invalid_request ManagedToolProtocolError: Managed Tool invocation data is invalid. | release 200 | Session now RELEASED
+[W3-v1] uppercase UUID v4  raw      Broker Session READY | acquired | work: worker 200, record SETTLED/success | release 200 | Session now RELEASED
+[W3-v1] UUID version 7     provider Broker Session READY | refused status=- code=managed_tool_invalid_request ManagedToolProtocolError: Managed Tool invocation data is invalid. | release 200 | Session now RELEASED
+[W3-v1] UUID version 7     raw      Broker Session READY | acquired | work: worker 200, record SETTLED/success | release 200 | Session now RELEASED
+[W3-v1] not a UUID         provider Broker Session READY | refused status=- code=managed_tool_invalid_request ManagedToolProtocolError: Managed Tool invocation data is invalid. | release 200 | Session now RELEASED
+[W3-v1] not a UUID         raw      Broker Session READY | acquired | work: worker 200, record SETTLED/success | release 200 | Session now RELEASED
+[W3-v1] OBSERVED: Sessions left unreleased: []
+[PASS] W3-v1.1 a lowercase UUID works on both routes and releases
+[PASS] W3-v1.2 no other id leaves a Session behind that cannot be released :: []
+[GROUP] W3 v2 arm=cc06ee0e4e
+[W3-v2] lowercase UUID v4  provider Broker Session READY | acquired | work: success | release 200 | Session now RELEASED | storage held=false
+[W3-v2] lowercase UUID v4  raw      Broker Session READY | acquired | work: worker 200, record SETTLED/success | release 200 | Session now RELEASED | storage held=false
+[W3-v2] uppercase UUID v4  provider Broker Session READY | refused status=- code=managed_tool_invalid_request ManagedToolProtocolError: Managed Tool invocation data is invalid. | release 200 | Session now RELEASED | storage held=false
+[W3-v2] uppercase UUID v4  raw      Broker Session READY | acquired | work: worker 200, record SETTLED/success | release 200 | Session now RELEASED | storage held=false
+[W3-v2] UUID version 7     provider Broker Session READY | refused status=- code=managed_tool_invalid_request ManagedToolProtocolError: Managed Tool invocation data is invalid. | release 200 | Session now RELEASED | storage held=false
+[W3-v2] UUID version 7     raw      Broker Session READY | acquired | work: worker 200, record SETTLED/success | release 200 | Session now RELEASED | storage held=false
+[W3-v2] not a UUID         provider Broker Session READY | refused status=- code=managed_tool_invalid_request ManagedToolProtocolError: Managed Tool invocation data is invalid. | release 200 | Session now RELEASED | storage held=false
+[W3-v2] not a UUID         raw      Broker Session READY | acquired | work: worker 200, record SETTLED/success | release 200 | Session now RELEASED | storage held=false
+[W3-v2] OBSERVED: Sessions left unreleased: []
+[PASS] W3-v2.1 a lowercase UUID works on both routes and releases
+[PASS] W3-v2.2 no other id leaves a Session behind that cannot be released :: []
+[GROUP] W4 v1 arm=cc06ee0e4e
+[W4-v1] cancel #1 200 cancelled | release with its acknowledgement lost: refused status=503 code=managed_runtime_unavailable Managed Runtime request failed. | Session RELEASING | storage held=false
+[W4-v1] cancel #2 while RELEASING: 409 runtime_session_not_ready "Runtime Session is not ready" | worker saw [] | GET 200
+[W4-v1] second release ok | Session RELEASED | cancel #3 200 | file written=false
+[PASS] W4-v1.1 a Session whose release acknowledgement was lost is RELEASING :: RELEASING
+[FAIL] W4-v1.2 the repeated cancellation is answered from the stored receipt, with no worker request :: 409 runtime_session_not_ready worker saw []
+[PASS] W4-v1.3 the second release completes and nothing executed
+[GROUP] W4 v2 arm=cc06ee0e4e
+[W4-v2] cancel #1 200 cancelled | release with its acknowledgement lost: refused status=503 code=managed_runtime_unavailable Managed Runtime request failed. | Session RELEASING | storage held=false
+[W4-v2] cancel #2 while RELEASING: 409 runtime_session_not_ready "Runtime Session is not ready" | worker saw [] | GET 200
+[W4-v2] second release ok | Session RELEASED | cancel #3 200 | file written=false
+[PASS] W4-v2.1 a Session whose release acknowledgement was lost is RELEASING :: RELEASING
+[FAIL] W4-v2.2 the repeated cancellation is answered from the stored receipt, with no worker request :: 409 runtime_session_not_ready worker saw []
+[PASS] W4-v2.3 the second release completes and nothing executed
+[SUMMARY] 8/16 checks passed — failed: W2-v1.1, W2-v1.2, W2-v1.3, W2-v2.1, W2-v2.2, W2-v2.3, W4-v1.2, W4-v2.2

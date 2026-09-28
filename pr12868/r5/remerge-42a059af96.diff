@@ -1,0 +1,176 @@
+diff --git a/packages/cli/src/serve/managed-context-worker.ts b/packages/cli/src/serve/managed-context-worker.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/managed-context-worker.ts
+index 47b723deb7..730cc3ba5d 100644
+--- a/packages/cli/src/serve/managed-context-worker.ts
++++ b/packages/cli/src/serve/managed-context-worker.ts
+@@ -201,8 +201,7 @@ export function registerManagedContextRoutes(
+       ),
+       isActive,
+     };
+-<<<<<<< 17a8360a9f (fix(serve): admit path-safe opaque Session ids on the provider envelope)
+-  }, capturePublisher);
++  }, capturePublisher ?? remotePublishers);
+   registerManagedRuntimeProviderRoute(
+     app,
+     boot,
+@@ -233,9 +232,6 @@ export function registerManagedContextRoutes(
+           };
+     },
+   );
+-=======
+-  }, capturePublisher ?? remotePublishers);
+->>>>>>> cd0b35c153 (test(managed-agent): add FG6e hosted SSE gap gates (#12942))
+   activations.register(app, boot, installations, executor);
+   registerManagedRuntimeToolRoutes(app, boot, executor);
+   if (capturePublisher || remotePublishers) {
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServer.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServer.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServer.java
+index 0f85ba933e..117f2db46b 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServer.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServer.java
+@@ -12,11 +12,8 @@ import java.security.MessageDigest;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+ import java.util.Map;
+-<<<<<<< 17a8360a9f (fix(serve): admit path-safe opaque Session ids on the provider envelope)
+ import java.util.Set;
+-=======
+ import java.util.concurrent.CompletableFuture;
+->>>>>>> cd0b35c153 (test(managed-agent): add FG6e hosted SSE gap gates (#12942))
+ import java.util.concurrent.CompletionException;
+ import java.util.concurrent.CompletionStage;
+ import java.util.concurrent.ExecutorService;
+@@ -273,17 +270,12 @@ public final class RuntimeBrokerHttpServer implements AutoCloseable {
+             if (body.containsKey("payloadJson") && !(body.get("payloadJson") instanceof String)) {
+                 throw new RuntimeBrokerException(400, "runtime_payload_invalid", "payloadJson must be a string", false);
+             }
+-<<<<<<< 17a8360a9f (fix(serve): admit path-safe opaque Session ids on the provider envelope)
+-            complete(exchange, body.containsKey("payloadJson")
++            complete(exchange, (body.containsKey("payloadJson")
+                             ? service.startExecution(harnessSessionId, runtimeSessionId, executionCallId,
+                                     (String) body.get("payloadJson"))
+-                            : service.startExecution(harnessSessionId, runtimeSessionId, executionCallId),
+-                    record -> executionEnvelope(harnessSessionId, runtimeSessionId, record));
+-=======
+-            complete(exchange, service.startExecution(harnessSessionId, runtimeSessionId, executionCallId, payload)
++                            : service.startExecution(harnessSessionId, runtimeSessionId, executionCallId))
+                     .thenCompose(record -> observe(harnessSessionId, runtimeSessionId, record)),
+                     observation -> observedExecutionEnvelope(harnessSessionId, runtimeSessionId, observation));
+->>>>>>> cd0b35c153 (test(managed-agent): add FG6e hosted SSE gap gates (#12942))
+             return;
+         }
+         if ("POST".equals(exchange.getRequestMethod())
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index ff3808849a..f14a5cbc40 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -224,14 +224,19 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             String idempotencyKey, Map<String, Object> reference) {
+         requireOpen();
+         String key = BrokerValues.requireId(idempotencyKey, "idempotencyKey");
+-<<<<<<< 17a8360a9f (fix(serve): admit path-safe opaque Session ids on the provider envelope)
+         Map<String, Object> immutable = immutableMap(reference, "reference");
+         if (ProviderRuntimeProtocol.isReference(immutable)) {
+             ProviderRuntimeProtocol.reference(immutable, runtimeSessionId);
+         } else {
+-            if (!immutable.keySet().equals(Set.of("sessionId", "promptId", "callId", "argsDigest"))
++            boolean v3 = Integer.valueOf(3).equals(immutable.get("runtimeProtocol"));
++            Set<String> fields = v3
++                    ? Set.of("sessionId", "promptId", "callId", "argsDigest", "runtimeProtocol", "inputDigest")
++                    : Set.of("sessionId", "promptId", "callId", "argsDigest");
++            if (!immutable.keySet().equals(fields)
+                     || !(immutable.get("argsDigest") instanceof String digest)
+-                    || !digest.matches("sha256:[0-9a-f]{64}")) {
++                    || !digest.matches("sha256:[0-9a-f]{64}")
++                    || v3 && (!(immutable.get("inputDigest") instanceof String inputDigest)
++                        || !inputDigest.matches("[0-9a-f]{64}"))) {
+                 throw invalid("runtime_reference_invalid", "Deferred execution reference is invalid");
+             }
+             Map<String, Object> deferred = new LinkedHashMap<>(immutable);
+@@ -244,18 +249,6 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                 return CompletableFuture.failedFuture(invalid("runtime_reference_invalid",
+                         "Deferred execution reference is invalid"));
+             }
+-=======
+-        boolean v3 = reference != null && Integer.valueOf(3).equals(reference.get("runtimeProtocol"));
+-        Set<String> fields = v3
+-                ? Set.of("sessionId", "promptId", "callId", "argsDigest", "runtimeProtocol", "inputDigest")
+-                : Set.of("sessionId", "promptId", "callId", "argsDigest");
+-        if (reference == null || !reference.keySet().equals(fields)
+-                || !(reference.get("argsDigest") instanceof String digest)
+-                || !digest.matches("sha256:[0-9a-f]{64}")
+-                || v3 && (!(reference.get("inputDigest") instanceof String inputDigest)
+-                    || !inputDigest.matches("[0-9a-f]{64}"))) {
+-            throw invalid("runtime_reference_invalid", "Deferred execution reference is invalid");
+->>>>>>> cd0b35c153 (test(managed-agent): add FG6e hosted SSE gap gates (#12942))
+         }
+         return createExecutionReceipt(harnessSessionId, runtimeSessionId, key, immutable, false);
+     }
+@@ -289,44 +282,17 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                 Map<String, Object> payload = JsonCodec.parseObject(bytes, "tool payload");
+                 if (!payload.keySet().equals(Set.of("toolName", "input"))
+                         || !(payload.get("toolName") instanceof String toolName) || toolName.isEmpty()
+-                        || !(payload.get("input") instanceof Map)) {
++                        || !(payload.get("input") instanceof Map)
++                        || Integer.valueOf(3).equals(record.getReference().get("runtimeProtocol"))
++                            && !"run_shell_command".equals(toolName)) {
+                     throw invalid("runtime_payload_invalid", "Tool payload is invalid");
+                 }
+                 if (shouldDriveDispatch(record)) {
+                     beginDispatch(context, record, payload);
+                 }
+-                return requireExecution(context, executionId);
++                ToolExecutionRecord latest = executionRepository.findByExecutionCallId(executionId);
++                return latest == null ? record : latest;
+             }
+-<<<<<<< 17a8360a9f (fix(serve): admit path-safe opaque Session ids on the provider envelope)
+-=======
+-            byte[] bytes = BrokerValues.requireWellFormed(payloadJson, "payloadJson")
+-                    .getBytes(StandardCharsets.UTF_8);
+-            if (bytes.length > 256 * 1024) {
+-                throw invalid("runtime_payload_invalid", "Tool payload exceeds 256 KiB");
+-            }
+-            String digest;
+-            try {
+-                digest = "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+-            } catch (NoSuchAlgorithmException exception) {
+-                throw new IllegalStateException(exception);
+-            }
+-            if (!digest.equals(record.getRequestDigest())) {
+-                throw conflict("runtime_idempotency_conflict", "Tool payload differs from its reserved digest");
+-            }
+-            Map<String, Object> payload = JsonCodec.parseObject(bytes, "tool payload");
+-            if (!payload.keySet().equals(Set.of("toolName", "input"))
+-                    || !(payload.get("toolName") instanceof String toolName) || toolName.isEmpty()
+-                    || !(payload.get("input") instanceof Map)
+-                    || Integer.valueOf(3).equals(record.getReference().get("runtimeProtocol"))
+-                        && !"run_shell_command".equals(toolName)) {
+-                throw invalid("runtime_payload_invalid", "Tool payload is invalid");
+-            }
+-            if (shouldDriveDispatch(record)) {
+-                beginDispatch(context, record, payload);
+-            }
+-            ToolExecutionRecord latest = executionRepository.findByExecutionCallId(executionId);
+-            return latest == null ? record : latest;
+->>>>>>> cd0b35c153 (test(managed-agent): add FG6e hosted SSE gap gates (#12942))
+         });
+     }
+ 
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServerTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServerTest.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServerTest.java
+index cac097b93e..608fcf1fe5 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServerTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServerTest.java
+@@ -474,11 +474,8 @@ class RuntimeBrokerHttpServerTest {
+ 
+     private static final class FailingTransport implements RuntimeTransport {
+         private final AtomicInteger executions = new AtomicInteger();
+-<<<<<<< 17a8360a9f (fix(serve): admit path-safe opaque Session ids on the provider envelope)
+         private final AtomicInteger controls = new AtomicInteger();
+-=======
+         private final AtomicInteger cancellations = new AtomicInteger();
+->>>>>>> cd0b35c153 (test(managed-agent): add FG6e hosted SSE gap gates (#12942))
+         private boolean fail = true;
+         private Map<String, Object> lastReference;
+         private Map<String, Object> runtimeStatus = Map.of("state", "unknown");
