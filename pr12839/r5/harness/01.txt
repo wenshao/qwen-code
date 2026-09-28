@@ -1,0 +1,16 @@
+Round 5: the F4 regression gate closes the last gap
+Head 2d95f1aed8 = 752bff49 + one test file (LostResponseFaultGateTest +30); production code byte-identical to round 4
+
+++ runtime-broker 382 run, 0 fail (2 conditional skips); fault gates 29/29 (was 28)
+++ new gate aTransientConfirmFailureKeepsAnOwnedWorkerReady: 5/5 consecutive passes on the head
+++ CI on this head: all Java, MariaDB and MySQL jobs pass
+
+## Mutation re-check on this head (same mutate.sh, full fault-gate suite)
+   round 4  M11 local canRetryFailedConfirm() = false   SURVIVED unit + 28 gates
+++ round 5  M11 local canRetryFailedConfirm() = false   KILLED by the new gate:
+++          LostResponseFaultGateTest.java:205  expected: <READY> but was: <LOST>
+++ round 5  M10 local canRetryFailedConfirm() = true    KILLED (ContextInstallationFaultGateTest), unchanged
+
+## Merge state
+++ main f9e09001 has no new sdk-java changes; migrations V14 + V15 (main) + V16 (this PR); merge-tree clean
+!! #12881 and #12855 still also add V16 (both open); whichever lands later must renumber (author agreed)
