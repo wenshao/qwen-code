@@ -1,0 +1,524 @@
+diff --git a/packages/cli/src/serve/hosted-harness-model.ts b/packages/cli/src/serve/hosted-harness-model.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/hosted-harness-model.ts
+index defd5c3172..ec5418314f 100644
+--- a/packages/cli/src/serve/hosted-harness-model.ts
++++ b/packages/cli/src/serve/hosted-harness-model.ts
+@@ -114,17 +114,11 @@ export async function runHostedHarnessTextTurn(input: {
+     for (let round = 0; round < 16; round++) {
+       input.signal.throwIfAborted();
+       if (input.toolTurn)
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+         client.getChat().setTools([
+           {
+             functionDeclarations: await input.toolTurn.declarations(),
+           },
+         ]);
+-=======
+-        client
+-          .getChat()
+-          .setTools([{ functionDeclarations: input.toolTurn.declarations }]);
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+       let calls: ToolCallRequestInfo[] = [];
+       let text = '';
+       let finished = false;
+diff --git a/packages/cli/src/serve/hosted-harness-session.test.ts b/packages/cli/src/serve/hosted-harness-session.test.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/hosted-harness-session.test.ts
+index 94008040b1..c06a5421bb 100644
+--- a/packages/cli/src/serve/hosted-harness-session.test.ts
++++ b/packages/cli/src/serve/hosted-harness-session.test.ts
+@@ -203,7 +203,6 @@ describe('Hosted Harness no-tool session', () => {
+     await rm(state.root, { recursive: true, force: true });
+   });
+ 
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+   it.each([false, true])(
+     'unblocks MCP resource requests after the original unknown operation settles (Broker restarted: %s)',
+     async (restartBroker) => {
+@@ -400,7 +399,6 @@ describe('Hosted Harness no-tool session', () => {
+     ).toBe(204);
+   });
+ 
+-=======
+   it('requires the saved explicit Shell profile and advertises it only with a Broker', async () => {
+     const body = {
+       sessionId: SESSION_ID,
+@@ -421,12 +419,9 @@ describe('Hosted Harness no-tool session', () => {
+     );
+     expect(created.status).toBe(200);
+     state.model.mockImplementationOnce(async ({ toolTurn }) => {
+-      expect(toolTurn!.declarations.map((tool) => tool.name)).toEqual([
+-        'read_file',
+-        'write_file',
+-        'edit',
+-        'run_shell_command',
+-      ]);
++      expect((await toolTurn!.declarations()).map((tool) => tool.name)).toEqual(
++        ['read_file', 'write_file', 'edit', 'run_shell_command'],
++      );
+       return { text: 'text without side effects', model: 'test-model' };
+     });
+     const prompt = [{ type: 'text', text: 'hello' }];
+@@ -574,7 +569,6 @@ describe('Hosted Harness no-tool session', () => {
+     },
+   );
+ 
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+   it('distinguishes strict create and load outcomes', async () => {
+     const server = app();
+     const missing = await headers(
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/hosted-harness-session.ts
+index e7a4f3c0ab..964b674f23 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -59,16 +59,10 @@ interface HostedSession {
+   active?: { promptId: string; digest: string; abort: AbortController };
+   admissions: Map<string, { digest: string; lastEventId: number }>;
+   blocked: boolean;
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-  toolProfile?:
+-    | typeof HOSTED_WORKSPACE_FILE_PROFILE
+-    | typeof HOSTED_MCP_PROFILE;
++  toolProfile?: HostedWorkspaceToolProfile | typeof HOSTED_MCP_PROFILE;
++  shell?: HostedShellTurnOptions;
+   mcp?: HostedMcpSession;
+   mcpBusy?: boolean;
+-=======
+-  toolProfile?: HostedWorkspaceToolProfile;
+-  shell?: HostedShellTurnOptions;
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+ }
+ 
+ function object(value: unknown): Record<string, unknown> | null {
+@@ -258,14 +252,9 @@ export function registerHostedHarnessSessionRoutes(
+     const toolProfile = body?.['toolProfile'];
+     if (
+       toolProfile !== undefined &&
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-      (![HOSTED_WORKSPACE_FILE_PROFILE, HOSTED_MCP_PROFILE].includes(
+-        String(toolProfile),
+-      ) ||
+-=======
+       ((toolProfile !== HOSTED_WORKSPACE_FILE_PROFILE &&
+-        toolProfile !== HOSTED_WORKSPACE_SHELL_PROFILE) ||
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
++        toolProfile !== HOSTED_WORKSPACE_SHELL_PROFILE &&
++        toolProfile !== HOSTED_MCP_PROFILE) ||
+         !brokerOptions)
+     ) {
+       error(res, 400, 'hosted_tool_profile_unavailable');
+@@ -358,10 +347,6 @@ export function registerHostedHarnessSessionRoutes(
+         streams: new Set(),
+         admissions: new Map(),
+         blocked: false,
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-        ...(toolProfile
+-          ? { toolProfile: toolProfile as HostedSession['toolProfile'] }
+-=======
+         ...(toolProfile ? { toolProfile } : {}),
+         ...(toolProfile === HOSTED_WORKSPACE_SHELL_PROFILE
+           ? {
+@@ -370,7 +355,6 @@ export function registerHostedHarnessSessionRoutes(
+                 assertWritable: stores.assertWritable,
+               },
+             }
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+           : {}),
+       };
+       const definition = object(
+@@ -602,11 +586,8 @@ export function registerHostedHarnessSessionRoutes(
+                       JSON.stringify(messageRecord(type, parts, model)),
+                     ) <=
+                     HTTP_MANAGED_SESSION_STORE_CONTRACT.maxInlineResourceBytes,
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-                  session.mcp,
+-=======
+                   session.shell,
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
++                  session.mcp,
+                 )
+               : undefined;
+           let state: 'completed' | 'cancelled' | 'error' = 'completed';
+diff --git a/packages/cli/src/serve/hosted-workspace-broker.test.ts b/packages/cli/src/serve/hosted-workspace-broker.test.ts
+index f92a8ef660..5551970844 100644
+--- a/packages/cli/src/serve/hosted-workspace-broker.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-broker.test.ts
+@@ -115,6 +115,37 @@ it('preserves payload identity separately from the explicitly selected v3 input
+   });
+ });
+ 
++it.each([undefined, 'b'.repeat(64)])(
++  'keeps the original Runtime owner separate from the prompt and input digest (%s)',
++  async (inputDigest) => {
++    const requests: Array<Record<string, unknown>> = [];
++    const broker = await fixture((_path, body) => {
++      requests.push(body);
++      return {
++        body: {
++          ...identity,
++          executionCallId: 'execution',
++          status: { state: 'prepared' },
++        },
++      };
++    });
++    await broker.prepare('call', 'sha256:payload', inputDigest, 'next-prompt');
++    expect(requests[0]).toMatchObject({
++      runtimeSessionId: 'turn',
++      turnId: 'next-prompt',
++      idempotencyKey: 'turn:call',
++      requestDigest: 'sha256:payload',
++    });
++    expect(requests[0]['reference']).toEqual({
++      sessionId: 'turn',
++      promptId: 'next-prompt',
++      callId: 'call',
++      argsDigest: 'sha256:payload',
++      ...(inputDigest ? { runtimeProtocol: 3, inputDigest } : {}),
++    });
++  },
++);
++
+ it('requires confirmation for the exact Shell receipt acknowledgement', async () => {
+   const broker = await fixture((_path, body) => {
+     expect(body['receipt']).toMatchObject({
+diff --git a/packages/cli/src/serve/hosted-workspace-broker.ts b/packages/cli/src/serve/hosted-workspace-broker.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/hosted-workspace-broker.ts
+index 3bf0958860..8cc2640442 100644
+--- a/packages/cli/src/serve/hosted-workspace-broker.ts
++++ b/packages/cli/src/serve/hosted-workspace-broker.ts
+@@ -99,12 +99,6 @@ export class HostedWorkspaceBroker {
+     }
+   }
+ 
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-  async prepare(
+-    callId: string,
+-    digest: string,
+-    turnId = this.identity.runtimeSessionId,
+-=======
+   async registerPublisher(publisher: {
+     url: string;
+     token: string;
+@@ -129,7 +123,7 @@ export class HostedWorkspaceBroker {
+     callId: string,
+     digest: string,
+     inputDigest?: string,
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
++    turnId = this.identity.runtimeSessionId,
+   ): Promise<string> {
+     const reservation = {
+       idempotencyKey: `${this.identity.runtimeSessionId}:${callId}`,
+@@ -237,7 +231,6 @@ export class HostedWorkspaceBroker {
+     await this.request(`/executions/${encodeURIComponent(id)}:cancel`, {});
+   }
+ 
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+   async control(
+     operation: ManagedMcpControl,
+   ): Promise<ManagedMcpOperationView> {
+@@ -257,7 +250,8 @@ export class HostedWorkspaceBroker {
+     )
+       throw new Error('Runtime MCP response identity is invalid.');
+     return result as unknown as ManagedMcpOperationView;
+-=======
++  }
++
+   async acknowledge(id: string, receipt: LocalShellReceipt): Promise<void> {
+     const response = await this.request(
+       `/executions/${encodeURIComponent(id)}:acknowledge`,
+@@ -278,7 +272,6 @@ export class HostedWorkspaceBroker {
+         'Runtime did not acknowledge the original Shell receipt.',
+       );
+     }
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+   }
+ 
+   async release(): Promise<void> {
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index 3270bc6b35..006466362e 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -38,6 +38,7 @@ const broker = vi.hoisted(() => ({
+ vi.mock('./hosted-workspace-broker.js', async (importOriginal) => ({
+   ...(await importOriginal<typeof import('./hosted-workspace-broker.js')>()),
+   HostedWorkspaceBroker: class {
++    readonly runtimeSessionId = 'prompt';
+     warm = broker.warm;
+     acquire = broker.acquire;
+     prepare = broker.prepare;
+@@ -461,7 +462,6 @@ it.each(['x'.repeat(70 * 1024), '中'.repeat(23 * 1024), '"'.repeat(17 * 1024)])
+   },
+ );
+ 
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+ it('executes against the declarations actually advertised before a catalog replacement', async () => {
+   let name = 'mcp_old';
+   const input = { toolName: 'managed_mcp_call', input: { pinned: 'original' } };
+@@ -478,6 +478,7 @@ it('executes against the declarations actually advertised before a catalog repla
+     'prompt',
+     async () => randomUUID(),
+     () => true,
++    undefined,
+     mcp as unknown as import('./hosted-mcp-session.js').HostedMcpSession,
+   );
+   expect((await mcpTurn.declarations()).at(-1)?.name).toBe('mcp_old');
+@@ -493,6 +494,18 @@ it('executes against the declarations actually advertised before a catalog repla
+     expect.any(String),
+     JSON.stringify(input),
+     expect.any(AbortSignal),
++    undefined,
++  );
++  expect(broker.prepare).toHaveBeenCalledWith(
++    expect.any(String),
++    expect.stringMatching(/^sha256:/u),
++    undefined,
++    'prompt',
++  );
++  expect(mcp.toolInput).toHaveBeenCalledWith(
++    call.name,
++    call.args,
++    broker.prepare.mock.calls[0][0],
+   );
+   const intent = session.authority
+     .eventsInSequenceRange(1, session.authority.committedSequence)
+@@ -502,7 +515,6 @@ it('executes against the declarations actually advertised before a catalog repla
+   );
+   expect(JSON.parse(saved.toString()).name).toBe('mcp_old');
+ });
+-=======
+ it('returns durable errors for a refused Shell batch and permits a corrected call', async () => {
+   turn = createTurn(true);
+   const shell = {
+@@ -739,4 +751,3 @@ it.each([false, true])(
+     ).toBe(false);
+   },
+ );
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index 4fb7cec8f6..a23a946106 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -24,11 +24,8 @@ import {
+   HostedWorkspaceBrokerRejection,
+   type HostedWorkspaceBrokerOptions,
+ } from './hosted-workspace-broker.js';
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-import type { HostedMcpSession } from './hosted-mcp-session.js';
+-=======
+ import { HostedShellPublisher } from './hosted-shell-publisher.js';
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
++import type { HostedMcpSession } from './hosted-mcp-session.js';
+ 
+ export const HOSTED_WORKSPACE_FILE_PROFILE = 'hosted-workspace-files/1';
+ export const HOSTED_WORKSPACE_SHELL_PROFILE = 'hosted-workspace-shell/1';
+@@ -124,13 +121,9 @@ export class HostedWorkspaceToolTurn {
+   private readonly warmed: Promise<void>;
+   private acquired = false;
+   private uncertain = false;
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-  private advertised?: FunctionDeclaration[];
+-=======
+   private publisher?: HostedShellPublisher;
+   private bindingGeneration?: string;
+-  readonly declarations: FunctionDeclaration[];
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
++  private advertised?: FunctionDeclaration[];
+ 
+   constructor(
+     options: HostedWorkspaceBrokerOptions,
+@@ -147,7 +140,7 @@ export class HostedWorkspaceToolTurn {
+       parts: Part[],
+       model: string,
+     ) => boolean,
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
++    private readonly shell?: HostedShellTurnOptions,
+     private readonly mcp?: HostedMcpSession,
+   ) {
+     this.broker =
+@@ -158,19 +151,6 @@ export class HostedWorkspaceToolTurn {
+         promptId,
+       );
+     this.warmed = mcp ? mcp.ensureReady() : this.broker.warm();
+-=======
+-    private readonly shell?: HostedShellTurnOptions,
+-  ) {
+-    this.declarations = shell
+-      ? HOSTED_WORKSPACE_SHELL_TOOLS
+-      : HOSTED_WORKSPACE_FILE_TOOLS;
+-    this.broker = new HostedWorkspaceBroker(
+-      options,
+-      session.authority.sessionHeader.sessionKey,
+-      promptId,
+-    );
+-    this.warmed = this.broker.warm();
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+     // Warmup runs alongside inference; a text-only answer need not wait for it.
+     void this.warmed.catch(() => undefined);
+   }
+@@ -178,7 +158,9 @@ export class HostedWorkspaceToolTurn {
+   async declarations(): Promise<FunctionDeclaration[]> {
+     if (this.mcp) await this.warmed;
+     this.advertised ??= [
+-      ...HOSTED_WORKSPACE_FILE_TOOLS,
++      ...(this.shell
++        ? HOSTED_WORKSPACE_SHELL_TOOLS
++        : HOSTED_WORKSPACE_FILE_TOOLS),
+       ...(this.mcp?.tools() ?? []),
+     ];
+     return this.advertised;
+@@ -194,37 +176,21 @@ export class HostedWorkspaceToolTurn {
+     const declarations = await this.declarations();
+     const ids = new Set<string>();
+     const requests = calls.map((call) => {
+-      const callId = randomUUID();
+-      const mcpInput = this.mcp?.toolInput(call.name, call.args, callId);
++      const runtimeCallId = randomUUID();
++      const mcpInput = this.mcp?.toolInput(call.name, call.args, runtimeCallId);
+       if (
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+         !declarations.some((tool) => tool.name === call.name) ||
+-=======
+-        !this.declarations.some((tool) => tool.name === call.name) ||
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+         ids.has(call.callId) ||
+         call.wasOutputTruncated === true
+       )
+         throw new Error('Hosted Workspace profile refused a tool call.');
+       ids.add(call.callId);
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-      const file = call.args['file_path'];
+-      if (!mcpInput && typeof file !== 'string')
+-        throw new Error('Hosted file tools require a relative file_path.');
+-      const payloadJson = JSON.stringify(
+-        mcpInput ?? {
+-          toolName: call.name,
+-          input: {
+-            ...call.args,
+-            file_path: normalizeWorkspaceRelativePath((file as string).trim()),
+-          },
+-        },
+-      );
+-=======
+       const isShell = call.name === 'run_shell_command';
+       let validationError: string | undefined;
+       let input: Record<string, unknown>;
+-      if (isShell) {
++      if (mcpInput) {
++        input = { ...mcpInput.input };
++      } else if (isShell) {
+         const args = call.args;
+         const unsupportedKey = Object.keys(args).find(
+           (key) =>
+@@ -270,12 +236,12 @@ export class HostedWorkspaceToolTurn {
+           file_path: normalizeWorkspaceRelativePath(file.trim()),
+         };
+       }
+-      const payloadJson = JSON.stringify({
+-        toolName: call.name,
+-        input,
+-      });
+-      const runtimeCallId = randomUUID();
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
++      const payloadJson = JSON.stringify(
++        mcpInput ?? {
++          toolName: call.name,
++          input,
++        },
++      );
+       const inputBytes = Buffer.from(
+         JSON.stringify({
+           harnessSessionId:
+@@ -293,15 +259,11 @@ export class HostedWorkspaceToolTurn {
+         );
+       return {
+         call,
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-        callId,
+-=======
+         validationError,
+         runtimeCallId,
+         input,
+         isShell,
+         inputDigest: isShell ? managedToolDigest(input) : undefined,
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+         payloadJson,
+         inputBytes,
+         digest: `sha256:${createHash('sha256').update(payloadJson).digest('hex')}`,
+@@ -391,26 +353,17 @@ export class HostedWorkspaceToolTurn {
+         );
+         const runtimeCallId = request.runtimeCallId;
+         const executionCallId = await this.broker.prepare(
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-          request.callId,
+-          request.digest,
+-          this.promptId,
+-=======
+           runtimeCallId,
+           request.digest,
+           request.inputDigest,
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
++          this.promptId,
+         );
+         reserved.push(executionCallId);
+         const toolDefinitionRef = await this.session.resources.publish(
+           'managed-tool-definition',
+           Buffer.from(
+             JSON.stringify(
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+               declarations.find((tool) => tool.name === request.call.name),
+-=======
+-              this.declarations.find((tool) => tool.name === request.call.name),
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+             ),
+           ),
+         );
+diff --git a/packages/cli/src/serve/managed-context-worker.ts b/packages/cli/src/serve/managed-context-worker.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/managed-context-worker.ts
+index f9f5bc65c1..a2df1423ef 100644
+--- a/packages/cli/src/serve/managed-context-worker.ts
++++ b/packages/cli/src/serve/managed-context-worker.ts
+@@ -214,19 +214,12 @@ export function registerManagedContextRoutes(
+             requiresActivation ? boot.mountRoot : directory,
+           ),
+         ),
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+         isActive,
+       };
+     },
+-    capturePublisher,
++    capturePublisher ?? remotePublishers,
+     mcp,
+   );
+-=======
+-      ),
+-      isActive,
+-    };
+-  }, capturePublisher ?? remotePublishers);
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
+   activations.register(app, boot, installations, executor);
+   registerManagedRuntimeToolRoutes(app, boot, executor);
+   if (capturePublisher || remotePublishers) {
+diff --git a/packages/cli/src/serve/managed-runtime-tool-executor.ts b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/managed-runtime-tool-executor.ts
+index d20c11a5db..191f5aa9f6 100644
+--- a/packages/cli/src/serve/managed-runtime-tool-executor.ts
++++ b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+@@ -182,15 +182,8 @@ export class ManagedToolExecutor {
+ 
+   constructor(
+     private readonly toolsFor: ManagedToolSetResolver,
+-<<<<<<< e3ecba664c (test(cli): document managed MCP process environment reads)
+-    private readonly capturePublisher?: Pick<
+-      LocalShellResultSession,
+-      'prepare' | 'accept'
+-    >,
+-    private readonly mcp?: ManagedMcpRuntime,
+-=======
+     private readonly capturePublisher?: ManagedShellCapturePublisher,
+->>>>>>> a765229c0a (fix(daemon): persist session approval mode across cold restore (#12918))
++    private readonly mcp?: ManagedMcpRuntime,
+   ) {}
+ 
+   static forWorkspace(workspaceCwd: string, runtimeInstanceId: string) {

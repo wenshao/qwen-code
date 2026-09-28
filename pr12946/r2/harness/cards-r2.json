@@ -1,0 +1,68 @@
+[
+ {
+  "file": "r2-01-rerun-matrix-7a324350.png",
+  "title": "Round 2 — the same real-stack scenarios on 7a324350 (main merged)",
+  "subtitle": "Fresh bundle + Spring jar built from 7a324350; MySQL 8.4.11; same rig, manifest and MCP servers as round 1. Outcomes compared one by one.",
+  "lines": [
+   "## scenario                                  round 1 (a390b5d5 = e3ecba66)               round 2 (7a324350)",
+   "++ S1 3 transports, blob, prompt, catalogs   3 effects, exact, 0 leaks, 8 total          identical",
+   "++ S9 configure+invoke replies dropped       1 physical read                             1 physical read",
+   "++ S9 can_read=FALSE then close              204, lease released, new work 409           identical",
+   "++ S10 Broker down: replay + close           202 / 204, 0 Broker requests, 0 effects     identical",
+   "++ S11 replace r1->r2 during a 6 s call      call ends on r1, next turn r2               identical",
+   "++ S8 limits                                 tools partial (33), 70 KB -> output_limit   identical",
+   "-- F1 S2 second Session while MCP attached   MCP 503 / files turn_error                  identical",
+   "-- F2 S3 list_changed (resources, tools)     catalog_conflict, 0 effects                 identical",
+   "-- F2 S7 SSE server restart                  catalog_conflict, 0 effects                 identical",
+   "-- F3 S4 cancel resource_read                outcome_unknown, 409 / 503 / lease held     identical (aborted +1.4 s)",
+   "-- F4 S5 prompt cancel during MCP tool       no terminal, 409 / 503 / lease held         identical (aborted +1.1 s)",
+   "-- F4 S6 32 s tool                           unknown at 25 s, release 409, detach 503    identical (done +32.0 s)",
+   "-- F5 S7 HTTP server down at close           503, still 503 after server back            identical (382 ms)",
+   "-- F6 S8 reconfigure churn                   1 -> 16 stdio procs, 17th 409               identical",
+   "-- F7 S10 refused first install              detach 503 until another prompt             identical",
+   "",
+   "!! new measurement: S5 detach made 190 Broker calls (95 acquire + 94 mcp-status + 1 mcp-release) before its 503"
+  ],
+  "notes": [
+   {
+    "tone": "",
+    "text": "The merge commit changes no MCP logic: every claim still holds and every round-1 finding reproduces unchanged. The 190-call detach puts a number on triage stage-2 point 3 (lookup() re-acquires the owner on every 100 ms poll)."
+   }
+  ]
+ },
+ {
+  "file": "r2-02-merge-audit-and-gates.png",
+  "title": "Round 2 — merge-resolution audit and gates at 7a324350",
+  "subtitle": "7a324350 = e3ecba66 + main a765229c (#12848 Hosted Shell turns, #12942 FG6e, #12918). Hand-resolved parts read with git show --remerge-diff.",
+  "lines": [
+   "## Hand-resolved parts: 9 files, +76 / -133 (PR file set unchanged, plus hosted-workspace-broker.test.ts)",
+   "++ toolProfile accepts files | shell | mcp; one profile per Session, so Shell and MCP never meet in one turn",
+   "++ declarations = (shell ? Shell tools : file tools) + MCP tools, awaited each round",
+   "++ prepare(runtimeCallId, digest, shellInputDigest, promptId): both sides keep their arguments",
+   "++ MCP calls use only their control payload; Shell input, digest and timeout stay on the Shell branch",
+   "++ the worker keeps both the remote Shell publishers and the MCP runtime",
+   "== MCP profile still skips the per-turn broker.release() -> F1 root cause unchanged",
+   "",
+   "## Gates",
+   "++ GitHub CI @7a324350: 22 pass, incl. Hosted fault gates on MySQL 8.4 (HostedWorkspaceToolTurnIT 5/5, 96.8 s) and MariaDB",
+   "++ local -Phosted-harness-mysql verify checkstyle: unit 182/182, HostedHarnessMySqlIT 2/2, 0 Checkstyle violations",
+   "!! local HostedWorkspaceToolTurnIT 3/5 in 439 s at load 50-100: FG6B writers:renew 409, six-Workspace driver 130 s timeout",
+   "++ rerun of those two alone at load 31-54: 2/2 in 203.7 s (HOSTED_STORE_FAILURES_OK, 100 MiB Shell OK) -> load, not code",
+   "-- #12894 (a7c0a391, open) still adds V19 -> the V19 clash with this PR is unchanged",
+   "",
+   "## Mutation on the merged tree (6 cli test files, 112 tests)",
+   "++ R1   Shell profile advertises file tools only                  KILLED (15)",
+   "++ R2   prepare drops promptId (triage stage-2 point 7)           KILLED (5); survived on the a390b5d5 tree",
+   "++ R3   prepare drops the Shell input digest                      KILLED (1)",
+   "++ M13  configurations owned by two Runtime Sessions              KILLED (1); survived in round 1",
+   "!! M7   -32601 from a tools-only server -> empty complete list    SURVIVES",
+   "!! M11  prompt route hasPendingOperations() guard (the F3 409)    SURVIVES"
+  ],
+  "notes": [
+   {
+    "tone": "green",
+    "text": "The resolution is faithful to both sides and the merge added coverage (R2, M13). Nothing in it touches F1-F7, so the round-1 findings stand as they were."
+   }
+  ]
+ }
+]
