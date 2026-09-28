@@ -1,0 +1,21 @@
+Round 8: d650cdd3 (main merge: H0c Stage H records, FG6c crash gates, codec fix)
+MySQL 8.4.7, Spring jar + TS bundle rebuilt at d650cdd3, real workers; fixture model + real qwen3.8-max
+
+## The merge is clean on the real stack
+== one conflict (ManagedSessionStore): the PR's pre-published Shell resources and H0c's REFERENCED-only
+==   lookup for Stage H records, both kept
+++ server starts: 18 migrations (V16, V17, V18); Java 394 + 172 tests pass
+++ partial and complete captures still read back through the Store byte for byte (3,000,005 B = sha)
+++ validation, R1-1, 8 output shapes, F4 reload, real-model reload, Workspace probes: unchanged
+++ Shell FG6b 6/6; CI green, incl. HostedWorkspaceToolTurnIT and main's FG6c (file tools)
+## Main's FG6c with a Shell call instead of edit (Java assertions unchanged)
+++ harness-prepare, spring-kill: pass as is
+== worker-stop: passes once status may be 503 managed_runtime_unavailable (v3 asks the stopped worker)
+== worker-kill: a different 409 code, and the binding goes LOST (v3 observation sees the dead worker)
+== harness-result: an outcome is already committed (Shell commits recordToolResult before the message)
+!! harness-start: the Harness dies mid-command; the command finishes ("xx") but the Broker records
+!!   UNKNOWN with no result (edit: SETTLED + result), because the capture publisher lives in the Harness
+++ every case: effect at most once, no replay, cold load 409
+## Correction to rounds 6 and 7
+!! CI's -Phosted-harness-mysql includes **/Hosted*IT.java, so HostedWorkspaceToolTurnIT (FG6a, FG6b)
+!!   has run in CI since 018f3318. What CI does not run is the Shell variants of FG6b and FG6c.

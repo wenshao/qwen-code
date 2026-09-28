@@ -1,0 +1,38 @@
+--- wt-r12/integration-tests/helpers/hosted-process-crash-driver.ts	2026-09-28 19:11:26
++++ fg6c-shell-driver-strict.ts	2026-09-28 19:43:49
+@@ -233,16 +233,7 @@
+   if (report.modelCalls > 1) return { content: 'UNEXPECTED_CONTINUATION' };
+   return {
+     toolCalls: [
+-      fakeToolCall(
+-        'edit',
+-        {
+-          file_path: 'proof.txt',
+-          old_string: 'x',
+-          new_string: 'xx',
+-          replace_all: true,
+-        },
+-        'effect',
+-      ),
++      fakeToolCall('run_shell_command', { command: 'c=$(cat proof.txt) && [ "$c" = x ] && rm -f proof.txt && printf %s%s "$c" "$c" > proof.txt' }, 'effect'),
+     ],
+   };
+ });
+@@ -272,7 +263,7 @@
+       writerId: cli.bootId,
+       leaseDurationMs: 5_000,
+     },
+-    toolProfile: 'hosted-workspace-files/1',
++    toolProfile: 'hosted-workspace-shell/1',
+   };
+ }
+ 
+@@ -417,7 +408,7 @@
+   if (proxyFailure) throw proxyFailure;
+   await writeFile(`${configPath}.results`, JSON.stringify(report));
+   console.log(
+-    `FG6C ${config.fault}: execution=${report.executionCallId}, signals=${JSON.stringify(report.signalEvidence)}, cold=blocked`,
++    `FG6C-SHELL ${config.fault}: execution=${report.executionCallId}, signals=${JSON.stringify(report.signalEvidence)}, cold=blocked`,
+   );
+   console.log('HOSTED_PROCESS_CRASH_OK');
+ } catch (cause) {

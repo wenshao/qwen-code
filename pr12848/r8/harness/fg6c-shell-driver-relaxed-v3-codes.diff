@@ -1,0 +1,14 @@
+--- fg6c-shell-driver-strict.ts	2026-09-28 19:43:49
++++ wt-fg6c12/integration-tests/helpers/hosted-process-crash-driver.ts	2026-09-28 19:46:00
+@@ -171,8 +171,9 @@
+             config.fault.startsWith('worker-'),
+           `${url}: ${bytes}`,
+         );
+-        assert.equal(json.code, 'runtime_broker_execution_unknown');
+-      } else assert.equal(upstream.status, 200, `${url}: ${bytes}`);
++        assert(['runtime_broker_execution_unknown', 'runtime_execution_evidence_unavailable', 'runtime_admission_closed'].includes(json.code), json.code);
++      } else if (!(upstream.status === 503 && injected && config.fault === 'worker-stop' && json?.code === 'managed_runtime_unavailable'))
++        assert.equal(upstream.status, 200, `${url}: ${bytes}`);
+     }
+     if (restoring && store && url.pathname.endsWith('/transactions'))
+       report.restoreTransactions.push(...json.transactions);
