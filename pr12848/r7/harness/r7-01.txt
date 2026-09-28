@@ -1,0 +1,17 @@
+Round 7: a4632e98 (partial capture on drain timeout 14b77fee + main with #12900)
+MySQL 8.4.7, Spring jar + TS bundle rebuilt at a4632e98, real workers; fixture model + real qwen3.8-max
+
+## 14b77fee: an unclosed pipe keeps its prefix instead of reading as a storage failure
+++ `cd . && sleep 20 >/dev/null 2>&1 & echo ok`   partial/producer_lost, stdout 3 B read back "ok\n"
+++ `cd . && { 3,000,000 x a; sleep 20; } & sleep 5; echo done`   partial/producer_lost,
+++   3,000,005 B read back through the Store across pages: 3,000,000 a + "done", sha = manifest
+++ logger that keeps writing after exit   partial/producer_lost, 36 B "started\ntick-0..3\n" read back
+== missingRanges record an open tail [{start: N, end: null}]; plain command still complete/sealed
+-- still recovery-blocked, and the Workspace still refuses new Sessions: 409 workspace_busy
+--   (kept fail-closed on purpose; recovery tracked in #12904)
+== mutation: K1 revert and K2 finalize-ignores-failed KILLED; K3, K4 redundant with K2 (equivalent)
+## Main merge: the duplicate V16 is gone
+++ server starts: 17 migrations, V16 runtime_loss_evidence + V17 managed_session_operation
+++ HostedWorkspaceToolTurnIT 3/3 (97.6 s: FG6a 8, FG6b 7), Shell FG6b 6/6, Java 390 + 155 tests
+++ validation, R1-1 grandchild, 8 output shapes, F4 reload, real-model reload: unchanged, all pass
+++ CI: SDK Java (incl. MariaDB + Hosted MySQL), Serve A/B, tui-parity green; Qwen Code CI green
