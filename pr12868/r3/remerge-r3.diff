@@ -1,0 +1,404 @@
+diff --git a/docs/design/2026-09-27-broker-provider-control.md b/docs/design/2026-09-27-broker-provider-control.md
+index dfb9c52681..c2a9b0872c 100644
+--- a/docs/design/2026-09-27-broker-provider-control.md
++++ b/docs/design/2026-09-27-broker-provider-control.md
+@@ -55,9 +55,10 @@ is a conflict. Release refuses running work, cancels preparations that have not
+ been reserved, and permanently closes admission without clearing the current
+ turn's status/cancellation evidence. Starting a new turn retains the runtime's
+ existing eviction policy; earlier dispatched invocations remain in the durable
+-Broker journal. Broker HTTP observation keeps its existing READY Session
+-requirement; release does not erase the persisted evidence. A durable Broker
+-reservation must be explicitly cancelled before release.
++Broker journal. Broker HTTP can read owned terminal execution receipts without
++a READY Session; live observation and file-history controls still require READY.
++Release does not erase persisted evidence. A durable Broker reservation must be
++explicitly cancelled before release.
+ 
+ ## Runtime and persistence
+ 
+@@ -104,8 +105,10 @@ never becomes permission to replay. This includes the inherited conservative
+ handling of an HTTP rejection during dispatch: without authoritative execution
+ evidence it remains UNKNOWN, even when the worker's reason describes a refusal.
+ That state blocks release and can retain Workspace storage ownership. Error
+-codes alone do not prove that execution never started. Existing immediate Tool
+-v2 behavior stays available independently.
++codes alone do not prove that execution never started. The Broker's Runtime-loss
++recovery may fence an uncertain execution as ABANDONED: it remains permanently
++unknown, can be read through its persisted owner, and cannot be replayed.
++Existing immediate Tool v2 behavior stays available independently.
+ 
+ The raw reserve/start path from #12831 remains available on the same Broker
+ routes. It reserves a four-field reference and supplies the exact `payloadJson`
+@@ -144,8 +147,10 @@ turns or claim complete Hosted product readiness.
+ 
+ After release, the private worker route retains status/cancellation evidence
+ for the current turn and any bound file-history state; earlier turns' invocation
+-entries remain subject to eviction. The Broker HTTP surface and provider client
+-do not expose these observations for a released Session. The worker currently
++entries remain subject to eviction. After release, Broker execution inspection
++can return persisted terminal receipts without reopening the worker; private
++history and live invocation observations remain unavailable through the closed
++provider tool client. The worker currently
+ retains the Session's Config, tools and runtime until worker shutdown, so memory
+ can grow with released provider Sessions. Reducing that retention while
+ preserving private observation semantics is follow-up work.
+diff --git a/docs/design/2026-09-27-broker-provider-control.zh-CN.md b/docs/design/2026-09-27-broker-provider-control.zh-CN.md
+index 12f36a4ee7..3a91474767 100644
+--- a/docs/design/2026-09-27-broker-provider-control.zh-CN.md
++++ b/docs/design/2026-09-27-broker-provider-control.zh-CN.md
+@@ -42,8 +42,9 @@ Content-Encoding。TypeScript 客户端保留限长原因。这些诊断信息
+ 与释放幂等。同一 Runtime Session 换用 Harness 或 turn kind 会产生冲突。释放拒绝
+ 运行中的工作，取消尚未预留的准备调用，并永久关闭新操作准入，不清除当前回合的
+ 状态/取消证据。开始新回合仍遵循 runtime 既有清理策略；较早已派发的调用仍保留在
+-Broker 持久日志中。Broker HTTP 观察仍要求 Session 为 READY；释放不删除持久证据。
+-已持久化的 Broker 预留必须在释放前显式取消。
++Broker 持久日志中。Broker HTTP 可在 Session 非 READY 时读取归属已验证的终态执行回执；
++实时观察与文件历史控制仍要求 READY。释放不删除持久证据。已持久化的 Broker 预留必须在
++释放前显式取消。
+ 
+ ## Runtime 与持久化
+ 
+@@ -74,7 +75,8 @@ provider 的 reserve/start 路径需要 Broker 持久预留。预留创建 PREPA
+ `not_started` 或 `cancelled` 结果，再确认已准备调用的取消。UNKNOWN 只能观察，不能
+ 变成重放许可。这包括继承的派发期间 HTTP 拒绝保守处理：没有权威执行证据时，即使
+ worker 的原因描述为拒绝，仍保持 UNKNOWN。该状态阻止释放，并可能继续持有 Workspace
+-存储。仅凭错误码不能证明执行从未开始。现有即时 Tool v2 行为独立保留。
++存储。仅凭错误码不能证明执行从未开始。Broker 的 Runtime 丢失恢复可将不确定执行封存为
++ABANDONED：结果永久未知，可通过持久归属读取，但不能重放。现有即时 Tool v2 行为独立保留。
+ 
+ #12831 的原始 reserve/start 路径继续使用同一组 Broker 路由：预留四字段 reference，
+ 仅在 start 时提供精确的 `payloadJson`。provider 预留使用七字段 reference 并拒绝
+@@ -106,7 +108,8 @@ worker 日志仅属于当前代际。重启 worker 不能从 Broker reference 
+ 完整 Hosted 产品已就绪。
+ 
+ 释放后，私有 worker 路由保留当前回合的状态/取消证据及已绑定的文件历史状态；较早回合的
+-调用条目仍可能被清理。Broker HTTP 接口与 provider 客户端不向已释放的 Session 提供
+-这些观察。worker 当前保留 Session 的 Config、工具与 runtime，直到 worker 关闭，因此
++调用条目仍可能被清理。释放后，Broker 执行检查可返回持久终态回执，无需重开 worker；
++已关闭的 provider 工具客户端仍不提供私有历史和实时调用观察。worker 当前保留 Session 的
++Config、工具与 runtime，直到 worker 关闭，因此
+ 内存可能随已释放的 provider Session 数量增长。在保留私有观察语义的前提下减少这部分
+ 保留是后续工作。
+diff --git a/packages/cli/src/serve/broker-managed-runtime-provider.ts b/packages/cli/src/serve/broker-managed-runtime-provider.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/broker-managed-runtime-provider.ts
+index 2fc0877599..703c5a8dfe 100644
+--- a/packages/cli/src/serve/broker-managed-runtime-provider.ts
++++ b/packages/cli/src/serve/broker-managed-runtime-provider.ts
+@@ -99,11 +99,8 @@ class BrokerResponseError extends Error {
+     readonly status: number,
+     readonly code?: string,
+     readonly retryable?: boolean,
+-<<<<<<< f0f217dfa5 (fix(runtime): preserve broker provider validation errors)
+     reason?: string,
+-=======
+     readonly abandoned = false,
+->>>>>>> d66fdadd27 (feat(managed-agent): Add W0e terminal recovery fences (#12839))
+   ) {
+     super(
+       `Managed Runtime Broker returned HTTP ${status}.${reason ? ` ${reason}` : ''}`,
+@@ -549,11 +546,8 @@ export class ManagedRuntimeBrokerClient {
+     if (!response.ok) {
+       let code: string | undefined;
+       let retryable: boolean | undefined;
+-<<<<<<< f0f217dfa5 (fix(runtime): preserve broker provider validation errors)
+       let reason: string | undefined;
+-=======
+       let abandoned = false;
+->>>>>>> d66fdadd27 (feat(managed-agent): Add W0e terminal recovery fences (#12839))
+       try {
+         const text = await readBoundedResponseText(
+           response,
+@@ -597,16 +591,13 @@ export class ManagedRuntimeBrokerClient {
+       } catch {
+         await response.body?.cancel().catch(() => undefined);
+       }
+-<<<<<<< f0f217dfa5 (fix(runtime): preserve broker provider validation errors)
+-      throw new BrokerResponseError(response.status, code, retryable, reason);
+-=======
+       throw new BrokerResponseError(
+         response.status,
+         code,
+         retryable,
++        reason,
+         abandoned,
+       );
+->>>>>>> d66fdadd27 (feat(managed-agent): Add W0e terminal recovery fences (#12839))
+     }
+     const contentLength = Number(response.headers.get('content-length'));
+     if (
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
+index fcb5813aec..57c477a65b 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
+@@ -282,7 +282,6 @@ class WorkspaceRuntimeTest {
+     }
+ 
+     @Test
+-<<<<<<< f0f217dfa5 (fix(runtime): preserve broker provider validation errors)
+     void controlsRecheckWorkspaceAuthorityAndReleaseWaitsForProviderCleanup() throws Exception {
+         SessionRecord session = createSession("storage", ".");
+         var fixture = transport(session);
+@@ -309,7 +308,9 @@ class WorkspaceRuntimeTest {
+         order.verify(fixture.http(), org.mockito.Mockito.times(2)).release(fixture.lease(), runtimeSession);
+         order.verify(fixture.http()).activateWorkspace(any(), any(), any(), eq(false));
+         authority.claim(session.workspace(), holder(session, "next"));
+-=======
++    }
++
++    @Test
+     void lateDeactivationCannotClearAHolderAfterTheLossFence() throws Exception {
+         SessionRecord session = createSession("storage", ".");
+         var fixture = transport(session);
+@@ -325,7 +326,6 @@ class WorkspaceRuntimeTest {
+         assertThatThrownBy(releasing::join).hasRootCauseInstanceOf(RuntimeBrokerException.class);
+         authority.assertHeld(session.workspace(), fixture.record());
+         assertBusy(() -> authority.claim(session.workspace(), rival));
+->>>>>>> d66fdadd27 (feat(managed-agent): Add W0e terminal recovery fences (#12839))
+     }
+ 
+     private TransportFixture transport(SessionRecord session) throws Exception {
+@@ -341,13 +341,9 @@ class WorkspaceRuntimeTest {
+         var runtimeSessions = mock(RuntimeSessionRepository.class);
+         when(runtimeSessions.findById(resolved.scope(), runtimeSession.getRuntimeSessionId())).thenReturn(record);
+         var http = mock(HttpRuntimeTransport.class);
+-<<<<<<< f0f217dfa5 (fix(runtime): preserve broker provider validation errors)
+         when(http.release(any(), any())).thenReturn(CompletableFuture.completedFuture(true));
+-        return new TransportFixture(new WorkspaceRuntimeTransport(http, resolver, authority, bindings, runtimeSessions), http, record, lease);
+-=======
+         return new TransportFixture(new WorkspaceRuntimeTransport(http, resolver, authority, bindings, runtimeSessions),
+                 http, record, lease, runtime, bindings);
+->>>>>>> d66fdadd27 (feat(managed-agent): Add W0e terminal recovery fences (#12839))
+     }
+ 
+     private record TransportFixture(WorkspaceRuntimeTransport transport, HttpRuntimeTransport http,
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index 8ba0aff73a..2a2d3d30a4 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -203,7 +203,6 @@ public final class RuntimeBrokerService implements AutoCloseable {
+         if (reference == null || reference.containsKey("dispatchMode")) {
+             throw invalid("runtime_reference_invalid", "dispatchMode is reserved");
+         }
+-<<<<<<< f0f217dfa5 (fix(runtime): preserve broker provider validation errors)
+         Map<String, Object> immutable;
+         try {
+             immutable = immutableMap(reference, "reference");
+@@ -215,12 +214,7 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             return CompletableFuture.failedFuture(invalid("runtime_reference_invalid",
+                     "Prepared provider invocations require reserve and start"));
+         }
+-        return requireReadySession(harnessSessionId, runtimeSessionId)
+-                .thenApply(context -> createExecution(context, key,
+-                        immutable, true));
+-=======
+-        return createExecutionReceipt(harnessSessionId, runtimeSessionId, key, reference, true);
+->>>>>>> d66fdadd27 (feat(managed-agent): Add W0e terminal recovery fences (#12839))
++        return createExecutionReceipt(harnessSessionId, runtimeSessionId, key, immutable, true);
+     }
+ 
+     public CompletionStage<ToolExecutionRecord> prepareExecution(
+@@ -241,15 +235,7 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             deferred.put("dispatchMode", "deferred");
+             immutable = Map.copyOf(deferred);
+         }
+-<<<<<<< f0f217dfa5 (fix(runtime): preserve broker provider validation errors)
+-        Map<String, Object> preparedReference = immutable;
+-        return requireReadySession(harnessSessionId, runtimeSessionId)
+-                .thenApply(context -> createExecution(context, key, preparedReference, false));
+-=======
+-        Map<String, Object> deferred = new LinkedHashMap<>(reference);
+-        deferred.put("dispatchMode", "deferred");
+-        return createExecutionReceipt(harnessSessionId, runtimeSessionId, key, deferred, false);
+->>>>>>> d66fdadd27 (feat(managed-agent): Add W0e terminal recovery fences (#12839))
++        return createExecutionReceipt(harnessSessionId, runtimeSessionId, key, immutable, false);
+     }
+ 
+     public CompletionStage<ToolExecutionRecord> startExecution(
+@@ -292,7 +278,6 @@ public final class RuntimeBrokerService implements AutoCloseable {
+         });
+     }
+ 
+-<<<<<<< f0f217dfa5 (fix(runtime): preserve broker provider validation errors)
+     public CompletionStage<ToolExecutionRecord> startExecution(
+             String harnessSessionId, String runtimeSessionId, String executionCallId) {
+         requireOpen();
+@@ -312,7 +297,8 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                         return requireExecution(context, executionId);
+                     }
+                 });
+-=======
++    }
++
+     private CompletionStage<ToolExecutionRecord> createExecutionReceipt(
+             String harnessSessionId, String runtimeSessionId, String key,
+             Map<String, Object> reference, boolean dispatch) {
+@@ -331,7 +317,6 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             return requireReadySession(harnessSessionId, runtimeSessionId)
+                     .thenApply(context -> createExecution(context, key, reference, dispatch));
+         });
+->>>>>>> d66fdadd27 (feat(managed-agent): Add W0e terminal recovery fences (#12839))
+     }
+ 
+     public CompletionStage<ToolExecutionRecord> getExecution(
+@@ -357,35 +342,19 @@ public final class RuntimeBrokerService implements AutoCloseable {
+         requireOpen();
+         String executionId = BrokerValues.requireId(executionCallId,
+                 "executionCallId");
+-<<<<<<< f0f217dfa5 (fix(runtime): preserve broker provider validation errors)
+-        return requireReadySession(harnessSessionId, runtimeSessionId)
+-                .thenCompose(context -> {
+-                    ToolExecutionRecord requested;
+-                    synchronized (context) {
+-                        requireReadySessionRecord(context);
+-                        ToolExecutionRecord current = requireExecution(
+-                                context, executionId);
+-                        requested = requestCancel(current);
+-                        if (requested.isSettled() && requested.isCancelRequested()
+-                                && requested.getDispatchGeneration() == 0
+-                                && ProviderRuntimeProtocol.isReference(requested.getReference())) {
+-                            context.beginControl();
+-                            return cancelPreparedProvider(context, requested);
+-                        }
+-                        // An UNKNOWN record may still have an invocation
+-                        // running in this process; it gets the physical
+-                        // cancel below but is never settled from here.
+-                        if (requested.isSettled()
+-                                || (requested.getState()
+-                                        == ToolExecutionRecord.State.UNKNOWN
+-                                        && !invocations.contains(
+-                                                executionId))) {
+-=======
+         return safeStage(() -> {
+             ToolExecutionRecord stored = requireOwnedExecution(harnessSessionId,
+                     runtimeSessionId, executionId);
+             if (stored.isTerminal()) {
+-                return CompletableFuture.completedFuture(stored);
++                if (!isPreparedProviderCancellation(stored)) {
++                    return CompletableFuture.completedFuture(stored);
++                }
++                RuntimeBindingRecord binding = bindingRepository.findById(stored.getBindingId());
++                RuntimeSessionRecord owner = sessionRepository.findById(
++                        binding.getRequest().getScope(), runtimeSessionId);
++                if (owner.getState() == RuntimeSessionRecord.State.RELEASED) {
++                    return CompletableFuture.completedFuture(stored);
++                }
+             }
+             return requireReadySession(harnessSessionId, runtimeSessionId)
+                     .thenCompose(context -> {
+@@ -395,6 +364,10 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                             ToolExecutionRecord current = requireExecution(
+                                     context, executionId);
+                             requested = requestCancel(current);
++                            if (isPreparedProviderCancellation(requested)) {
++                                context.beginControl();
++                                return cancelPreparedProvider(context, requested);
++                            }
+                             // An UNKNOWN record may still have an invocation
+                             // running in this process; it gets the physical
+                             // cancel below but is never settled from here.
+@@ -412,7 +385,6 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                             beginDispatch(context, requested);
+                             ToolExecutionRecord latest = executionRepository
+                                     .findByExecutionCallId(executionId);
+->>>>>>> d66fdadd27 (feat(managed-agent): Add W0e terminal recovery fences (#12839))
+                             return CompletableFuture.completedFuture(
+                                     latest == null ? requested : latest);
+                         }
+@@ -465,6 +437,12 @@ public final class RuntimeBrokerService implements AutoCloseable {
+         });
+     }
+ 
++    private static boolean isPreparedProviderCancellation(ToolExecutionRecord record) {
++        return record.isSettled() && record.isCancelRequested()
++                && record.getDispatchGeneration() == 0
++                && ProviderRuntimeProtocol.isReference(record.getReference());
++    }
++
+     private CompletionStage<ToolExecutionRecord> cancelPreparedProvider(
+             SessionContext context, ToolExecutionRecord requested) {
+         CompletableFuture<ToolExecutionRecord> result = new CompletableFuture<>();
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+index 49c6f0f5e7..3c1b38ebd3 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+@@ -211,19 +211,77 @@ class RuntimeBrokerServiceTest {
+             fixture.transport.cancelResult = new CompletableFuture<>();
+             CompletionStage<ToolExecutionRecord> cancellation = fixture.service.cancelExecution(
+                     "harness", PROVIDER_SESSION, prepared.getExecutionCallId());
++            CompletionStage<ToolExecutionRecord> repeated = fixture.service.cancelExecution(
++                    "harness", PROVIDER_SESSION, prepared.getExecutionCallId());
++            assertFalse(repeated.toCompletableFuture().isDone());
+             assertEquals("runtime_session_busy", failure(fixture.service.release(
+                     "harness", PROVIDER_SESSION)).getCode());
+             join(fixture.service.startExecution("harness", PROVIDER_SESSION, prepared.getExecutionCallId()));
+             assertEquals(0, fixture.transport.executeCalls.get());
+             fixture.transport.cancelResult.completeExceptionally(new IllegalStateException("lost cancel"));
+             assertEquals("runtime_execution_cancel_failed", failure(cancellation).getCode());
++            assertEquals("runtime_execution_cancel_failed", failure(repeated).getCode());
+             fixture.transport.cancelResult = CompletableFuture.completedFuture(Map.of(
+                     "state", "settled", "result", Map.of("executionStatus", "cancelled")));
+             ToolExecutionRecord cancelled = join(fixture.service.cancelExecution(
+                     "harness", PROVIDER_SESSION, prepared.getExecutionCallId()));
+             assertEquals("cancelled", cancelled.getExecutionStatus());
+-            assertEquals(2, fixture.transport.cancelCalls.get());
++            assertEquals(3, fixture.transport.cancelCalls.get());
+             assertTrue(join(fixture.service.release("harness", PROVIDER_SESSION)));
++            assertSame(cancelled, join(fixture.service.cancelExecution(
++                    "harness", PROVIDER_SESSION, prepared.getExecutionCallId())));
++            assertSame(cancelled, join(fixture.service.getExecution(
++                    "harness", PROVIDER_SESSION, prepared.getExecutionCallId())));
++            assertSame(cancelled, join(fixture.service.prepareExecution(
++                    "harness", PROVIDER_SESSION, "key", providerReference())));
++            assertEquals(3, fixture.transport.cancelCalls.get());
++        }
++    }
++
++    @Test
++    void abandonedProviderReceiptsKeepTheirSavedOwnershipAfterRestartAndRelease() {
++        var bindings = new InMemoryRuntimeBindingRepository();
++        var sessions = new InMemoryRuntimeSessionRepository();
++        var executions = new InMemoryToolExecutionRepository();
++        var recovery = new RuntimeRecoveryContract.Fixture(bindings, sessions, executions,
++                "provider-terminal", PROVIDER_SESSION);
++        String harness = recovery.session.getSession().getHarnessSessionId();
++        Map<String, Object> reference = providerReference();
++        var prepared = bindings.admitExecution(sessions, executions,
++                ToolExecutionRecord.prepared("provider-call", "provider-key", recovery.binding.getBindingId(),
++                        recovery.binding.getGeneration(), harness, PROVIDER_SESSION,
++                        (String) reference.get("promptId"), (String) reference.get("callId"),
++                        (String) reference.get("argsDigest"), reference));
++        RuntimeBindingRecord lost = recovery.lose(false);
++        bindings.recoverLost(sessions, executions, lost);
++        var transport = new FakeTransport();
++        try (var service = new RuntimeBrokerService(
++                ignored -> { throw new AssertionError("Saved ownership must not resolve current scope"); },
++                new StaticRuntimeProvisioner(recovery.binding.getLease()), transport, bindings, sessions, executions,
++                "restarted", Duration.ofSeconds(10), Duration.ofSeconds(10))) {
++            for (boolean released : new boolean[] {false, true}) {
++                if (released) {
++                    var proof = bindings.compareAndSet(lost, lost.withRecoveryEvidence(null,
++                            RuntimeRecoveryContract.evidence(lost, RuntimeRecoveryEvidence.Fact.WRITERS_STOPPED),
++                            Instant.now()));
++                    bindings.recoverLost(sessions, executions, proof);
++                }
++                ToolExecutionRecord receipt = join(service.prepareExecution(
++                        harness, PROVIDER_SESSION, prepared.getIdempotencyKey(), reference));
++                assertEquals(ToolExecutionRecord.State.ABANDONED, receipt.getState());
++                assertEquals(reference, receipt.getReference());
++                assertSame(receipt, join(service.getExecution(harness, PROVIDER_SESSION, receipt.getExecutionCallId())));
++                assertSame(receipt, join(service.cancelExecution(harness, PROVIDER_SESSION, receipt.getExecutionCallId())));
++                assertEquals("runtime_execution_conflict", failure(service.prepareExecution(
++                        "other-harness", PROVIDER_SESSION, prepared.getIdempotencyKey(), reference)).getCode());
++                var changed = new HashMap<>(reference);
++                changed.put("invocationId", "another-invocation");
++                assertEquals("runtime_idempotency_conflict", failure(service.prepareExecution(
++                        harness, PROVIDER_SESSION, prepared.getIdempotencyKey(), changed)).getCode());
++            }
++            assertEquals(0, transport.acquireCalls.get());
++            assertEquals(0, transport.executeCalls.get());
++            assertEquals(0, transport.cancelCalls.get());
+         }
+     }
+ 

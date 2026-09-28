@@ -1,0 +1,85 @@
+# head=ac0b6cf966fb2c49f694f4cf26ffb8b8ce08e667 arm=baseline 2026-09-28T06:16:11.236Z
+BASELINE broker runtime-broker unit: total=402 bad=0 compile=true
+BASELINE server managed-agent-server unit: total=140 bad=0 compile=true
+BASELINE ts     cli serve (managed/broker/hosted): total=2126 bad=0 compile=true
+BASELINE core   core managed-tool: total=190 bad=0 compile=true
+BASELINE core   cli serve (managed/broker/hosted): total=2126 bad=0 compile=true
+# head=ac0b6cf966fb2c49f694f4cf26ffb8b8ce08e667 arm=round3 2026-09-28T06:18:50.273Z
+G1   KILLED   by 1 of 402 :: a repeated cancel of a prepared provider call is answered from the stored record, without the worker :: RuntimeBrokerServiceTest.preparedProviderCancellationClosesWorkerAdmissionBeforeRelease
+G2   KILLED   by 1 of 402 :: after release a cancelled prepared provider call no longer answers with its receipt :: RuntimeBrokerServiceTest.preparedProviderCancellationClosesWorkerAdmissionBeforeRelease
+G3   KILLED   by 1 of 402 :: the released-owner test is inverted (receipt only while the Session is live) :: RuntimeBrokerServiceTest.preparedProviderCancellationClosesWorkerAdmissionBeforeRelease
+G4   SURVIVED 402 tests :: a dispatched call counts as a prepared cancellation (generation test dropped)
+G5   KILLED   by 1 of 402 :: a raw call counts as a prepared provider cancellation (reference test dropped) :: RuntimeBrokerHttpServerTest.cancelPreparedWorkNeverInvokesTransport
+G6   KILLED   by 3 of 402 :: reservation receipts ignore the reference (idempotency key alone decides) :: RuntimeBrokerServiceTest.abandonedProviderReceiptsKeepTheirSavedOwnershipAfterRestartAndRelease | RuntimeBrokerServiceTest.changedRequestCannotReuseAnIdempotencyKey | RuntimeRecoveryTest.terminalHttpReadsUseSavedOwnershipAfterRestartAndRelease
+G7   KILLED   by 1 of 402 :: reservation receipts skip the ownership check :: RuntimeBrokerServiceTest.abandonedProviderReceiptsKeepTheirSavedOwnershipAfterRestartAndRelease
+G8   KILLED   by 3 of 2126 :: client never marks an execution as abandoned :: broker-managed-runtime-provider.test.ts › inspectExecution preserves terminal uncertainty without acquiring, starting or polling | broker-managed-runtime-provider.test.ts › reconcileExecution preserves terminal uncertainty without acquiring, starting or polling | broker-managed-runtime-provider.test.ts › cancelExecution preserves terminal uncertainty without acquiring, starting or polling
+G9   KILLED   by 1 of 2126 :: client drops the reason when building the error (argument lost in the merge) :: broker-managed-runtime-provider.test.ts › preserves bounded Broker error reasons (0)
+# killed=8 survived=1 other=0 of 9
+# head=ac0b6cf966fb2c49f694f4cf26ffb8b8ce08e667 arm=J4,J5,J13,J14,T2,T8,T18 2026-09-28T06:26:36.288Z
+J4   KILLED   by 1 of 402 :: reservation body is no longer a closed field set :: RuntimeBrokerHttpServerTest.rejectsExtraReserveFieldsBeforeWritingAReservation
+J5   KILLED   by 1 of 402 :: start body is no longer a closed field set :: RuntimeBrokerHttpServerTest.rejectsExtraStartFieldsBeforeChangingTheReservationOrDispatching
+J13  KILLED   by 1 of 402 :: unknown fields in a control operation are accepted :: RuntimeBrokerHttpServerTest.rejectsUnknownControlFieldsBeforeCallingTheTransport
+J14  KILLED   by 1 of 402 :: file-history owner is not tied to the Session :: RuntimeBrokerHttpServerTest.rejectsForeignHistoryOwnersBeforeCallingTheTransport
+T2   SURVIVED 2126 tests :: worker release does not close admission in the executor
+T8   SURVIVED 2126 tests :: release with pending controls is allowed
+T18  SURVIVED 2126 tests :: oversized provider responses are sent anyway
+# killed=4 survived=3 other=0 of 7
+# head=ac0b6cf966fb2c49f694f4cf26ffb8b8ce08e667 arm=round2 2026-09-28T06:32:00.704Z
+N1   KILLED   by 1 of 402 :: a known code is accepted with any status :: ProviderRuntimeTransportTest.doesNotForwardUnrecognizedOrUntrustedErrorBodies
+N2   KILLED   by 1 of 402 :: an error body with extra fields is accepted :: ProviderRuntimeTransportTest.doesNotForwardUnrecognizedOrUntrustedErrorBodies
+N3   KILLED   by 1 of 402 :: a provider error without Cache-Control: no-store is accepted :: ProviderRuntimeTransportTest.doesNotForwardUnrecognizedOrUntrustedErrorBodies
+N4   KILLED   by 1 of 402 :: a provider error with Content-Encoding is accepted :: ProviderRuntimeTransportTest.doesNotForwardUnrecognizedOrUntrustedErrorBodies
+N5   KILLED   by 1 of 402 :: the 4096-character reason bound is removed :: ProviderRuntimeTransportTest.doesNotForwardUnrecognizedOrUntrustedErrorBodies
+N6   KILLED   by 1 of 402 :: a reason holding NUL is accepted :: ProviderRuntimeTransportTest.doesNotForwardUnrecognizedOrUntrustedErrorBodies
+N7   KILLED   by 1 of 402 :: an empty reason is accepted :: ProviderRuntimeTransportTest.doesNotForwardUnrecognizedOrUntrustedErrorBodies
+N8   KILLED   by 1 of 402 :: provider error parsing applies to every worker route :: HttpRuntimeTransportTest.contextClientBoundsBodiesRejectsOldPeersAndPreservesSessionRefusals
+N9   KILLED   by 1 of 402 :: an unknown code is accepted with the status it arrived with :: ProviderRuntimeTransportTest.doesNotForwardUnrecognizedOrUntrustedErrorBodies
+N10  KILLED   by 1 of 402 :: provider errors are never parsed (the fix is switched off) :: ProviderRuntimeTransportTest.preservesRecognizedProviderErrorReasonsAndStatusWithoutTreatingRefusalAsNotStarted
+N11  KILLED   by 1 of 2126 :: client takes a reason from an envelope with extra fields :: broker-managed-runtime-provider.test.ts › does not display a reason outside the Broker error envelope (3)
+N12  KILLED   by 2 of 2126 :: client takes a reason regardless of Content-Type :: broker-managed-runtime-provider.test.ts › does not display a reason outside the Broker error envelope (4) | hosted-harness-session.test.ts › omits settled output when only the complete tool result record exceeds the limit
+N13  KILLED   by 1 of 2126 :: client reason bound of 4096 characters is removed :: broker-managed-runtime-provider.test.ts › preserves bounded Broker error reasons (2)
+N14  KILLED   by 1 of 2126 :: client accepts a reason holding NUL :: broker-managed-runtime-provider.test.ts › preserves bounded Broker error reasons (3)
+N15  KILLED   by 1 of 2126 :: client never attaches the reason (the fix is switched off) :: broker-managed-runtime-provider.test.ts › preserves bounded Broker error reasons (0)
+N16  KILLED   by 2 of 2126 :: tool preparation errors fall back to the 409 catch-all :: hosted-harness-session.test.ts › settles a turn after one runnable-check failure | managed-runtime-provider-worker.test.ts › reports input errors separately from identity conflicts and permits corrected preparation
+N17  KILLED   by 2 of 2126 :: conflict errors lose their own code :: hosted-harness-session.test.ts › omits settled output when only the complete tool result record exceeds the limit | hosted-harness-session.test.ts › settles a turn after one managed-turn-result failure
+N18  SURVIVED 2126 tests :: the catch-all code is identity_conflict again
+N19  KILLED   by 2 of 2126 :: an unsupported profile is a plain error again :: managed-runtime-provider-worker.test.ts › keeps provider work inside an installed and activated Workspace context | managed-runtime-provider-worker.test.ts › refuses provider admission for an unsupported boot v2 capability profile
+N20  KILLED   by 2 of 2316 :: an unknown tool is a plain error again :: managed-tool-runtime.test.ts › classifies unknown tools and invalid input without poisoning a corrected prepare | managed-runtime-provider-worker.test.ts › reports input errors separately from identity conflicts and permits corrected preparation
+N21  KILLED   by 2 of 2316 :: a tool construction error is rethrown unwrapped :: managed-tool-runtime.test.ts › classifies unknown tools and invalid input without poisoning a corrected prepare | managed-runtime-provider-worker.test.ts › reports input errors separately from identity conflicts and permits corrected preparation
+# killed=20 survived=1 other=0 of 21
+# head=ac0b6cf966fb2c49f694f4cf26ffb8b8ce08e667 arm=J1,J2,J3,J6,J7,J8,J9,J10,J11,J12,J15,J16,J17,J18,T1,T3,T4,T5,T6,T7,T9,T10,T11,T12,T13,T14,T15,T16,T17,T19,T20,T21,T22 2026-09-28T06:47:27.880Z
+J1   KILLED   by 1 of 402 :: payload-less start accepts a raw (non-provider) reservation :: RuntimeBrokerHttpServerTest.prepareHasNoEffectAndStartUsesOriginalBytesExactlyOnce
+J2   KILLED   by 1 of 402 :: payload start accepts a provider reservation :: RuntimeBrokerHttpServerTest.providerPreparationIsDurableAndVoidControlsKeepTheirNullResult
+J3   KILLED   by 2 of 402 :: immediate route accepts a seven-field provider reference :: RuntimeBrokerHttpServerTest.providerPreparationIsDurableAndVoidControlsKeepTheirNullResult | RuntimeBrokerServiceTest.reservesProviderReferencesWithoutEffectsAndStartsTheOriginalOnce
+J6   KILLED   by 2 of 402 :: cancel of a prepared provider reservation never reaches the worker :: RuntimeBrokerServiceTest.preparedProviderCancellationClosesWorkerAdmissionBeforeRelease | RuntimeBrokerServiceTest.preparedProviderCancellationWaitsForOriginalNotStartedEvidence
+J7   KILLED   by 1 of 402 :: prepared cancellation is acknowledged on cancel_requested without waiting :: RuntimeBrokerServiceTest.preparedProviderCancellationWaitsForOriginalNotStartedEvidence
+J8   KILLED   by 2 of 402 :: generic control skips the worker acquire :: ProviderRuntimeTransportTest.doesNotSendAnOversizedControlOrAcceptFalseRelease | ProviderRuntimeTransportTest.emitsTheSharedPublicControlFixturesWithoutChangingTheirIdentity
+J9   KILLED   by 4 of 402 :: release is acknowledged locally without asking the worker :: ProviderRuntimeTransportTest.doesNotForwardUnrecognizedOrUntrustedErrorBodies | ProviderRuntimeTransportTest.doesNotSendAnOversizedControlOrAcceptFalseRelease | ProviderRuntimeTransportTest.preparedReferencesExecuteAndObserveOnlyTheProviderProtocol | ProviderRuntimeTransportTest.refusesResponseIdentityDriftExtraFieldsAndMissingVoidResult
+J10  KILLED   by 1 of 402 :: a false release answer from the worker is accepted :: ProviderRuntimeTransportTest.doesNotSendAnOversizedControlOrAcceptFalseRelease
+J11  KILLED   by 1 of 402 :: provider response identity (version/protocol/session) is not checked :: ProviderRuntimeTransportTest.refusesResponseIdentityDriftExtraFieldsAndMissingVoidResult
+J12  KILLED   by 2 of 402 :: a reference for another Runtime Session passes the Broker check :: ProviderRuntimeTransportTest.rejectsMalformedStatusAndForeignOrPayloadBearingReferences | ProviderRuntimeTransportTest.rejectsTheSharedMalformedReferencesBeforeTheyCanBeReserved
+J15  KILLED   by 1 of 402 :: history observation also acquires (reopens) the worker Session :: ProviderRuntimeTransportTest.emitsTheSharedPublicControlFixturesWithoutChangingTheirIdentity
+J16  KILLED   by 1 of 140 :: Workspace release skips the worker acknowledgement :: WorkspaceRuntimeTest.controlsRecheckWorkspaceAuthorityAndReleaseWaitsForProviderCleanup
+J17  KILLED   by 1 of 140 :: Workspace deactivates before the worker closes admission :: WorkspaceRuntimeTest.controlsRecheckWorkspaceAuthorityAndReleaseWaitsForProviderCleanup
+J18  KILLED   by 1 of 140 :: Workspace control no longer requires storage ownership :: WorkspaceRuntimeTest.controlsRecheckWorkspaceAuthorityAndReleaseWaitsForProviderCleanup
+T1   KILLED   by 1 of 2126 :: worker release skips cleanup of prepared invocations :: managed-runtime-provider-worker.test.ts › fences Session identity, changed prepared input and legacy raw execution
+T3   KILLED   by 2 of 2126 :: provider acquire does not claim the Session against the raw protocol :: managed-runtime-provider-worker.test.ts › fences Session identity, changed prepared input and legacy raw execution | managed-runtime-provider-worker.test.ts › refuses switching a journaled legacy Session to the provider protocol
+T4   KILLED   by 1 of 2126 :: raw calls may enter provider-owned or closed Sessions :: managed-runtime-provider-worker.test.ts › fences Session identity, changed prepared input and legacy raw execution
+T5   KILLED   by 1 of 2126 :: provider claim ignores existing raw entries of the Session :: managed-runtime-provider-worker.test.ts › refuses switching a journaled legacy Session to the provider protocol
+T6   KILLED   by 1 of 2126 :: a released Session still admits new controls :: managed-runtime-provider-worker.test.ts › executes the four admitted tools with real approval, preflight and file history
+T7   KILLED   by 2 of 2126 :: new work no longer rechecks the Workspace context :: managed-runtime-provider-worker.test.ts › rechecks directories for new work while status, cancellation and release remain available | managed-runtime-provider-worker.test.ts › keeps provider work inside an installed and activated Workspace context
+T9   KILLED   by 1 of 2126 :: background shell preparation is admitted :: managed-runtime-provider-worker.test.ts › requires immutable history binding to its real directory before starting a turn
+T10  KILLED   by 1 of 2126 :: file-history binding accepts another execution directory :: managed-runtime-provider-worker.test.ts › requires immutable history binding to its real directory before starting a turn
+T11  KILLED   by 1 of 2126 :: a conflicting file-history rebind is accepted :: managed-runtime-provider-worker.test.ts › requires immutable history binding to its real directory before starting a turn
+T12  KILLED   by 1 of 2126 :: Session identity (Harness / turn kind) is not compared on lookup :: managed-runtime-provider-worker.test.ts › fences Session identity, changed prepared input and legacy raw execution
+T13  KILLED   by 3 of 2126 :: foreign-Session identities pass the protocol parser :: broker-managed-runtime-provider.test.ts › rejects foreign control identities before contacting the Broker | managed-runtime-provider-protocol.test.ts › 'foreign-reference' | managed-runtime-provider-protocol.test.ts › validates optional preparation values and their original Session
+T14  KILLED   by 5 of 2126 :: unknown fields pass the protocol parser :: managed-runtime-provider-protocol.test.ts › 'extra-envelope' | managed-runtime-provider-protocol.test.ts › 'extra-session' | managed-runtime-provider-protocol.test.ts › 'extra-operation' | managed-runtime-provider-protocol.test.ts › distinguishes void acknowledgements, terminal proof and unknown lookup | …
+T15  KILLED   by 1 of 2126 :: manifest digest is not verified :: managed-runtime-provider-protocol.test.ts › pins manifest contents to its capability digest
+T16  KILLED   by 2 of 2126 :: prepare result argsDigest is not verified against params :: hosted-harness-session.test.ts › omits settled output when only the complete tool result record exceeds the limit | managed-runtime-provider-protocol.test.ts › pins prepared references and normalized arguments to the original request
+T17  KILLED   by 2 of 2126 :: idempotency key no longer includes the invocation id :: broker-managed-runtime-provider.test.ts › reserves replacement prepared invocations independently | hosted-harness-session.test.ts › omits settled output when only the complete tool result record exceeds the limit
+T19  KILLED   by 1 of 2126 :: executor no longer reports provider work as active :: managed-runtime-provider-worker.test.ts › keeps provider work inside an installed and activated Workspace context
+T20  KILLED   by 1 of 2316 :: releasePrepared ignores running executions :: managed-tool-runtime.test.ts › refuses to release an executing invocation without cancelling it
+T21  KILLED   by 2 of 2316 :: releasePrepared does not cancel unfinished preparations :: managed-tool-runtime.test.ts › releases prepared work without changing completed invocation evidence | managed-runtime-provider-worker.test.ts › fences Session identity, changed prepared input and legacy raw execution
+T22  KILLED   by 2 of 2316 :: a cancelled shell display is no longer reported as cancelled :: managed-tool-runtime.test.ts › preserves an explicit Shell cancellation even when the tool has no error | managed-runtime-provider-worker.test.ts › refuses release during execution and cancels against the original invocation
+# killed=33 survived=0 other=0 of 33
+# flake-check N17 applied, hosted-harness-session.test.ts alone: 16/16 passed, 0 failed

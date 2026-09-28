@@ -1,0 +1,51 @@
+[GROUP] M1 v1 arm=mg2
+[M1-v1] before release: GET 200 state=settled | release ok true
+[M1-v1] after release:  GET 200 state=settled result=success | cancel 200 state=settled | start 404 runtime_session_not_found state=undefined
+[M1-v1] after release:  reserve again with the same key and reference 200 sameExecution=true | same key, other invocation 409 runtime_idempotency_conflict | other Harness Session 409 runtime_execution_conflict
+[M1-v1] after release:  NEW reservation 404 runtime_session_not_found | control[history] 404 runtime_session_not_found | provider.inspectExecution known
+[M1-v1] Session row RELEASED/v3 -> RELEASED/v3 | rows=["SETTLED/success"] | file="receipt\n" | worker requests after release: 0
+[PASS] M1-v1.1 a released Session still answers for its terminal execution: GET, cancel and the same reservation return the stored receipt
+[PASS] M1-v1.2 receipts are owner-bound and idempotency-bound: other invocation and other Harness Session are refused :: 409 runtime_idempotency_conflict | 409 runtime_execution_conflict
+[PASS] M1-v1.3 reading receipts reopens nothing: no worker request, Session row unchanged, no new work or live control admitted :: wire=0 fresh=404 runtime_session_not_found control=404 runtime_session_not_found
+[GROUP] M1 v2 arm=mg2
+[M1-v2] before release: GET 200 state=settled | release ok true
+[M1-v2] after release:  GET 200 state=settled result=success | cancel 200 state=settled | start 404 runtime_session_not_found state=undefined
+[M1-v2] after release:  reserve again with the same key and reference 200 sameExecution=true | same key, other invocation 409 runtime_idempotency_conflict | other Harness Session 409 runtime_execution_conflict
+[M1-v2] after release:  NEW reservation 404 runtime_session_not_found | control[history] 404 runtime_session_not_found | provider.inspectExecution known
+[M1-v2] Session row RELEASED/v3 -> RELEASED/v3 | rows=["SETTLED/success"] | file="receipt\n" | worker requests after release: 0
+[PASS] M1-v2.1 a released Session still answers for its terminal execution: GET, cancel and the same reservation return the stored receipt
+[PASS] M1-v2.2 receipts are owner-bound and idempotency-bound: other invocation and other Harness Session are refused :: 409 runtime_idempotency_conflict | 409 runtime_execution_conflict
+[PASS] M1-v2.3 reading receipts reopens nothing: no worker request, Session row unchanged, no new work or live control admitted :: wire=0 fresh=404 runtime_session_not_found control=404 runtime_session_not_found
+[GROUP] M2 v1 arm=mg2
+[M2-v1] cancel #1 200 cancelled worker saw [cancel,status] | cancel #2 200 worker saw [cancel] | 3 concurrent 200,200,200 | release ok true | cancel after release 200 worker saw []
+[PASS] M2-v1.1 every cancellation before release asks the worker again and answers cancelled; none has an effect
+[PASS] M2-v1.2 after release the cancellation is answered from the stored receipt with no worker request :: release=ok true
+[GROUP] M2 v2 arm=mg2
+[M2-v2] cancel #1 200 cancelled worker saw [cancel,status] | cancel #2 200 worker saw [cancel] | 3 concurrent 200,200,200 | release ok true | cancel after release 200 worker saw []
+[PASS] M2-v2.1 every cancellation before release asks the worker again and answers cancelled; none has an effect
+[PASS] M2-v2.2 after release the cancellation is answered from the stored receipt with no worker request :: release=ok true
+[GROUP] M4 v1 arm=mg2
+[M4-v1] start result=cancelled | record SETTLED/1/true (state/dispatch generation/cancel requested)
+[M4-v1] cancel #1 (running) 200 worker saw [cancel] | cancel #2 (settled) 200 cancelled worker saw [] | cancel #3 200 worker saw [] | release ok true | cancel after release 200 worker saw []
+[PASS] M4-v1.1 the running call is cancelled through the worker and settles cancelled with no late effect
+[PASS] M4-v1.2 a repeated cancellation of a call that WAS dispatched is answered from the record: no worker request :: worker saw [] []
+[PASS] M4-v1.3 release succeeds and the receipt stays readable afterwards :: ok true
+[GROUP] M4 v2 arm=mg2
+[M4-v2] start result=cancelled | record SETTLED/1/true (state/dispatch generation/cancel requested)
+[M4-v2] cancel #1 (running) 200 worker saw [cancel] | cancel #2 (settled) 200 cancelled worker saw [] | cancel #3 200 worker saw [] | release ok true | cancel after release 200 worker saw []
+[PASS] M4-v2.1 the running call is cancelled through the worker and settles cancelled with no late effect
+[PASS] M4-v2.2 a repeated cancellation of a call that WAS dispatched is answered from the record: no worker request :: worker saw [] []
+[PASS] M4-v2.3 release succeeds and the receipt stays readable afterwards :: ok true
+[GROUP] M5 v1 arm=mg2
+[M5-v1] start result=success | cancel #1 (delayed 5 s on the wire) 200 | record SETTLED/success/generation 1/cancel requested true | file="done\n"
+[M5-v1] cancel #2 200 success worker saw [] | release ok true
+[PASS] M5-v1.1 the command finished before the worker heard the cancellation; the record says so :: SETTLED/success cancel=true
+[PASS] M5-v1.2 a later cancellation is answered from the record (200, success) with no worker request :: 200 worker saw []
+[PASS] M5-v1.3 release succeeds :: ok true
+[GROUP] M5 v2 arm=mg2
+[M5-v2] start result=success | cancel #1 (delayed 5 s on the wire) 200 | record SETTLED/success/generation 1/cancel requested true | file="done\n"
+[M5-v2] cancel #2 200 success worker saw [] | release ok true
+[PASS] M5-v2.1 the command finished before the worker heard the cancellation; the record says so :: SETTLED/success cancel=true
+[PASS] M5-v2.2 a later cancellation is answered from the record (200, success) with no worker request :: 200 worker saw []
+[PASS] M5-v2.3 release succeeds :: ok true
+[SUMMARY] 22/22 checks passed
