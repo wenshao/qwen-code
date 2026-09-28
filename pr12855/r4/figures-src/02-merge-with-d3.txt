@@ -1,0 +1,16 @@
+Flyway numbering: main is broken, and the next collision is already queued
+head fa7e06f78d = main 48107945ea + H0c; newest main 2cfd390650 still holds the duplicate; open PR #12894 checked
+## main itself: W0e (#12839) and D4 (#12881) both added a V16, 23 minutes apart
+-- V16__runtime_loss_evidence.sql (W0e, 05:14 UTC) + V16__managed_session_operation.sql (D4, 05:37 UTC)
+-- main's jar as-is: FlywayException: Found more than one migration with version 16 -> fails to start
+-- this PR's CI: MariaDB and Hosted MySQL jobs red only with "Flyway Found more than one migration with version 16"
+==   (6 tests from main: ManagedSessionOperationStoreTest, RuntimeBrokerFlywaySchemaTest, ...), none from H0c
+## next collision: open PR #12894 also claims V18
+!! #12894: V17__managed_session_operation.sql (the fix for main) + V18__managed_tool_publication.sql + V19__...
+!! #12855: V18__managed_extension_record.sql   -> different names, git merges both, Flyway refuses the second V18
+## with D4's V16 moved to V17 locally (as the author did), fa7e06f78d passes
+++ runtime-broker 383; managed-agent-server 170 unit + 13 MariaDB IT (2 load flakes in the lease-precision
+==   polling test on the first run at load 83; 13/13 on rerun); 0 Checkstyle
+++ -Phosted-harness-mysql (5 IT) / -Phosted-workspace-tools (3 IT) on MySQL 8.4; Hosted E2E --session-failover
+++ core managed-runtime 26 files / 1712 tests; web-shell managed 73/73
+++ fresh MariaDB applies V16, V17, V18; upgrade main -> PR -> main on one live Session; spec 1.19.0, 12/12 bodies valid

@@ -1,0 +1,16 @@
+D4 durable delete vs Stage H, edge cases and mutants (head fa7e06f78d)
+Real stack; mutants run the PR's own suites (Java 39 unit + 13 MariaDB IT, fresh DB per run; TS 809 tests incl. record contract)
+## D4 delete is an operation; it waits while a writer holds the Session's journal lease
+== DELETE -> 202; with the writer open: "A Harness still holds the Session's journal writer", retried until it closes
+++ handover race, 10 trials: writer A releases, DELETE admitted, writer B opens and commits a new record every ~3 ms
+++   until the tombstone: 662 commits by B, 0 task.updated from B, 0 after session.deleted, 10/10 deletes complete
+!! outside this PR: after the tombstone a new writer still acquires the journal and commits (store keeps the row,
+==   H0c announces nothing; session.deleted stays last) - a D4/Session-store gap, not H0c's
+## carried over, re-run on this head
+++ crash after dropped response: writer B at 60 s, replayed=true, no new event; other content -> conflict
+++ 50 tasks, 8 ties, limits 1..100 == authority order; live SSE; disabled domain: replay yes, new/bypass refused
+++ restart byte-identical; corrupt journal refused on reopen; main -> PR -> main works (V16 W0e, V17 D4, V18 H0c)
+!! revision committed while main ran -> after re-upgrade the Java row says rev 4, the authority rev 5 (OQ7 wording)
+## mutants: 27/27 killed
+++ J6 J7 J8 J11-J24, T1 T4 T12 T15-T19 as in round 3
+++ J25 W0e ABANDONED -> settled (readsBrokerExecutions)   J26 guard skips DELETED but not DELETING (being-deleted test)
