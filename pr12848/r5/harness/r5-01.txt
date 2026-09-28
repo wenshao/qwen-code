@@ -1,0 +1,18 @@
+#12848 round 5 at 6846d1e2: the main merge on the Shell prepare path
+6846d1e2 = a4c35e89 + main df9374d4 (FG6a reply-loss gates #12873); Java production and dependencies unchanged
+
+## Conflict resolution (hosted-workspace-broker.ts prepare, HostedWorkspaceToolTurnIT)
+== Shell keeps runtimeProtocol:3 + inputDigest in the SAME reservation object main's retry resends
+== the IT still runs the six-Workspace Shell driver + retained-output reader; FG6a uses its own driver
+## Lost `executions:prepare` on a SHELL call (not covered by FG6a, which uses the file profile)
+++ reply dropped once         retry -> same reservation, 1 execution row, command ran once, next turn OK
+++ request dropped once       retry reserves, ran once, next turn OK
+++ reply held 31 s (timeout)  retry at 30 s wins; the late original is deduplicated (1 row); ran once
+!! reply dropped twice        fail-closed: recovery-blocked, NO effect, 1 PREPARED row left, next prompt 409
+!!                            (same semantics as main's prepare-twice case for file tools)
+## Regression on MySQL 8.4.7
+++ author's six-Workspace driver (incl. Shell after text/Shell reload) passes, 72.2 s
+++ main's FG6a reply-loss driver, 7 cases (acquire, prepare, prepare-twice, start, cancel, release,
+++   release-before-forward): HOSTED_REPLY_LOSS_OK; each effect at most once   (status needs the IT's JVM gate)
+++ F4: Shell/text -> reload -> Shell and Harness restart -> Shell: ok; real qwen3.8-max reload: ok
+++ mysqld restart + fresh Spring + reader: HOSTED_SHELL_RETAINED_OUTPUT_OK
