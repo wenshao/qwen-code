@@ -1,0 +1,79 @@
+[   9.8s] [setup] jar=pr engine=mariadb db=s1_pr_mariadb ports={"model":19101,"harness":19102,"spring":19103}
+[  11.3s] [PASS] A1 list after first Turn: one completed Turn, has_more=false, next_cursor=null | 200 {"object":"list","data":[{"id":"turn_92bc16bdada743319a81077968c84970","object":"agent.turn","session_id":"f677c3ab-5fb2-4030-a25a-58f5ca33a08a","input_item_id":"item_turn_92bc16bdada743319a81077968c84970_input","status":"completed","created_at":1790610510,"completed_at":1790610511}],"has_more":false,"next_cursor":null}
+[  11.3s] [PASS] A1 detail equals the list entry
+[  11.3s] [PASS] A1 created_at/completed_at are the stored ms in whole seconds | api 1790610510/1790610511 db 1790610510334/1790610511586 COMPLETED
+[  11.4s] [PASS] A1 input_item_id names a real Item of the Session | item_turn_92bc16bdada743319a81077968c84970_input
+[  11.6s] [PASS] A2 detail of the running Turn equals Session.active_turn | {"id":"turn_17e7aeb7177845809b9b2e8a612ee126","object":"agent.turn","session_id":"f677c3ab-5fb2-4030-a25a-58f5ca33a08a","input_item_id":"item_turn_17e7aeb7177845809b9b2e8a612ee126_input","status":"running","created_at":1790610511}
+[  11.6s] [PASS] A2 running Turn heads the list
+[ 206.6s] [PASS] A3 25 Turns stored; DB order = reverse submission order
+[ 207.0s] [PASS] A4 limit=1: 25 pages, every Turn once, newest first | pages=1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1
+[ 207.5s] [PASS] A4 limit=2: 13 pages, every Turn once, newest first | pages=2+2+2+2+2+2+2+2+2+2+2+2+1
+[ 208.0s] [PASS] A4 limit=3: 9 pages, every Turn once, newest first | pages=3+3+3+3+3+3+3+3+1
+[ 208.6s] [PASS] A4 limit=4: 7 pages, every Turn once, newest first | pages=4+4+4+4+4+4+1
+[ 208.7s] [PASS] A4 limit=5: 5 pages, every Turn once, newest first | pages=5+5+5+5+5
+[ 209.1s] [PASS] A4 limit=7: 4 pages, every Turn once, newest first | pages=7+7+7+4
+[ 209.3s] [PASS] A4 limit=10: 3 pages, every Turn once, newest first | pages=10+10+5
+[ 209.4s] [PASS] A4 limit=20: 2 pages, every Turn once, newest first | pages=20+5
+[ 209.7s] [PASS] A4 limit=24: 2 pages, every Turn once, newest first | pages=24+1
+[ 209.8s] [PASS] A4 limit=25: 1 pages, every Turn once, newest first | pages=25
+[ 209.8s] [PASS] A4 limit=26: 1 pages, every Turn once, newest first | pages=25
+[ 209.8s] [PASS] A4 limit=100: 1 pages, every Turn once, newest first | pages=25
+[ 209.9s] [PASS] A4 limit=default(20): 2 pages, every Turn once, newest first | pages=20+5
+[ 228.4s] [PASS] A5 3 Turns created mid-pagination: the walk still returns the original 25 exactly once | collected=25 new-in-walk=0
+[ 228.4s] [PASS] A5 a new first page starts with the 3 new Turns
+[ 228.4s] [PASS] B limit=0 -> 400 invalid_limit | 400 invalid_limit
+[ 228.4s] [PASS] B limit=101 -> 400 invalid_limit | 400 invalid_limit
+[ 228.4s] [PASS] B limit=-1 -> 400 invalid_limit | 400 invalid_limit
+[ 228.4s] [PASS] B limit=abc -> 400 invalid_request | 400 invalid_request
+[ 228.4s] [PASS] B limit=2147483648 -> 400 invalid_request | 400 invalid_request
+[ 228.4s] [PASS] B limit=1.5 -> 400 invalid_request | 400 invalid_request
+[ 228.4s] [PASS] B limit=1 -> 200 | 200 1 Turns
+[ 228.5s] [PASS] B limit=100 -> 200 | 200 28 Turns
+[ 228.5s] [INFO] B limit= (empty) -> 200 20 Turns
+[ 228.9s] [PASS] B cursor not base64 -> 400 invalid_cursor | 400 invalid_cursor
+[ 228.9s] [PASS] B cursor space in ID -> 400 invalid_cursor | 400 invalid_cursor
+[ 229.0s] [PASS] B cursor leading zero -> 400 invalid_cursor | 400 invalid_cursor
+[ 229.0s] [PASS] B cursor createdAt beyond long -> 400 invalid_cursor | 400 invalid_cursor
+[ 229.0s] [PASS] B cursor negative createdAt -> 400 invalid_cursor | 400 invalid_cursor
+[ 229.0s] [PASS] B cursor 65-char ID -> 400 invalid_cursor | 400 invalid_cursor
+[ 229.0s] [INFO] B cursor standard base64 with padding -> 200 first=turn_d266367da01d4aecbebc79b2712c70c2
+[ 229.0s] [PASS] B cursor 513 chars (contract maxLength 512) -> 400 invalid_cursor | 400 invalid_cursor
+[ 229.0s] [PASS] B blank cursor reads the first page
+[ 229.2s] [PASS] B hand-made cursor at Turn #5 starts at Turn #6
+[ 229.2s] [PASS] B unknown Turn -> 404 turn_not_found | 404 turn_not_found
+[ 229.2s] [PASS] B 64-char ID -> 404 turn_not_found | 404 turn_not_found
+[ 229.2s] [PASS] B 65-char ID -> 400 invalid_request | 400 invalid_request
+[ 229.2s] [PASS] B 33 emoji (66 UTF-16 units) -> 404 turn_not_found | 404 turn_not_found
+[ 229.3s] [PASS] B 65 emoji -> 400 invalid_request | 400 invalid_request
+[ 229.3s] [PASS] B real ID + trailing space -> 404 turn_not_found | 404 turn_not_found
+[ 229.3s] [PASS] B real ID + 3 trailing spaces -> 404 turn_not_found | 404 turn_not_found
+[ 229.4s] [PASS] B real ID upper-cased -> 404 turn_not_found | 404 turn_not_found
+[ 229.4s] [PASS] B list, unknown Session -> 404 session_not_found | 404 session_not_found
+[ 229.4s] [PASS] B detail, unknown Session -> 404 session_not_found | 404 session_not_found
+[ 229.4s] [PASS] B unknown Session + limit=0 (validated first) -> 400 invalid_limit | 400 invalid_limit
+[ 229.4s] [PASS] B unknown Session + bad cursor (validated first) -> 400 invalid_cursor | 400 invalid_cursor
+[ 229.4s] [PASS] B unknown Session + 65-char ID (validated first) -> 400 invalid_request | 400 invalid_request
+[ 229.4s] [PASS] B exact real ID -> 200
+[ 229.4s] [PASS] B other tenant, list -> 404 session_not_found | 404 session_not_found
+[ 229.4s] [PASS] B tenant differing only by case, list -> 404 session_not_found | 404 session_not_found
+[ 229.4s] [PASS] B other tenant, detail -> 404 session_not_found | 404 session_not_found
+[ 229.5s] [PASS] B tenant differing only by case, detail -> 404 session_not_found | 404 session_not_found
+[ 231.0s] [PASS] B Turn of another Session of the same tenant -> 404 turn_not_found | 404 turn_not_found
+[ 231.0s] [PASS] B list of the other Session shows only its own Turn
+[ 231.2s] [INFO] B cursor from Session 1 applied to Session 2 -> 200 0 Turns (positions only)
+[ 231.5s] [PASS] C closed Session: Turns stay readable
+[ 231.7s] [PASS] C archived Session (archived): detail readable
+[ 232.2s] [PASS] C deleted Session, list -> 404 session_not_found | 404 session_not_found
+[ 232.2s] [PASS] C deleted Session, detail -> 404 session_not_found | 404 session_not_found
+[ 232.2s] [PASS] C deleted Session: its delete operation is still readable
+[ 232.4s] [INFO] C Turn rows still in the DB after delete: 28
+[ 232.7s] [INFO] D create bound Session as actor-a -> 202 c45432bd-f452-4fb5-83e1-954274c7e296
+[ 232.8s] [PASS] D bound Session, reader: list+detail -> 200 | list 200  detail 200 
+[ 232.8s] [PASS] D bound Session, no grant: list+detail -> 404 | list 404 session_not_found detail 404 session_not_found
+[ 232.8s] [PASS] D bound Session, can_create but not can_read: list+detail -> 404 | list 404 session_not_found detail 404 session_not_found
+[ 232.8s] [INFO] D bound Session, no actor: list 404 session_not_found detail 404 session_not_found
+[ 234.0s] [PASS] E 5 Turns in the same ms (IDs differing only by case), limit=1: each once, DB order | turn_newer,turn_tie2,turn_tie,turn_tiE,turn_Tie,turn_TIE,turn_older
+[ 234.1s] [PASS] E 5 Turns in the same ms (IDs differing only by case), limit=2: each once, DB order | turn_newer,turn_tie2,turn_tie,turn_tiE,turn_Tie,turn_TIE,turn_older
+[ 234.2s] [PASS] E 5 Turns in the same ms (IDs differing only by case), limit=3: each once, DB order | turn_newer,turn_tie2,turn_tie,turn_tiE,turn_Tie,turn_TIE,turn_older
+[ 234.4s] [PASS] E each case variant reads back its own Turn (input "not json {" never parsed)
+[ 234.4s] [SUMMARY] 71 pass, 0 fail; 159 Turn responses captured
