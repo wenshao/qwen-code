@@ -1,0 +1,16 @@
+{
+  "title": "F1+: in durable mode one LEGACY startup failure blocks every new placement in the tenant",
+  "subtitle": "P4 probe: worker SIGKILLed while its first attest is held, then a second placement in the same tenant starts (LEGACY: workspace-b via a second Broker; MANAGED: harness-2 in the same workspace)",
+  "blocks": [
+    {"table": [
+      ["", "Default (ephemeral)", "Durable (this PR)"],
+      ["LEGACY slot-1 after boot failure", "++ 2nd warm READY (1.1-1.6 s)", "-- 409 recovery_blocked -> RECOVERY_BLOCKED, no lease"],
+      ["LEGACY workspace-b, same tenant", "++ READY", "-- 409 runtime_placement_recovery_required\n-- (head and landing tree)"],
+      ["MANAGED slot-1 after boot failure", "== 409 recovery_blocked", "-- 409, then 503 every 8.1 s"],
+      ["MANAGED harness-2, same workspace", "++ READY", "++ READY (base 0dd60d4503 exempts it)"],
+      ["candidate C: LEGACY workspace-b", "", "++ READY; slot-1 stays blocked (409 conflict with A)"]
+    ]},
+    {"label": "RuntimeBindingRecord.blocksPlacement at 36f87cd0e6 (from base 0dd60d4503) and candidate C", "pre": "== // A local managed worker without a lease or attested generation never\n== // admitted a Session; failed startup still blocks its own slot.\n   boolean unreclaimed = state == State.LOST\n           || state == State.RECOVERY_BLOCKED\n-- -                && (!request.isManagedContext()\n-- -                        || !LocalProcessRuntimeProvisioner.KIND.equals(\n++ +                && (!LocalProcessRuntimeProvisioner.KIND.equals(\n                                request.getProvisionerKind())\n                        || lease != null\n                        || attestationGeneration > 0)\n           || state == State.FAILED && provisionSeed != null;"},
+    {"note": "Before this PR a LEGACY local startup failure never reached RECOVERY_BLOCKED; it was retryable and recovered. In durable mode it does, and the base keeps LEGACY RECOVERY_BLOCKED tenant-wide. The base's own reasoning (no lease, no attestation, so no Session was admitted) applies to LEGACY too. Candidate C only extends it; A+B+C: runtime-broker 403/0/2, server 141/141."}
+  ]
+}

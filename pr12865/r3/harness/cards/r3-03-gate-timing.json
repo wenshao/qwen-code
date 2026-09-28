@@ -1,0 +1,14 @@
+{
+  "title": "Timing-sensitive durable gates under host load (not a regression)",
+  "subtitle": "Same rig, alternating trees back to back; colima VM 2 vCPU on a host at load 57-97; DurableLocalRuntimeFaultGateTest (10 cases) per run",
+  "blocks": [
+    {"table": [
+      ["Run", "Round-2 head 7236322a43", "Round-3 head 36f87cd0e6"],
+      ["1", "-- 8/10 (adoptedWorkerCanCancel… x2)", "++ 10/10"],
+      ["2", "-- 9/10 (adoptedWorkerCanCancel… [LEGACY])", "++ 10/10"],
+      ["3", "++ 10/10", "-- 8/10 (adoptedWorkerCanCancel… x2)"]
+    ]},
+    {"label": "adoptedWorkerCanCancelItsOriginalActiveCall only, DISPATCH_LEASE 2 s (rig) vs 10 s (copy)", "pre": "== 2 s  : 2/2, 1/2, 2/2   ('cancellation must reach the original active worker ==> expected: <1> but was: <0>')\n++ 10 s : 2/2, 2/2, 2/2\n== full Stage F on the round-3 head: 38/39, then 33/39 (ConcurrencyStorage… x2, closingAnObserver… x2, adoptedWorkerCanCancel… x2)\n++ isolated reruns of the ConcurrencyStorage gate: head 3/3, base 2d95f1aed8 3/3; landing tree full Stage F 39/39"},
+    {"note": "The gate assumes the restarted Broker is up and cancels inside the 2 s dispatch lease. On a slow host the dispatch lapses first, and the existing contract then fences it, so no transport cancel is sent. Both heads fail the same way, and a 10 s lease removed the failures in this small sample. These gates don't run in CI; widening the lease for this gate would keep it meaningful as a release gate."}
+  ]
+}
