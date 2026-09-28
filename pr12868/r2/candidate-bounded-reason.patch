@@ -1,0 +1,121 @@
+diff --git a/packages/cli/src/serve/managed-runtime-provider-worker.test.ts b/packages/cli/src/serve/managed-runtime-provider-worker.test.ts
+index 78de5c05b4..330f004d05 100644
+--- a/packages/cli/src/serve/managed-runtime-provider-worker.test.ts
++++ b/packages/cli/src/serve/managed-runtime-provider-worker.test.ts
+@@ -230,6 +230,51 @@ describe('Managed Runtime provider worker', () => {
+     expect(fs.existsSync(path.join(workspace, 'output.txt'))).toBe(false);
+   });
+ 
++  it('bounds a reason that echoes long or NUL-bearing input and keeps its code', async () => {
++    await begin();
++    const long = await post({
++      kind: 'prepare',
++      identity,
++      toolName: 'write_file',
++      input: { file_path: 'r'.repeat(8000), content: 'value' },
++    });
++    expect(long.status).toBe(400);
++    const bounded = (await long.json()) as { code: string; error: string };
++    expect(bounded.code).toBe('managed_runtime_tool_invalid');
++    expect(bounded.error.length).toBe(4096);
++    expect(bounded.error.startsWith('File path must be absolute: rrr')).toBe(
++      true,
++    );
++    expect(bounded.error.endsWith(' … [reason truncated]')).toBe(true);
++    const pair = await post({
++      kind: 'prepare',
++      identity,
++      toolName: 'write_file',
++      input: {
++        file_path: `${'r'.repeat(4046)}${'😀'.repeat(40)}`,
++        content: 'v',
++      },
++    });
++    const whole = (await pair.json()) as { code: string; error: string };
++    expect(whole.code).toBe('managed_runtime_tool_invalid');
++    expect(whole.error.length).toBeLessThanOrEqual(4096);
++    expect(
++      /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(
++        whole.error,
++      ),
++    ).toBe(false);
++    const nul = await post({
++      kind: 'prepare',
++      identity,
++      toolName: 'write_file',
++      input: { file_path: 'rel\u0000nul', content: 'value' },
++    });
++    expect(nul.status).toBe(400);
++    const clean = (await nul.json()) as { code: string; error: string };
++    expect(clean.code).toBe('managed_runtime_tool_invalid');
++    expect(clean.error).toBe('File path must be absolute: rel\uFFFDnul');
++  });
++
+   it('executes the four admitted tools with real approval, preflight and file history', async () => {
+     await begin();
+     const read = reference(
+diff --git a/packages/cli/src/serve/managed-runtime-provider-worker.ts b/packages/cli/src/serve/managed-runtime-provider-worker.ts
+index 4a4883741a..123777d245 100644
+--- a/packages/cli/src/serve/managed-runtime-provider-worker.ts
++++ b/packages/cli/src/serve/managed-runtime-provider-worker.ts
+@@ -87,6 +87,28 @@ interface ProviderSession {
+   release?: Promise<boolean>;
+ }
+ 
++const PROVIDER_REASON_LIMIT = 4096;
++const PROVIDER_REASON_OMISSION = ' … [reason truncated]';
++
++/**
++ * The Broker forwards a reason only when it fits its bound and holds no NUL;
++ * otherwise it drops the code together with the text. A reason that echoes
++ * caller input can exceed the bound, so bound it here and keep the code.
++ */
++function providerReason(error: unknown): string {
++  const text =
++    error instanceof Error && error.message
++      ? error.message
++      : 'Managed Runtime provider operation failed.';
++  const clean = text.replaceAll('\0', '\uFFFD');
++  if (clean.length <= PROVIDER_REASON_LIMIT) return clean;
++  let end = PROVIDER_REASON_LIMIT - PROVIDER_REASON_OMISSION.length;
++  const last = clean.charCodeAt(end - 1);
++  // Never split a surrogate pair.
++  if (last >= 0xd800 && last <= 0xdbff) end--;
++  return clean.slice(0, end) + PROVIDER_REASON_OMISSION;
++}
++
+ function conflict(message: string): never {
+   throw new ManagedToolConflictError(message);
+ }
+@@ -453,16 +475,16 @@ export function registerManagedRuntimeProviderRoute(
+         if (error instanceof ManagedRuntimeProviderProtocolError) {
+           res
+             .status(error.status)
+-            .json({ code: error.code, error: error.message });
++            .json({ code: error.code, error: providerReason(error) });
+         } else if (error instanceof ManagedToolPreparationError) {
+           res.status(400).json({
+             code: 'managed_runtime_tool_invalid',
+-            error: error.message,
++            error: providerReason(error),
+           });
+         } else if (error instanceof ManagedToolProtocolError) {
+           res.status(400).json({
+             code: 'managed_runtime_provider_invalid',
+-            error: error.message,
++            error: providerReason(error),
+           });
+         } else {
+           res.status(409).json({
+@@ -471,10 +493,7 @@ export function registerManagedRuntimeProviderRoute(
+               error instanceof ManagedToolConflictError
+                 ? error.code
+                 : 'managed_runtime_provider_operation_failed',
+-            error:
+-              error instanceof Error
+-                ? error.message
+-                : 'Managed Runtime provider operation failed.',
++            error: providerReason(error),
+           });
+         }
+       }
