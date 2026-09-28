@@ -1,0 +1,17 @@
+--- Session.head.ts	2026-09-28 18:22:49
++++ packages/cli/src/acp-integration/session/Session.ts	2026-09-28 18:20:12
+@@ -2442,6 +2442,14 @@
+ 
+     this.unsubscribeApprovalModeChange = this.config.onApprovalModeChange?.(
+       (mode, prePlanMode) => {
++        // An unused session stays transcript-free; the first durable
++        // activity anchors whatever mode is current by then.
++        if (
++          this.config.getChatRecordingService?.()?.getTranscriptCursor?.()
++            .recordId == null
++        ) {
++          return;
++        }
+         void recordDaemonSessionApprovalMode(this.config, {
+           mode,
+           ...(mode === ApprovalMode.PLAN

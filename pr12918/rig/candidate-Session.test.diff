@@ -1,0 +1,36 @@
+--- Session.test.head.ts	2026-09-28 18:22:49
++++ packages/cli/src/acp-integration/session/Session.test.ts	2026-09-28 18:16:21
+@@ -540,6 +540,7 @@
+     flush: ReturnType<typeof vi.fn>;
+     recordSessionModel: ReturnType<typeof vi.fn>;
+     recordSessionApprovalMode: ReturnType<typeof vi.fn>;
++    getTranscriptCursor: ReturnType<typeof vi.fn>;
+   };
+   let mockFileHistoryService: {
+     makeSnapshot: ReturnType<typeof vi.fn>;
+@@ -926,6 +927,7 @@
+       flush: vi.fn().mockResolvedValue(undefined),
+       recordSessionModel: vi.fn().mockResolvedValue(true),
+       recordSessionApprovalMode: vi.fn().mockResolvedValue(true),
++      getTranscriptCursor: vi.fn().mockReturnValue({ recordId: 'tail' }),
+     };
+     mockGoalRuntime = {
+       getSnapshot: vi.fn().mockReturnValue({
+@@ -1381,6 +1383,17 @@
+     expect(unsubscribeApprovalModeChange).toHaveBeenCalledOnce();
+   });
+ 
++  it('leaves an unused session transcript-free on an approval change', () => {
++    mockChatRecordingService.getTranscriptCursor.mockReturnValue({
++      recordId: null,
++    });
++    approvalModeChangeListener?.(ApprovalMode.YOLO, undefined);
++
++    expect(
++      mockChatRecordingService.recordSessionApprovalMode,
++    ).not.toHaveBeenCalled();
++  });
++
+   it('reloads model providers from the session-owned settings', async () => {
+     const modelProviders = {
+       idealab: [{ id: 'qwen3', baseUrl: 'https://idealab.example/v1' }],
