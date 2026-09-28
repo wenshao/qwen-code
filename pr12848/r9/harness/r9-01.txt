@@ -1,0 +1,18 @@
+Round 9: dfabe7c7 (main merge: FG6d cancellation gates, Hosted wait fix)
+MySQL 8.4.7, Spring jar (Java unchanged) + TS bundle rebuilt at dfabe7c7, real workers; fixture + real qwen3.8-max
+
+## The merge: test files only
+== conflicts in HostedWorkspaceToolTurnIT and hosted-harness-session.test.ts, both resolved correctly
+++ HostedWorkspaceToolTurnIT 4/4 locally (90.7 s) and in CI, incl. FG6d (4 cases); SDK Java, CI all green
+++ partial capture read back (3,000,005 B = sha), Workspace probes, validation, R1-1, 8 shapes, F4, real model
+## FG6d's question for Shell: cancel a running command (probe on the stack)
+++ `echo started; sleep 30; ...`   cancelled in ~1.3 s: execution SETTLED cancelled, capture complete,
+++   turn_complete(cancelled), no late effect, Workspace free, detach + load 200
+++ same-group background loop: killed with the group (ticks.txt stops growing)
+++ `cd . && sleep 60 >/dev/null 2>&1 & ...` still running: cancel kills the pipe holder -> clean cancel
+!! a setsid'd descendant with redirected output: cancel settles cleanly, then it writes escaped.txt 5 s later
+## Input for #12904: the Workspace lease is not a single-writer guarantee for Shell
+-- turn A: `perl -MPOSIX -e 'setsid; sleep 6; append shared.txt' >/dev/null 2>&1 & echo ok`
+--   capture complete, turn complete, Workspace released
+-- turn B (new Session, same Workspace) writes shared.txt, sleeps 8 s, cats it: sees A's descendant's line
+!! holding the lease on an incomplete capture does not cover writers that leave both the pipe and the group
