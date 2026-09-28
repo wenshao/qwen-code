@@ -1,0 +1,145 @@
+[
+ {
+  "file": "01-happy-path-real-stack.png",
+  "title": "PR #12946 @ a390b5d5 (= e3ecba66 production code) — Hosted MCP happy path, real stack",
+  "subtitle": "Packaged Harness (dist/cli.js) -> embedded Java Broker (Spring jar) -> provisioned Runtime worker -> real MCP servers. Only the model is a fixture. MySQL 8.4.11 and MariaDB 10.11.18.",
+  "lines": [
+   "## Transports: stdio (child of the Runtime worker), Streamable HTTP :18811 (Bearer), SSE :18812 (Bearer)",
+   "++ RUN_MCP turn: 3 tool calls -> ledger: stdio-0:effect:t-stdio | http:effect:t-http | sse:effect:t-sse   (exactly 3 effects)",
+   "++ checkpoint phase observed at the 2nd model request: results_ready   (2 model requests, turn_complete end_turn)",
+   "++ resource_read mem://blob via HTTP: 300 bytes, base64 identical      prompt_get 'two' via SSE: user:FIRST:sse, assistant:SECOND:sse",
+   "++ same operationId again -> identical response; reuse with other uri -> 503; reuse on other server -> 503; 0 extra effects",
+   "++ private + public catalog: 3 servers x (5 tools, 3 resources, 1 prompt); secret-token/Bearer/URL/command/env: 0 hits",
+   "++ detach: 3 x mcp-release + tool-session release -> 204; records: 3 mcp_configuration + 3 mcp_operation, task_kind NULL",
+   "++ public /tasks list: empty (MCP records are not Session tasks)",
+   "++ load -> new owner mcp:<sid>:<digest>, fresh configure, tool call OK; replay of the committed prompt result: identical",
+   "== total physical effects 8 = 3 tools + 1 whoami + 3 operations + 1 after load; MariaDB run: identical numbers",
+   "",
+   "## Author's recovery claims, re-run independently (MySQL 8.4.11)",
+   "++ configure reply AND invoke reply dropped by a proxy -> mcp-status on original ids -> settled, exactly 1 physical read",
+   "++ Workspace can_read=FALSE, then close -> 204, lease released; new work after revocation -> Broker acquire 409 (refused)",
+   "++ reload + Broker returning 503 for everything: committed replay 202 (2 messages), close 204, 0 Broker requests, 0 effects",
+   "++ replace local r1 -> r2 while a 6 s call runs on r1: 202; call finished on stdio-2 (r1); next turn advertised and used stdio-2-r2",
+   "++ limits: 65-tool server -> 33 advertised, tools 'partial' (16 KiB); 70 KB result -> managed_mcp_output_limit, Session healthy"
+  ],
+  "notes": [
+   {
+    "tone": "green",
+    "text": "SSE was only unit-covered by the author; here it runs through the full SQL stack. The durability contract (intent before effect, results_ready before the next inference, replay without reconnecting, original-id recovery) holds on both engines."
+   }
+  ]
+ },
+ {
+  "file": "02-f1-workspace-lease-held-between-turns.png",
+  "title": "F1 — an attached MCP Session holds the Workspace execution lease between turns",
+  "subtitle": "Three Sessions in one Workspace (storage-1): A and B use hosted-workspace-mcp/1, C uses hosted-workspace-files/1. Same result on MySQL and MariaDB.",
+  "lines": [
+   "## step                                    lease holder (managed_workspace_execution_lease)   outcome",
+   "++ A prompt (MCP tool)                     mcp:<A>                                            turn_complete",
+   "++ A prompt (write_file, same Session)     mcp:<A>                                            turn_complete, file written",
+   "-- B prompt (MCP), A idle but attached     mcp:<A>                                            HTTP 503 hosted_prompt_admission_failed (acquire 409)",
+   "-- C prompt (files), A idle but attached   mcp:<A>                                            turn_error 'Hosted Harness turn failed', no file",
+   "== A detach                                (none)                                             204",
+   "++ B prompt (MCP)                          mcp:<B>                                            turn_complete",
+   "-- C prompt (files), B idle but attached   mcp:<B>                                            turn_error",
+   "== B detach",
+   "++ C prompt (files)                        (per-turn)                                         turn_complete",
+   "",
+   "== cause: HostedWorkspaceToolTurn skips broker.release() for the MCP profile; HostedMcpSession releases only in close()"
+  ],
+  "notes": [
+   {
+    "tone": "red",
+    "text": "While any MCP Session is attached, every other Session in its Workspace is tool-less. Combined with F3/F4/F5 below, one stuck MCP Session locks the Workspace indefinitely."
+   }
+  ]
+ },
+ {
+  "file": "03-f3-f4-cancel-and-timeout-brick.png",
+  "title": "F3/F4 — cancel or a >25 s MCP call leaves the Session and its Workspace stuck",
+  "subtitle": "Servers are @modelcontextprotocol/sdk 1.30.0 McpServer; per the MCP spec it never answers a request it was told to cancel.",
+  "lines": [
+   "## case                                server ledger             state after             prompt  detach  lease  other Session",
+   "-- cancel resource_read (HTTP, MySQL)  start 4.2s aborted 5.4s   outcome_unknown +12s    409     503     held   503",
+   "-- cancel resource_read (SSE, MariaDB) start 5.1s aborted 6.6s   outcome_unknown +12s    409     503     held   503",
+   "-- prompt cancel during MCP tool       start 9.1s aborted 10.6s  no terminal event       409     503     held   503",
+   "-- MCP tool of 32 s (no cancel)        start 9.1s done 41.1s     unknown at 25 s         409     503     held   503",
+   "",
+   "## why the 32 s case never heals although the server answered",
+   "== Runtime: late response settles its own view (pending cleared)",
+   "-- Broker: qwen_tool_execution.execution_state = UNKNOWN (dispatch_generation 1), never re-queried",
+   "-- detach: mcp-release 200 -> tool-sessions/mcp:<sid>:release 409 -> Harness 503 managed_session_close_failed",
+   "",
+   "== Hosted MCP timeout: hard-coded TIMEOUT_MS = 25_000, manifest rejects a timeout field",
+   "== ordinary MCP (core mcp-client.ts): MCP_DEFAULT_TIMEOUT_MSEC = 10 min, configurable per server"
+  ],
+  "notes": [
+   {
+    "tone": "red",
+    "text": "Cancel is an ordinary user action and 25 s is short for MCP tools. Each path ends in a Session that can be neither prompted nor closed, and (F1) a Workspace no other Session can use."
+   }
+  ]
+ },
+ {
+  "file": "04-f2-f5-f6-f7-connection-lifecycle.png",
+  "title": "F2/F5/F6/F7 — connection lifecycle after the first successful turn",
+  "subtitle": "Single Session per case on MySQL 8.4.11; F2 (resources) and F5 re-run on MariaDB 10.11.18 with the same outcome. Effects counted from the MCP server ledger.",
+  "lines": [
+   "## F2  server sends notifications/<kind>/list_changed; the Harness never dispatches mcp-discover",
+   "-- kind=resources: next tool call same turn -> managed_mcp_catalog_conflict; next turn -> same; prompt_get -> same; 0 effects",
+   "-- kind=tools:     identical; Harness /mcp-catalog still reports catalogRevision 1, tools/resources/prompts 'complete'",
+   "-- SSE server restarted mid-Session -> next call managed_mcp_catalog_conflict, 0 effects (connection retired on onerror)",
+   "++ only recovery: POST /mcp/configurations {expectedRevision: 1} -> 202, then calls work again",
+   "",
+   "## F5  Streamable HTTP server down when the Session closes",
+   "-- detach -> 503 within 1 s (678 ms MySQL, 228 ms MariaDB); code path: terminateSession DELETE throws -> drain_unknown",
+   "-- server back up, detach again -> 503 (release op still not settled); config releaseState releasing, lease held",
+   "",
+   "## F6  each reconfiguration keeps the previous connection open",
+   "!! rev:status:live stdio processes  2:202:2  3:202:3 ... 16:202:16  17:409:16  (one server, one Session)",
+   "== detach reaps all 16 (6.9 s); until then the per-Runtime quota of 16 is consumed by retired connections",
+   "",
+   "## F7  first install refused (Workspace busy) leaves an undispatched configuration intent",
+   "-- status recoveryBlocked:true; detach 503 while A holds the Workspace and still 503 after A leaves",
+   "++ a later prompt dispatches the intent; only then detach -> 204"
+  ],
+  "notes": [
+   {
+    "tone": "red",
+    "text": "F5: a transient remote outage at close leaves a Session that retrying does not clear. F2 + F6: the documented recovery path (reconfigure) succeeds 15 times per Session, then the connection quota refuses it."
+   }
+  ]
+ },
+ {
+  "file": "05-gates-merge-order-mutation.png",
+  "title": "Gates — CI, merge order with #12894, local suites, mutation",
+  "subtitle": "Mutation oracle = the PR's focused suites (cli 5 files, managed-agent-server, runtime-broker). Load average 40-100 during the runs.",
+  "lines": [
+   "## Head and CI",
+   "== tested a390b5d5 (bundle + jar); head moved to e3ecba66 during the run = +16 lines in process-env-guard.test.ts only",
+   "++ B1 fixed by the author: Test (ubuntu) red at a390b5d5 (3 unregistered process.env reads) -> green at e3ecba66",
+   "",
+   "## Merge order with open #12894 (a7c0a391)",
+   "-- both add Flyway V19: V19__managed_mcp_records.sql and V19__managed_tool_publication.sql (git reports no conflict)",
+   "-- trial-merged jar on MySQL 8.4: \"Found more than one migration with version 19\" -> the server does not start",
+   "-- the trial merge also has 8 textual conflicts: 7 in packages/cli/src/serve/*, 1 in WorkspaceRuntimeTest.java",
+   "",
+   "## Local suites at a390b5d5",
+   "++ cli focused 79/79, core focused 230/230, managed-agent-server 180/180, runtime-broker 395/396",
+   "== the broker failure (HttpRuntimeTransportTest deadline test) also fails on main bd45b95f here; alone 5/5 -> load flake",
+   "",
+   "## Mutation",
+   "++ Java 8/8 killed: catalog active gate, op->config binding, definition pin, task_kind filter, ref checks, 3 Broker checks",
+   "++ TS 13/16 killed: invalidation during listing, id conflict, stale fallback, args identity, limits, env scrub, holds, ...",
+   "!! M7   -32601 from a tools-only server no longer means an empty complete list         SURVIVES",
+   "!! M11  prompt admitted while an MCP operation is unresolved                           SURVIVES (this guard returned the 409 in F3)",
+   "!! M13  configurations owned by two Runtime Sessions accepted                          SURVIVES"
+  ],
+  "notes": [
+   {
+    "tone": "",
+    "text": "B1 is closed. The V19 clash is a coordination item: whichever of #12946 / #12894 lands second has to renumber its migration and resolve the serve/* conflicts."
+   }
+  ]
+ }
+]
