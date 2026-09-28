@@ -1,0 +1,19 @@
+{
+  "title": "R4: head 430a76eac9 (+ 'Limit unadmitted legacy startup fence to its slot'), landing tree = main bc8879eef5 + PR",
+  "subtitle": "Real Linux (colima Ubuntu 24.04, 6.8 aarch64), PID 1 = tini unless noted; local merge into main is conflict-free and equals main + exactly the PR's 21-file diff",
+  "blocks": [
+    {"table": [
+      ["Check", "Result on the landing tree"],
+      ["runtime-broker mvn test", "++ 420 run, 0 fail, 2 skip"],
+      ["Stage F -Pfault-gates", "++ 39/39 (durable 10/10), first run"],
+      ["managed-agent-server mvn test", "++ 180/180"],
+      ["F1+ rig probe P4: LEGACY slot-1 boot failure, then workspace-b", "++ workspace-b READY; slot-1 stays RECOVERY_BLOCKED"],
+      ["F1 / F2 / T1 probes (tini and non-reaping PID 1)", "++ terminal 409 / zombie -> LOST / recovers next warm"],
+      ["mutant: restore managed-only exemption", "++ killed by unadmittedLegacyStartupDoesNotBlockAnotherWorkspace"],
+      ["Spring durable adoption after kill -9", "++ same worker 177 in 0.30 s, next 22 ms"],
+      ["PR CI on 430a76eac9", "++ all Java legs, Hosted gates, Node Test/Lint/Integration pass"]
+    ]},
+    {"label": "F1+ through production wiring: Spring + MySQL 8.4, durable on, isolation=session, one tenant", "pre": "== server 1 with QWEN_MANAGED_AGENT_NODE_EXECUTABLE=/nonexistent/node; warm session A -> 409 recovery_blocked\n== kill -9 server 1; server 2 with the correct node; warm session A -> 409 resource_conflict (its slot stays fenced)\n-- before (4136721037): warm session B -> 409 runtime_placement_recovery_required  (whole tenant fenced)\n++ after  (landing)   : warm session B -> 200 ready:true in 0.77 s, worker 177, binding READY\n++ after              : session A binding RECOVERY_BLOCKED, record LAUNCHING pid=0 (unchanged, fenced)"},
+    {"note": "F1+ is fixed at the rig level and through the real Spring server. Every earlier finding (F1, F2, F2', F3, F1+) is resolved on the tree that will land, and CI is green. Remaining items are the non-blocking ones the author lists as follow-ups: durable-gate lease timing on slow hosts, M8/M16 test gaps, lock duration and foreign-kind handling. Idle-worker retention is now documented."}
+  ]
+}
