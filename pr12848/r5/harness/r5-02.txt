@@ -1,0 +1,20 @@
+Round 5: the automated review's Criticals, run on the real stack
+6846d1e2, MySQL 8.4.7, real workers; fixture model + real qwen3.8-max; manifests read back from SQL
+
+## R1-1 (write after finish -> blocked receipt): CONFIRMED, fix works for its own case
+== 40/40 ordinary fast-exit commands (1 B .. 3 MiB, stdout+stderr, seq 200000): all committed
+-- `(sleep 1; echo late) & echo early`  head: Session recovery-blocked, manifest unavailable/storage_failed
+++                                     reviewer's fix (drop writes after finish): complete/committed, 27 B
+-- real model, "start an HTTP server in the background, then curl it": 1 of 6 head trials bricked the
+--   Session (node server; manifest unavailable/storage_failed); 3 of 6 completed (output redirected)
+!! a process that keeps writing ~3 s after the shell exits: blocked on head AND with the fix
+!!   (inherited pipe still open at the drain boundary -> incomplete by design, but reported as
+!!   storage_failed, and it blocks the whole Session, not just the turn)
+## R1-2 (process result without setStarted): not reproduced as described
+== realistic trigger: call 1 `rm -rf "$PWD"`, call 2 in the same batch has no cwd
+-- head: Session recovery-blocked (Broker 409 runtime_broker_execution_unknown)
+-- with the reviewer's one-line fix: identical - the worker refuses BEFORE prepare with a definite
+--   409 managed_context_unavailable, and the Broker records that as UNKNOWN
+## New from the same real-model runs: file tools outside the Workspace end the turn
+-- write_file("/tmp/qwen_http_18771.js") -> InvalidWorkspaceRelativePathError -> whole turn_error
+-- 3 of 8 real-model server trials ended this way (z recorded); F2 covers only Shell args, not file_path

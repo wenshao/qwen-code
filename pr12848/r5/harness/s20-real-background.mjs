@@ -1,0 +1,23 @@
+// Real model asked to start a background server, then use it.
+import fs from 'node:fs';
+import * as L from './lib.mjs';
+const DB = process.env.DB ?? 'p848f', HTTP = 18848, ST = process.env.ST ?? 's', ARM = process.env.ARM ?? 'r6';
+const PORT = process.env.PORT ?? '18765';
+L.openLog(`s20-real-background-${ARM}-${ST}`);
+const h = await new L.Harness({ name: `real-bg-${ST}`, brokerUrl: 'http://127.0.0.1:19848', realModel: process.env.REAL_MODEL ?? 'qwen3.8-max' }).start();
+const ws = `ws-${ST}`;
+if (L.sql(DB, `SELECT COUNT(*) FROM managed_workspace_registry WHERE workspace_id='${ws}'`)[0][0] === '0') L.seedRegistry(DB, ws, `st-${ST}`);
+const dir = `${L.RIG}/${process.env.ROOTS ?? 'roots6'}/${ST}/child`;
+fs.mkdirSync(dir, { recursive: true });
+fs.writeFileSync(`${dir}/index.html`, '<h1>hello</h1>\n');
+const s = new L.HSession(h, await L.createWorkspaceSession(HTTP, ws), L.storeConnection(h, ws, HTTP));
+await s.create({ toolProfile: 'hosted-workspace-shell/1' });
+const r = await s.prompt(`Start a simple HTTP server for this directory on port ${PORT} (python3 -m http.server is fine) so it keeps running, then fetch http://127.0.0.1:${PORT}/index.html with curl and tell me what it returned.`, 240000);
+L.say('turn', L.summarizeTurn(r));
+for (const t of L.toolTrace(r.events ?? [])) L.say('tool', t);
+L.say('text', L.assistantText(r.events ?? []).replace(/\s+/g, ' ').slice(0, 200));
+L.say('harness', h.log().split('\n').filter((l) => /blocked|failed/.test(l)).slice(-2).map((l) => l.slice(0, 200)));
+const next = await s.submit('Thanks. What files are in the directory?');
+L.say('next', `submit -> ${next.status} ${JSON.stringify(next.json).slice(0, 100)}`);
+await h.stop();
+process.exit(0);
