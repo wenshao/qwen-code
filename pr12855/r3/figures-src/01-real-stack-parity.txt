@@ -1,0 +1,30 @@
+PR #12855 (H0c): TS authority vs Java Session store on a real stack
+Head ebbce5bf6d merged with main 0a136f89d7 - packaged Spring jar on MariaDB 10.11.18 (docker) - PR core dist over HTTP - macOS, Node 22.23, JDK 21
+## S1  both fixture Monitor chains, interleaved, one revision carrying a notification input
+== rev  record     TS authority           Java row               fixture view
+++  1   monitor-1  pending/unbound        pending/unbound        pending/unbound
+++  1   monitor-2  pending/-              pending/-              pending/-
+++  2   monitor-1  pending/provisioning   pending/provisioning   pending/provisioning
+++  2   monitor-2  failed/-               failed/-               failed/-
+++  3   monitor-1  running/ready          running/ready          running/ready
+++  4   monitor-1  running/ready          running/ready          running/ready
+++  5   monitor-1  recovery_blocked/lost  recovery_blocked/lost  recovery_blocked/lost
+++  6   monitor-1  degraded/ready         degraded/ready         degraded/ready
+++  7   monitor-1  degraded/ready         degraded/ready         degraded/ready
+++  8   monitor-1  cancelled/-            cancelled/-            cancelled/-      (+ input.accepted + wake.requested, seq 11-13)
+++ public list == WebShell list == authority taskViews()  (order, ids, all timestamps)   8 task.updated events
+++ stepped-back revision refused by TS before publish: tx 12/12, resources 20/20, rows 2/2 unchanged
+++ server restart: list and events page byte-identical; cold reopen by writer-b: taskViews() identical
+## S3  verdict differential - TS chain check switched off, so Java alone decides (605 candidates)
+++ agree 605/605   (12 fixture refusals incl. one command/two records + 3 re-attach cases, 31/31 starts, 408 mutations)
+++ Java accepted 76 -> task view identical to TS in 76/76
+++ Java refused 529 -> all 409 managed_session_extension_record_rejected, all rolled back (tx, resources, rows)
+++   incl. 260 bodies TS cannot even parse, swapped in at the resource-byte level
+## S3b random walks, 3 Monitors interleaved per Session, only TS-accepted steps, checked after every commit
+++ 1,246 steps in 30 Sessions on this head (+ 8,058 on earlier heads): 0 row mismatches; lists, reopen equal
+== reached: pending running waiting degraded recovery_blocked cancelled failed x unbound provisioning ready lost
+++ completed: a settled chain (stopReason exited) -> same row both sides, started_at + settled_at served
+## S12 audit-round rules: writer B's clock 60 s behind writer A
+++ started_at and settled_at clamp to created_at (never earlier), identical rows on both sides
+++ run blocked while dispatching (recovery_blocked/lost): no started_at on either side
+!! outbox is always empty for monitor_run: H0b forbids a delivery on a Monitor run, so no stored delivery line yet

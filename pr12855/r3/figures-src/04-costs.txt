@@ -1,0 +1,19 @@
+Costs the design leaves open, measured (head ebbce5bf6d + main)
+Real stack as in figure 1 (JVM and MariaDB both UTC); apply() timed on the PR jar's own class via reflection
+## open question 1: cold reopen reads every Stage H revision body
+== Session                                   journal tx  reopen  requests made by the reopen
+!! 1 Monitor, 2,003 revisions (observations)    2,006   24.9 s    2,003 GET resource (serial, one per revision)
+++ control: 2,006 session_metadata commits      2,006    0.7 s    0 GET resource
+!! at the 10,000-observation cap: ~70-100 s per reopen by extrapolation
+== host load 30-36 here; earlier heads 14.5-20.9 s; the control stays 0.7 s (0.66 s here)
+## Triage stage 2 note 2: apply() parses every line of every commit under the head lock
+== transaction                                   bytes     apply()
+++ typical (1 event + marker)                    1,463     11 us
+++ one 64 KiB tool result                       65,799    135 us
+!! one 1 MiB line (per-line cap)             1,048,439    2.3 ms
+!! 8 MiB transaction (cap), 256 lines        8,336,133    6.7 ms
+== includes the depth/finite checks; commit round trip p50 is 15-80 ms on this rig
+## open question 2: units on the wire (now documented on the task fields, still mixed)
+!! GET /v1/agents/sessions/{id}         created_at 1790520905        (seconds)
+!! GET /v1/agents/sessions/{id}/tasks   created_at 1790520905581     (milliseconds)
+== PublicTask.created_at: "Unix epoch milliseconds, unlike the seconds that the public Session ... report"

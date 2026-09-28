@@ -1,0 +1,15 @@
+Merging with main: the D3 collision (first head) and today's clean merge
+first head d6d8cff4a0 vs main 36710ff690 (D3) - now head ebbce5bf6d vs main 0a136f89d7 (#12863 merged in, #12864 on top)
+## d6d8cff4a0 + D3: 3 text conflicts, and one git does not report
+!! ManagedAgentService CAPABILITIES / spec "version": "1.17.0" on both sides / ManagedAgentApiContractTest
+-- V14__managed_event_replay.sql (D3) + V14__managed_extension_record.sql (H0c): different names, merged silently
+-- naive merge jar: FlywayException: Found more than one migration with version 14 -> APPLICATION FAILED TO START
+++ trial resolution (V16, capabilities incl. resync+tasks, 1.18.0) == the author's rebase 343ddbd364 (bar docs + 5 test lines)
+## ebbce5bf6d + main 0a136f89d7: merge-tree clean, no migration clash (main tops at V15, PR adds V16)
+++ runtime-broker 372 tests; managed-agent-server clean verify 154 unit + 12 MariaDB IT, 0 Checkstyle
+!!   one unrelated flake on the first run: ManagedAgentServerIntegrationTest.persistsRetryBackoffAcrossClaims
+==   (file untouched by the PR); 5/5 isolated reruns and a full rerun pass
+++ -Phosted-harness-mysql / -Phosted-workspace-tools on MySQL 8.4 with the bundle pass; Hosted E2E --session-failover passes
+++ core managed-runtime 26 files / 1710 tests; web-shell managed 73/73
+++ fresh MariaDB applies V14, V15, V16 in order; upgrade main -> PR -> main on one live Session works
+++ spec 1.18.0: SessionCapabilities.tasks now required; task created_at documented as epoch milliseconds; 12/12 bodies valid

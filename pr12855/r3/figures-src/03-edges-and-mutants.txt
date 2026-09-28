@@ -1,0 +1,18 @@
+Race, review fixes, edge cases and targeted mutants (head ebbce5bf6d + main)
+Real stack; mutants run the PR's own suites (Java 39 unit + 12 MariaDB IT, fresh DB per run; TS suites incl. the record contract)
+## deletion race: Stage H commit vs DELETE, delay swept 0..30 ms, 186 trials
+-- 2331792cd8 (plain status read): 8/186 put task.updated after session.deleted
+++ 34e32da78c: 0/186      ebbce5bf6d: 0/186      (the Stage H commit succeeds 186/186)
+## review R1-1: a running/waiting run on a not_started_proven execution
+++ differential: 3 such candidates on running revisions -> TS refuses, Java 409, rolled back (3/3)
+## H0b follow-up: a disabled domain commits on no path (records exist, then monitor_run is disabled again)
+++ retry of m:2 -> replayed=true rev 2; new revision -> "not enabled for submission"; commitDomainRecord bypass -> same
+++ cold reopen with the domain disabled rebuilds identical task views; public list unchanged
+## unknown outcome / pagination / SSE / isolation / rollback
+++ crash after dropped response: writer B at 61 s, replayed=true rev 3, no new event; other content -> conflict
+++ 50 tasks, 8 ties, limits 1..100 == authority order; live SSE; sequential delete keeps session.deleted last
+!! revision committed while main ran -> after re-upgrade the Java row says rev 4, the authority rev 5 (OQ7 covers
+==   a server without the body, not a rollback window)
+## mutants: 25/25 killed
+++ the 4 round-1/2 survivors now die: J6 byteLength  J7 limit 101  J8 cursor row  J23 400 status
+++ J11-J22, J24 (R1-1, Java), T1 T4 T12 T15 T16 T17, T18 (R1-1, TS), T19 (enablement on every path)
