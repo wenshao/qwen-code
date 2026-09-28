@@ -1,0 +1,49 @@
+ORIG=ce440f4fc0a1be4c83d2b47b345b53da92e92514d3cae633ece323777bf10258
+PATCHED=f465e351b260d80812a9847f3e2c1104c7e1317f56500cf92f78f004dd74154e
+ packages/core/src/services/shellExecutionService.ts | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+=== T1/T2/T3/T4 with the candidate fix (head+fix)
+NOTE T1 stderrBytes = 39027
+NOTE T1 windowStartMod3 = 1
+NOTE T1 blockPresent = true
+NOTE T1 blockCjkDecoded = true
+NOTE T1 blockMojibake = false
+NOTE T1 tailCjkDecoded = false
+NOTE T1 tailMojibake = false
+NOTE T1 blockSample = "[Recent stderr]\n错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错"
+PASS T1 the CJK error line is readable by the model :: markerFound=true
+NOTE T3 stderrBytes = 39029
+NOTE T3 windowStartMod3 = 0
+NOTE T3 blockCjkDecoded = true
+NOTE T3 blockMojibake = false
+NOTE T3 blockSample = "[Recent stderr]\n错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错错"
+PASS T3 the aligned CJK error line is readable
+NOTE T2 stderrBytes = 39063
+NOTE T2 blockPresent = true
+PASS T2 the ASCII error line is readable at the same size
+NOTE T4 stderrBytes = 120027
+NOTE T4 tailCjkDecoded = false
+NOTE T4 tailMojibake = false
+NOTE T4 blockCjkDecoded = true
+NOTE T4 blockMojibake = false
+PASS T4 exit code still reported :: 3
+=== s9b sibling sweep with the candidate fix (collateral check)
+PASS S1 sink really received 200 KiB of stderr :: 200063
+PASS S1 marker survives 200 KiB of stderr
+PASS S1 stderr durable bytes exact
+PASS S2 sink really received a 20 KiB single line :: 20480
+PASS S2 the END of an over-long single stderr line is visible
+PASS S2 the [Recent stderr] window is bounded by 8 KiB :: 8207
+PASS S3 sink really received 20001 stderr bytes :: 20001
+PASS S3 CJK marker visible
+PASS S3 the split 8 KiB window introduces no U+FFFD :: count=0
+PASS S4 marker visible
+PASS S5 marker visible after 1 MiB of stdout
+PASS S5 marker rendered exactly once :: 1
+PASS S6 interleaved streams keep the final stderr line
+# SUMMARY pass=13 fail=0
+=== core shell suite with the candidate fix
+ Test Files  1 passed (1)
+      Tests  177 passed (177)
+RESTORED_OK ce440f4fc0a1be4c83d2b47b345b53da92e92514d3cae633ece323777bf10258
+FIX_EXPERIMENT_DONE
