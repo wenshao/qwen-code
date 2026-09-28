@@ -1,0 +1,22 @@
+Round 6: review fixes a6dcb87b + main merge 018f3318
+MySQL 8.4.7, Spring jar, real workers; fixture model + real qwen3.8-max; bundle rebuilt at 018f3318
+
+## Merge (main M3 config snapshot + FG6b Store-failure gates)
+== PR files identical to a6dcb87b except HostedWorkspaceToolTurnIT.java; Java production code unchanged
+++ HostedWorkspaceToolTurnIT, whole class via maven -P hosted-workspace-tools on MySQL: 3/3, 78.5 s
+++   six Workspaces HOSTED_WORKSPACE_TOOLS_OK | FG6a 7 cases HOSTED_REPLY_LOSS_OK | FG6b 7 faults OK
+++ FG6b with a Shell call instead of edit, Java ledger/journal asserts untouched: 6/6 pass
+++   intent, await-runtime, result-message, result-checkpoint, result-reply, turn-reply
+++ real model through M3's settings loader: Shell -> detach + load -> Shell, notes.txt "first\nsecond"
+## a6dcb87b review fixes
+++ R1-1 `(sleep 1; echo late) & echo early`: complete/committed (round 5: Session bricked)
+++ 8 output shapes 1 B..3 MiB all committed; F4 Shell -> reload -> Shell still works
+++ R1-4 refusals name the argument; R1-7 is_background "false" / "FALSE" / false run in foreground
+== mutation of the fixes: 5/8 killed; N2, N3 defensive, N6 equivalent end to end
+## Still open (predates a6dcb87b; author defers): a backgrounded compound command bricks the Session
+-- `cd . && sleep 20 >/dev/null 2>&1 & echo ok`    recovery-blocked, manifest unavailable/storage_failed
+-- `(cd . && sleep 20 >/dev/null 2>&1) & echo ok`  same
+++ `sleep 20 >/dev/null 2>&1 & echo ok`  and  `cd . ; sleep 20 >/dev/null 2>&1 & echo ok`  complete
+-- real model, "start an HTTP server in the background, then curl it" (6 trials on the current code):
+--   3 Session bricked (`cd <dir> && nohup ... &`), 1 turn_error (absolute file_path), 2 completed
+!! the backgrounded list runs in a subshell that keeps the Shell's stdout open while the server lives

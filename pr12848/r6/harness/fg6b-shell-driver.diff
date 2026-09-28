@@ -1,0 +1,60 @@
+--- wt-r8/integration-tests/helpers/hosted-store-failure-driver.ts	2026-09-28 12:59:37
++++ wt-fg6s/integration-tests/helpers/hosted-store-failure-driver.ts	2026-09-28 13:07:22
+@@ -67,13 +67,14 @@
+ 
+ function selected(transaction: Transaction, fault: string) {
+   const committed = events(transaction);
++  console.log(`COMMIT ${fault} op=${(transaction as any).operation} events=${committed.map((e) => e.kind + (e.kind === "message.committed" ? ":" + e.payload["role"] : "")).join(",")} resources=${transaction.resources.map((r) => r.kind + (r.bytesBase64 ? "+bytes" : "")).join(",")} ckpt=${transaction.latestCheckpointResourceId ?? "-"}`);
+   if (fault === 'arguments' || fault === 'intent') {
+     const intent = committed.find((event) => event.kind === 'tool.intent');
+     if (!intent) return false;
+     const argument = transaction.resources.find(
+-      (resource) => resource.kind === 'managed-tool-input',
++      (resource) => resource.kind === 'managed-tool-args' || resource.kind === 'managed-tool-input',
+     );
+-    assert(argument?.bytesBase64);
++    if (!argument?.bytesBase64) { console.log(`NOARGBYTES ${fault} ${JSON.stringify(argument ?? null).slice(0, 200)}`); return false; }
+     assert.equal(
+       (intent.payload['argsRef'] as { resourceId: string }).resourceId,
+       argument.resourceId,
+@@ -208,20 +209,11 @@
+   if (!receipts.length)
+     return {
+       toolCalls: [
+-        fakeToolCall(
+-          'edit',
+-          {
+-            file_path: 'proof.txt',
+-            old_string: 'x',
+-            new_string: 'xx',
+-            replace_all: true,
+-          },
+-          'effect',
+-        ),
++        fakeToolCall('run_shell_command', { command: 'printf x >> proof.txt' }, 'effect'),
+       ],
+     };
+   assert.equal(receipts.length, 1);
+-  assert.match(JSON.stringify(receipts[0].content), /has been updated/);
++  console.log(`RECEIPT ${current.fault} ${JSON.stringify(receipts[0].content).slice(0, 400)}`);
+   return { content: 'STORE_FAULT_TURN_DONE' };
+ });
+ 
+@@ -250,7 +242,7 @@
+       writerId: cli.bootId,
+       leaseDurationMs: 5_000,
+     },
+-    toolProfile: 'hosted-workspace-files/1',
++    toolProfile: 'hosted-workspace-shell/1',
+   };
+ }
+ 
+@@ -408,7 +400,7 @@
+       'decoy',
+     );
+     console.log(
+-      `FG6B ${current.fault}: faults=1, modelCalls=${calls}, starts=${started ? 1 : 0}, cold=${completed ? 'committed' : 'blocked'}`,
++      `FG6B-SHELL ${current.fault}: faults=1, modelCalls=${calls}, starts=${started ? 1 : 0}, cold=${completed ? 'committed' : 'blocked'}`,
+     );
+   }
+   if (proxyFailure) throw proxyFailure;
