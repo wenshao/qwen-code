@@ -1,0 +1,39 @@
+[
+{"name":"r2-01-status","title":"Round 2 @ 50acc2a6: the round-1 blockers are fixed on the real stack; the other issues are unchanged",
+ "subtitle":"PR head as-is (no candidate patch), fresh MySQL 8.4.7 schema, same Broker/worker/Harness processes and aliyun-sdk-oss -> OSS double as round 1",
+ "lines":[
+ "## Fixed and re-measured                                                                         regression test?",
+ "++ B1 turn identity    echo stdout+stderr 3/3 complete (round 1: 6/6 refused)                     yes: 3/3 mutants killed",
+ "++ B2 LocalDateTime    :start 200 on every call; 100 MiB + 5 MiB (exit 7) exact in 12 s           no: revert survives (H2)",
+ "++ B4 FOR UPDATE       1 GiB 4/4 exact (87-107 s), 0 EmptyResultDataAccessException              no: revert survives (H2)",
+ "++                     4 sessions x 256 MiB at once: 4/4 exact, 0 deadlocks, 0 lock-wait timeouts",
+ "++ bot (a) recovery ACK   control chars + crash after receipt -> \"Tool v3 ACK failed during recovery: ... 409\" logged   yes: mutant killed",
+ "++ bot (c) v3 501         explicit 501 on v3 execute/status stops polling (Broker unit level only)        yes: 3/3 mutants killed",
+ "++ crash after receipt commit -> new Harness load after 57 s, 1 continuation, command ran once, ACK 200",
+ "++ author's file-tool driver 2/2 pass (one 30 s timeout right after the 4 x 256 MiB run at host load ~70; not reproducible)",
+ "",
+ "## Still open (code unchanged since round 1, re-measured on 50acc2a6)",
+ "-- one lost segment request / one 503 on ingress -> capture failed -> Session blocked (command already ran)",
+ "-- lost /admissions/prepare reply -> reload 409 hosted_turn_recovery_required",
+ "-- lost /receipts/commit reply -> in-process detach 503, load 409 hosted_session_already_attached",
+ "-- control characters in the preview -> finish digest mismatch -> ACK 409 (4 of 25 terminal envelopes this round)",
+ "-- range bounds coerced: length 2^32+1 -> 200 with 1 byte; \"16\" and 10.9 accepted",
+ "!! Hosted preview path unchanged: head-only 64 KiB + read_file hint to a worker-local path (round 1: 4/8 real-model turn_error)"
+ ],
+ "note":"B2 and B4 only fail on MySQL, and the Java suites run on H2, so reverting either fix leaves ToolPublicationStoreTest / ToolPublicationContractTest green (21/21). A MySQL-backed test of verifyDispatch and a producer operation racing a journal commit would pin them.",
+ "noteColor":"#3fb950"},
+{"name":"r2-02-capacity","title":"Stage-2 point (b) on the real stack: two lost owners exhaust a tenant's publication capacity",
+ "subtitle":"tenant-bytes = 600,000,000 fits two reservations of 273,219,584 B (256 MiB capture + 2.56 MiB producer + 2 MiB admission); PR head 50acc2a6",
+ "lines":[
+ ">> Session 1: POST /grants (reserve) reaches the server, reply withheld, Harness SIGKILLed",
+ "==   -> publication OPEN / producer OPEN, held 273,219,584 B, command ran 0 times",
+ ">> Session 2: same",
+ "==   -> publication OPEN / producer OPEN, held 273,219,584 B, command ran 0 times",
+ "== both reservations pass expires_at (17:12:07 and 17:12:15), then 10 s more",
+ "-- Session 3, fresh and healthy owner: POST /grants -> 400 invalid_request",
+ "--   server: IllegalArgumentException \"Publication capacity exhausted\"; Session recovery-blocked; 0 executions",
+ "-- held after expiry: OPEN/OPEN 273,219,584 B ; OPEN/OPEN 273,219,584 B  (never released, never fenced)"
+ ],
+ "note":"The author has acknowledged this as open (it needs state-specific reclamation). This run shows it is reachable with an ordinary owner crash between reserve and dispatch, before any fence exists, and that it blocks unrelated Sessions of the same tenant. Before enabling the profile, expired OPEN reservations with no dispatch need to be released or at least excluded from admission.",
+ "noteColor":"#f85149"}
+]
