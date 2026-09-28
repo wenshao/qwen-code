@@ -1,0 +1,14 @@
+{
+  "title": "Remaining F1+: one LEGACY durable startup failure blocks every new placement in the tenant",
+  "subtitle": "P4 on head 4136721037: worker SIGKILLed while its first attest is held, then a second placement in the same tenant starts",
+  "blocks": [
+    {"table": [
+      ["", "Default (ephemeral)", "Durable, 4136721037", "Durable + candidate C"],
+      ["LEGACY slot 1 after boot failure", "++ 2nd warm READY", "== 409 -> RECOVERY_BLOCKED, no lease", "== same (slot stays fenced)"],
+      ["LEGACY workspace-b, same tenant", "++ READY", "-- 409 runtime_placement_recovery_required", "++ READY"],
+      ["MANAGED harness-2, same workspace", "++ READY", "++ READY (exempt since 0dd60d4503)", "++ READY"]
+    ]},
+    {"label": "why: RuntimeBindingRecord.blocksPlacement on main exempts unadmitted local startups for managed requests only; candidate C", "pre": "   boolean unreclaimed = state == State.LOST\n           || state == State.RECOVERY_BLOCKED\n-- -                && (!request.isManagedContext()\n-- -                        || !LocalProcessRuntimeProvisioner.KIND.equals(\n++ +                && (!LocalProcessRuntimeProvisioner.KIND.equals(\n                                request.getProvisionerKind())\n                        || lease != null\n                        || attestationGeneration > 0)\n           || state == State.FAILED && provisionSeed != null;\n++ candidate C on 4136721037: runtime-broker 419/0/2, server 174/174, P4 workspace-b READY"},
+    {"note": "Before durable mode, a LEGACY local startup failure was retryable and never reached RECOVERY_BLOCKED. Now it does, and it is terminal, so a wrong node path, a boot crash or OOM, or a Broker crash between REGISTERED and the boot write stops the tenant from starting any new placement. The design doc says 'the original placement remains fenced', but for LEGACY the tenant is fenced. No lease and no attestation means no Session was admitted, so the base's own exemption applies."}
+  ]
+}

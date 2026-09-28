@@ -1,0 +1,17 @@
+{
+  "title": "Stage F failures during this round are host-load timing flakes, not a regression",
+  "subtitle": "colima VM (2 vCPU) on a host at load average 45-150; rig OPERATION_LEASE = DISPATCH_LEASE = 2 s",
+  "blocks": [
+    {"table": [
+      ["Tree", "Full Stage F", "Failures"],
+      ["main a765229c0a (no PR)", "-- 28/29", "ConcurrencyStorage…aDatabaseOutage… (5 commit attempts)"],
+      ["head 4136721037, run 1", "-- 34/39", "adoptedWorkerCanCancel… x2, brokerCrashAdopts…[MANAGED], ProcessCrash…aLostJournal…, ConcurrencyStorage…"],
+      ["head 4136721037, run 2", "++ 39/39", ""],
+      ["head 4136721037, leases 5 s", "++ 39/39", ""],
+      ["earlier: head 36f87cd0e6", "-- 38/39, 33/39", "same classes"],
+      ["earlier: 36f87cd0e6 merged into main bd45b95f82", "++ 39/39", ""]
+    ]},
+    {"label": "adoptedWorkerCanCancelItsOriginalActiveCall: round-2 vs round-3 heads alternated, then 2 s vs 10 s dispatch lease", "pre": "== round-2 head 7236322a43 : 8/10, 9/10, 10/10      round-3 head 36f87cd0e6 : 10/10, 10/10, 8/10\n== 2 s lease : 2/2, 1/2, 2/2      ++ 10 s lease : 2/2, 2/2, 2/2\n== cause: cancelExecution fences a lapsed claim and sends no transport.cancel; the restarted Broker must cancel\n==        within the 2 s dispatch lease, which a slow host misses"},
+    {"note": "Every failure is a timing symptom of the 2 s leases (runtime_provision_fenced, 'cancellation must reach the original active worker', '5 commit attempts'). It also hits main without this PR, and none recurred with 5-10 s leases. These gates are not in CI; a longer lease for the durable gates would keep them usable as release gates on slower hosts."}
+  ]
+}

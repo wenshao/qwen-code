@@ -1,0 +1,25 @@
+{
+  "title": "R3: head 4136721037 on real Linux: F1/F2/F3 fixed, one tenant-scope gap left",
+  "subtitle": "Rebased onto main a765229c0a (so the head is the landing tree) + 56ada7e510 'Terminate failed durable startup reconciliation' + 4136721037 docs · colima Ubuntu 24.04, Linux 6.8 aarch64",
+  "blocks": [
+    {"table": [
+      ["Finding", "Round 2 head 7236322a43", "Round 3 head 4136721037"],
+      ["F1 worker dies before READY (P1, P1b)", "-- 503 reconcile_timeout every 8.1 s", "++ 409 resource_conflict, terminal, 0.2-1.2 s"],
+      ["F1 LAUNCHING: spawn fails / cmd exits (P3b, P3)", "-- 503 every 8.1 s after the fix", "++ 409 resource_conflict, terminal"],
+      ["F2 zombie after Broker restart (C1, PID 1 = sleep)", "-- READY forever", "++ LOST, runtime_broker_runtime_lost"],
+      ["F2' zombie under adopting Broker (Z2)", "-- READY forever, 503 every call", "++ LOST, runtime_broker_runtime_lost"],
+      ["F2 through Spring + MySQL, PID 1 = sleep", "", "++ worker state=Z -> 503 not alive -> LOST + evidence"],
+      ["F3 README prerequisites", "-- missing", "++ machine-id, time ns >= 5.6, KillMode, reaping init"],
+      ["F1+ LEGACY startup failure vs same tenant", "(found on 36f87cd0e6)", "-- still: workspace-b 409 placement_recovery_required"],
+      ["New fix tests (3 mutants on the new lines)", "", "++ 3/3 killed"]
+    ]},
+    {"table": [
+      ["Suite on 4136721037", "Result"],
+      ["runtime-broker mvn test", "++ 419 run, 0 fail, 2 skip"],
+      ["managed-agent-server mvn test", "++ 174/174"],
+      ["Stage F -Pfault-gates", "!! 34/39 at host load ~50, then 39/39 (5 s-lease copy 39/39; main 28/29 in the same window)"],
+      ["Spring + MySQL: kill -9, restart, warm", "++ same worker 89 adopted in 0.34 s, next 16 ms, gen 1"],
+      ["T1 transient confirm on adopted worker", "++ recovers on next warm"]
+    ]}
+  ]
+}
