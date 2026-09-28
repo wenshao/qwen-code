@@ -1,0 +1,38 @@
+diff --git a/integration-tests/cli/hosted-latency-baseline.test.ts b/integration-tests/cli/hosted-latency-baseline.test.ts
+index 9793ac0fcf..4d8c3d7648 100644
+--- a/integration-tests/cli/hosted-latency-baseline.test.ts
++++ b/integration-tests/cli/hosted-latency-baseline.test.ts
+@@ -70,6 +70,14 @@ describe('Hosted latency baseline gate', () => {
+     );
+   });
+ 
++  it('accepts tool-Turn text that becomes visible before readiness', () => {
++    const report = fixture();
++    report.samples[1].firstVisibleTextMs = 300;
++    expect(
++      compareHostedLatency(fixture(), report)[1].firstVisibleTextDeltaMs,
++    ).toBe(-15_700);
++  });
++
+   it.each([
+     ['missing scenario', (r: HostedLatencyMeasurement) => r.samples.pop()],
+     [
+diff --git a/integration-tests/helpers/hosted-latency-baseline.ts b/integration-tests/helpers/hosted-latency-baseline.ts
+index 3b031afd8b..4848b3c170 100644
+--- a/integration-tests/helpers/hosted-latency-baseline.ts
++++ b/integration-tests/helpers/hosted-latency-baseline.ts
+@@ -78,7 +78,13 @@ export function validateHostedLatency(report: HostedLatencyMeasurement) {
+       first.firstTextMs < sample.runtimeReadyMs,
+       'model text precedes readiness',
+     );
+-    assert(sample.modelRounds.at(-1)!.finishedMs <= sample.firstVisibleTextMs);
++    // Committed text cannot precede provider text. A tool Turn may make its
++    // pre-tool text visible before readiness, so do not tie visibility to the
++    // last model round.
++    assert(
++      first.firstTextMs <= sample.firstVisibleTextMs,
++      'visible text follows provider text',
++    );
+     if (sample.scenario === 'no-tool') {
+       assert(
+         sample.warmRequestedMs <= sample.turnCompleteMs,

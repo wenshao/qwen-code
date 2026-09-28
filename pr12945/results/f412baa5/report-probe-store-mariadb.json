@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "provider": "local-openai-fixture",
+  "runtimeProvisioningDelayMs": 15000,
+  "samples": [
+    {
+      "scenario": "no-tool",
+      "warmRequestedMs": 243.2976249999997,
+      "runtimeReadyMs": 16401.777667,
+      "firstVisibleTextMs": 802.2316249999999,
+      "turnCompleteMs": 802.2493749999999,
+      "acquireMs": null,
+      "executionStartMs": null,
+      "toolWaitMs": null,
+      "sameContext": null,
+      "storeRequests": 18,
+      "modelRounds": [
+        {
+          "requestMs": 468.160625,
+          "firstTextMs": 477.93499999999995,
+          "finishedMs": 477.94349999999986
+        }
+      ]
+    },
+    {
+      "scenario": "tool",
+      "warmRequestedMs": 736.8247499999998,
+      "runtimeReadyMs": 16731.53775,
+      "firstVisibleTextMs": 17868.187875,
+      "turnCompleteMs": 18073.801917,
+      "acquireMs": 16733.991874999996,
+      "executionStartMs": 17195.568875,
+      "toolWaitMs": 15974.183207999999,
+      "sameContext": true,
+      "storeRequests": 97,
+      "modelRounds": [
+        {
+          "requestMs": 753.4392090000001,
+          "firstTextMs": 757.3389999999999,
+          "finishedMs": 757.354542000001
+        },
+        {
+          "requestMs": 17490.491250000003,
+          "firstTextMs": 17492.086459000002,
+          "finishedMs": 17492.089959
+        }
+      ]
+    }
+  ],
+  "capturedAt": "2026-09-28T15:15:33.690Z",
+  "gitCommit": "f412baa5b2476af92087ee2ac7e94e2799a207f0",
+  "workingTreeDirty": true,
+  "sourceHashes": {
+    "integration-tests/helpers/hosted-latency-driver.ts": "4688292b9499695a33f86120adb6cd2eda8a1297eaa7798f21a05a027cc1ec15",
+    "integration-tests/helpers/hosted-latency-baseline.ts": "07faf9eb88726452981ad200ef2d14456c95974ec07f019bd95da8e37717becb",
+    "integration-tests/helpers/hosted-harness-process.ts": "13c3c95de16e83aad1694b8f5f701b973fe0b26f98eeaba5118fd596ec00c5a8",
+    "integration-tests/fake-openai-server.ts": "3d4387fc296d68cb3f73c0e193da3a9783cf418a420053ff7e70a683877e3a21",
+    "packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedWorkspaceToolTurnIT.java": "ef1a9d96d5d8931f70ca0a02b6a654a3a76a948e00aa56649aaf71eedef84e15"
+  },
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "release": "25.6.0",
+    "node": "v22.23.2",
+    "database": "MySQL 5.5.5-10.11.18-MariaDB-ubu2204"
+  },
+  "notes": [
+    "Packaged Hosted private protocol + Spring SQL Session Store + real local-process Broker/worker; two fresh Workspaces, one sample each.",
+    "Worker startup sleeps 15000ms before importing the packaged CLI. Timings use one monotonic clock relative to prompt submission; warm response defines readiness.",
+    "Model firstTextMs observes the first nonempty provider delta.content at the proxy. firstVisibleTextMs observes committed session_update text over Harness SSE (250ms polling).",
+    "toolWaitMs is warm response minus first model stream finish; modelRounds separately measure provider stream time, excluding readiness wait.",
+    "Isolated boot-time fixture model configuration; local deterministic OpenAI responses, not real-model latency, published-configuration deployment or public Managed REST latency.",
+    "storeRequests counts HTTP requests between prompt submission and observed completion, including SSE reads; no history-growth or cache claim.",
+    "Checked-in numbers are descriptive; comparison enforces scenario coverage and ordering, never absolute millisecond thresholds."
+  ],
+  "comparison": [
+    {
+      "scenario": "no-tool",
+      "firstModelTextDeltaMs": 143.901833,
+      "firstVisibleTextDeltaMs": 283.3026669999998,
+      "turnCompleteDeltaMs": 283.3066669999997,
+      "toolWaitDeltaMs": null,
+      "storeRequestsDelta": 9
+    },
+    {
+      "scenario": "tool",
+      "firstModelTextDeltaMs": 717.8921660000015,
+      "firstVisibleTextDeltaMs": 2060.3211660000015,
+      "turnCompleteDeltaMs": 2265.923458000001,
+      "toolWaitDeltaMs": 565.492540999996,
+      "storeRequestsDelta": 74
+    }
+  ]
+}

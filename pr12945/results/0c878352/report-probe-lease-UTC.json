@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "provider": "local-openai-fixture",
+  "runtimeProvisioningDelayMs": 15000,
+  "samples": [
+    {
+      "scenario": "no-tool",
+      "warmRequestedMs": 215.16716599999972,
+      "runtimeReadyMs": 16021.769583000001,
+      "firstVisibleTextMs": 851.4330829999999,
+      "turnCompleteMs": 851.4504579999998,
+      "acquireMs": null,
+      "executionStartMs": null,
+      "toolWaitMs": null,
+      "sameContext": null,
+      "storeRequests": 9,
+      "modelRounds": [
+        {
+          "requestMs": 507.0079579999997,
+          "firstTextMs": 514.3257909999998,
+          "finishedMs": 514.335208
+        }
+      ]
+    },
+    {
+      "scenario": "tool",
+      "warmRequestedMs": 128.78208300000188,
+      "runtimeReadyMs": 15954.667458000004,
+      "firstVisibleTextMs": 17581.317083,
+      "turnCompleteMs": 17806.89125,
+      "acquireMs": 15957.193375000003,
+      "executionStartMs": 16734.034041,
+      "toolWaitMs": 15809.290583000002,
+      "sameContext": true,
+      "storeRequests": 23,
+      "modelRounds": [
+        {
+          "requestMs": 141.45462500000212,
+          "firstTextMs": 145.36329100000148,
+          "finishedMs": 145.37687500000175
+        },
+        {
+          "requestMs": 17180.550125,
+          "firstTextMs": 17188.054541000005,
+          "finishedMs": 17188.063708
+        }
+      ]
+    }
+  ],
+  "capturedAt": "2026-09-28T16:54:51.416Z",
+  "gitCommit": "0c878352ae6e9a22d94484df683a5dba079703fc",
+  "workingTreeDirty": true,
+  "sourceHashes": {
+    "integration-tests/helpers/hosted-latency-driver.ts": "2745c782db85fefe416fe3d3d5cd7853f94d573bcb1247d20e6bf919b09e0214",
+    "integration-tests/helpers/hosted-latency-baseline.ts": "aecf31f21a316d0851c0b7137c4b25dd6889ec650af567050f441e9ae326e697",
+    "integration-tests/helpers/hosted-harness-process.ts": "13c3c95de16e83aad1694b8f5f701b973fe0b26f98eeaba5118fd596ec00c5a8",
+    "integration-tests/fake-openai-server.ts": "3d4387fc296d68cb3f73c0e193da3a9783cf418a420053ff7e70a683877e3a21",
+    "packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedWorkspaceToolTurnIT.java": "4aca128a90805748094c80ad7cd10d8cf2e2fbf95586a6afdcab13556ebfa6a3"
+  },
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "release": "25.6.0",
+    "node": "v22.23.2",
+    "database": "MySQL 5.5.5-10.11.18-MariaDB-ubu2204"
+  },
+  "notes": [
+    "Packaged Hosted private protocol + Spring SQL Session Store + real local-process Broker/worker; two fresh Workspaces, one sample each.",
+    "Worker startup sleeps 15000ms before importing the packaged CLI. Timings use one monotonic clock relative to prompt submission; warm response defines readiness.",
+    "Model firstTextMs observes the first nonempty provider delta.content at the proxy. firstVisibleTextMs observes committed session_update text over Harness SSE (250ms polling).",
+    "toolWaitMs is warm response minus first model stream finish; modelRounds separately measure provider stream time, excluding readiness wait.",
+    "Isolated boot-time fixture model configuration; local deterministic OpenAI responses, not real-model latency, published-configuration deployment or public Managed REST latency.",
+    "storeRequests counts HTTP requests between prompt submission and observed completion, including SSE reads; no history-growth or cache claim.",
+    "Checked-in numbers are descriptive; comparison enforces scenario coverage and ordering, never absolute millisecond thresholds."
+  ],
+  "comparison": [
+    {
+      "scenario": "no-tool",
+      "firstModelTextDeltaMs": 180.29262399999982,
+      "firstVisibleTextDeltaMs": 332.5041249999998,
+      "turnCompleteDeltaMs": 332.50774999999965,
+      "toolWaitDeltaMs": null,
+      "storeRequestsDelta": 0
+    },
+    {
+      "scenario": "tool",
+      "firstModelTextDeltaMs": 105.91645700000299,
+      "firstVisibleTextDeltaMs": 1773.4503740000036,
+      "turnCompleteDeltaMs": 1999.012791000001,
+      "toolWaitDeltaMs": 400.5999159999992,
+      "storeRequestsDelta": 0
+    }
+  ]
+}

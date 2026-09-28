@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "provider": "local-openai-fixture",
+  "runtimeProvisioningDelayMs": 15000,
+  "samples": [
+    {
+      "scenario": "no-tool",
+      "warmRequestedMs": 131.269,
+      "runtimeReadyMs": 15943.007917,
+      "firstVisibleTextMs": 615.017083,
+      "turnCompleteMs": 819.6537919999998,
+      "acquireMs": null,
+      "executionStartMs": null,
+      "toolWaitMs": null,
+      "sameContext": null,
+      "storeRequests": 9,
+      "modelRounds": [
+        {
+          "requestMs": 456.425708,
+          "firstTextMs": 464.7697919999998,
+          "finishedMs": 464.79329200000006
+        }
+      ]
+    },
+    {
+      "scenario": "tool",
+      "warmRequestedMs": 64.79662499999904,
+      "runtimeReadyMs": 15572.796749999998,
+      "firstVisibleTextMs": 16370.596999999998,
+      "turnCompleteMs": 16370.616292000002,
+      "acquireMs": 15577.136084000002,
+      "executionStartMs": 15806.969625000002,
+      "toolWaitMs": 15494.681540999998,
+      "sameContext": true,
+      "storeRequests": 23,
+      "modelRounds": [
+        {
+          "requestMs": 76.54833399999916,
+          "firstTextMs": 78.10429199999999,
+          "finishedMs": 78.1152089999996
+        },
+        {
+          "requestMs": 15979.017334,
+          "firstTextMs": 15982.589167000002,
+          "finishedMs": 15982.592916999998
+        }
+      ]
+    }
+  ],
+  "capturedAt": "2026-09-28T15:51:15.541Z",
+  "gitCommit": "f412baa5b2476af92087ee2ac7e94e2799a207f0",
+  "workingTreeDirty": true,
+  "sourceHashes": {
+    "integration-tests/helpers/hosted-latency-driver.ts": "f3aab2694c5d1023adad1f909914ef951666812de2fe82c75cd8772b8ebfc358",
+    "integration-tests/helpers/hosted-latency-baseline.ts": "aecf31f21a316d0851c0b7137c4b25dd6889ec650af567050f441e9ae326e697",
+    "integration-tests/helpers/hosted-harness-process.ts": "13c3c95de16e83aad1694b8f5f701b973fe0b26f98eeaba5118fd596ec00c5a8",
+    "integration-tests/fake-openai-server.ts": "3d4387fc296d68cb3f73c0e193da3a9783cf418a420053ff7e70a683877e3a21",
+    "packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedWorkspaceToolTurnIT.java": "ef1a9d96d5d8931f70ca0a02b6a654a3a76a948e00aa56649aaf71eedef84e15"
+  },
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "release": "25.6.0",
+    "node": "v22.23.2",
+    "database": "MySQL 8.4.7"
+  },
+  "notes": [
+    "Packaged Hosted private protocol + Spring SQL Session Store + real local-process Broker/worker; two fresh Workspaces, one sample each.",
+    "Worker startup sleeps 15000ms before importing the packaged CLI. Timings use one monotonic clock relative to prompt submission; warm response defines readiness.",
+    "Model firstTextMs observes the first nonempty provider delta.content at the proxy. firstVisibleTextMs observes committed session_update text over Harness SSE (250ms polling).",
+    "toolWaitMs is warm response minus first model stream finish; modelRounds separately measure provider stream time, excluding readiness wait.",
+    "Isolated boot-time fixture model configuration; local deterministic OpenAI responses, not real-model latency, published-configuration deployment or public Managed REST latency.",
+    "storeRequests counts HTTP requests between prompt submission and observed completion, including SSE reads; no history-growth or cache claim.",
+    "Checked-in numbers are descriptive; comparison enforces scenario coverage and ordering, never absolute millisecond thresholds."
+  ],
+  "comparison": [
+    {
+      "scenario": "no-tool",
+      "firstModelTextDeltaMs": 130.7366249999999,
+      "firstVisibleTextDeltaMs": 96.08812499999988,
+      "turnCompleteDeltaMs": 300.7110839999997,
+      "toolWaitDeltaMs": null,
+      "storeRequestsDelta": 0
+    },
+    {
+      "scenario": "tool",
+      "firstModelTextDeltaMs": 38.6574580000015,
+      "firstVisibleTextDeltaMs": 562.7302909999999,
+      "turnCompleteDeltaMs": 562.7378330000029,
+      "toolWaitDeltaMs": 85.99087399999553,
+      "storeRequestsDelta": 0
+    }
+  ]
+}

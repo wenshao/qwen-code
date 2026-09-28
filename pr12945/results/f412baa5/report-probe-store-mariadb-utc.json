@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "provider": "local-openai-fixture",
+  "runtimeProvisioningDelayMs": 15000,
+  "samples": [
+    {
+      "scenario": "no-tool",
+      "warmRequestedMs": 266.34937500000024,
+      "runtimeReadyMs": 15997.610834000003,
+      "firstVisibleTextMs": 802.7625840000001,
+      "turnCompleteMs": 1017.1364170000002,
+      "acquireMs": null,
+      "executionStartMs": null,
+      "toolWaitMs": null,
+      "sameContext": null,
+      "storeRequests": 9,
+      "modelRounds": [
+        {
+          "requestMs": 517.7345420000001,
+          "firstTextMs": 523.7560840000001,
+          "finishedMs": 523.765042
+        }
+      ]
+    },
+    {
+      "scenario": "tool",
+      "warmRequestedMs": 145.8552920000002,
+      "runtimeReadyMs": 15771.401875000003,
+      "firstVisibleTextMs": 17898.229792,
+      "turnCompleteMs": 18600.105833,
+      "acquireMs": 15777.824874999998,
+      "executionStartMs": 16742.725166999997,
+      "toolWaitMs": 15614.347500000003,
+      "sameContext": true,
+      "storeRequests": 23,
+      "modelRounds": [
+        {
+          "requestMs": 154.20395800000188,
+          "firstTextMs": 157.04304200000115,
+          "finishedMs": 157.0543749999997
+        },
+        {
+          "requestMs": 17372.883542000003,
+          "firstTextMs": 17375.196667000004,
+          "finishedMs": 17375.199875
+        }
+      ]
+    }
+  ],
+  "capturedAt": "2026-09-28T15:18:48.227Z",
+  "gitCommit": "f412baa5b2476af92087ee2ac7e94e2799a207f0",
+  "workingTreeDirty": true,
+  "sourceHashes": {
+    "integration-tests/helpers/hosted-latency-driver.ts": "4688292b9499695a33f86120adb6cd2eda8a1297eaa7798f21a05a027cc1ec15",
+    "integration-tests/helpers/hosted-latency-baseline.ts": "07faf9eb88726452981ad200ef2d14456c95974ec07f019bd95da8e37717becb",
+    "integration-tests/helpers/hosted-harness-process.ts": "13c3c95de16e83aad1694b8f5f701b973fe0b26f98eeaba5118fd596ec00c5a8",
+    "integration-tests/fake-openai-server.ts": "3d4387fc296d68cb3f73c0e193da3a9783cf418a420053ff7e70a683877e3a21",
+    "packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedWorkspaceToolTurnIT.java": "ef1a9d96d5d8931f70ca0a02b6a654a3a76a948e00aa56649aaf71eedef84e15"
+  },
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "release": "25.6.0",
+    "node": "v22.23.2",
+    "database": "MySQL 5.5.5-10.11.18-MariaDB-ubu2204"
+  },
+  "notes": [
+    "Packaged Hosted private protocol + Spring SQL Session Store + real local-process Broker/worker; two fresh Workspaces, one sample each.",
+    "Worker startup sleeps 15000ms before importing the packaged CLI. Timings use one monotonic clock relative to prompt submission; warm response defines readiness.",
+    "Model firstTextMs observes the first nonempty provider delta.content at the proxy. firstVisibleTextMs observes committed session_update text over Harness SSE (250ms polling).",
+    "toolWaitMs is warm response minus first model stream finish; modelRounds separately measure provider stream time, excluding readiness wait.",
+    "Isolated boot-time fixture model configuration; local deterministic OpenAI responses, not real-model latency, published-configuration deployment or public Managed REST latency.",
+    "storeRequests counts HTTP requests between prompt submission and observed completion, including SSE reads; no history-growth or cache claim.",
+    "Checked-in numbers are descriptive; comparison enforces scenario coverage and ordering, never absolute millisecond thresholds."
+  ],
+  "comparison": [
+    {
+      "scenario": "no-tool",
+      "firstModelTextDeltaMs": 189.72291700000017,
+      "firstVisibleTextDeltaMs": 283.833626,
+      "turnCompleteDeltaMs": 498.193709,
+      "toolWaitDeltaMs": null,
+      "storeRequestsDelta": 0
+    },
+    {
+      "scenario": "tool",
+      "firstModelTextDeltaMs": 117.59620800000266,
+      "firstVisibleTextDeltaMs": 2090.363083,
+      "turnCompleteDeltaMs": 2792.227374000002,
+      "toolWaitDeltaMs": 205.65683300000092,
+      "storeRequestsDelta": 0
+    }
+  ]
+}
