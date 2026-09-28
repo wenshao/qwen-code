@@ -1,0 +1,49 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index 2a2d3d30a4..313cf497a9 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -472,6 +472,10 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                         && ("cancelled".equals(result.get("executionStatus"))
+                                 || "not_started".equals(result.get("executionStatus")))) {
+                     completion.complete(requested);
++                } else if (status != null && "unknown".equals(status.get("state"))) {
++                    // The worker retains nothing for this invocation, so nothing is
++                    // left to clean up, and it refuses to execute what it forgot.
++                    completion.complete(requested);
+                 } else if (status != null && ("prepared".equals(status.get("state"))
+                         || "executing".equals(status.get("state"))
+                         || "cancel_requested".equals(status.get("state")))) {
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+index 3c1b38ebd3..6862d94940 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+@@ -238,6 +238,29 @@ class RuntimeBrokerServiceTest {
+         }
+     }
+ 
++    @Test
++    void preparedProviderCancellationAcceptsAWorkerThatForgotTheInvocation() {
++        try (Fixture fixture = new Fixture(WORKSPACE_SCOPE)) {
++            join(fixture.service.acquire("harness", PROVIDER_SESSION, "bootstrap"));
++            ToolExecutionRecord prepared = join(fixture.service.prepareExecution(
++                    "harness", PROVIDER_SESSION, "key", providerReference()));
++            fixture.transport.cancelResult = CompletableFuture.completedFuture(Map.of(
++                    "state", "settled", "result", Map.of("executionStatus", "not_started")));
++            ToolExecutionRecord cancelled = join(fixture.service.cancelExecution(
++                    "harness", PROVIDER_SESSION, prepared.getExecutionCallId()));
++            assertEquals("cancelled", cancelled.getExecutionStatus());
++            // The next prompt began; the worker no longer retains the invocation.
++            fixture.transport.cancelResult = CompletableFuture.completedFuture(Map.of("state", "unknown"));
++            ToolExecutionRecord repeated = join(fixture.service.cancelExecution(
++                    "harness", PROVIDER_SESSION, prepared.getExecutionCallId()));
++            assertEquals("cancelled", repeated.getExecutionStatus());
++            assertEquals(2, fixture.transport.cancelCalls.get());
++            join(fixture.service.startExecution("harness", PROVIDER_SESSION, prepared.getExecutionCallId()));
++            assertEquals(0, fixture.transport.executeCalls.get());
++            assertTrue(join(fixture.service.release("harness", PROVIDER_SESSION)));
++        }
++    }
++
+     @Test
+     void abandonedProviderReceiptsKeepTheirSavedOwnershipAfterRestartAndRelease() {
+         var bindings = new InMemoryRuntimeBindingRepository();

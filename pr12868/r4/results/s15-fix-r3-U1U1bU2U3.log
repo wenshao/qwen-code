@@ -1,0 +1,77 @@
+[GROUP] U1 v2 arm=r3
+[U1-v2] worker of the Harness Session listens on a loopback port (seen on the wire) | first Runtime Session released: ok true
+[U1-v2] provider acquire for a Runtime Session whose context is not installed yet (sent by the rig): 409 managed_context_unavailable "Managed context directory is unavailable."
+[U1-v2] Broker acquires the same Runtime Session (context, activation): 200 | raw start 200 | worker /v2/execute -> 409 managed_runtime_identity_conflict "Managed Runtime protocol conflicts."
+[U1-v2] provider acquire for that Session once it has run raw work (sent by the rig): 200 true
+[U1-v2] record UNKNOWN/- | file=null | release 409 runtime_session_busy | Session READY | storage held=true
+[U1-v2] provider acquire for that Session after the release request (sent by the rig): 200 true
+[U1-v2] next Runtime Session of the same Workspace through the provider: refused status=409 code=workspace_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Workspace storage is held by another tool turn.
+[PASS] U1-v2.1 the worker refuses a provider acquire before the context is active :: 409 managed_context_unavailable "Managed context directory is unavailable."
+[FAIL] U1-v2.2 the refused acquire leaves the raw protocol available: the raw call executes once :: worker 409 record UNKNOWN/-
+[FAIL] U1-v2.3 the Session releases and drops its storage; the Workspace admits the next Runtime Session :: release 409 runtime_session_busy next refused status=409 code=workspace_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Workspace storage is held by another tool turn.
+[FAIL] U1-v2.4 a Session that ran raw work cannot switch to the provider, and a released one stays closed :: 200 true | 200 true
+[GROUP] U1b v2 arm=r3
+[U1b-v2] three concurrent provider acquires before the context is installed (sent by the rig): 409 managed_context_unavailable, 409 managed_context_unavailable, 409 managed_context_unavailable
+[U1b-v2] the same Runtime Session through the provider and the Broker: acquired | call success | file="provider after refused acquire\n"
+[U1b-v2] a raw execute for the Session the provider now owns (sent by the rig): 409 managed_runtime_identity_conflict "Managed Runtime protocol conflicts." | raw file written=false | release ok true
+[PASS] U1b-v2.1 every concurrent acquire is refused while the context is not active :: 409 managed_context_unavailable, 409 managed_context_unavailable, 409 managed_context_unavailable
+[PASS] U1b-v2.2 the refused acquires do not block a later provider acquire; the call executes once
+[PASS] U1b-v2.3 a successful provider acquire still fences the raw protocol :: 409 managed_runtime_identity_conflict "Managed Runtime protocol conflicts."
+[PASS] U1b-v2.4 release succeeds :: ok true
+[GROUP] U2 v1 arm=r3
+[U2-v1] call prepared and reserved in prompt p1, not started | begin-turn for p2 while it is unfinished: refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed Runtime still
+[U2-v1] cancel #1: caller 200 cancelled | worker saw [cancel -> 200 {"state":"cancel_requested","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":1,"progressGap":false,"progress":[]} ; status -> 200 {"state":"settled","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":1,"progressGap":false,"progress":[],"result":{]
+[U2-v1] begin-turn for p2 after the cancellation: ok (the worker now forgets the calls of p1)
+[U2-v1] cancel #2: caller 409 managed_runtime_provider_operation_failed retryable=false "Managed tool invocation identity does not match." | worker saw [cancel -> 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."]
+[U2-v1] cancel #3: caller 409 managed_runtime_provider_operation_failed | worker saw [cancel -> 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."]
+[U2-v1] the same cancellation through the provider client: refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed tool invocation identity does not match.
+[U2-v1] record SETTLED/cancelled cancel requested=true | GET 200 settled/cancelled | start of the old call: cancelled | file written=false
+[U2-v1] a call of p2 in the same Session: success | release ok true | cancel after release 200 worker saw [] | storage held=false
+[U2-v1] OBSERVED: a repeated cancellation of a call the worker forgot is answered to the caller with 409 managed_runtime_provider_operation_failed
+[PASS] U2-v1.1 the worker does not begin the next prompt while a prepared call is unfinished :: refused
+[FAIL] U2-v1.2 the worker answers the cancellation of a call it no longer retains with exactly { state: "unknown" } :: cancel -> 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U2-v1.3 the forgotten call never executes and its record stays settled as cancelled
+[PASS] U2-v1.4 the Session keeps working for the new prompt and releases :: success | ok true
+[GROUP] U2 v2 arm=r3
+[U2-v2] call prepared and reserved in prompt p1, not started | begin-turn for p2 while it is unfinished: refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed Runtime still
+[U2-v2] cancel #1: caller 200 cancelled | worker saw [cancel -> 200 {"state":"cancel_requested","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":1,"progressGap":false,"progress":[]} ; status -> 200 {"state":"settled","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":1,"progressGap":false,"progress":[],"result":{]
+[U2-v2] begin-turn for p2 after the cancellation: ok (the worker now forgets the calls of p1)
+[U2-v2] cancel #2: caller 409 managed_runtime_provider_operation_failed retryable=false "Managed tool invocation identity does not match." | worker saw [cancel -> 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."]
+[U2-v2] cancel #3: caller 409 managed_runtime_provider_operation_failed | worker saw [cancel -> 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."]
+[U2-v2] the same cancellation through the provider client: refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed tool invocation identity does not match.
+[U2-v2] record SETTLED/cancelled cancel requested=true | GET 200 settled/cancelled | start of the old call: cancelled | file written=false
+[U2-v2] a call of p2 in the same Session: success | release ok true | cancel after release 200 worker saw [] | storage held=false
+[U2-v2] OBSERVED: a repeated cancellation of a call the worker forgot is answered to the caller with 409 managed_runtime_provider_operation_failed
+[PASS] U2-v2.1 the worker does not begin the next prompt while a prepared call is unfinished :: refused
+[FAIL] U2-v2.2 the worker answers the cancellation of a call it no longer retains with exactly { state: "unknown" } :: cancel -> 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U2-v2.3 the forgotten call never executes and its record stays settled as cancelled
+[PASS] U2-v2.4 the Session keeps working for the new prompt and releases :: success | ok true
+[GROUP] U3 v1 arm=r3
+[U3-v1] call of prompt p1 executed (success); prompt p2 begun; the worker no longer retains the call
+[U3-v1] status  (sent by the rig) 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[U3-v1] cancel  (sent by the rig) 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[U3-v1] execute (sent by the rig) 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | file="once\n"
+[U3-v1] retained call, argsDigest changed: status 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | cancel 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[U3-v1] retained call, other invocation id: status 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | true reference: status 200 state=prepared cancelRequested=false
+[U3-v1] the retained call then runs: success | file="kept\n"
+[U3-v1] release ok true | records=["SETTLED/success","SETTLED/success"]
+[FAIL] U3-v1.1 status and cancel for a call the worker no longer retains answer exactly { state: "unknown" } :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v1.2 execute for that call is refused and the effect happened once :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v1.3 a changed reference of a retained call is a conflict and cancels nothing :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[FAIL] U3-v1.4 an invocation id the worker never issued answers unknown and reveals nothing :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v1.5 release succeeds :: ok true
+[GROUP] U3 v2 arm=r3
+[U3-v2] call of prompt p1 executed (success); prompt p2 begun; the worker no longer retains the call
+[U3-v2] status  (sent by the rig) 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[U3-v2] cancel  (sent by the rig) 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[U3-v2] execute (sent by the rig) 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | file="once\n"
+[U3-v2] retained call, argsDigest changed: status 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | cancel 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[U3-v2] retained call, other invocation id: status 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | true reference: status 200 state=prepared cancelRequested=false
+[U3-v2] the retained call then runs: success | file="kept\n"
+[U3-v2] release ok true | records=["SETTLED/success","SETTLED/success"]
+[FAIL] U3-v2.1 status and cancel for a call the worker no longer retains answer exactly { state: "unknown" } :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v2.2 execute for that call is refused and the effect happened once :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v2.3 a changed reference of a retained call is a conflict and cancels nothing :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[FAIL] U3-v2.4 an invocation id the worker never issued answers unknown and reveals nothing :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v2.5 release succeeds :: ok true
+[SUMMARY] 17/26 checks passed — failed: U1-v2.2, U1-v2.3, U1-v2.4, U2-v1.2, U2-v2.2, U3-v1.1, U3-v1.4, U3-v2.1, U3-v2.4
