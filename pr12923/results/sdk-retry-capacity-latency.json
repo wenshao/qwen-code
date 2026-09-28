@@ -1,0 +1,156 @@
+[
+  {
+    "id": "S10-reset-chunk",
+    "title": "head, no nginx: chunk 2 applied, connection reset before the response",
+    "pass": true,
+    "ref": {
+      "type": "image",
+      "attachmentId": "image.png",
+      "mimeType": "image/png",
+      "size": 1778959
+    },
+    "files": [
+      {
+        "name": "image.png",
+        "sha256": "b219a356c54dfc592cdc9a95dfa29e083f587c2c8bf7696480b86d5752c5eb69"
+      }
+    ],
+    "ledger": [
+      "POST attachment-uploads 201",
+      "POST chunks?offset=0 200",
+      "POST chunks?offset=524288 200 [drop-response]",
+      "POST chunks?offset=524288 200",
+      "POST chunks?offset=1048576 200",
+      "POST chunks?offset=1572864 200",
+      "POST complete 200"
+    ]
+  },
+  {
+    "id": "S10-reset-complete",
+    "title": "head, no nginx: completion applied, connection reset before the response",
+    "pass": true,
+    "ref": {
+      "type": "image",
+      "attachmentId": "image.png",
+      "mimeType": "image/png",
+      "size": 1778959
+    },
+    "files": [
+      {
+        "name": "image.png",
+        "sha256": "b219a356c54dfc592cdc9a95dfa29e083f587c2c8bf7696480b86d5752c5eb69"
+      }
+    ],
+    "ledger": [
+      "POST attachment-uploads 201",
+      "POST chunks?offset=0 200",
+      "POST chunks?offset=524288 200",
+      "POST chunks?offset=1048576 200",
+      "POST chunks?offset=1572864 200",
+      "POST complete 200 [drop-response]",
+      "POST complete 200"
+    ]
+  },
+  {
+    "id": "S11a-session-cap",
+    "title": "head: 9th concurrent upload in one session is 429; DELETE frees a slot",
+    "pass": true,
+    "codes": [
+      201,
+      201,
+      201,
+      201,
+      201,
+      201,
+      201,
+      201,
+      429,
+      "attachment_upload_capacity_exceeded"
+    ],
+    "deleteStatus": 204,
+    "afterDelete": 201
+  },
+  {
+    "id": "S11b-client-detach",
+    "title": "head: detaching client A releases its 8 staged uploads; session stays open for client B",
+    "pass": true,
+    "secondClient": "client_68fc9a17-9499-4c83-8cbc-34feaa12b67c",
+    "otherBeforeDetach": 429,
+    "detach": 204,
+    "otherAfterDetach": [
+      201,
+      201,
+      201,
+      201,
+      201,
+      201,
+      201,
+      201
+    ],
+    "sessionStatus": 200
+  },
+  {
+    "id": "S11c-global-cap-close",
+    "title": "head: 33rd active upload daemon-wide is 429; closing a session frees its 8",
+    "pass": true,
+    "first32": "32/32 created",
+    "the33rd": {
+      "status": 429,
+      "json": {
+        "error": "Attachment upload capacity is exhausted; try again later",
+        "code": "attachment_upload_capacity_exceeded"
+      }
+    },
+    "closeStatus": 204,
+    "afterClose": [
+      201,
+      201,
+      201,
+      201,
+      201,
+      201,
+      201,
+      201
+    ],
+    "sessionCapAfter": 429
+  },
+  {
+    "id": "S11d-byte-cap",
+    "title": "head: 16 x 8 MiB staged = 128 MiB; one more byte is 429 until a session closes",
+    "pass": true,
+    "created": "16/16",
+    "oneMoreByte": {
+      "status": 429,
+      "json": {
+        "error": "Attachment upload capacity is exhausted; try again later",
+        "code": "attachment_upload_capacity_exceeded"
+      }
+    },
+    "afterClose": 201
+  },
+  {
+    "id": "S12-latency",
+    "title": "head daemon, loopback, 8 MiB: base SDK one-shot vs head SDK 16 chunks (5 runs each)",
+    "pass": true,
+    "timings": {
+      "legacyBaseSdk": [
+        27,
+        107,
+        16,
+        32,
+        29
+      ],
+      "chunkedHeadSdk": [
+        142,
+        186,
+        241,
+        234,
+        178
+      ]
+    },
+    "medianMs": {
+      "legacy": 29,
+      "chunked": 186
+    }
+  }
+]
