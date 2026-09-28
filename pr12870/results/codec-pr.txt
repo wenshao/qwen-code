@@ -1,0 +1,36 @@
+## arm=pr fastjson2=2.0.64 java=21.0.12
+## A. shared boundary + JDBC writer/reader round trip
+1E+2048 (scale -2048)              | BigDecimal(scale=-2048, precision=1)     | ACCEPT                                                       | READ-OK len=2055 as BigInteger(digits=2049) equal=true
+1E+2049 (scale -2049)              | BigDecimal(scale=-2049, precision=1)     | REJECT(JSON number scale must be within ±2048)               | (not persisted)
+1E+9999 (scale -9999)              | BigDecimal(scale=-9999, precision=1)     | REJECT(JSON number scale must be within ±2048)               | (not persisted)
+1E+10000 (scale -10000)            | BigDecimal(scale=-10000, precision=1)    | REJECT(JSON number scale must be within ±2048)               | (not persisted)
+1E+100000 (scale -100000)          | BigDecimal(scale=-100000, precision=1)   | REJECT(JSON number scale must be within ±2048)               | (not persisted)
+unscaled 1, scale MIN_VALUE        | BigDecimal(scale=-2147483648, precision=1) | REJECT(JSON number scale must be within ±2048)               | (not persisted)
+0.1{2048} (scale 2048)             | BigDecimal(scale=2048, precision=2048)   | ACCEPT                                                       | READ-OK len=2056 as BigDecimal(scale=2048, precision=2048) equal=true
+0.1{2049} (scale 2049)             | BigDecimal(scale=2049, precision=2049)   | REJECT(JSON number scale must be within ±2048)               | (not persisted)
+1E+400 (existing contract)         | BigDecimal(scale=-400, precision=1)      | ACCEPT                                                       | READ-OK len=407 as BigInteger(digits=401) equal=true
+## B. values inside the +-2048 scale bound whose plain form exceeds the reader's digit budget
+9{7953} x 10^2048 (scale -2048)    | BigDecimal(scale=-2048, precision=7953)  | ACCEPT                                                       | READ-FAIL len=10007 JSONException: Number literal too long: 10001 digits (max 10000)
+9{7952} x 10^2048 (scale -2048)    | BigDecimal(scale=-2048, precision=7952)  | ACCEPT                                                       | READ-OK len=10006 as BigInteger(digits=10000) equal=true
+10^20000 / 10^2048 (scale 2048)    | BigDecimal(scale=2048, precision=20001)  | ACCEPT                                                       | READ-FAIL len=20008 JSONException: Number literal too long: 20001 digits (max 10000)
+BigDecimal 10^10000 (scale 0)      | BigDecimal(scale=0, precision=10001)     | ACCEPT                                                       | READ-FAIL len=10007 JSONException: Number literal too long: 10001 digits (max 10000)
+BigInteger 10^9999 (10000 digits)  | BigInteger(digits=10000)                 | ACCEPT                                                       | READ-OK len=10006 as BigInteger(digits=10000) equal=true
+BigInteger 10^10000 (10001 digits) | BigInteger(digits=10001)                 | ACCEPT                                                       | READ-FAIL len=10007 JSONException: Number literal too long: 10001 digits (max 10000)
+BigInteger 10^100000               | BigInteger(digits=100001)                | ACCEPT                                                       | READ-FAIL len=100007 JSONException: Number literal too long: 100001 digits (max 10000)
+## C. wire literals: inbound HTTP request codec vs worker-response reader (HttpRuntimeTransport)
+1E+300                       | inbound JsonCodec: OK Double(1.0E300)                                                               | worker-response reader: OK BigDecimal(scale=-300, precision=1) -> jdbc READ-OK len=307 as BigInteger(digits=301) equal=true
+1E+400                       | inbound JsonCodec: IAE JSON number must be finite                                                   | worker-response reader: OK BigDecimal(scale=-400, precision=1) -> jdbc READ-OK len=407 as BigInteger(digits=401) equal=true
+1E+2048                      | inbound JsonCodec: 400 runtime_broker_invalid_json cause=too large exp value : 2048                 | worker-response reader: FAIL JSONException: too large exp value : 2048
+1E+2049                      | inbound JsonCodec: 400 runtime_broker_invalid_json cause=too large exp value : 2049                 | worker-response reader: FAIL JSONException: too large exp value : 2049
+1E+5000                      | inbound JsonCodec: 400 runtime_broker_invalid_json cause=too large exp value : 5000                 | worker-response reader: FAIL JSONException: too large exp value : 5000
+1E+20000                     | inbound JsonCodec: 400 runtime_broker_invalid_json cause=too large exp value : 20000                | worker-response reader: FAIL JSONException: too large exp value : 20000
+1E+100000                    | inbound JsonCodec: 400 runtime_broker_invalid_json cause=too large exp value : 10000                | worker-response reader: FAIL JSONException: too large exp value : 10000
+1.5E+20000                   | inbound JsonCodec: 400 runtime_broker_invalid_json cause=too large exp value : 20000                | worker-response reader: FAIL JSONException: too large exp value : 20000
+plain 5000 digits            | inbound JsonCodec: OK BigInteger(digits=5000)                                                       | worker-response reader: OK BigInteger(digits=5000) -> jdbc READ-OK len=5006 as BigInteger(digits=5000) equal=true
+plain 10001 digits           | inbound JsonCodec: 400 runtime_broker_invalid_json cause=Number literal too long: 10001 digits (max 10000) | worker-response reader: FAIL JSONException: Number literal too long: 10001 digits (max 10000)
+## D. RuntimeResourceHandle (JsonCodec default writer, JsonCodec reader)
+1E+300       | stored {"v":1E+300} -> read OK Double(1.0E300)
+1E+400       | stored {"v":1E+400} -> READ-FAIL IllegalArgumentException: JSON number must be finite
+1E+2048      | stored {"v":1E+2048} -> READ-FAIL RuntimeBrokerException: Runtime resource handle contains invalid JSON. / too large exp value : 2048
+1E+2049      | constructor REJECT(JSON number scale must be within ±2048)
+1E+100000    | constructor REJECT(JSON number scale must be within ±2048)
