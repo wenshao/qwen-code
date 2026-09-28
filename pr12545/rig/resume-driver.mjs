@@ -80,7 +80,8 @@ writeFileSync(
 
 
 // ---------- resume scenario: launch in background, restart, send_message ----------
-const SDK_TOOLS = { 'sdk-str': 'read_file', 'sdk-arr': ['read_file'], 'sdk-null': null }[scenario];
+const SDK_TOOLS = { 'sdk-str': 'read_file', 'sdk-arr': ['read_file'], 'sdk-null': null, 'sdk-star': '*', 'sdk-estr': '' }[scenario];
+const SDK_DISALLOWED = { 'sdk-dstr': 'skill' }[scenario];
 const sdkMode = scenario.startsWith('sdk-');
 const SUBTYPE = sdkMode ? 'probe-sdk' : { resume: 'probe-deny', 'resume-open': 'probe-open', 'resume-allow': 'probe-allow', 'resume-empty': 'probe-empty' }[scenario];
 if (!SUBTYPE) throw new Error(`unknown scenario ${scenario}`);
@@ -129,7 +130,7 @@ const env = { ...process.env };
 for (const k of Object.keys(env)) if (/_proxy$/i.test(k) || k.startsWith('QWEN_') || k.startsWith('OPENAI_') || k.startsWith('DASHSCOPE')) delete env[k];
 Object.assign(env, { HOME, QWEN_HOME: QHOME, QWEN_RUNTIME_DIR: QHOME, NO_COLOR: '1' });
 const SESSION = '6d1f2c1e-1254-4c5a-9e00-0000000' + String(12545 + (arm === 'base' ? 1 : 0)).padStart(5, '0');
-const SDK_AGENT = { name: 'probe-sdk', description: 'PR12545 SDK session probe agent', systemPrompt: 'You are the SDK probe.', level: 'session', tools: SDK_TOOLS };
+const SDK_AGENT = { name: 'probe-sdk', description: 'PR12545 SDK session probe agent', systemPrompt: 'You are the SDK probe.', level: 'session', tools: SDK_TOOLS, disallowedTools: SDK_DISALLOWED };
 async function launch(extra, prompt) {
   const io = sdkMode ? ['--input-format', 'stream-json', '--output-format', 'stream-json'] : ['-p', prompt];
   const args = [`${WT}/dist/cli.js`, ...extra, ...io, '--approval-mode', 'yolo', '--auth-type', 'openai',

@@ -1,0 +1,51 @@
+--- a/packages/core/src/agents/background-agent-resume.ts
++++ b/packages/core/src/agents/background-agent-resume.ts
+@@ -137,16 +137,17 @@
+   subagentConfig: SubagentConfig | undefined,
+   codeModeOnly = false,
+ ): boolean {
++  // Mirror launch exactly: it reads `config.tools?.length` (falsy for
++  // `undefined`, `null` and `""`, which take the wildcard) and hands the value
++  // to `resolveToolNames`, whose `for...of` walks a string one character at a
++  // time and keeps unmatched entries as-is. So `"*"` launches as `['*']` (the
++  // wildcard) and `"read_file"` as nine unregistered one-character names.
++  // `Array.from` performs the same walk for arrays and strings alike.
+   const tools = subagentConfig?.tools;
+-  // Nullish has to stay on the wildcard path: launch reads `config.tools?.length`,
+-  // which is falsy for both `undefined` and `null`.
+-  if (tools != null && !Array.isArray(tools)) {
+-    return false;
+-  }
+   const disallowedTools = subagentConfig?.disallowedTools;
+   return toolConfigAllowsSkill(
+     {
+-      tools: tools?.length ? tools : ['*'],
++      tools: tools?.length ? Array.from(tools) : ['*'],
+       // Launch reads `config.disallowedTools?.length`, which a non-empty string
+       // satisfies, and hands it to `resolveToolNames`, whose `for...of` walks
+       // the string per character and preserves every character as-is: the
+@@ -154,8 +155,8 @@
+       // which denies nothing. Dropping the scalar here mirrors that, and keeps
+       // `matchesAgentToolBlocklist` off a value whose `.length` passes its
+       // guard but which has no `.some`.
+-      disallowedTools: Array.isArray(disallowedTools)
+-        ? disallowedTools
++      disallowedTools: disallowedTools?.length
++        ? Array.from(disallowedTools)
+         : undefined,
+     },
+     codeModeOnly,
+--- a/packages/core/src/agents/background-agent-resume.test.ts
++++ b/packages/core/src/agents/background-agent-resume.test.ts
+@@ -1340,6 +1340,11 @@
+       { disallowedTools: ToolNames.SKILL },
+       true,
+     ],
++    // Launch walks a scalar per character and keeps unmatched entries, so
++    // `"*"` launches as the wildcard and `""` takes the wildcard path: both
++    // keep the SkillManager, so resume must keep the listing.
++    ['declares a scalar wildcard tools value', { tools: '*' }, true],
++    ['declares an empty-string tools value', { tools: '' }, true],
+     // Under CodeModeOnly a finite list naming `exec` reaches `skill` through
+     // the code-mode gateway, so launch keeps the manager and resume must keep
+     // the listing. Dropping the tool-mode argument at the resume call site —

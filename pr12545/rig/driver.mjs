@@ -71,7 +71,7 @@ writeFileSync(
       mcpServers: {
         echo: { command: process.execPath, args: [`${SP}/rig/mcp-echo.mjs`] },
       },
-      tools: { codeModeOnly: codeMode, ...(scenario === 'eager-cm' ? { eager: ['read_file'] } : scenario === 'eager-cm2' ? { eager: ['read_file', 'agent'] } : {}) },
+      tools: { codeModeOnly: codeMode, ...(scenario === 'eager-cm' ? { eager: ['read_file'] } : scenario === 'eager-cm2' || scenario === 'exec-eager' ? { eager: ['read_file', 'agent'] } : {}) },
     },
     null,
     2,
@@ -90,6 +90,7 @@ const SUBTYPE = {
   path2: 'probe-reader',
   'path-builtin': 'statusline-setup',
   'direct-exec': 'probe-exec',
+  'exec-eager': 'probe-exec',
   empty: 'probe-empty',
   'empty-deny': 'probe-empty-deny',
   'eager-cm': 'general-purpose',
