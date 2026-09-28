@@ -1,0 +1,1382 @@
+diff --git a/docs/design/2026-09-28-managed-mcp-runtime.md b/docs/design/2026-09-28-managed-mcp-runtime.md
+index 2ecc0c09b7..75d1ddd5e3 100644
+--- a/docs/design/2026-09-28-managed-mcp-runtime.md
++++ b/docs/design/2026-09-28-managed-mcp-runtime.md
+@@ -40,15 +40,17 @@ A configuration intent fixes a server definition. Its receipt records the connec
+ 
+ A resource or prompt intent fixes its arguments and server/catalog/connection revision. The physical request is keyed by a stable operation ID, and its raw response is committed as a resource before settlement. Duplicate command content joins the same operation; conflicting reuse fails. Tool calls retain ordinary tool intent, permission/preflight and receipt semantics, including the original execution identity.
+ 
+-An effect has a committed intent before network send or process start. A resource/prompt intent that has not reached `dispatch_started` can resume its first dispatch with the original pins, or be cancelled locally with proof that it never started. Status queries do not turn that unsent intent into an unknown effect. Committed results replay without reconnecting to a Runtime. A failed reply after send is `outcome_unknown`; recovery queries the original identity. No reconnect path resends it. Cancellation still addresses an unresolved request after timeout, but does not prove that a remote effect was cancelled. A known late response can settle the original call. A lost Runtime leaves unresolved effects blocked.
++An effect has a committed intent before network send or process start. A resource/prompt intent that has not reached `dispatch_started` can resume its first dispatch with the original pins, or be cancelled locally with proof that it never started. Status queries do not turn that unsent intent into an unknown effect. Committed results replay without reconnecting to a Runtime. A failed reply after send is `outcome_unknown`; recovery queries the original identity. No reconnect path resends it. Cancellation of an unsent request is immediate. Cancellation after dispatch is deferred: the Runtime does not send the native cancellation notification, because SDK servers suppress subsequent replies and thereby destroy settlement evidence. The original response is still recorded; cancellation never proves that a remote effect did not run. A known late response can settle the original call. A lost Runtime leaves unresolved effects blocked.
+ 
+-List-change notifications received during discovery keep the affected category stale; a concurrent list response cannot erase the invalidation. The public catalog remains a committed snapshot, not a live Runtime health or availability check.
++List-change notifications received during discovery keep the affected category stale; a concurrent list response cannot erase the invalidation. Before each model request and new resource/prompt command, the Harness checks discovery. An unchanged usable catalog keeps its revision. A changed catalog or retired connection causes a new immutable configuration and connection generation to be installed; already admitted requests retain their original pins and are never resent. The public catalog remains a committed snapshot, not a live Runtime health or availability check.
++
++An idle Harness reload advances the durable revision of its existing configuration records before issuing grants for the new writer. Catalog and connection pins stay unchanged; the Runtime grant gate still rejects owner changes at the same revision. Explicit replacement commands can install an allowed newer definition after initial discovery failed, without first requiring the failed definition to recover.
+ 
+ ## Admission, credentials and cleanup
+ 
+ The Runtime permits only the requested workspace's configured definitions and the Session's installed server bindings. Configured credentials stay on the Runtime. Public catalog responses omit recipes, environment, headers, endpoints, process identifiers, grants and internal binding IDs. Errors use bounded stable codes rather than reflecting connection exceptions that might contain credentials.
+ 
+-Each Runtime instance permits at most 16 connections and 32 in-flight requests, including old connections awaiting drain. A replacement cannot temporarily exceed the limit. New admissions stop before release; active operations retain their original transport until settlement. Streamable HTTP termination and stdio shutdown are bounded, and an unproven drain must not acknowledge release. Runtime/Session release waits for these holds.
++Each Runtime instance permits at most 16 connections and 32 in-flight requests, including old connections awaiting drain. A replacement cannot temporarily exceed the limit. New admissions stop before release; active operations retain their original transport until settlement. Idle retired connections are closed, and busy retired connections close only after their original requests settle. Streamable HTTP DELETE is best effort with a one-second bound; release confirms local transport closure after all requests settle, not deletion of the remote server session. Local shutdown is bounded and an unproven drain must not acknowledge release. Runtime/Session release waits for these holds. A configuration that never reached dispatch can be cancelled with `not_started_proven`; close then finishes and releases the original Broker ownership, including an acquisition left incomplete by an earlier busy Workspace, without configuring MCP.
+ 
+ ## Files and integration points
+ 
+@@ -80,7 +82,7 @@ Set `QWEN_MANAGED_MCP_CONFIG` on the Runtime process to an absolute manifest pat
+ }
+ ```
+ 
+-For `streamable-http` or `sse`, use `url` and optional `headers` instead of `command`, `args` and `env`. Definitions are loaded at Runtime startup; a changed recipe requires a new `serverRevision` and matching digest. Keep both revisions available when replacing a live binding.
++For `streamable-http` or `sse`, use `url` and optional `headers` instead of `command`, `args` and `env`. Definitions are loaded at Runtime startup; a changed recipe requires a new `serverRevision` and matching digest. Keep both revisions available when replacing a live binding. Optional `timeoutMs` is an integer from 1 to 600000 and defaults to 600000 for invocation responses. Connect/discovery retain their 25-second bound. Hosted tool observation lasts 630 seconds, queries the original execution through temporary UNKNOWN responses, and Java persists a conclusive late Runtime result for both tool protocol versions. Polling reuses the acquired owner; failed status queries re-establish only that original owner.
+ 
+ Create or load a private Hosted Session with its usual `managedSessionStore` fields plus `toolProfile: "hosted-workspace-mcp/1"` and `mcpServers: [{serverId, serverRevision, definitionDigest}]`. The Session retains these initial admission pins; replacements are committed separately. The first prompt or resource/prompt operation initializes the bindings before admitting the work. Hosted requests use the existing Harness protocol/boot and client identity headers.
+ 
+@@ -97,4 +99,14 @@ Required checks include Session/workspace isolation, credential omission, succes
+ 
+ ## Open questions and limits
+ 
++H1 deliberately permits only one attached MCP owner per tenant/storage lease. This excludes other Sessions in the same Workspace and also other Workspaces sharing that storage, even between turns. Detach releases the lease. Releasing it while a stdio server still has Workspace access would allow concurrent writers; separating connection lifetime from storage ownership is follow-up work before production enablement.
++
++Physical connection loss with an unresolved request remains recovery-blocked. A tool that settles after the 630-second Hosted observation window, or after Harness restart during its turn, still needs checkpoint recovery that this private slice does not implement. Raw resource/prompt operations can accept a late result through their original status route or close. Runtime receipt history and closed connection tombstones remain generation-local and grow for the process lifetime; pruning with durable acknowledgement, as well as eliminating the pending-release waiter on a permanently lost request, remains follow-up work. Do not treat the concurrency quotas as a bound on history memory.
++
++Model tool names intentionally include catalog and connection identity so old advertised calls cannot silently use a newer binding. A reloaded transcript can contain historical names. The stdio HOME/USERPROFILE directory is the Workspace; deployment definitions should explicitly set a separate HOME if a server writes caches there.
++
++The record domains are globally recognized by the Session store, while execution remains gated by the explicit private profile and scoped Runtime definitions. Shared Broker acquire is intentionally idempotent for its existing owner and returns workspace generation plus Runtime binding/generation; ordinary file/Shell prepare calls keep the actual prompt and call identity.
++
++The unreleased MCP migration is V21 to avoid the V19/V20 publication migrations on #12894. Deploy both migrations in increasing order; whichever branch lands later must recheck against main. The generic controls in #12868 require a semantic merge that preserves MCP original-owner recovery after revocation and drain-before-storage-release ordering.
++
+ Public configuration management and production AgentBundle capability publication remain separate deployments. Remote systems without query or idempotency support cannot recover an unknown effect automatically. The Runtime's generation-local receipts are not durable across physical Runtime loss; committed Session intents preserve the blocked outcome in that case. Quotas are per Runtime instance, not an aggregate across separate Runtime processes. The private profile uses the existing inline Session Store: each discovery list is limited to 16 KiB, with retained prefixes marked partial and no usable entries marked failed; raw operation responses are limited to 60 KiB and oversized responses settle with an output-limit error. SDK reverse clients, production profile advertisement, cross-process aggregate budgets and object-storage results are not enabled by this slice.
+diff --git a/docs/design/2026-09-28-managed-mcp-runtime.zh-CN.md b/docs/design/2026-09-28-managed-mcp-runtime.zh-CN.md
+index ecb1dbfbef..98279354fe 100644
+--- a/docs/design/2026-09-28-managed-mcp-runtime.zh-CN.md
++++ b/docs/design/2026-09-28-managed-mcp-runtime.zh-CN.md
+@@ -40,15 +40,17 @@ MCP 需要独立配置与操作记录、不可变目录修订、由 Runtime 持
+ 
+ 资源或提示 intent 固定参数与 server/catalog/connection 修订。物理请求用稳定 operation ID 标识，原始响应先存为资源再提交结算。重复命令内容加入同一个操作；复用身份但内容不同会被拒绝。工具调用保留普通工具的 intent、permission/preflight 和 receipt 语义，以及原 execution 身份。
+ 
+-网络发送或进程启动前必须已有提交的 intent。尚未进入 `dispatch_started` 的资源/提示 intent 可以保留原 pin 恢复首次派发，也可以在本地取消并证明从未开始；状态查询不能把这种未发送的 intent 变成未知副作用。已提交结果的重放无需重新连接 Runtime。发送后的响应失败为 `outcome_unknown`，恢复只查询原身份，重连路径不能再次发送。超时后的未决请求仍可向原操作发送取消，但不证明远端副作用已取消。可验证的迟到响应可以结算原调用。Runtime 丢失时，未决副作用保持阻塞。
++网络发送或进程启动前必须已有提交的 intent。尚未进入 `dispatch_started` 的资源/提示 intent 可以保留原 pin 恢复首次派发，也可以在本地取消并证明从未开始；状态查询不能把这种未发送的 intent 变成未知副作用。已提交结果的重放无需重新连接 Runtime。发送后的响应失败为 `outcome_unknown`，恢复只查询原身份，重连路径不能再次发送。未发送请求可立即取消；派发后的取消延迟到原响应到达。Runtime 不发送原生取消通知，因为 SDK server 会抑制后续响应，导致结算证据永久丢失。仍记录原响应；取消绝不证明远端副作用未执行。可验证的迟到响应可以结算原调用。Runtime 丢失时，未决副作用保持阻塞。
+ 
+-发现期间收到的列表变更通知会使对应类别保持 stale，并发列表响应不能清除该失效信息。公开目录仍是已提交快照，不是 Runtime 实时健康或可用性检查。
++发现期间收到的列表变更通知会使对应类别保持 stale，并发列表响应不能清除该失效信息。每次模型请求和新资源/提示命令之前，Harness 检查发现状态。未变化且可用的目录保留修订；目录变化或连接退休后，安装新的不可变配置与连接代数。已准入请求保留原 pin，绝不重发。公开目录仍是已提交快照，不是 Runtime 实时健康或可用性检查。
++
++Harness 空闲重载后，先推进现有配置记录的持久修订，再为新 writer 签发 grant；目录和连接 pin 保持不变。Runtime grant gate 仍拒绝同一修订更换 owner。初始发现失败后，显式替换命令可安装允许的新定义，无需先让失败的初始定义恢复。
+ 
+ ## 准入、凭据与清理
+ 
+ Runtime 只允许目标 workspace 已配置的定义，以及 Session 已安装的 server binding。配置凭据留在 Runtime。公开目录不包含连接配方、环境、headers、endpoint、进程标识、grant 或内部 binding ID。错误使用有界稳定代码，不回显可能带凭据的底层连接异常。
+ 
+-每个 Runtime 实例最多允许 16 个连接和 32 个在途请求，包括等待 drain 的旧连接；替换不能临时超额。release 前封闭新准入；活动操作保留原 transport 直到结算。Streamable HTTP 终止与 stdio 关闭有时间上限，不能确认 drain 时不能 ACK release。Runtime/Session release 等待这些 hold。
++每个 Runtime 实例最多允许 16 个连接和 32 个在途请求，包括等待 drain 的旧连接；替换不能临时超额。release 前封闭新准入；活动操作保留原 transport 直到结算。空闲退休连接立即关闭；繁忙退休连接仅在原请求结算后关闭。Streamable HTTP DELETE 采用一秒上限的尽力清理；release 表示全部请求结算后本地 transport 已关闭，不保证远端 server Session 被删除。本地关闭有时间上限，不能确认 drain 时不能 ACK release。Runtime/Session release 等待这些 hold。未进入派发的配置可用 `not_started_proven` 取消；close 随后完成并释放原 Broker 所有权，包括此前因 Workspace busy 留下的未完成 acquire，期间不配置 MCP。
+ 
+ ## 文件与接线点
+ 
+@@ -80,7 +82,7 @@ Runtime 只允许目标 workspace 已配置的定义，以及 Session 已安装
+ }
+ ```
+ 
+-`streamable-http` 或 `sse` 使用 `url` 和可选 `headers`，不能同时提供 `command`、`args`、`env`。定义在 Runtime 启动时装载；修改连接配方必须提供新的 `serverRevision` 和对应 digest。替换活动 binding 时应同时保留两个修订。
++`streamable-http` 或 `sse` 使用 `url` 和可选 `headers`，不能同时提供 `command`、`args`、`env`。定义在 Runtime 启动时装载；修改连接配方必须提供新的 `serverRevision` 和对应 digest。替换活动 binding 时应同时保留两个修订。可选 `timeoutMs` 为 1 至 600000 的整数，调用响应默认等待 600000 毫秒；连接和发现仍为 25 秒上限。Hosted 工具观察窗口为 630 秒，在临时 UNKNOWN 后继续查询原 execution；Java 对两种工具协议均持久接受明确的迟到 Runtime 结果。轮询复用已取得的 owner，状态查询失败时仅重建原 owner 路由。
+ 
+ 创建或加载私有 Hosted Session 时，在原有 `managedSessionStore` 字段之外提供 `toolProfile: "hosted-workspace-mcp/1"` 和 `mcpServers: [{serverId, serverRevision, definitionDigest}]`。Session 保留初始准入 pin，后续替换单独提交。首个 prompt 或资源/提示操作会先初始化 binding，再受理工作。Hosted 请求沿用现有 Harness protocol/boot 与 client 身份 headers。
+ 
+@@ -97,4 +99,14 @@ Runtime 只允许目标 workspace 已配置的定义，以及 Session 已安装
+ 
+ ## 开放问题与限制
+ 
++H1 明确保留每个 tenant/storage lease 同时仅一个 attached MCP owner 的限制。同一 Workspace 的其他 Session，以及共享该 storage 的其他 Workspace，即使在两次 turn 之间也不能执行；detach 后释放租约。stdio server 仍能访问 Workspace 时提前释放租约会允许并发写入；连接寿命与存储所有权解耦属于生产启用前的后续工作。
++
++存在未决请求时物理连接丢失仍保持 recovery-blocked。工具在 630 秒 Hosted 观察窗口结束后才结算，或 Harness 在 turn 中途重启，仍需要本私有阶段尚未实现的 checkpoint 恢复。原始资源/提示操作可通过原 ID 的状态接口或 close 接受迟到结果。Runtime 回执历史及已关闭连接的 tombstone 仍保留至进程结束，随历史增长；基于持久 ACK 的回收，以及永久丢失请求的 release 等待者清理，留作后续工作。并发配额不代表历史内存有上限。
++
++模型工具名有意包含目录和连接身份，防止旧广告调用静默使用新 binding；重新加载的历史可能保留旧名字。stdio HOME/USERPROFILE 为 Workspace；会写 HOME 缓存的 server 应通过部署定义显式设置独立 HOME。
++
++Session 存储全局识别这两个记录 domain；实际执行仍由显式私有 profile 和限定范围的 Runtime 定义控制。共享 Broker acquire 有意对原 owner 幂等，并返回 workspace generation 与 Runtime binding/generation；普通文件/Shell prepare 保留实际 prompt 和 call 身份。
++
++尚未发布的 MCP migration 使用 V21，避免与 #12894 的 V19/V20 publication migration 重号。部署应按递增顺序执行，后合并分支必须再次对照 main 检查。#12868 的通用 control 需要语义合并，保留撤权后的 MCP 原 owner 恢复，以及先 drain 再释放存储租约的顺序。
++
+ 公开配置管理和生产 AgentBundle 能力发布另行部署。没有查询或幂等支持的远端系统不能自动恢复未知副作用。Runtime 的代内回执不能跨物理 Runtime 丢失持久保留；此时已提交的 Session intent 保持阻塞结果。配额按 Runtime 实例计算，不跨独立 Runtime 进程汇总。私有配置沿用现有 inline Session Store：每类发现列表限制为 16 KiB，保留部分条目时标记 partial，无法保留有效条目时标记 failed；原始操作响应限制为 60 KiB，超限以 output-limit 错误结算。本阶段不启用 SDK 反向客户端、生产 profile 公告、跨进程总预算或对象存储结果。
+diff --git a/packages/cli/src/serve/hosted-harness-session.test.ts b/packages/cli/src/serve/hosted-harness-session.test.ts
+index c06a5421bb..bcbd4fade0 100644
+--- a/packages/cli/src/serve/hosted-harness-session.test.ts
++++ b/packages/cli/src/serve/hosted-harness-session.test.ts
+@@ -160,6 +160,11 @@ async function mcpApp(unknownConfigure = false) {
+           ? { operationId: operation.operationId, state: 'outcome_unknown' }
+           : settled;
+       }
++      if (operation.kind === 'mcp-discover')
++        return {
++          ...replies.get(operation.grant.operationId)!,
++          operationId: operation.operationId,
++        };
+       return (
+         replies.get(operation.operationId) ?? {
+           operationId: operation.operationId,
+@@ -223,6 +228,19 @@ describe('Hosted Harness no-tool session', () => {
+         authorize(supertest(server).get(`/session/${SESSION_ID}/status`));
+       expect((await status()).body.recoveryBlocked).toBe(true);
+       expect((await send(randomUUID())).status).toBe(409);
++      const prompt = [{ type: 'text', text: 'blocked by raw operation' }];
++      expect(
++        (
++          await authorize(
++            supertest(server).post(`/session/${SESSION_ID}/prompt`),
++          ).send({
++            prompt,
++            promptId: PROMPT_ID,
++            payloadDigest: `sha256:${createHash('sha256').update(JSON.stringify(prompt)).digest('hex')}`,
++          })
++        ).status,
++      ).toBe(409);
++      expect(state.model).not.toHaveBeenCalled();
+ 
+       const settled: ManagedMcpOperationView = {
+         operationId,
+@@ -325,6 +343,32 @@ describe('Hosted Harness no-tool session', () => {
+     expect((await closed).status).toBe(204);
+   });
+ 
++  it.each(['invoke', 'close'])(
++    'restores the owner before %s after an idle Broker restart',
++    async (next) => {
++      const { server, authorize, brokerOwners } = await mcpApp();
++      const invoke = () =>
++        authorize(
++          supertest(server).post(`/session/${SESSION_ID}/mcp/operations`),
++        ).send({
++          operationId: randomUUID(),
++          serverId: 'demo',
++          request: { kind: 'resource_read', uri: 'memory://note' },
++        });
++      expect((await invoke()).body.state).toBe('settled');
++      brokerOwners.clear();
++      if (next === 'invoke')
++        expect((await invoke()).body.state).toBe('settled');
++      expect(
++        (
++          await authorize(
++            supertest(server).post(`/session/${SESSION_ID}/detach`),
++          )
++        ).status,
++      ).toBe(204);
++    },
++  );
++
+   it.each([
+     { kind: 'resource_read', uri: '' },
+     { kind: 'resource_read', uri: '   ' },
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 964b674f23..112a0d4615 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -42,6 +42,7 @@ import {
+   HOSTED_MCP_PROFILE,
+   HostedMcpSession,
+   HostedMcpRecoveryRequiredError,
++  HostedMcpConflictError,
+   parseHostedMcpServers,
+   type HostedMcpServerPin,
+ } from './hosted-mcp-session.js';
+@@ -767,8 +768,12 @@ export function registerHostedHarnessSessionRoutes(
+         (response) => {
+           res.status(202).json(response);
+         },
+-        () => {
+-          error(res, 503, 'hosted_mcp_operation_failed');
++        (cause: unknown) => {
++          error(
++            res,
++            cause instanceof HostedMcpConflictError ? 409 : 503,
++            'hosted_mcp_operation_failed',
++          );
+         },
+       )
+       .finally(() => {
+diff --git a/packages/cli/src/serve/hosted-mcp-session.test.ts b/packages/cli/src/serve/hosted-mcp-session.test.ts
+index 17a16a1538..f1074dee0f 100644
+--- a/packages/cli/src/serve/hosted-mcp-session.test.ts
++++ b/packages/cli/src/serve/hosted-mcp-session.test.ts
+@@ -14,6 +14,7 @@ import {
+   type ManagedSession,
+ } from '@qwen-code/qwen-code-core/managed-runtime/managed-session-assembly.js';
+ import { LocalManagedSessionResourceStore } from '@qwen-code/qwen-code-core/managed-runtime/managed-session-resources.js';
++import { ManagedOperationGrantGate } from '@qwen-code/qwen-code-core/managed-runtime/managed-operation-grant-gate.js';
+ import {
+   parseMcpConfiguration,
+   parseMcpOperation,
+@@ -22,7 +23,10 @@ import type {
+   ManagedMcpControl,
+   ManagedMcpOperationView,
+ } from '@qwen-code/qwen-code-core/managed-runtime/managed-mcp-protocol.js';
+-import { HostedWorkspaceBroker } from './hosted-workspace-broker.js';
++import {
++  HostedWorkspaceBroker,
++  HostedWorkspaceBrokerRejection,
++} from './hosted-workspace-broker.js';
+ import {
+   HostedMcpSession,
+   parseHostedMcpServers,
+@@ -129,7 +133,8 @@ beforeEach(async () => {
+         expect(parseMcpConfiguration(record!.record).releaseState).toBe(
+           'releasing',
+         );
+-      else expect(record!.run.execution).toBe('dispatch_started');
++      else if (operation.kind !== 'mcp-discover')
++        expect(record!.run.execution).toBe('dispatch_started');
+       let view: ManagedMcpOperationView;
+       if (operation.kind === 'mcp-configure') {
+         view = {
+@@ -162,6 +167,12 @@ beforeEach(async () => {
+             },
+           },
+         };
++      } else if (operation.kind === 'mcp-discover') {
++        view = {
++          operationId: operation.operationId,
++          state: 'settled',
++          catalog: replies.get(operation.grant.operationId)!.catalog,
++        };
+       } else if (operation.kind === 'mcp-invoke') {
+         view = {
+           operationId: operation.operationId,
+@@ -409,6 +420,129 @@ it('reconciles a temporarily unknown configuration without repeating its effect'
+   await mcp.close();
+ });
+ 
++it('closes a never-dispatched configuration after workspace admission is refused', async () => {
++  vi.mocked(HostedWorkspaceBroker.prototype.acquire).mockRejectedValueOnce(
++    new HostedWorkspaceBrokerRejection(409, 'workspace_busy'),
++  );
++  await expect(mcp.ensureReady()).rejects.toThrow('workspace_busy');
++  await mcp.close();
++  const configuration = parseMcpConfiguration(
++    session.authority.extensionRecordsInDomain('mcp_configuration')[0].record,
++  );
++  expect(configuration).toMatchObject({
++    releaseState: 'released',
++    run: { state: 'cancelled', execution: 'not_started_proven' },
++  });
++  expect(requests).toEqual([]);
++  expect(HostedWorkspaceBroker.prototype.acquire).toHaveBeenCalledTimes(2);
++  expect(HostedWorkspaceBroker.prototype.release).toHaveBeenCalledOnce();
++});
++
++it('publishes a new immutable configuration after catalog invalidation, without replacing old pins', async () => {
++  await mcp.ensureReady();
++  const original = mcp.getCatalogs()[0];
++  const name = mcp.tools()[0].name!;
++  const physical = vi
++    .mocked(HostedWorkspaceBroker.prototype.control)
++    .getMockImplementation()!;
++  let stale = true;
++  vi.mocked(HostedWorkspaceBroker.prototype.control).mockImplementation(
++    async (operation) => {
++      const response = await physical(operation);
++      if (operation.kind === 'mcp-discover' && stale) {
++        stale = false;
++        return { ...response, catalog: { ...original, catalogRevision: 2 } };
++      }
++      return response;
++    },
++  );
++  await mcp.refresh();
++  expect(mcp.getCatalogs()[0].configRevision).toBe(2);
++  expect(mcp.toolInput(name, {}, 'old-call')?.input.configRevision).toBe(1);
++  await mcp.refresh();
++  expect(mcp.getCatalogs()[0].configRevision).toBe(2);
++  expect(
++    requests.filter((entry) => entry.kind === 'mcp-configure'),
++  ).toHaveLength(2);
++});
++
++it('can replace an initial definition that failed before any catalog was published', async () => {
++  const physical = vi
++    .mocked(HostedWorkspaceBroker.prototype.control)
++    .getMockImplementation()!;
++  vi.mocked(HostedWorkspaceBroker.prototype.control).mockImplementation(
++    async (operation) => {
++      const response = await physical(operation);
++      if (
++        operation.kind === 'mcp-configure' &&
++        operation.serverRevision === 1
++      ) {
++        const failed: ManagedMcpOperationView = {
++          operationId: operation.operationId,
++          state: 'settled',
++          error: { code: 'managed_mcp_connection_failed' },
++        };
++        replies.set(operation.operationId, failed);
++        return failed;
++      }
++      return response;
++    },
++  );
++  await expect(mcp.ensureReady()).rejects.toThrow('configuration failed');
++  await mcp.configure(randomUUID(), { ...pin, serverRevision: 2 }, 1);
++  await mcp.ensureReady();
++  expect(mcp.getCatalogs()[0].serverRevision).toBe(2);
++  expect(
++    requests
++      .filter((entry) => entry.kind === 'mcp-configure')
++      .map((entry) => entry.serverRevision),
++  ).toEqual([1, 2]);
++});
++
++it.each(['refresh', 'close'] as const)(
++  'renews committed grants before %s after an idle Harness restart',
++  async (action) => {
++    const gate = new ManagedOperationGrantGate();
++    const physical = vi
++      .mocked(HostedWorkspaceBroker.prototype.control)
++      .getMockImplementation()!;
++    vi.mocked(HostedWorkspaceBroker.prototype.control).mockImplementation(
++      async (operation) => {
++        if ('grant' in operation) gate.install(operation.grant);
++        return physical(operation);
++      },
++    );
++    await mcp.refresh();
++    const sessionKey = session.authority.sessionHeader.sessionKey;
++    const configuration =
++      session.authority.extensionRecordsInDomain('mcp_configuration')[0];
++    await session.close();
++    session = await openManagedSession({
++      runtimeBaseDir: root,
++      cwd: root,
++      transcriptPath: path.join(root, 'session.jsonl'),
++      sessionId: sessionKey.sessionId,
++      sessionKey,
++      version: 'test',
++      workerId: 'replacement-worker',
++      activationLeaseDurationMs: 60_000,
++    });
++    const restored = new HostedMcpSession(
++      { baseUrl: 'http://127.0.0.1:1', token: 'test' },
++      session,
++      [pin],
++    );
++    await restored[action]();
++    expect(
++      session.authority.extensionRecordsInDomain('mcp_configuration')[0]
++        .revision,
++    ).toBeGreaterThan(configuration.revision);
++    expect(
++      requests.filter((entry) => entry.kind === 'mcp-configure'),
++    ).toHaveLength(1);
++  },
++);
++
+ it('restores the original owner before close and uses fresh identities after confirmed release', async () => {
+   await mcp.ensureReady();
+   const original = mcp.broker.runtimeSessionId;
+diff --git a/packages/cli/src/serve/hosted-mcp-session.ts b/packages/cli/src/serve/hosted-mcp-session.ts
+index 95d90c3267..e3d93b3986 100644
+--- a/packages/cli/src/serve/hosted-mcp-session.ts
++++ b/packages/cli/src/serve/hosted-mcp-session.ts
+@@ -24,6 +24,7 @@ import {
+ } from '@qwen-code/qwen-code-core/managed-runtime/managed-mcp-protocol.js';
+ import {
+   HostedWorkspaceBroker,
++  HostedWorkspaceBrokerRejection,
+   type HostedWorkspaceBrokerOptions,
+ } from './hosted-workspace-broker.js';
+ 
+@@ -77,6 +78,8 @@ export class HostedMcpRecoveryRequiredError extends Error {
+   }
+ }
+ 
++export class HostedMcpConflictError extends Error {}
++
+ type ResourceRequest = Exclude<
+   ManagedMcpInvoke['request'],
+   { kind: 'tool_call' }
+@@ -86,6 +89,8 @@ export class HostedMcpSession {
+   readonly broker: HostedWorkspaceBroker;
+   private ready?: Promise<void>;
+   private acquired = false;
++  private ownerReady = false;
++  private grantsRenewed = false;
+   private readonly bindings = new Map<
+     string,
+     { configuration: McpConfiguration; catalog: ManagedMcpCatalog }
+@@ -107,6 +112,7 @@ export class HostedMcpSession {
+         .map((entry) => entry.runtimeSessionId),
+     );
+     if (owners.size > 1) throw new HostedMcpRecoveryRequiredError();
++    this.acquired = owners.size > 0;
+     const previous = configurations.length
+       ? digest(
+           configurations.map((entry) => entry.configurationId).sort(),
+@@ -128,6 +134,46 @@ export class HostedMcpSession {
+     return this.ready;
+   }
+ 
++  async refresh(): Promise<void> {
++    await this.ensureReady();
++    await this.acquireOwner();
++    for (const { configuration, catalog } of this.catalogs.values()) {
++      const response = await this.dispatch({
++        kind: 'mcp-discover',
++        sessionKey: this.key,
++        operationId: randomUUID(),
++        serverId: catalog.serverId,
++        serverRevision: catalog.serverRevision,
++        connectionGeneration: catalog.connectionGeneration,
++        grant: this.grant('mcp_configuration', configuration.configurationId),
++      });
++      if (response.state !== 'settled')
++        throw new HostedMcpRecoveryRequiredError();
++      if (response.catalog && digest(response.catalog) === digest(catalog))
++        continue;
++      if (
++        response.error &&
++        !['managed_mcp_retiring', 'managed_mcp_binding_conflict'].includes(
++          response.error.code,
++        )
++      )
++        throw new HostedMcpRecoveryRequiredError();
++      await this.configure(
++        randomUUID(),
++        {
++          serverId: catalog.serverId,
++          serverRevision: catalog.serverRevision,
++          definitionDigest: catalog.definitionDigest,
++        },
++        Math.max(
++          ...this.configurations()
++            .filter((entry) => entry.serverId === catalog.serverId)
++            .map((entry) => entry.configRevision),
++        ),
++      );
++    }
++  }
++
+   private async initialize(): Promise<void> {
+     for (const pin of this.servers) {
+       const history = this.session.authority
+@@ -136,7 +182,7 @@ export class HostedMcpSession {
+         .filter((entry) => entry.serverId === pin.serverId)
+         .sort((a, b) => a.configRevision - b.configRevision);
+       const latest = history
+-        .filter((entry) => entry.run.state !== 'failed')
++        .filter((entry) => !['failed', 'cancelled'].includes(entry.run.state))
+         .at(-1);
+       const previous = latest?.releaseState === 'released' ? undefined : latest;
+       const effective = latest?.run.definition;
+@@ -160,7 +206,6 @@ export class HostedMcpSession {
+     pin: HostedMcpServerPin,
+     expectedRevision: number,
+   ): Promise<void> {
+-    await this.ensureReady();
+     if (!this.servers.some((server) => server.serverId === pin.serverId))
+       throw new Error('MCP server is not allowed by this Session.');
+     const previous = this.session.authority.extensionRecord(
+@@ -175,7 +220,9 @@ export class HostedMcpSession {
+         saved.run.definition?.definitionDigest !== pin.definitionDigest ||
+         saved.configRevision !== expectedRevision + 1
+       )
+-        throw new Error('MCP configuration identity conflicts.');
++        throw new HostedMcpConflictError(
++          'MCP configuration identity conflicts.',
++        );
+       await this.install(pin, saved);
+       return;
+     }
+@@ -186,7 +233,7 @@ export class HostedMcpSession {
+         .map((entry) => entry.configRevision),
+     );
+     if (currentRevision !== expectedRevision)
+-      throw new Error('MCP configuration revision conflicts.');
++      throw new HostedMcpConflictError('MCP configuration revision conflicts.');
+     try {
+       await this.install(pin, undefined, operationId, expectedRevision + 1);
+     } catch (cause) {
+@@ -343,7 +390,7 @@ export class HostedMcpSession {
+       this.hasPendingOperations() ||
+       this.configurations().some(
+         (entry) =>
+-          !['settled', 'failed'].includes(entry.run.state) ||
++          !['settled', 'failed', 'cancelled'].includes(entry.run.state) ||
+           entry.releaseState === 'releasing',
+       )
+     );
+@@ -414,9 +461,9 @@ export class HostedMcpSession {
+         record.argsRef.digest !== digest(request) ||
+         record.serverId !== serverId
+       )
+-        throw new Error('MCP operation identity conflicts.');
++        throw new HostedMcpConflictError('MCP operation identity conflicts.');
+     } else {
+-      await this.ensureReady();
++      await this.refresh();
+       const installed = this.catalogs.get(serverId);
+       if (!installed)
+         throw new Error('MCP server is not bound to this Session.');
+@@ -585,7 +632,30 @@ export class HostedMcpSession {
+   }
+ 
+   async close(): Promise<void> {
++    for (const entry of this.session.authority.extensionRecordsInDomain(
++      'mcp_operation',
++    )) {
++      if (['settled', 'failed', 'cancelled'].includes(entry.run.state))
++        continue;
++      const operation = parseMcpOperation(entry.record);
++      if (operation.run.execution === 'intent')
++        await this.cancel(operation.operationId);
++      else await this.status(operation.operationId);
++    }
+     if (this.hasPendingOperations()) throw new HostedMcpRecoveryRequiredError();
++    for (const configuration of this.configurations()) {
++      if (configuration.run.execution !== 'intent') continue;
++      const cancelled: McpConfiguration = {
++        ...configuration,
++        run: {
++          ...configuration.run,
++          state: 'cancelled',
++          execution: 'not_started_proven',
++          reason: null,
++        },
++      };
++      await this.commitConfiguration(cancelled);
++    }
+     const configurations = this.configurations().filter(
+       (entry) => entry.releaseState !== 'released',
+     );
+@@ -607,8 +677,9 @@ export class HostedMcpSession {
+     }
+     for (let configuration of configurations) {
+       if (
+-        configuration.run.state === 'failed' &&
+-        configuration.run.execution === 'settled'
++        (configuration.run.state === 'failed' &&
++          configuration.run.execution === 'settled') ||
++        configuration.run.execution === 'not_started_proven'
+       ) {
+         if (configuration.releaseState === 'active')
+           await this.commitConfiguration({
+@@ -655,6 +726,7 @@ export class HostedMcpSession {
+         releaseState: 'released',
+       });
+     this.acquired = false;
++    this.ownerReady = false;
+   }
+ 
+   private configurations(): McpConfiguration[] {
+@@ -663,9 +735,17 @@ export class HostedMcpSession {
+       .map((entry) => parseMcpConfiguration(entry.record));
+   }
+ 
+-  private async acquireOwner(): Promise<void> {
++  private async acquireOwner(reuse = false): Promise<void> {
++    if (reuse && this.ownerReady) return;
++    const previouslyAcquired = this.acquired;
+     this.acquired = true;
+-    await this.broker.acquire();
++    try {
++      await this.broker.acquire();
++    } catch (cause) {
++      if (cause instanceof HostedWorkspaceBrokerRejection)
++        this.acquired = previouslyAcquired;
++      throw cause;
++    }
+     const runtime = this.broker.runtime;
+     if (
+       !runtime ||
+@@ -678,6 +758,18 @@ export class HostedMcpSession {
+       )
+     )
+       throw new HostedMcpRecoveryRequiredError();
++    if (!this.grantsRenewed) {
++      // A restored writer needs a higher durable revision to replace the old grant owner.
++      for (const configuration of this.configurations()) {
++        if (
++          configuration.catalogRef &&
++          configuration.releaseState !== 'released'
++        )
++          await this.commitConfiguration(configuration, true);
++      }
++      this.grantsRenewed = true;
++    }
++    this.ownerReady = true;
+   }
+ 
+   private get key() {
+@@ -737,8 +829,13 @@ export class HostedMcpSession {
+     );
+   }
+ 
+-  private commitConfiguration(record: McpConfiguration) {
+-    return this.commit('mcp_configuration', record.configurationId, record);
++  private commitConfiguration(record: McpConfiguration, renew = false) {
++    return this.commit(
++      'mcp_configuration',
++      record.configurationId,
++      record,
++      renew,
++    );
+   }
+   private commitOperation(record: McpOperation) {
+     return this.commit('mcp_operation', record.operationId, record);
+@@ -748,9 +845,11 @@ export class HostedMcpSession {
+     domain: 'mcp_configuration' | 'mcp_operation',
+     id: string,
+     record: unknown,
++    renew = false,
+   ): Promise<void> {
+     const previous = this.session.authority.extensionRecord(domain, id);
+-    if (previous && digest(previous.record) === digest(record)) return;
++    if (!renew && previous && digest(previous.record) === digest(record))
++      return;
+     await this.session.authority.commitExtensionRecord(
+       {
+         operation: 'commitMcpRecord',
+@@ -764,14 +863,21 @@ export class HostedMcpSession {
+   }
+ 
+   private async lookup(operationId: string): Promise<ManagedMcpOperationView> {
++    const operation: ManagedMcpControl = {
++      kind: 'mcp-status',
++      sessionKey: this.key,
++      operationId,
++      targetOperationId: operationId,
++    };
+     try {
+-      await this.acquireOwner();
+-      return await this.broker.control({
+-        kind: 'mcp-status',
+-        sessionKey: this.key,
+-        operationId,
+-        targetOperationId: operationId,
+-      });
++      await this.acquireOwner(true);
++      try {
++        return await this.broker.control(operation);
++      } catch {
++        this.ownerReady = false;
++        await this.acquireOwner();
++        return await this.broker.control(operation);
++      }
+     } catch {
+       return { operationId, state: 'outcome_unknown' };
+     }
+@@ -786,9 +892,11 @@ export class HostedMcpSession {
+     } catch {
+       response = await this.lookup(operation.operationId);
+     }
+-    const deadline = Date.now() + 120_000;
++    const deadline = Date.now() + 630_000;
++    let interval = 100;
+     while (response.state === 'running' && Date.now() < deadline) {
+-      await delay(100);
++      await delay(interval);
++      interval = Math.min(interval * 2, 1_000);
+       response = await this.lookup(operation.operationId);
+     }
+     return response;
+diff --git a/packages/cli/src/serve/hosted-workspace-broker.test.ts b/packages/cli/src/serve/hosted-workspace-broker.test.ts
+index 5551970844..fc74619c46 100644
+--- a/packages/cli/src/serve/hosted-workspace-broker.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-broker.test.ts
+@@ -330,6 +330,34 @@ it('queries the original identity when start reports an unknown execution', asyn
+   ]);
+ });
+ 
++it('observes a late original result after unknown cancellation without starting again', async () => {
++  const paths: string[] = [];
++  let observations = 0;
++  const broker = await fixture((path) => {
++    paths.push(path);
++    if (path.endsWith(':cancel') || observations++ === 0)
++      return { code: 409, body: { code: 'runtime_broker_execution_unknown' } };
++    return {
++      body: {
++        ...identity,
++        executionCallId: 'execution',
++        status: {
++          state: 'settled',
++          result: { executionStatus: 'success', responseParts: [] },
++        },
++      },
++    };
++  });
++  const abort = new AbortController();
++  abort.abort();
++  await expect(
++    broker.execute('execution', '{}', abort.signal, 5000, true),
++  ).resolves.toMatchObject({ executionStatus: 'success' });
++  expect(paths.filter((path) => path.endsWith(':cancel'))).toHaveLength(1);
++  expect(paths.filter((path) => path.endsWith(':start'))).toHaveLength(0);
++  expect(paths.filter((path) => path.endsWith('/execution'))).toHaveLength(2);
++});
++
+ it('queries the original identity after an uncertain start failure', async () => {
+   const paths: string[] = [];
+   const broker = await fixture((path) => {
+diff --git a/packages/cli/src/serve/hosted-workspace-broker.ts b/packages/cli/src/serve/hosted-workspace-broker.ts
+index 8cc2640442..fb930d2b74 100644
+--- a/packages/cli/src/serve/hosted-workspace-broker.ts
++++ b/packages/cli/src/serve/hosted-workspace-broker.ts
+@@ -166,6 +166,7 @@ export class HostedWorkspaceBroker {
+     payloadJson: string,
+     signal: AbortSignal,
+     observationMs = 120_000,
++    waitForUnknown = false,
+   ): Promise<
+     ManagedToolResultPayload & { capture?: ToolResultCapture | null }
+   > {
+@@ -188,11 +189,28 @@ export class HostedWorkspaceBroker {
+     }
+     const end = Date.now() + observationMs;
+     while (Date.now() < end) {
+-      if (signal.aborted && !cancellationSent) {
+-        cancellationSent = true;
+-        response = await this.request(`${path}:cancel`, {});
++      try {
++        if (signal.aborted && !cancellationSent) {
++          cancellationSent = true;
++          response = await this.request(`${path}:cancel`, {});
++        }
++        response ??= await this.request(path);
++      } catch (cause) {
++        if (
++          !waitForUnknown ||
++          !(
++            (cause instanceof HostedWorkspaceBrokerRejection &&
++              cause.status === 409 &&
++              cause.code === 'runtime_broker_execution_unknown') ||
++            cause instanceof TypeError ||
++            (cause instanceof DOMException && cause.name === 'TimeoutError')
++          )
++        )
++          throw cause;
++        response = undefined;
++        await delay(250);
++        continue;
+       }
+-      response ??= await this.request(path);
+       if (response['executionCallId'] !== id)
+         throw new Error('Runtime execution identity changed.');
+       const status = object(response['status']);
+@@ -214,13 +232,14 @@ export class HostedWorkspaceBroker {
+         } as unknown as ManagedToolResultPayload;
+       }
+       if (
++        !(waitForUnknown && status['state'] === 'unknown') &&
+         !['prepared', 'executing', 'cancel_requested'].includes(
+           String(status['state']),
+         )
+       )
+         throw new Error('Runtime execution outcome is unknown.');
+       response = undefined;
+-      await delay(50);
++      await delay(waitForUnknown ? 250 : 50);
+     }
+     throw new Error(
+       'Runtime execution did not settle within its observation window.',
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index 006466362e..ce9ab284d7 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -468,6 +468,7 @@ it('executes against the declarations actually advertised before a catalog repla
+   const mcp = {
+     broker: { ...broker, runtimeSessionId: 'mcp:session' },
+     ensureReady: async () => undefined,
++    refresh: async () => undefined,
+     tools: () => [{ name, parametersJsonSchema: { type: 'object' } }],
+     toolInput: vi.fn(() => input),
+   };
+@@ -494,7 +495,8 @@ it('executes against the declarations actually advertised before a catalog repla
+     expect.any(String),
+     JSON.stringify(input),
+     expect.any(AbortSignal),
+-    undefined,
++    630_000,
++    true,
+   );
+   expect(broker.prepare).toHaveBeenCalledWith(
+     expect.any(String),
+@@ -514,6 +516,7 @@ it('executes against the declarations actually advertised before a catalog repla
+     intent!.payload['toolDefinitionRef'] as unknown as ManagedSessionDurableRef,
+   );
+   expect(JSON.parse(saved.toString()).name).toBe('mcp_old');
++  expect((await mcpTurn.declarations()).at(-1)?.name).toBe('mcp_new');
+ });
+ it('returns durable errors for a refused Shell batch and permits a corrected call', async () => {
+   turn = createTurn(true);
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index a23a946106..3d4cbc5bcc 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -156,8 +156,8 @@ export class HostedWorkspaceToolTurn {
+   }
+ 
+   async declarations(): Promise<FunctionDeclaration[]> {
+-    if (this.mcp) await this.warmed;
+-    this.advertised ??= [
++    if (this.mcp) await this.mcp.refresh();
++    this.advertised = [
+       ...(this.shell
+         ? HOSTED_WORKSPACE_SHELL_TOOLS
+         : HOSTED_WORKSPACE_FILE_TOOLS),
+@@ -173,7 +173,7 @@ export class HostedWorkspaceToolTurn {
+     signal: AbortSignal,
+   ): Promise<Part[]> {
+     if (this.mcp) await this.warmed;
+-    const declarations = await this.declarations();
++    const declarations = this.advertised ?? (await this.declarations());
+     const ids = new Set<string>();
+     const requests = calls.map((call) => {
+       const runtimeCallId = randomUUID();
+@@ -460,7 +460,10 @@ export class HostedWorkspaceToolTurn {
+           signal,
+           request.isShell
+             ? Number(request.input['timeout'] ?? 120000) + 60000
+-            : undefined,
++            : this.mcp
++              ? 630_000
++              : undefined,
++          this.mcp !== undefined,
+         );
+         const shellResult = request.isShell
+           ? parseToolResultEnvelope(result)
+diff --git a/packages/cli/src/serve/managed-mcp-runtime.test.ts b/packages/cli/src/serve/managed-mcp-runtime.test.ts
+index 6deb34b878..89657c32c4 100644
+--- a/packages/cli/src/serve/managed-mcp-runtime.test.ts
++++ b/packages/cli/src/serve/managed-mcp-runtime.test.ts
+@@ -40,6 +40,7 @@ createInterface({input:process.stdin}).on('line', line => {
+  if (request.id === undefined) return;
+  appendFileSync(process.env.COUNTER, request.method+'\n');
+  if (request.method==='initialize') send(request.id,{protocolVersion:'2024-11-05',capabilities:{tools:{},resources:{},prompts:{}},serverInfo:{name:'fixture',version:'1'}});
++ else if (process.env.UNSUPPORTED_LISTS && ['resources/list','prompts/list'].includes(request.method)) process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:request.id,error:{code:-32601,message:'Not supported'}})+'\n');
+  else if (request.method==='tools/list') {
+    send(request.id,{tools:[...['echo','delayed','drop'].map(name=>({name,inputSchema:{type:'object'}})), ...(process.env.LARGE_CATALOG?[{name:'too-large',description:'x'.repeat(20*1024),inputSchema:{type:'object'}}]:[])]});
+    if (process.env.INVALIDATE_DISCOVERY) process.stdout.write(JSON.stringify({jsonrpc:'2.0',method:'notifications/tools/list_changed'})+'\n');
+@@ -197,6 +198,30 @@ function invoke(
+ }
+ 
+ describe('Managed MCP Runtime', () => {
++  it('treats method-not-found catalogs as authoritative empty lists', async () => {
++    const definition = stdioDefinition();
++    const instance = runtime([
++      { ...definition, env: { ...definition.env, UNSUPPORTED_LISTS: '1' } },
++    ]);
++    const catalog = (await settled(instance, configure())).catalog!;
++    expect(catalog.resources).toEqual([]);
++    expect(catalog.prompts).toEqual([]);
++    expect(catalog.discovery).toEqual({
++      tools: 'complete',
++      resources: 'complete',
++      prompts: 'complete',
++    });
++    const discovery = await settled(instance, {
++      kind: 'mcp-discover',
++      sessionKey,
++      operationId: 'fresh',
++      serverId: 'fixture',
++      serverRevision: 1,
++      connectionGeneration: catalog.connectionGeneration,
++      grant: grant('configuration-1'),
++    });
++    expect(discovery.catalog).toEqual(catalog);
++  });
+   it('runs a real stdio server, preserves resource/prompt unions and never inherits ambient secrets', async () => {
+     vi.stubEnv('MCP_AMBIENT_SECRET', 'must-not-reach-child');
+     vi.stubEnv('LOGNAME', 'private-runtime-user');
+@@ -367,8 +392,9 @@ describe('Managed MCP Runtime', () => {
+         'running',
+       );
+       instance.cancelTool(runtimeSessionId, old);
+-      expect((await pending).state).toBe('outcome_unknown');
++      expect(instance.toolStatus(runtimeSessionId, old).state).toBe('running');
+       await writeFile(releaseFile, 'release');
++      expect((await pending).state).toBe('settled');
+       await vi.waitFor(() =>
+         expect(instance.toolStatus(runtimeSessionId, old).state).toBe(
+           'settled',
+@@ -473,8 +499,8 @@ describe('Managed MCP Runtime', () => {
+     ).not.toContain('tools/call');
+   });
+ 
+-  it('sends cancellation for a timed-out request that still has a physical hold', async () => {
+-    const instance = runtime();
++  it('preserves settlement evidence after cancellation and a configured timeout', async () => {
++    const instance = runtime([{ ...stdioDefinition(), timeoutMs: 50 }]);
+     const catalog = (await settled(instance, configure())).catalog!;
+     const releaseFile = path.join(directory, 'release-timeout');
+     const input = invoke(catalog, 'timed-out', {
+@@ -482,25 +508,12 @@ describe('Managed MCP Runtime', () => {
+       name: 'delayed',
+       arguments: { releaseFile },
+     });
+-    const nativeTimeout = globalThis.setTimeout;
+-    const timer = vi
+-      .spyOn(globalThis, 'setTimeout')
+-      .mockImplementation((handler, timeout, ...args) =>
+-        nativeTimeout(handler, timeout === 25_000 ? 50 : timeout, ...args),
+-      );
+-    let response: ManagedMcpOperationView;
+-    try {
+-      response = await instance.invokeTool(runtimeSessionId, input);
+-    } finally {
+-      timer.mockRestore();
+-    }
+-    expect(response!.state).toBe('outcome_unknown');
++    const response = await instance.invokeTool(runtimeSessionId, input);
++    expect(response.state).toBe('outcome_unknown');
+     instance.cancelTool(runtimeSessionId, input);
+-    await vi.waitFor(async () =>
+-      expect(await readFile(path.join(directory, 'calls-1'), 'utf8')).toContain(
+-        'cancel:timed-out',
+-      ),
+-    );
++    expect(
++      await readFile(path.join(directory, 'calls-1'), 'utf8'),
++    ).not.toContain('cancel:timed-out');
+     expect(instance.hasHolds(runtimeSessionId)).toBe(true);
+     await writeFile(releaseFile, 'release');
+     await vi.waitFor(() =>
+@@ -667,6 +680,37 @@ describe('Managed MCP Runtime', () => {
+     ).toHaveLength(1);
+   });
+ 
++  it('reclaims idle replaced connections without losing their receipts', async () => {
++    const instance = runtime();
++    const first = await settled(instance, configure());
++    for (let revision = 2; revision <= 18; revision++) {
++      const replacement = await settled(instance, {
++        ...configure(),
++        configRevision: revision,
++        operationId: `configuration-${revision}`,
++        grant: grant(`configuration-${revision}`),
++      });
++      expect(replacement.error).toBeUndefined();
++      expect(replacement.catalog?.configRevision).toBe(revision);
++    }
++    expect(await instance.control(runtimeSessionId, configure())).toEqual(
++      first,
++    );
++    expect(
++      (
++        await settled(instance, {
++          kind: 'mcp-release',
++          sessionKey,
++          operationId: 'release-retired',
++          serverId: 'fixture',
++          serverRevision: 1,
++          connectionGeneration: first.catalog!.connectionGeneration,
++          grant: grant('configuration-1'),
++        })
++      ).response,
++    ).toEqual({ released: true });
++  }, 30_000);
++
+   it('rebinds a drained definition with a new generation and keeps the old receipt', async () => {
+     const resolveDirectory = vi.fn(async () => directory);
+     const instance = new ManagedMcpRuntime(
+@@ -747,6 +791,10 @@ describe('Managed MCP Runtime', () => {
+         expect(request.headers['authorization']).toBe(
+           'Bearer scoped-test-secret',
+         );
++        if (request.method === 'DELETE') {
++          response.writeHead(503).end();
++          return;
++        }
+         if (request.method === 'GET' && transport === 'sse') {
+           events = response;
+           response.writeHead(200, { 'content-type': 'text/event-stream' });
+@@ -801,7 +849,10 @@ describe('Managed MCP Runtime', () => {
+         } else if (body.id === undefined) response.writeHead(202).end();
+         else
+           response
+-            .writeHead(200, { 'content-type': 'application/json' })
++            .writeHead(200, {
++              'content-type': 'application/json',
++              'mcp-session-id': 'test-session',
++            })
+             .end(JSON.stringify(answer));
+       });
+       servers.push(server);
+@@ -843,7 +894,20 @@ describe('Managed MCP Runtime', () => {
+       expect(
+         methods.filter((method) => method === 'resources/read'),
+       ).toHaveLength(1);
+-      await instance.close();
++      expect(
++        (
++          await settled(instance, {
++            kind: 'mcp-release',
++            sessionKey,
++            operationId: 'release-http',
++            serverId: 'fixture',
++            serverRevision: 1,
++            connectionGeneration: configured.catalog!.connectionGeneration,
++            grant: grant('configuration-1'),
++          })
++        ).response,
++      ).toEqual({ released: true });
++      expect(instance.hasHolds(runtimeSessionId)).toBe(false);
+       events?.end();
+     },
+   );
+diff --git a/packages/cli/src/serve/managed-mcp-runtime.ts b/packages/cli/src/serve/managed-mcp-runtime.ts
+index 734fb5aa02..df53653177 100644
+--- a/packages/cli/src/serve/managed-mcp-runtime.ts
++++ b/packages/cli/src/serve/managed-mcp-runtime.ts
+@@ -45,6 +45,7 @@ export interface ManagedMcpDefinition {
+   readonly env?: Record<string, string>;
+   readonly url?: string;
+   readonly headers?: Record<string, string>;
++  readonly timeoutMs?: number;
+ }
+ 
+ export interface ManagedMcpManifest {
+@@ -69,6 +70,7 @@ interface Connection {
+   closed: boolean;
+   catalog?: ManagedMcpCatalog;
+   catalogWork?: Promise<void>;
++  closing?: Promise<void>;
+ }
+ 
+ interface Operation {
+@@ -94,6 +96,7 @@ const MAX_MANIFEST_BYTES = 1024 * 1024;
+ const MAX_RESULT_BYTES = 60 * 1024;
+ const MAX_CATALOG_CATEGORY_BYTES = 16 * 1024;
+ const TIMEOUT_MS = 25_000;
++const REQUEST_TIMEOUT_MS = 600_000;
+ const identifier = /^[A-Za-z0-9._:-]{1,128}$/u;
+ 
+ function object(value: unknown): Record<string, unknown> {
+@@ -259,6 +262,7 @@ function parseManifest(value: unknown): ManagedMcpManifest {
+       'env',
+       'url',
+       'headers',
++      'timeoutMs',
+     ]);
+     if (
+       ['tenantId', 'workspaceId', 'serverId'].some(
+@@ -271,6 +275,12 @@ function parseManifest(value: unknown): ManagedMcpManifest {
+       !/^[a-f0-9]{64}$/u.test(definition['definitionDigest'])
+     )
+       throw new ManagedMcpError('managed_mcp_manifest_invalid');
++    if (
++      definition['timeoutMs'] !== undefined &&
++      (!positive(definition['timeoutMs']) ||
++        Number(definition['timeoutMs']) > REQUEST_TIMEOUT_MS)
++    )
++      throw new ManagedMcpError('managed_mcp_manifest_invalid');
+     const id = `${definition['tenantId']}\0${definition['workspaceId']}\0${definition['serverId']}\0${definition['serverRevision']}`;
+     if (keys.has(id))
+       throw new ManagedMcpError('managed_mcp_definition_conflict');
+@@ -355,22 +365,8 @@ export class ManagedMcpRuntime {
+           operationId: control.targetOperationId,
+           state: 'outcome_unknown',
+         };
+-      if (
+-        control.kind === 'mcp-cancel' &&
+-        existing.connection?.pending.has(existing.control.operationId)
+-      ) {
+-        this.unknown(existing, 'managed_mcp_cancel_requested');
+-        void existing.connection.transport
+-          .send({
+-            jsonrpc: '2.0',
+-            method: 'notifications/cancelled',
+-            params: {
+-              requestId: existing.control.operationId,
+-              reason: 'Operation cancelled.',
+-            },
+-          })
+-          .catch(() => undefined);
+-      }
++      // SDK servers suppress replies after native cancellation. Keep observing
++      // the original request so cancellation cannot destroy settlement evidence.
+       return structuredClone(existing.view);
+     }
+     if (!('grant' in control)) throw new ManagedMcpError('managed_mcp_invalid');
+@@ -546,7 +542,7 @@ export class ManagedMcpRuntime {
+     );
+     if (
+       !connection ||
+-      connection.closed ||
++      (connection.closed && control.kind !== 'mcp-release') ||
+       scope(connection.sessionKey) !== scope(control.sessionKey) ||
+       !('connectionGeneration' in control) ||
+       connection.generation !== control.connectionGeneration
+@@ -717,7 +713,10 @@ export class ManagedMcpRuntime {
+           onmessage(message);
+         };
+         await this.discover(connection);
+-        for (const sibling of siblings) sibling.retiring = true;
++        for (const sibling of siblings) {
++          sibling.retiring = true;
++          if (sibling.pending.size === 0) await this.closeConnection(sibling);
++        }
+         this.settled(operation, { catalog: connection.catalog! });
+       } catch {
+         try {
+@@ -732,7 +731,13 @@ export class ManagedMcpRuntime {
+       const connection = this.connection(operation, control);
+       if (connection.retiring)
+         throw new ManagedMcpError('managed_mcp_retiring');
+-      await this.discover(connection);
++      if (
++        !connection.catalog ||
++        Object.values(connection.catalog.discovery).some(
++          (state) => state === 'stale' || state === 'failed',
++        )
++      )
++        await this.discover(connection);
+       this.settled(operation, { catalog: connection.catalog! });
+     } else if (control.kind === 'mcp-release') {
+       const connection = this.connection(operation, control);
+@@ -896,7 +901,7 @@ export class ManagedMcpRuntime {
+       connection.pending.set(control.operationId, operation);
+       operation.timer = setTimeout(
+         () => this.unknown(operation, 'managed_mcp_timeout'),
+-        TIMEOUT_MS,
++        connection.definition.timeoutMs ?? REQUEST_TIMEOUT_MS,
+       );
+       const method =
+         request.kind === 'tool_call'
+@@ -963,6 +968,8 @@ export class ManagedMcpRuntime {
+     if (operation.connection?.pending.size === 0) {
+       for (const resolve of operation.connection.drained) resolve();
+       operation.connection.drained.clear();
++      if (operation.connection.retiring && !operation.connection.closed)
++        void this.closeConnection(operation.connection).catch(() => undefined);
+     }
+     operation.view = {
+       operationId: operation.control.operationId,
+@@ -983,14 +990,34 @@ export class ManagedMcpRuntime {
+     operation.resolve();
+   }
+ 
+-  private async closeConnection(connection: Connection): Promise<void> {
++  private closeConnection(connection: Connection): Promise<void> {
++    if (connection.closed) return Promise.resolve();
++    connection.closing ??= this.drainConnection(connection).finally(() => {
++      connection.closing = undefined;
++    });
++    return connection.closing;
++  }
++
++  private async drainConnection(connection: Connection): Promise<void> {
+     connection.retiring = true;
+     let timer: ReturnType<typeof setTimeout> | undefined;
+     try {
+       await Promise.race([
+         (async () => {
+-          if (connection.transport instanceof StreamableHTTPClientTransport)
+-            await connection.transport.terminateSession();
++          if (connection.transport instanceof StreamableHTTPClientTransport) {
++            let terminationTimer: ReturnType<typeof setTimeout> | undefined;
++            try {
++              // Remote session deletion is advisory once all requests settled.
++              await Promise.race([
++                connection.transport.terminateSession().catch(() => undefined),
++                new Promise<void>((resolve) => {
++                  terminationTimer = setTimeout(resolve, 1_000);
++                }),
++              ]);
++            } finally {
++              if (terminationTimer) clearTimeout(terminationTimer);
++            }
++          }
+           await connection.client.close();
+           await connection.closeDone;
+         })(),
+diff --git a/packages/core/src/managed-runtime/contracts/managed-mcp-record-v1.fixtures.json b/packages/core/src/managed-runtime/contracts/managed-mcp-record-v1.fixtures.json
+index 2785f84a82..34a9c5c3b3 100644
+--- a/packages/core/src/managed-runtime/contracts/managed-mcp-record-v1.fixtures.json
++++ b/packages/core/src/managed-runtime/contracts/managed-mcp-record-v1.fixtures.json
+@@ -1182,6 +1182,80 @@
+         "releaseState": "released"
+       },
+       "valid": true
++    },
++    {
++      "id": "configuration-cancel-unsent",
++      "domain": "mcp_configuration",
++      "before": {},
++      "after": {
++        "run": {
++          "state": "cancelled",
++          "execution": "not_started_proven",
++          "reason": null
++        }
++      },
++      "valid": true
++    },
++    {
++      "id": "configuration-release-unsent-intent",
++      "domain": "mcp_configuration",
++      "before": {
++        "run": {
++          "state": "cancelled",
++          "execution": "not_started_proven",
++          "reason": null
++        }
++      },
++      "after": {
++        "run": {
++          "state": "cancelled",
++          "execution": "not_started_proven",
++          "reason": null
++        },
++        "releaseState": "releasing"
++      },
++      "valid": true
++    },
++    {
++      "id": "configuration-release-unsent-receipt",
++      "domain": "mcp_configuration",
++      "before": {
++        "run": {
++          "state": "cancelled",
++          "execution": "not_started_proven",
++          "reason": null
++        },
++        "releaseState": "releasing"
++      },
++      "after": {
++        "run": {
++          "state": "cancelled",
++          "execution": "not_started_proven",
++          "reason": null
++        },
++        "releaseState": "released"
++      },
++      "valid": true
++    },
++    {
++      "id": "configuration-cannot-skip-unsent-release-intent",
++      "domain": "mcp_configuration",
++      "before": {
++        "run": {
++          "state": "cancelled",
++          "execution": "not_started_proven",
++          "reason": null
++        }
++      },
++      "after": {
++        "run": {
++          "state": "cancelled",
++          "execution": "not_started_proven",
++          "reason": null
++        },
++        "releaseState": "released"
++      },
++      "valid": false
+     }
+   ]
+ }
+diff --git a/packages/core/src/managed-runtime/managed-mcp-record.ts b/packages/core/src/managed-runtime/managed-mcp-record.ts
+index ce11da5162..ac6ebd981c 100644
+--- a/packages/core/src/managed-runtime/managed-mcp-record.ts
++++ b/packages/core/src/managed-runtime/managed-mcp-record.ts
+@@ -128,8 +128,9 @@ function pinnedRun(value: unknown, serverId: string, serverRevision: number) {
+ 
+ function canRelease(run: ExtensionRun): boolean {
+   return (
+-    run.execution === 'settled' &&
+-    (run.state === 'settled' || run.state === 'failed')
++    (run.execution === 'settled' &&
++      (run.state === 'settled' || run.state === 'failed')) ||
++    (run.execution === 'not_started_proven' && run.state === 'cancelled')
+   );
+ }
+ 
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedMcpRecords.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedMcpRecords.java
+index 261dcf3a69..871c2c434c 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedMcpRecords.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedMcpRecords.java
+@@ -148,7 +148,9 @@ public final class ManagedMcpRecords {
+ 
+     private static boolean canRelease(JsonNode run) {
+         return "settled".equals(text(run, "execution"))
+-                && ("settled".equals(text(run, "state")) || "failed".equals(text(run, "state")));
++                && ("settled".equals(text(run, "state")) || "failed".equals(text(run, "state")))
++                || "not_started_proven".equals(text(run, "execution"))
++                        && "cancelled".equals(text(run, "state"));
+     }
+ 
+     private static String text(JsonNode record, String key) {
+diff --git a/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V19__managed_mcp_records.sql b/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V21__managed_mcp_records.sql
+similarity index 100%
+rename from packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V19__managed_mcp_records.sql
+rename to packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V21__managed_mcp_records.sql
+diff --git a/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json b/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
+index 2b9dc9e076..15d716749b 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
++++ b/packages/sdk-java/managed-agent-server/src/main/resources/openapi/managed-agent-public-api.openapi.json
+@@ -2,12 +2,8 @@
+   "openapi": "3.1.0",
+   "info": {
+     "title": "Qwen Managed Agent Public and WebShell API",
+-    "version": "1.20.0",
+-<<<<<<< 7a3243504e (chore: merge main into managed MCP H1)
+-    "description": "Canonical contract for the public Managed Agent resources and the WebShell adapter. partial means that the route exists but generated types and full contract tests are pending; planned means that the route or field is not implemented. Workspace context and cwd operations are v1.9 target contracts, not current server capabilities. v1.10 adds planned command admission, Actions, lifecycle and actor authorization. v1.12 refines planned W0 creation discovery, actor-specific create hints and explicit default selection. Full tool-result descriptors from the v1.11 design are not yet included. Filter planned fields as well as routes from production SDKs. v1.13 moves this contract into the Qwen Code repository as its single source and records the shipped rename, archive, unarchive and delete routes as partial. v1.14 integrates W0d workspace discovery, the WebShell workspace lookup, and empty-session binding as partial; workspace_binding/workspaceBinding advertises this narrow flow without enabling workspace execution or context switching. v1.15 adds the archived, archiving and deleting Session statuses and the cancelling Turn status, requires request_id in error envelopes, declares the error responses that the server returns, and marks Session create, list and get on both surfaces implemented. v1.16 adds the planned Stage H task contract (SessionTaskView as PublicTask, task list, detail, events and cancel) and names the MCP catalog, hook catalog, automation and channel resources as planned; their shapes arrive with Stages H1 to H6. v1.17 implements event replay: events carry their schema and projection versions and a top-level Item and Part identity, JSON event pages return has_more and next_cursor and accept limits up to 1000, and a persisted replay floor answers expired cursors with 409 cursor_expired in JSON and one agent.session.resync_required frame over SSE; it marks the public event query and stream, the WebShell event stream and the WebShell transcript implemented. v1.18 implements the durable Session lifecycle (Stage D4): close, archive and delete answer 202 with a command operation on both surfaces, an archive requires a closed Session, a deleted Session leaves a tombstone whose operations stay readable, and the operation query serves them; unarchive restores a closed Session, and Session capabilities advertise session_lifecycle. v1.19 serves the task list and detail on both surfaces as partial (Stage H0c): the Session store projects them from the Stage H records the Session authority commits, a task.updated Session event announces each change of a task's view, and Session capabilities advertise tasks. Task events and cancel stay planned until a slice's tasks produce output and accept a cancel. v1.20 serves the read-only Session MCP catalog as partial (Stage H1), projecting display metadata and schemas from committed records without Runtime identities, credentials or production profile enablement."
+-=======
+-    "description": "Canonical contract for the public Managed Agent resources and the WebShell adapter. partial means that the route exists but generated types and full contract tests are pending; planned means that the route or field is not implemented. Workspace context and cwd operations are v1.9 target contracts, not current server capabilities. v1.10 adds planned command admission, Actions, lifecycle and actor authorization. v1.12 refines planned W0 creation discovery, actor-specific create hints and explicit default selection. Full tool-result descriptors from the v1.11 design are not yet included. Filter planned fields as well as routes from production SDKs. v1.13 moves this contract into the Qwen Code repository as its single source and records the shipped rename, archive, unarchive and delete routes as partial. v1.14 integrates W0d workspace discovery, the WebShell workspace lookup, and empty-session binding as partial; workspace_binding/workspaceBinding advertises this narrow flow without enabling workspace execution or context switching. v1.15 adds the archived, archiving and deleting Session statuses and the cancelling Turn status, requires request_id in error envelopes, declares the error responses that the server returns, and marks Session create, list and get on both surfaces implemented. v1.16 adds the planned Stage H task contract (SessionTaskView as PublicTask, task list, detail, events and cancel) and names the MCP catalog, hook catalog, automation and channel resources as planned; their shapes arrive with Stages H1 to H6. v1.17 implements event replay: events carry their schema and projection versions and a top-level Item and Part identity, JSON event pages return has_more and next_cursor and accept limits up to 1000, and a persisted replay floor answers expired cursors with 409 cursor_expired in JSON and one agent.session.resync_required frame over SSE; it marks the public event query and stream, the WebShell event stream and the WebShell transcript implemented. v1.18 implements the durable Session lifecycle (Stage D4): close, archive and delete answer 202 with a command operation on both surfaces, an archive requires a closed Session, a deleted Session leaves a tombstone whose operations stay readable, and the operation query serves them; unarchive restores a closed Session, and Session capabilities advertise session_lifecycle. v1.19 serves the task list and detail on both surfaces as partial (Stage H0c): the Session store projects them from the Stage H records the Session authority commits, a task.updated Session event announces each change of a task's view, and Session capabilities advertise tasks. Task events and cancel stay planned until a slice's tasks produce output and accept a cancel. v1.20 implements the Turn read model (Stage D5): the public Turn list and detail read a Session's Turns without their input, newest first by creation time in milliseconds and then Turn ID, with an opaque cursor; a deleted Session's Turns are not readable, and the durable admission fields of a Turn stay planned until D7."
+->>>>>>> 693528b004 (feat(managed-agent): Serve the public Turn list and detail (Stage D5) (#12932))
++    "version": "1.21.0",
++    "description": "Canonical contract for the public Managed Agent resources and the WebShell adapter. partial means that the route exists but generated types and full contract tests are pending; planned means that the route or field is not implemented. Workspace context and cwd operations are v1.9 target contracts, not current server capabilities. v1.10 adds planned command admission, Actions, lifecycle and actor authorization. v1.12 refines planned W0 creation discovery, actor-specific create hints and explicit default selection. Full tool-result descriptors from the v1.11 design are not yet included. Filter planned fields as well as routes from production SDKs. v1.13 moves this contract into the Qwen Code repository as its single source and records the shipped rename, archive, unarchive and delete routes as partial. v1.14 integrates W0d workspace discovery, the WebShell workspace lookup, and empty-session binding as partial; workspace_binding/workspaceBinding advertises this narrow flow without enabling workspace execution or context switching. v1.15 adds the archived, archiving and deleting Session statuses and the cancelling Turn status, requires request_id in error envelopes, declares the error responses that the server returns, and marks Session create, list and get on both surfaces implemented. v1.16 adds the planned Stage H task contract (SessionTaskView as PublicTask, task list, detail, events and cancel) and names the MCP catalog, hook catalog, automation and channel resources as planned; their shapes arrive with Stages H1 to H6. v1.17 implements event replay: events carry their schema and projection versions and a top-level Item and Part identity, JSON event pages return has_more and next_cursor and accept limits up to 1000, and a persisted replay floor answers expired cursors with 409 cursor_expired in JSON and one agent.session.resync_required frame over SSE; it marks the public event query and stream, the WebShell event stream and the WebShell transcript implemented. v1.18 implements the durable Session lifecycle (Stage D4): close, archive and delete answer 202 with a command operation on both surfaces, an archive requires a closed Session, a deleted Session leaves a tombstone whose operations stay readable, and the operation query serves them; unarchive restores a closed Session, and Session capabilities advertise session_lifecycle. v1.19 serves the task list and detail on both surfaces as partial (Stage H0c): the Session store projects them from the Stage H records the Session authority commits, a task.updated Session event announces each change of a task's view, and Session capabilities advertise tasks. Task events and cancel stay planned until a slice's tasks produce output and accept a cancel. v1.20 implements the Turn read model (Stage D5): the public Turn list and detail read a Session's Turns without their input, newest first by creation time in milliseconds and then Turn ID, with an opaque cursor; a deleted Session's Turns are not readable, and the durable admission fields of a Turn stay planned until D7. v1.21 serves the read-only Session MCP catalog as partial (Stage H1), projecting display metadata and schemas from committed records without Runtime identities, credentials or production profile enablement."
+   },
+   "servers": [
+     {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+index fe83e042a7..f96c7bdcd4 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentApiContractTest.java
+@@ -866,7 +866,6 @@ class ManagedAgentApiContractTest {
+         assertThat(webBound.at("/workspace/state").asText())
+                 .isEqualTo("ready");
+         exchangeTasks(drift, tenant, otherTenant);
+-<<<<<<< 7a3243504e (chore: merge main into managed MCP H1)
+         String mcpCatalog = exchange(drift, "getSessionMcpCatalog", 200,
+                 get("/v1/agents/sessions/{id}/mcp-catalog", publicBoundId)
+                         .header(TENANT, workspaceTenant).principal(actor), null);
+@@ -882,9 +881,7 @@ class ManagedAgentApiContractTest {
+                         .header(TENANT, workspaceTenant).principal(actor(otherTenant)), null);
+         exchange(drift, "getSessionMcpCatalog", 400,
+                 get("/v1/agents/sessions/{id}/mcp-catalog", publicBoundId), null);
+-=======
+         exchangeTurns(drift, tenant, otherTenant);
+->>>>>>> 693528b004 (feat(managed-agent): Serve the public Turn list and detail (Stage D5) (#12932))
+         assertThat(exercised).containsExactlyInAnyOrderElementsOf(
+                 CONTRACT.operations().stream()
+                         .filter(operation -> !"planned".equals(
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServer.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServer.java
+index fa4cd7fa09..df493a71be 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServer.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServer.java
+@@ -307,7 +307,6 @@ public final class RuntimeBrokerHttpServer implements AutoCloseable {
+     private CompletionStage<ExecutionReconciliation> observe(String harnessSessionId,
+             String runtimeSessionId, ToolExecutionRecord record) {
+         return record.getState() == ToolExecutionRecord.State.UNKNOWN
+-                && Integer.valueOf(3).equals(record.getReference().get("runtimeProtocol"))
+                 ? service.reconcileExecution(harnessSessionId, runtimeSessionId, record.getExecutionCallId())
+                 : CompletableFuture.completedFuture(new ExecutionReconciliation(record,
+                         ExecutionReconciliation.Outcome.IN_FLIGHT, null));
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServerTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServerTest.java
+index 03773f2d3b..2fbde4daaf 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServerTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerHttpServerTest.java
+@@ -66,6 +66,15 @@ class RuntimeBrokerHttpServerTest {
+             assertEquals(409, response.statusCode(), response.body());
+             assertTrue(response.body().contains("runtime_broker_execution_unknown"));
+             assertEquals(1, fixture.transport.executions.get());
++            fixture.transport.runtimeStatus = Map.of("state", "settled", "result",
++                    Map.of("executionStatus", "success", "responseParts", java.util.List.of()));
++            HttpResponse<String> late = fixture.client.send(request, HttpResponse.BodyHandlers.ofString());
++            assertEquals(200, late.statusCode(), late.body());
++            assertEquals("settled", JSON.parseObject(late.body()).getJSONObject("status").getString("state"));
++            assertEquals(ToolExecutionRecord.State.SETTLED,
++                    fixture.service.getExecution("harness", "runtime", created.getExecutionCallId())
++                            .toCompletableFuture().join().getState());
++            assertEquals(1, fixture.transport.executions.get());
+         }
+     }
+ 

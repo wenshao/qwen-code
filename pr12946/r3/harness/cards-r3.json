@@ -1,0 +1,93 @@
+[
+ {
+  "file": "r3-01-fix-verification-9b488679.png",
+  "title": "Round 3 — the author's F1-F7 dispositions, re-run on the real stack at 9b488679",
+  "subtitle": "Fresh bundle + Spring jar from 9b488679; MySQL 8.4.11; stdio, Streamable HTTP and SSE MCP servers; timings from the MCP server ledger.",
+  "lines": [
+   "## finding round 3 observed                                                                      verdict",
+   "== F1      MCP owner still holds the Workspace lease: B 503, file Session turn_error             retained (documented H1 limit)",
+   "++ F2      list_changed (resources, tools): same-turn call, next turn, prompt_get all OK         fixed",
+   "++ F2      SSE server restarted mid-Session: next call EFFECT_OK, 1 effect                       fixed",
+   "++ F3      cancel resource_read: reply running at 2.2 s, settles with full result at 9.9 s       fixed (server ran to done +8.0 s)",
+   "++ F4      prompt cancel at 2.5 s: turn cancelled at 11.6 s, next prompt + detach OK             fixed (tool ran to done +10.0 s)",
+   "++ F4      32 s tool, default timeout: end_turn at 33.7 s                                        fixed",
+   "++ F4      32 s tool, timeoutMs 5000: UNKNOWN then settled, end_turn at 33.8 s                   fixed",
+   "++ F5      HTTP server down at close: detach 204 in 291 ms, lease released                       fixed",
+   "++ F6      17 reconfigurations: 1 live stdio process each time, 18th revision OK                 fixed",
+   "++ F7      refused first install: detach 204 once A leaves, no extra prompt                      fixed (still 503 while A holds)",
+   "++ nit     operation identity conflicts (uri or server) now 409, 0 extra effects                 fixed",
+   "",
+   "## still holding",
+   "++ S1 3 transports: 3 effects, results_ready, blob exact, 2 prompt messages, 0 leaks; S9 lost configure+invoke replies: 1 read",
+   "++ S9 revoke then close 204; S10 Broker down: replay 202, close 204, 0 Broker requests, 0 effects; S11 replacement; S8 limits"
+  ],
+  "notes": [
+   {
+    "tone": "green",
+    "text": "Every disposition in the author's follow-up table reproduces on MySQL, including SSE (which the author did not run through SQL). F1 behaves exactly as now documented."
+   }
+  ]
+ },
+ {
+  "file": "r3-02-new-findings-9b488679.png",
+  "title": "Round 3 — what the fixes introduced or leave open",
+  "subtitle": "B1 is a merge blocker (CI red, reproduced and A/B-tested locally). N1-N3 are behaviour notes for the maintainers.",
+  "lines": [
+   "## B1  CI red: Hosted process fault gates / MySQL 8.4 -> HostedProcessCrashIT (FG6C), caused by one line",
+   "-- RuntimeBrokerHttpServer.observe(): dropped `&& runtimeProtocol == 3`, so UNKNOWN v2 (file) executions are reconciled too",
+   "-- worker-kill: status 409 runtime_execution_evidence_unavailable, gate expects runtime_broker_execution_unknown",
+   "-- worker-stop: status 503 managed_runtime_unavailable (retryable), gate expects 200",
+   "++ same tree with only that line restored: worker-kill 1/1, worker-stop 1/1; harness-* and spring-kill pass either way",
+   "",
+   "## N1  a reply that can never arrive still ends in a stuck Session, now after 10.5 minutes",
+   "-- SSE server restarted 2 s into a 20 s call: execution UNKNOWN at 6.8 s, turn active until 633 s, then blocked",
+   "-- tool that never answers on a timeoutMs 5000 server: UNKNOWN at 7.8 s, turn active until 634 s, then blocked",
+   "-- both: no terminal event, next prompt 409, detach 503, lease held (F1: Workspace locked), qwen_tool_execution UNKNOWN",
+   "== the configured timeoutMs does not shorten the Hosted wait; a lost connection is known at once but still waits 630 s",
+   "",
+   "## N2  one pinned server down -> every turn in the Session fails (refresh before each model request)",
+   "-- SSE down: text-only prompt turn_error, stdio-only tool turn turn_error, 0 effects; same with Streamable HTTP down",
+   "-- each failed turn adds a failed mcp_configuration revision; the Session recovers once the server returns",
+   "",
+   "## N3  cancellation is deferred: the tool runs to completion and its effect happens",
+   "!! prompt cancel at 2.5 s -> turn ends 9.1 s later; with a 10 min tool the user waits up to 10 min (documented by the author)"
+  ],
+  "notes": [
+   {
+    "tone": "red",
+    "text": "B1 must be resolved before merge: either keep observe() protocol-3-only and reconcile MCP separately, or update the FG6C expectations with a justification. N1/N2 widen the H1 limits the author documented and are worth recording next to them."
+   }
+  ]
+ },
+ {
+  "file": "r3-03-gates-9b488679.png",
+  "title": "Round 3 — migrations, mutation, cost and CI",
+  "subtitle": "Flyway experiment on MySQL 8.4.11 with this PR (V21) and a trial merge with #12894 @ 033c74d3 (V19, V20).",
+  "lines": [
+   "## Flyway order (V19 -> V21 rename)",
+   "++ merged jar on a fresh database: applies 19, 20, 21 and starts",
+   "-- this PR first (DB at 21), then the merged jar on the same DB: Detected resolved migration not applied to database: 19",
+   "== so #12894 must land first, or whoever lands second renumbers above the other (outOfOrder is not enabled)",
+   "",
+   "## Mutation (6 cli test files, 122 tests)",
+   "++ M7 and M11 (round-1 survivors) now killed; X1 cancel, X2 idle sibling close, X4 DELETE bound, X6 wait-through-unknown,",
+   "++ X8 intent cancel on close, X10 unchanged-catalog skip, X11 grant renewal: all killed",
+   "!! X3   busy retired connection not closed after its last settle (F6)   SURVIVES",
+   "!! X5   default request timeout back to 25 s (F4)                       SURVIVES",
+   "!! X7   no refresh before each model request (the F2 fix itself)        SURVIVES",
+   "!! X9   identity conflicts back to 503                                  SURVIVES",
+   "",
+   "## Cost of refreshing before each model request (text-only turns, load ~25-30)",
+   "== 1 server: 1 mcp-discover per prompt, 103-185 ms to first model request; 6 servers: 6 per prompt, 154-232 ms",
+   "",
+   "## CI @9b488679",
+   "-- 21 pass, 1 fail (Hosted process fault gates / MySQL 8.4 = B1); Test, Lint, MariaDB, Java matrix green"
+  ],
+  "notes": [
+   {
+    "tone": "",
+    "text": "The rename removes the duplicate-version crash; the remaining ordering rule is worth stating in the PR. X7 is the main gap: the refresh-before-inference wiring that fixes F2 is only proven end to end, not by a unit test."
+   }
+  ]
+ }
+]
