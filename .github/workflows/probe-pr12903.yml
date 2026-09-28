@@ -1,0 +1,73 @@
+name: 'probe-pr12903'
+on:
+  push:
+    branches: ['probe/pr12903-**']
+permissions:
+  contents: 'read'
+jobs:
+  windows:
+    runs-on: 'windows-2022'
+    timeout-minutes: 50
+    steps:
+      - shell: 'powershell'
+        run: 'git config --global core.autocrlf false'
+      - uses: 'actions/checkout@v4'
+      - name: 'Point temp at a short-alias-free directory'
+        shell: 'powershell'
+        run: |-
+          $temp = Join-Path $env:RUNNER_WORKSPACE 'qwen-code-temp'
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+          "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: 'actions/setup-node@v4'
+        with:
+          node-version: '22.x'
+      - name: 'Install (prepare builds and bundles)'
+        shell: 'bash'
+        run: 'corepack pnpm install --frozen-lockfile --reporter=append-only'
+      - name: 'Ensure build output and the base arm'
+        shell: 'bash'
+        run: |-
+          mkdir -p probe-out
+          if [ ! -f dist/cli.js ] || [ ! -f packages/cli/dist/src/config/managed-compatibility.js ]; then npm run build && npm run bundle; fi
+          ls -la dist/cli.js packages/cli/dist/src/config/managed-compatibility.js
+          grep -c 'depends on the working directory' packages/cli/dist/src/config/managed-compatibility.js
+          cp -r packages/cli/dist packages/cli/dist-base
+          cp .probe/base-dist/*.js packages/cli/dist-base/src/config/
+          echo "base arm marker count (expect 0): $(grep -c 'depends on the working directory' packages/cli/dist-base/src/config/managed-compatibility.js)"
+          { echo "head=$(git rev-parse HEAD) parent=$(git rev-parse HEAD^)"; node -v; cmd.exe /c ver; } | tee probe-out/env.txt
+      - name: 'Targeted suites (cli)'
+        if: '${{ !cancelled() }}'
+        shell: 'bash'
+        env:
+          HOME: '${{ runner.temp }}/qwen-ci-home'
+          USERPROFILE: '${{ runner.temp }}/qwen-ci-home'
+          NO_COLOR: 'true'
+        run: |-
+          mkdir -p "$HOME"
+          cd packages/cli
+          set +e
+          npx vitest run src/config/managed-compatibility.test.ts src/config/settings-snapshot.test.ts src/config/storage-paths-lite.test.ts src/config/read-config-file.test.ts --coverage.enabled=false 2>&1 | tee ../../probe-out/cli-tests.txt
+          echo "PROBE_JSON {\"suite\":\"cli\",\"exit\":${PIPESTATUS[0]}}" | tee -a ../../probe-out/cli-tests.txt
+      - name: 'Targeted suites (core)'
+        if: '${{ !cancelled() }}'
+        shell: 'bash'
+        env:
+          HOME: '${{ runner.temp }}/qwen-ci-home'
+          USERPROFILE: '${{ runner.temp }}/qwen-ci-home'
+          NO_COLOR: 'true'
+        run: |-
+          mkdir -p "$HOME"
+          cd packages/core
+          set +e
+          npx vitest run src/extension/extension-store.test.ts --coverage.enabled=false 2>&1 | tee ../../probe-out/core-tests.txt
+          echo "PROBE_JSON {\"suite\":\"core\",\"exit\":${PIPESTATUS[0]}}" | tee -a ../../probe-out/core-tests.txt
+      - name: 'Real-environment probe'
+        if: '${{ !cancelled() }}'
+        shell: 'bash'
+        run: 'node .probe/win-probe.mjs 2>&1 | tee probe-out/win-probe.txt'
+      - uses: 'actions/upload-artifact@v4'
+        if: '${{ !cancelled() }}'
+        with:
+          name: 'probe-out'
+          path: 'probe-out'
