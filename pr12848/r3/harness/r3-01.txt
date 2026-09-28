@@ -1,0 +1,22 @@
+#12848 round 3 at d00068fd: the Java follow-up holds; a reload bug in the Hosted Shell path
+d00068fd = b89b7b38 + RuntimeBrokerHttpServer only (TS bundle identical); MySQL 8.4.7, fixture + real qwen3.8-max
+
+## d00068fd itself
+++ Broker 374 (Java<->TS interop test executed), managed-agent-server 139/139, checkstyle; CI green on this head
+++ author's six-Workspace driver on fresh MySQL 47.9 s; mysqld restart + reader: HOSTED_SHELL_RETAINED_OUTPUT_OK
+++ mutation of the change 3/4 killed (alive: cancelRequested fallback, redundant where tested)
+== 45 s command and a cancel at 35 s never make the record UNKNOWN here -> the new branch is unit-test-only
+## Sandbox Finding 1 ("a second Shell turn cannot install its publisher") - not for consecutive turns
+++ Shell x3 in one Session: runtime sessions 5b732bda / 4a459571 / a139f248, ONE worker process, all complete
+## F4 (new): once a Session has any turn, reload -> first Shell turn is recovery-blocked; command never runs
+   scenario, one Hosted Session                 782c1774   d00068fd   candidate
+   Shell, detach+load, Shell                    BLOCKED    BLOCKED    ok
+   text turn, detach+load, Shell                   -       BLOCKED    ok
+   Shell, Harness restart + load, Shell            -       BLOCKED    ok
+   real model: Shell, detach+load, Shell           -       BLOCKED    ok   (then every prompt: 409 recovery_required)
+   Shell x3 | file, reload, file | reload first   ok        ok        ok
+!! cause: commitAwaitRuntimeBatch relabels {...previous.identity, ...turn} -> keeps the OLD activationId;
+!!        the owner's Shell prepare rejects checkpoint.identity.activationId !== this.activation.activationId
+!!        (the clause round-1 mutant C4 deleted without any test noticing)
+++ candidate: add activationId: this.activation.activationId to that relabel (+ a core regression test that
+++ fails before / passes after); core 45/45, CLI 912/912, author's driver on the candidate bundle passes

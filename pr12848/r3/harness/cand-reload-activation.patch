@@ -1,0 +1,60 @@
+diff --git a/packages/core/src/managed-runtime/managed-harness-factory.test.ts b/packages/core/src/managed-runtime/managed-harness-factory.test.ts
+index 712d19fa11..f6331dd1a8 100644
+--- a/packages/core/src/managed-runtime/managed-harness-factory.test.ts
++++ b/packages/core/src/managed-runtime/managed-harness-factory.test.ts
+@@ -660,6 +660,32 @@ describe('managed harness factory', () => {
+     await session.close();
+   });
+ 
++  it('binds a relabelled await_runtime checkpoint to the committing activation', async () => {
++    const session = await open(await createWorkspace());
++    const first = createManagedHarnessHandle(session);
++    await first.ensureRunnable();
++    await settleTurnComplete(session);
++    const previous = session.activation.activationId;
++    await first.detach();
++    const activation = await session.replaceActivation();
++    expect(activation.activationId).not.toBe(previous);
++    const next = createManagedHarnessHandle(session);
++    await next.ensureRunnable();
++    await next.commitAwaitRuntimeBatch([await runtimeCommit(session)], {
++      turnId: 'reloaded-turn',
++      promptId: 'reloaded-prompt',
++    });
++    const wait = parseHarnessCheckpointV1(
++      (await session.authority.readCheckpointState())!,
++    );
++    expect(wait.identity).toMatchObject({
++      activationId: activation.activationId,
++      turnId: 'reloaded-turn',
++      promptId: 'reloaded-prompt',
++    });
++    await session.close();
++  });
++
+   it('commits a Runtime batch before reverse-order settlement without losing an outcome', async () => {
+     const session = await open(await createWorkspace());
+     const handle = createManagedHarnessHandle(session);
+diff --git a/packages/core/src/managed-runtime/managed-harness-factory.ts b/packages/core/src/managed-runtime/managed-harness-factory.ts
+index 734f457c24..2df574240c 100644
+--- a/packages/core/src/managed-runtime/managed-harness-factory.ts
++++ b/packages/core/src/managed-runtime/managed-harness-factory.ts
+@@ -572,8 +572,17 @@ class LocalManagedHarnessHandle implements ManagedHarnessHandle {
+           };
+         });
+         const checkpoint = createAwaitRuntimeHarnessCheckpoint({
++          // The relabelled checkpoint is committed by this activation, even
++          // when the settled checkpoint it follows came from an earlier one.
+           previous: turn
+-            ? { ...previous, identity: { ...previous.identity, ...turn } }
++            ? {
++                ...previous,
++                identity: {
++                  ...previous.identity,
++                  ...turn,
++                  activationId: this.activation.activationId,
++                },
++              }
+             : previous,
+           ...identity,
+           attempt: previous.attempt ?? {
