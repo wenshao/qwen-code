@@ -1,0 +1,83 @@
+[
+ {
+  "name": "r6-01-status",
+  "title": "Round 6 @ b0b1f51e on the full real stack: R1-3 fixed, regression clean, two new findings on the O2 path",
+  "subtitle": "PR head as-is (02ce0a62 merges main incl. #12848; b0b1f51e keeps the Tool v3 preview verbatim); fresh MySQL 8.4.7 schema; Broker, worker and Harness processes; OSS double; fault proxy",
+  "lines": [
+   "## Fixed",
+   "++ R1-3  output that starts with the truncation sentence is kept verbatim (O2 and local, exit 0 and 1; marker x2, exit code visible)",
+   "",
+   "## Regression (all pass)",
+   "== O2     echo 2/2 | 100 MiB + 5 MiB exit 7 exact | 1 GiB exact | crash after receipt -> 1 run | lost segment | lost admission reply",
+   "==        control chars + crash after receipt | reload, then a second Shell turn",
+   "== local  (#12848 path, no captureBytes) echo 2/2 | 100 MiB + 5 MiB exit 7 | reload, then a second Shell turn",
+   "== mixed  2 O2 + 2 local Sessions x 64 MiB at once: 4/4, 0 deadlocks, 0 EmptyResultDataAccessException",
+   "== author's six-Workspace driver: 3/3 on unused storage roots (host load 41-69)",
+   "",
+   "## New on this head",
+   "-- R6-1  O2 Shell output from about 63 KB up: the model gets a 387 B summary with no output and no exit code",
+   "--        (exit 2 is reported as executionStatus \"success\"); the local path keeps 8.3 KB and the exit code",
+   "-- R6-2  every load replays every past O2 Shell receipt: 80 past calls -> 137 s load, 26,106 Store requests,",
+   "--        80 Broker ACKs answered 404, 80 warnings; local path with 40 past calls loads in 278 ms",
+   "",
+   "## Deferred gates (unchanged)",
+   "!! crash after /admissions/prepare -> new Harness load 409 hosted_turn_recovery_required for 152 s",
+   "!! read_file(<absolute path from pwd>) -> turn_error: real qwen3.8-max O2 1/4, local 2/2"
+  ],
+  "note": "The first six-Workspace run failed its write step with 'Successfully overwrote file' because I reused a storage root that still held proof.txt from an earlier round. On unused roots the driver passed 3/3, so this was my rig, not the PR.",
+  "noteColor": "#3fb950"
+ },
+ {
+  "name": "r6-02-preview",
+  "title": "R6-1: on the O2 path, Shell output above about 63 KB reaches the model as a summary without output or exit code",
+  "subtitle": "Bytes of the tool message received by the fake model. Same fixtures on the O2 path (captureBytes set) and the #12848 local path; a7c0a391 = round 5 on O2",
+  "lines": [
+   "## Fixture                                   a7c0a391 O2        b0b1f51e O2                           b0b1f51e local",
+   "== stdout only, 58,368 B                     4,075 B  exit ok   58,686 B  exit ok                     8,310 B  exit ok",
+   "== stdout only, 62,000 B                     -                  62,318 B  exit ok                     -",
+   "-- stdout only, 64,000 / 66,000 / 80,000 B   -                  387 B  no output, no exit code        -",
+   "-- stdout only, 200 KB                       -                  387 B  no output, no exit code        8,310 B  exit ok",
+   "== 200 KB stdout + 2,000 B stderr, exit 2    -                  59,837 B  exit ok, [Recent stderr]    8,308 B  exit ok",
+   "-- 200 KB stdout + 8,000 B stderr, exit 2    -                  385 B  no output, no exit code        8,308 B  exit ok",
+   "-- 200 KB stdout + 39 KB CJK stderr, exit 2  8,711 B  exit ok   385 B  no output, no exit code        8,308 B  exit ok",
+   "== 30,000-line log + stderr error, exit 3    4,075 B  exit ok   57,753 B  exit ok, error line         8,308 B  exit ok, error line",
+   "",
+   "## What the model receives for the 200 KB + CJK stderr fixture (exit 2) on b0b1f51e O2",
+   ">> {\"executionStatus\":\"success\",\"captureStatus\":\"complete\",\"manifestRef\":{\"resourceId\":\"result-9029...\",",
+   ">>  \"kind\":\"managed-tool-result-manifest\",...},\"previewTruncated\":true,\"outputOmitted\":true,",
+   ">>  \"summary\":\"The Shell result was saved in its immutable capture.\"}",
+   "",
+   "## Why",
+   "== main's shell.ts:3178 skips the generic truncateToolOutput when rawCapture is set, so the O2 preview is now up to 64 KiB raw.",
+   "== The serialized tool_result then exceeds the 64 KiB inline limit, and hosted-workspace-tool-turn.ts:973-993 replaces it",
+   "== with the summary. The local path bounds its preview first (managed-shell-publisher.ts:133, 8 KiB head + tail)."
+  ],
+  "note": "Real qwen3.8-max avoided it 3/3 with a 125 KB stdout-only script by piping to tail, so that output never reached the model. Commands whose output is not tailed are affected. When the preview does fit, the model now reads up to 62 KB per call, where round 5 gave 4-9 KB.",
+  "noteColor": "#f85149"
+ },
+ {
+  "name": "r6-03-load",
+  "title": "R6-2: Session load time grows with the square of past O2 Shell calls",
+  "subtitle": "One Session runs N small Shell turns (echo to stdout and stderr), then detach + load. Store requests counted at the fault proxy; ACKs at the Broker proxy",
+  "lines": [
+   "## Past Shell calls    path    load time            Store requests   GET /resources   Broker ACKs (404)   warnings",
+   "== 1                   O2      186 ms               17               -                1 (1)               1",
+   "== 5                   O2      1,349 ms             137              -                5 (5)               5",
+   "== 10                  O2      4,401 ms             468              -                10 (10)             10",
+   "-- 20                  O2      15.8 s / 31.2 s      1,729 / 1,731    1,703            20 (20)             20",
+   "-- 40                  O2      32.5 s / 56.7 s      6,653 / 6,654    6,603            40 (40)             40",
+   "-- 80                  O2      137.0 s              26,106           26,003           80 (80)             80",
+   "++ 1 / 10 / 40         local   37 / 77 / 278 ms     6 / 7 / 10       -                0                   0",
+   "",
+   "== GET /resources = (N + 1) x 4N, plus a few: 21x80 = 1,680, 41x160 = 6,560, 81x320 = 25,920",
+   "",
+   "## Why (hosted-harness-session.ts, from fe4118f2)",
+   "== recoverShellReceipts() collects every tool.receipt since sequence 1, settled turns included (lines 150-168).",
+   "== For each one (line 171) it calls sink.project(), which reads every message resource of the Session (line 203),",
+   "== and then sends a Broker ACK (lines 244-253). For a settled call the tool session is already released,",
+   "== so the ACK returns 404 runtime_session_not_found and logs 'Tool v3 ACK failed during recovery'."
+  ],
+  "note": "The two O2 runs ran at different host load (30-90 and 17-36), so their times differ; the request counts match. The /load request blocks the whole time. If the square holds, 300 past Shell calls would mean about 361,000 resource reads per load.",
+  "noteColor": "#f85149"
+ }
+]
