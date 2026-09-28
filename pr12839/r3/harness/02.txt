@@ -1,0 +1,19 @@
+F7  A transient fault while a managed placement starts blocks the whole Workspace
+A4: managed-context rig (W0c-3 boot v2, isolation per Hosted Session); FaultProxy resets ONE /attest during startup
+
+## same probe on the design-only head 353b6526 and on 9e42875b
+   harness-1 warm (setup)                    -> READY                                   (both)
+   inject: next attest exchange reset once
+   harness-2 warm (first start, fault)       -> 503 runtime_provision_failed retryable=false (both)
+   harness-2 warm again                      -> 409 runtime_broker_recovery_blocked     (both: pre-existing)
+   353b6526  harness-3 (new Session, same Workspace)   -> READY
+-- 9e42875b  harness-3 (new Session, same Workspace)   -> 409 runtime_placement_recovery_required
+   harness-1 (existing placement)            -> READY                                   (both)
+   rows: harness-1 READY, harness-2 RECOVERY_BLOCKED
+== 3/3 runs identical on 9e42875b
+!! The failed start's worker is destroyForcibly()'d by the provisioner before any lease is recorded or any
+!! Session context is installed, so no tool could have run. blocksPlacement still treats that
+!! RECOVERY_BLOCKED row as an unreclaimed domain, and nothing in production clears it.
+
+## F5  README inventory query on the U1 upgrade database (old Broker crash, then new initializer)
+++ inventory -> [tenant-a=1]; new tenant-a placement 409 recovery_required; tenant-b READY (as documented)

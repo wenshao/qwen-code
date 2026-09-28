@@ -1,0 +1,19 @@
+Round 3: F4 and F6 fixed, F1/F2 still hold
+Head 9e42875b12; same probe files as round 2 plus new ones; 3/3 runs identical
+
+++ runtime-broker 381 run, 0 fail, 2 conditional skips; real-worker case 15/15; fault gates 28/28; TS 44/44
+++ F6: test merge with main 0a136f89 (V14 main, V15 main java, V16 this PR): managed-agent-server 139/139
+
+## F4  one attest exchange reset / delayed on a healthy owned worker
+   727aafb4  binding LOST forever; worker leaked; new placements of tenant 409 recovery_required
+++ 9e42875b  A1 reset: warm #1 503 managed_runtime_unavailable, binding stays READY; warm #2..#4 READY
+++ 9e42875b  A1 create on the Session runs; release ok; tenant-a/workspace-b and tenant-b both READY
+++ 9e42875b  A3 12 s slow attest: warm #1 503 after 10 s, READY kept; warm #2 READY; create runs
+++ 9e42875b  A2 session isolation: harness-1 recovers; new harness-3 / harness-4 READY
+## A5  worker SIGSTOPped (alive, silent), then SIGCONT
+   353b6526  warm -> FAILED, generation 2 started beside the stopped worker; call on old Session UNKNOWN
+++ 9e42875b  warm #1/#2 503 after 10 s each, binding READY; after SIGCONT warm READY, call SETTLED success
+## Loss paths unchanged
+++ B1 worker killed: LOST, call ABANDONED, no replacement.  C1 stale release 503 / create 409 admission_closed
+++ C2 deferred call (#12831 prepare/start): PREPARED -> ABANDONED at loss; stale start 409 admission_closed;
+++    same-key prepare returns the ABANDONED receipt; nothing ran

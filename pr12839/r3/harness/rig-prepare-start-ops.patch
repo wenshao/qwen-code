@@ -1,0 +1,43 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerProcess.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerProcess.java
+index 1862fcb9a6..5ae2765f8d 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerProcess.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerProcess.java
+@@ -120,6 +120,20 @@ final class BrokerProcess implements AutoCloseable {
+                 execution);
+     }
+ 
++    Reply prepare(String harness, String runtimeSession, String key,
++            Map<String, Object> reference) {
++        return call("prepare", Map.of("harness", harness,
++                "runtimeSession", runtimeSession, "key", key,
++                "reference", reference));
++    }
++
++    Reply start(String harness, String runtimeSession, String execution,
++            String payload) {
++        return call("start", Map.of("harness", harness,
++                "runtimeSession", runtimeSession, "execution", execution,
++                "payload", payload));
++    }
++
+     Reply release(String harness, String runtimeSession) {
+         return call("release", Map.of("harness", harness,
+                 "runtimeSession", runtimeSession));
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateBroker.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateBroker.java
+index e733f1f75e..70c485ded5 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateBroker.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateBroker.java
+@@ -161,6 +161,13 @@ final class FaultGateBroker {
+                                 execution(reconciliation.getRecord()));
+                         return value;
+                     });
++            case "prepare" -> service.prepareExecution(harness, session,
++                    command.getString("key"),
++                    command.getJSONObject("reference"))
++                    .thenApply(FaultGateBroker::execution);
++            case "start" -> service.startExecution(harness, session,
++                    execution, command.getString("payload"))
++                    .thenApply(FaultGateBroker::execution);
+             case "release" -> service.release(harness, session)
+                     .thenApply(released -> released);
+             default -> throw new IllegalArgumentException(
