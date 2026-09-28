@@ -1,0 +1,37 @@
+[
+ {
+  "name": "r5-01-status",
+  "title": "Round 5 @ a7c0a391 on the full real stack: stderr preview fixes hold; regression clean; deferred gates unchanged",
+  "subtitle": "PR head as-is; since 678420df only shellExecutionService.ts changed (Java jar identical); fresh MySQL 8.4.7 schema; Broker, worker and Harness processes; OSS double; fault proxy",
+  "lines": [
+   "## Model-visible preview through the Hosted Shell (worker preview + model input checked)",
+   "++ 30,000-line log (~1.1 MB), error on stderr        error line visible 2/2            (round 3: missing 2/2)",
+   "++ 200 KB stdout + 39 KB CJK stderr                  [Recent stderr] clean for window starts on 0, 1 and 2 continuation bytes;",
+   "++                                                    0 x U+FFFD, final CJK line present (F1)",
+   "++ stdout-only 58,368 B                              worker preview complete, no 'middle omitted' marker (F2)",
+   "!! 58,000 B stdout + short stderr (57-64 KiB band)   error line rendered twice (F3; author deferred as cosmetic)",
+   "== CJK stdout 4,000 lines + stderr                   one odd char at the shared-tail cut; error line visible",
+   "== note: the Hosted model input is further cut to ~4 KB head+tail by the generic tool-output truncation",
+   "",
+   "## Regression on this head (all pass)",
+   "== echo 2/2 | 100 MiB + 5 MiB exit 7 exact | 1 GiB exact | 4 sessions x 256 MiB concurrent 4/4 | 0 deadlocks, 0 EmptyResult",
+   "== crash after receipt -> 1 continuation, ACK 200 | lost segment request -> complete | lost admission reply -> complete",
+   "== control chars + crash after receipt -> recovery ACK 200",
+   "",
+   "## Real qwen3.8-max",
+   "++ 30,000-line failing build: 2/2 complete, error quoted (both redirected output to /tmp, so not a preview test)",
+   "!! 3,000-line failing build: 2/4 complete; 2/4 turn_error from read_file(<absolute path from pwd>) (deferred gate)",
+   "",
+   "## Deferred activation gates (author: keep the profile disabled until closed)",
+   "!! crash after /admissions/prepare -> new Harness load 409 hosted_turn_recovery_required for 150 s",
+   "!! absolute-path read_file -> whole-turn InvalidWorkspaceRelativePathError",
+   "!! B2 / B4 MySQL tests, M17 / M18 (history-id determinism, receipt-commit retry) still unpinned",
+   "",
+   "## Unit-test pins for a7c0a391 (5 mutants): 3 killed",
+   "-- survives: realign skips at most 1 continuation byte (the real stack shows the 2-byte case works; no test pins it)",
+   "-- survives: earlier stdout tail discarded when stderr first arrives (user-visible if it regressed)"
+  ],
+  "note": "The author’s file-tool driver timed out at its TEXT_ONLY step 3/3 this round with host load 42-60. CI is green, and in the round-3 A/B the driver passed 5/5 when load was 17-20. This is the same load pattern as rounds 2-3, so I do not attribute it to the PR.",
+  "noteColor": "#3fb950"
+ }
+]
