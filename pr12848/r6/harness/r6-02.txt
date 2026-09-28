@@ -1,0 +1,19 @@
+Round 6, head 20126bae: two more main merges, and the open brick is Workspace-wide
+8b64220b = + W0e recovery fences (#12839); 20126bae = + D4 durable Session lifecycle (#12881), merged by /resolve
+
+## The current head cannot start the managed-agent-server (main's bug, inherited)
+-- Flyway: Found more than one migration with version 16
+--   W0e V16__runtime_loss_evidence.sql + D4 V16__managed_session_operation.sql, both on main 48107945
+-- same failure in SDK Java's MariaDB and Hosted MySQL jobs on main and on this head
+++ D4's file renamed to V17 locally: HostedWorkspaceToolTurnIT 3/3 (144.7 s), Shell FG6b 6/6
+## W0e merge (8b64220b): the one conflict is resolved correctly
+== Broker cancel keeps the PR's exemption: an UNKNOWN runtimeProtocol-3 record is still forwarded
+++ IT 3/3 (FG6a 8 cases incl. status, FG6b 7), Shell FG6b 6/6, rig batch unchanged, real model OK
+== Shell command kills its own worker: before W0e -> workspace_busy; after -> binding LOST,
+==   runtime_placement_recovery_required. Other Workspaces unaffected either way
+## The open brick takes the whole Workspace, not only the Session
+-- after `cd . && sleep 20 >/dev/null 2>&1 & echo ok`, every NEW Session in that Workspace,
+--   Shell or files profile: turn_error, 409 workspace_busy (still so 40 min later, new Harness)
+-- managed_workspace_execution_lease keeps holder_key = the blocked turn; the table has no expiry
+-- D4 close/archive/delete refuse Workspace Sessions (409 workspace_unavailable): no API way out
+++ control: the Workspace whose background command completed serves new Sessions normally
