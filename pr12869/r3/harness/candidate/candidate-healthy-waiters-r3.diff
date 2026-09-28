@@ -1,0 +1,37 @@
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java	2026-09-28 11:53:19
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java	2026-09-28 16:28:32
+@@ -1546,6 +1546,8 @@
+             return CompletableFuture.completedFuture(record);
+         }
+         CompletableFuture<BindingContext> reservation = new CompletableFuture<>();
++        java.util.concurrent.atomic.AtomicReference<BindingContext> adopted =
++                new java.util.concurrent.atomic.AtomicReference<>();
+         if (bindingOperations.putIfAbsent(bindingId, reservation) != null) {
+             return failed(unavailable("runtime_reconcile_in_progress", "Runtime recovery is already in progress"));
+         }
+@@ -1585,7 +1587,10 @@
+                         if (observed.getOutcome() == RuntimeObservation.Outcome.READY
+                                 && current.getState() != RuntimeBindingRecord.State.DRAINING) {
+                             return adoptObservation(bindingId, claimed.getOperationGeneration(), observed)
+-                                    .thenApply(BindingContext::record);
++                                    .thenApply(context -> {
++                                        adopted.set(context);
++                                        return context.record();
++                                    });
+                         }
+                         if (observed.getOutcome() == RuntimeObservation.Outcome.CONFLICT) {
+                             blockRecovery(current);
+@@ -1602,6 +1607,13 @@
+                         liveBindings.remove(bindingId);
+                     }
+                     bindingOperations.remove(bindingId, reservation);
++                    BindingContext healthy = error == null ? adopted.get() : null;
++                    if (healthy != null) {
++                        // Waiters already resolved current authorization; a healthy
++                        // observation must not fail the request that ran into it.
++                        reservation.complete(healthy);
++                        return;
++                    }
+                     reservation.completeExceptionally(unavailable("runtime_reconciliation_required",
+                             "Maintenance observation completed; retry using current authorization"));
+                 });
