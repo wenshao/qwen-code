@@ -1,0 +1,18 @@
+Round 4: F7 fixed, earlier fixes hold
+Head 752bff4906 (0dd60d45 fix + two clean main merges; head contains main df9374d4); same probe files as round 3
+
+++ runtime-broker 382 run, 0 fail; real-worker case 15/15; fault gates 28/28; managed-agent-server 139/139; TS 44/44
+++ both main merges resolved with no conflict hunks (git show --remerge-diff); migrations V14, V15 (main), V16 (PR)
+
+## A4  one /attest reset during a managed-context placement's first start
+   harness-2 -> 503 runtime_provision_failed, then 409 runtime_broker_recovery_blocked (own placement)
+   9e42875b  harness-3 (new Session, same Workspace) -> 409 runtime_placement_recovery_required
+++ 752bff49  harness-3 (new Session, same Workspace) -> READY; rows harness-1 READY, harness-2 RECOVERY_BLOCKED,
+++           harness-3 READY
+## A6  same fault on a legacy placement's first start (legacy blocked rows still block the tenant)
+++ warm #1 503 managed_runtime_unavailable (retryable); row stays PROVISIONING; warm #2 -> READY; no block
+## Unchanged since round 3
+++ A1/A2/A3 transient or slow attest: READY kept, retry succeeds, other placements READY
+++ A5 SIGSTOPped worker: READY kept, recovers after SIGCONT, call SETTLED success
+++ B1 worker death: LOST + ABANDONED, no replacement.  C1 stale release 503 / create 409 admission_closed
+++ C2 deferred start after loss: 409 admission_closed.  U1 README inventory -> [tenant-a=1]

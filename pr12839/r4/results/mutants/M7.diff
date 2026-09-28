@@ -1,0 +1,26 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
+index b74cfab24b..49f1b88327 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
+@@ -38,7 +38,7 @@ public final class JdbcToolExecutionRepository
+         List<ToolExecutionRecord> batch = new ArrayList<>();
+         String sql = "SELECT " + EXECUTION_COLUMNS + " FROM qwen_tool_execution "
+                 + "WHERE binding_id = ? AND runtime_generation = ? "
+-                + "AND execution_state NOT IN ('SETTLED', 'ABANDONED') "
++                + "AND execution_state NOT IN ('ABANDONED') "
+                 + "ORDER BY execution_call_id_hash LIMIT 100 FOR UPDATE";
+         try (PreparedStatement statement = connection.prepareStatement(sql)) {
+             statement.setString(1, binding.getBindingId());
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
+index 5140442c81..1d91c8dff7 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
+@@ -269,7 +269,7 @@ public final class ToolExecutionRecord {
+     }
+ 
+     ToolExecutionRecord abandon(RuntimeBindingRecord binding, Instant time) {
+-        if (isTerminal() || binding.getState() != RuntimeBindingRecord.State.LOST
++        if (state == State.ABANDONED || binding.getState() != RuntimeBindingRecord.State.LOST
+                 || !bindingId.equals(binding.getBindingId())
+                 || runtimeGeneration != binding.getGeneration()
+                 || binding.getLossEvidence() == null) {

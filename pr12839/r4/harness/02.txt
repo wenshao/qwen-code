@@ -1,0 +1,22 @@
+Mutation check of the load-bearing guards
+One-line mutants in a separate worktree; unit suite (382), then the 28 fault gates for survivors; baseline clean
+
+## Bot question 1: release / retirement refused with loss evidence alone
+++ M1  hasStoppedWriters() = lossEvidence only                   KILLED  unit (5 fail, 2 err)
+++ M2  JDBC recoverLost stop gate removed                        KILLED  unit (JDBC contract)
+++ M3  in-memory recoverLost stop gate removed                   KILLED  unit (3 fail, 2 err)
+++ M4  RuntimeAdmission.requireRelease accepts loss evidence     KILLED  unit (3 fail)
+== M5  service cached-release precheck accepts loss evidence     survives unit + gates; masked by M4's
+==     layer: B1/C1 probes on M5 still get 503 runtime_reconciliation_required (equivalent at the API)
+## Bot question 2: a SETTLED result survives recovery unchanged
+++ M6  in-memory filter + abandon() guard both admit SETTLED     KILLED  unit
+++ M7  JDBC SQL filter + abandon() guard both admit SETTLED      KILLED  unit
+## Other W0e-1 guards
+++ M8  F7 exemption reverted (A4 behaviour of 9e42875b)          KILLED  unit (new ManagedContextRecoveryTest)
+++ M10 local canRetryFailedConfirm() = true                      KILLED  gates (ContextInstallationFaultGateTest)
+++ M12 admission fence ignores binding state                     KILLED  unit
+++ M13 identity failure no longer fences                         KILLED  unit
+-- M11 local canRetryFailedConfirm() = false (F4 fix reverted)   SURVIVES unit + all 28 gates
+--     A1/A3 probes on M11: binding LOST forever, tenant-a/workspace-b 409 recovery_required (round-2 bug)
+!! M9  F7 exemption also covers legacy rows                      survives unit + gates (low reachability:
+!!     A6 shows legacy start faults stay PROVISIONING)

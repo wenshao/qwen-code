@@ -1,0 +1,26 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
+index 159a84f156..4d2d950797 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
+@@ -28,7 +28,7 @@ public final class InMemoryToolExecutionRepository
+ 
+     synchronized void abandonByBinding(RuntimeBindingRecord binding) {
+         recordsById.values().stream()
+-                .filter(record -> !record.isTerminal())
++                .filter(record -> record.getState() != ToolExecutionRecord.State.ABANDONED)
+                 .filter(record -> record.getBindingId().equals(binding.getBindingId())
+                         && record.getRuntimeGeneration() == binding.getGeneration())
+                 .sorted(Comparator.comparing(ToolExecutionRecord::getExecutionCallId))
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
+index 5140442c81..1d91c8dff7 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRecord.java
+@@ -269,7 +269,7 @@ public final class ToolExecutionRecord {
+     }
+ 
+     ToolExecutionRecord abandon(RuntimeBindingRecord binding, Instant time) {
+-        if (isTerminal() || binding.getState() != RuntimeBindingRecord.State.LOST
++        if (state == State.ABANDONED || binding.getState() != RuntimeBindingRecord.State.LOST
+                 || !bindingId.equals(binding.getBindingId())
+                 || runtimeGeneration != binding.getGeneration()
+                 || binding.getLossEvidence() == null) {
