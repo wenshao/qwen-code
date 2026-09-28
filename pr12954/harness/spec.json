@@ -1,0 +1,74 @@
+[
+ {
+  "name": "01-gate-matrix",
+  "title": "FG6f Shell output gates — unmodified gate on the real stack",
+  "subtitle": "PR #12954 @ 225c6008 · packaged Hosted Harness + production Broker/worker + HTTP Session Store · deterministic local model",
+  "lines": [
+   "## Where                                       Result",
+   "++ native MySQL 8.4.7 (macOS arm64)            4/4 cases 35.2 s · 4 repeats 4/4 (41–45 s, load avg 28–76)",
+   "++ MariaDB 10.11.18 (container)                4/4 cases 36.6 s · 4 repeats 4/4 (42–59 s, load avg 24–38)",
+   "++ mysql:8.4.6 = CI image, CI's exact command  -Phosted-harness-mysql clean verify checkstyle:check",
+   "                                               178 unit · HostedWorkspaceToolTurnIT 6/6 152.8 s (FG6f 34.5 s)",
+   "                                               HostedProcessCrashIT + HostedHarnessMySqlIT green · Checkstyle 0 · failsafe audit OK",
+   "++ GitHub CI job 109056353459 (ubuntu, 8.4.6)  FG6F_DATABASE 8.4.6 + 4× FG6F + 4× FG6F_LEDGER (17:55:24→17:56:00)",
+   "                                               Verify step 5 min 39 s of its 12 min budget",
+   "",
+   "## Independent SQL readback (my queries, MySQL run 1)",
+   "   case             execution        disp  receipt-tx  outcome  manifest  content       checkpoint     lease",
+   "   publisher-kill   UNKNOWN, no res  1     0           0        0         1 (1 MiB)     await_runtime  held",
+   "   worker-kill      UNKNOWN, no res  1     0           0        0         1 (1 MiB)     await_runtime  held",
+   "   receipt-failure  UNKNOWN, no res  1     0           0        1         5             await_runtime  held",
+   "   receipt-reply    UNKNOWN, no res  1     1           1        1         5             await_runtime  held",
+   "",
+   "== scoped SQL trigger after every run (pass or fail): 0 · leftover Harness/worker/Shell processes after every run: 0"
+  ],
+  "note": "Every claim in the PR's test plan reproduced on three database builds and in CI; process-loss cases keep exactly the durable 1 MiB prefix, the rejected receipt transaction leaves no receipt and no outcome, the lost-reply receipt leaves exactly one of each."
+ },
+ {
+  "name": "02-mutants",
+  "title": "Mutants — does the gate fail when a production guard is removed?",
+  "subtitle": "per case with -Dqwen.fg6f.case on MySQL 8.4.7 · cross-run: 147 CLI serve + 1,719 core managed-runtime tests; Java module tests for S1/B1",
+  "lines": [
+   "## id    production change                                   PK    WK    RF    RR    unit suites",
+   "-- A1    cold load ignores hasUnsettledInput (author)        KILL  KILL  KILL  KILL  survive",
+   "-- A2    worker settles on acceptance failure (author)       ·     ·     KILL  KILL  1 test",
+   "== T3    cold load ignores restore.recoveryStatus            surv  surv  surv  surv  survive (redundant half)",
+   "-- A1T3  whole cold-load guard removed                       KILL  KILL  KILL  KILL  survive",
+   "== H1    Harness settles recovery-required turn as error     ·     equiv equiv equiv survive (finish() re-raises)",
+   "-- H2    Harness calls Broker release after UNKNOWN          ·     KILL  KILL  KILL  4 tests",
+   "-- S1    Store commit non-atomic (noRollbackFor)             ·     ·     KILL  ·     4 Java tests",
+   "-- B1    Broker settles lost dispatch with synthetic error   KILL  KILL  KILL  KILL  27/394 Java tests",
+   "!! H2B   H2 + driver blind to release                        ·     KILL  ·     KILL  Broker refuses release itself",
+   "",
+   "## where the gate fails",
+   "   A1, A1T3  driver:376 cold load 200 ≠ 409",
+   "   A2, B1    Java probe: [unaccepted Shell capture cannot settle Broker execution] \"SETTLED\" ≠ \"UNKNOWN\"",
+   "   H2        driver:136 assert.notEqual(operation, 'release')",
+   "   H2B       Broker 503 runtime_reconciliation_required / 409 on release → driver status check; lease still held",
+   "   S1        Java SQL oracle: managed-tool-outcome expected size 0 but was 1 (orphan REFERENCED row, no receipt)",
+   "",
+   "== · = mutated path unreachable in that case (no acceptance / no failing commit / Harness already SIGKILLed)"
+  ],
+  "note": "Author's A1/A2 reproduced (A1 also kills both receipt cases). Only this gate family catches A1/A1T3 — no unit test pins the cold-load refusal. H1 is equivalent: uncertain=true before dispatch makes finish() re-raise recovery-required."
+ },
+ {
+  "name": "03-probes-merge",
+  "title": "Extra probes and merge outlook",
+  "subtitle": "not part of the PR — driver copy with Java assertions untouched · trial merges built and run",
+  "lines": [
+   "## SIGTERM instead of SIGKILL for the recovery-blocked Harness (MariaDB)",
+   "++ 4/4 green · Harness exit 0 in 109 / 16 / 15 ms (worker-kill / receipt-failure / receipt-reply)",
+   "++ Broker ops seen: warm, acquire, publisher, prepare, start, status×N, cancel — no release, no acknowledge",
+   "++ cold load in a new Harness still 409 · owner retained · execution UNKNOWN",
+   "",
+   "## Merge",
+   "++ PR ⊕ main 9f6138ae                      clean",
+   "!! PR ⊕ #12945 (Hosted latency baseline)   1 file, 2 hunks in HostedWorkspaceToolTurnIT.java",
+   "                                           (marker ternary chain + per-Workspace report dispatch) — keep both branches",
+   "++ resolved tree, whole class on MySQL     7/7 in 180.4 s (FG6f 32.3 s, latency 33.0 s)",
+   "!! focused -Phosted-workspace-tools        forkedProcessTimeoutInSeconds 210 → ~86% used at load ~30",
+   "==                                         CI uses -Phosted-harness-mysql (600 s): whole Hosted fork ≈ 300 s"
+  ],
+  "note": "Graceful shutdown does not weaken block-and-never-replay. The #12945 conflict is mechanical; the tested resolution is on the assets branch for whichever PR lands second."
+ }
+]

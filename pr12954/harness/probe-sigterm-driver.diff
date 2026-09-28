@@ -1,0 +1,25 @@
+--- wt-pr/integration-tests/helpers/hosted-shell-output-driver.ts	2026-09-29 01:46:46
++++ wt-probe/integration-tests/helpers/hosted-shell-output-driver.ts	2026-09-29 02:07:27
+@@ -14,6 +14,7 @@
+ import path from 'node:path';
+ import { fakeToolCall, startFakeOpenAIServer } from '../fake-openai-server.js';
+ import { HostedHarnessProcess, waitUntil } from './hosted-harness-process.js';
++import { stopDaemon } from './daemon-process.js';
+ 
+ const configPath = process.argv[2];
+ const config = JSON.parse(await readFile(configPath, 'utf8')) as {
+@@ -350,7 +351,13 @@
+         60_000,
+       );
+       assert.equal((await json(route + '/status')).recoveryBlocked, true);
+-      await killHarness();
++      if (process.env['FG6F_PROBE'] === 'term') {
++        const child = cli.child!;
++        const t0 = Date.now();
++        await stopDaemon(child);
++        console.log('PROBE_TERM ' + current.fault + ' exit=' + child.exitCode + ' signal=' + child.signalCode + ' ms=' + (Date.now() - t0) + ' ops=' + JSON.stringify(current.operations));
++        current.signals.push({ process: 'harness', pid: child.pid, signal: child.signalCode ?? 'exit:' + child.exitCode });
++      } else await killHarness();
+     }
+     await waitUntil(
+       async () => (await control('state')).state !== 'EXECUTING',

@@ -1,0 +1,39 @@
+--- results/IT-conflicted.java	2026-09-29 02:17:36
++++ assets/pr12954/harness/HostedWorkspaceToolTurnIT.merged-with-12945.java	2026-09-29 02:17:36
+@@ -287,13 +287,10 @@
+                     assertThat(driver.waitFor(faults || latency ? 130 : 270, TimeUnit.SECONDS)).as("Driver timeout: %s", Files.readString(log)).isTrue();
+                     assertThat(driver.exitValue()).as("Driver output: %s", Files.readString(log)).isZero();
+                     System.out.println(Files.readString(log));
+-<<<<<<< refs/pr/12954
+-                    assertThat(Files.readString(log)).contains(shellOutput ? "HOSTED_SHELL_OUTPUT_FAULTS_OK" : sseGaps ? "HOSTED_SSE_GAP_OK" : cancellations ? "HOSTED_CANCELLATION_OK"
+-=======
+                     assertThat(Files.readString(log)).contains(latency ? "HOSTED_LATENCY_OK"
++                            : shellOutput ? "HOSTED_SHELL_OUTPUT_FAULTS_OK"
+                             : sseGaps ? "HOSTED_SSE_GAP_OK"
+                             : cancellations ? "HOSTED_CANCELLATION_OK"
+->>>>>>> refs/pr/12945
+                             : storeFaults ? "HOSTED_STORE_FAILURES_OK"
+                             : faults ? "HOSTED_REPLY_LOSS_OK" : "HOSTED_WORKSPACE_TOOLS_OK");
+                     JsonNode reports = faults ? new ObjectMapper().readTree(
+@@ -301,10 +298,6 @@
+                     if (faults && cases.contains("status")) assertThat(statusGate.isDone()).isTrue();
+                     for (int index = 0; index < workspaces.size(); index++) {
+                         Path workspace = workspaces.get(index);
+-<<<<<<< refs/pr/12954
+-                        if (shellOutput) shellProbe.assertReport(sessions.get(index), reports.get(index));
+-                        else if (sseGaps) sseProbe.assertReport(reports.get(index));
+-=======
+                         if (latency) {
+                             boolean tool = cases.get(index).equals("tool");
+                             if (tool) assertThat(Files.readString(workspace.resolve("child/proof.txt"))).isEqualTo("latency-proof");
+@@ -321,8 +314,8 @@
+                             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM qwen_managed_session_journal_tx"
+                                     + " WHERE tenant_id = ? AND session_id = ? AND operation = 'settleTurn'",
+                                     Integer.class, tenant, sessions.get(index).get("sessionId"))).isEqualTo(1);
+-                        } else if (sseGaps) sseProbe.assertReport(reports.get(index));
+->>>>>>> refs/pr/12945
++                        } else if (shellOutput) shellProbe.assertReport(sessions.get(index), reports.get(index));
++                        else if (sseGaps) sseProbe.assertReport(reports.get(index));
+                         else if (cancellations) cancellationProbe.assertReport(sessions.get(index), reports.get(index));
+                         else if (faults) assertFaultLedger(jdbc, tenant, sessions.get(index), index, reports.get(index), storeFaults);
+                         else if (index < 2) assertThat(Files.readString(workspace.resolve("child/proof.txt"))).isEqualTo("after");
