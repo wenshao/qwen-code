@@ -1,0 +1,16 @@
+{
+  "title": "F1 is unchanged at 9a1de09e: the scan still refuses healthy requests and blocks the Hosted Session",
+  "subtitle": "PR #12869 · W0e-3 commit has the same patch-id as in round 1 · Hosted Harness and worker rebuilt from this head (the base brought a retry for prepare, not for acquire)",
+  "blocks": [
+    { "label": "healthy turns, 180 s each (one turn = warm + acquire + execute + release)", "table": [
+      ["server", "trusted-local-reboot-recovery", "turns", "refused", "what the refused request got"],
+      ["9a1de09e (PR head)", "true", "470", "-- 5   (all warm)", "503 runtime_reconciliation_required"],
+      ["9a1de09e (PR head)", "false", "411", "++ 0", ""],
+      ["9a1de09e + candidate", "true", "433", "++ 0", ""]
+    ] },
+    { "label": "refusals, option on", "pre": "09:05:45.816Z warm · 09:07:47.339Z warm · 09:08:07.876Z warm · 09:08:28.207Z warm · 09:08:43.526Z warm\n== fewer turns than in round 1 because the machine under the VM was busier (load 40-60); the refusal rate is the same order (0.5-1 %)" },
+    { "label": "full chain at 9a1de09e: packaged Hosted Harness + scripted model; turn 2's acquire is delivered unchanged while the scan holds its claim", "pre": "++ turn 1   admit=202  turn_complete(end_turn)  recoveryBlocked=false\n-- turn 2   admit=202  no terminal event        recoveryBlocked=true      acquire -> 503 runtime_reconciliation_required\n-- turn 3   admit=409  hosted_turn_recovery_required\n== Broker side afterwards: binding READY, generation 1, worker alive, no holder" },
+    { "label": "same delivery, candidate re-applied to this head (patch applies without change)", "pre": "++ turn 1   admit=202  turn_complete(end_turn)  recoveryBlocked=false\n++ turn 2   admit=202  turn_complete(end_turn)  recoveryBlocked=false      acquire -> 200\n++ turn 3   admit=202  turn_complete(end_turn)  recoveryBlocked=false" },
+    { "label": "unit level", "pre": "-- 9a1de09e    MaintenanceProbeWaiterTest  Tests run: 1, Errors: 1   (RebootRecoveryGapTest 2 of 2 pass)\n++ candidate   broker 414 / 0 failed (2 skipped, incl. the 3 new tests) · fault gates 41 / 41 · server 145 / 0 · WorkspaceRecoveryWorkerIT 1 / 1" }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "title": "What changed, what lands on main, and the suites",
+  "subtitle": "PR #12869 round 2 · Linux (Ubuntu 24.04 VM, kernel 6.8, Temurin 21.0.9, Node 22.23.2, production HostIdentity.linux()) · MySQL 8.4.11 for the integration profiles",
+  "blocks": [
+    { "label": "f8bf5d74 (round 1) -> 9a1de09e (this round)", "pre": "W0e-3 commit   patch-id 5a6258a6e0135bcd   unchanged\nW0e-2 commit   patch-id 7a61e56fb14d306f   unchanged\nbase           + 0dd60d45 fix(runtime-broker): Scope unadmitted startup block      + 2d95f1ae test: Pin local confirmation retry      + 2 merges of main\ntree diff      4 Java files (+240 / -23)  ·  47 other files (+4361 / -336), among them packages/cli/src/serve/hosted-workspace-broker.ts" },
+    { "label": "suites", "table": [
+      ["suite", "9a1de09e (PR head)", "9a1de09e + F1 candidate", "replayed onto main 6017f11d"],
+      ["runtime-broker unit + Checkstyle", "++ 411 / 0 failed  (2 skipped)", "++ 414 / 0 failed  (incl. 3 new tests)", "++ 416 / 0 failed  (2 skipped)"],
+      ["Stage F fault gates", "++ 41 / 41", "++ 41 / 41", "++ 41 / 41   (rerun, see note)"],
+      ["managed-agent-server unit + Checkstyle", "++ 145 / 0 failed", "++ 145 / 0 failed", "++ 159 / 0 failed   (rerun, see note)"],
+      ["WorkspaceRecoveryWorkerIT (Spring + real worker)", "++ 1 / 1", "++ 1 / 1", "++ 1 / 1"],
+      ["JdbcRuntimeBrokerMySqlIT (MySQL 8.4.11)", "++ 3 / 3", "", "++ 3 / 3"],
+      ["ManagedAgentMySqlIT (MySQL 8.4.11)", "++ 11 / 11", "", "++ 12 / 12"]
+    ] },
+    { "label": "merging into main 6017f11d (#12839 is already there, as a squash)", "pre": "!! plain merge of 9a1de09e              9 conflicted files (7 Java, 2 design documents)\n++ replay W0e-2 onto main               clean\n!! replay W0e-3 onto that               1 conflict: ManagedAgentMySqlIT.java  (main's #12881 and this PR each add a test at @Order(8))\n++ resolved by keeping both tests       the W0e-3 test becomes @Order(9)\n++ migrations in the result             V1 .. V17, one file per version; this PR adds none\n++ real reboot with that jar (R15)      systemctl reboot 09:50:18.204Z -> 8 of 8 RELEASED 09:50:40.198Z  = 22.0 s, hands-off, main's worker bundle" },
+    { "label": "mutants that survived everything in round 1, run again at 9a1de09e (unit suites, gates, real-worker IT, MySQL ITs)", "table": [
+      ["mutant", "round 1", "round 2"],
+      ["M01 rebooted() ignores the host id", "!! survives", "!! still survives all six stages"],
+      ["M16 default recoverResources allows managed cleanup", "!! survives", "!! still survives all six stages"],
+      ["M11 claim ignores the Runtime Session row", "!! survives", "!! still survives all six stages"],
+      ["M19 recoverBinding ignores the expected generation", "!! survives", "!! still survives all six stages"],
+      ["M21 overlapping scan batches", "!! survives", "!! still survives all six stages"],
+      ["M25 evidence matches any lease", "!! survives", "!! still survives all six stages"],
+      ["M02 the same boot counts as a reboot (control)", "++ killed by gates + IT", "++ killed by LocalRebootFaultGateTest x2 + WorkspaceRecoveryWorkerIT"]
+    ] },
+    { "note": "Load matters for the timing-sensitive tests. The first run on the replayed tree (rig server and workers active on the same VM, machine under it at load 50-60) had 7 gate failures and 1 unit error; two mutant runs in parallel containers showed the same signatures ('expected runtime_broker_runtime_lost but was runtime_provision_fenced', 'cancellation must reach the original active worker', JdbcRepositoryTest 'database operation failed'). On the quiet VM the replayed tree, the baseline and both mutants pass all stages. ManagedAgentServerIntegrationTest failed once more with yet another test." }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "title": "Round 2 at 9a1de09e: power cut, controls, and two server crashes inside the cleanup",
+  "subtitle": "PR #12869 · same dedicated Linux host (Ubuntu 24.04.4, kernel 6.8.0-117, machine-id f03cd9a6…) · real server jar under systemd + MySQL 8.4.11 + worker bundle rebuilt from this head · times UTC, 2026-09-28",
+  "blocks": [
+    { "label": "real reboots at the new head", "table": [
+      ["run", "host went down by", "down at", "boot id before → after", "server start, new boot", "all generations RELEASED"],
+      ["R9", "power loss", "08:45:37Z", "c2edefa8 → 999baad7", "08:51:33.712Z (after the two controls)", "++ 08:51:39.983Z  8 of 8"],
+      ["R10", "systemctl reboot, hands-off", "08:53:14.074Z", "999baad7 → e8c85559", "08:53:34Z", "++ 08:53:45.805Z  4 of 4"],
+      ["R14", "systemctl reboot, then 2 x SIGKILL of the server", "09:02:20.401Z", "10bfd29e → f93a41cf", "09:03:27Z", "++ 09:04:45.769Z  4 of 4"]
+    ] },
+    { "label": "R9 controls on the state left by the power cut (8 bindings: READY 6, LOST 1, RECOVERY_BLOCKED 1; 6 holders; 132 nonterminal executions)", "table": [
+      ["control", "watched for", "bindings, holders, executions", "an authorized warm"],
+      ["option OFF, same machine-id, new boot id", "2 min 46 s", "== unchanged", "503 runtime_broker_reconcile_timeout after 120.3 s"],
+      ["option ON, foreign machine-id, new boot id", "2 min 46 s", "== unchanged", "503 runtime_broker_reconcile_timeout after 120.1 s"],
+      ["option ON, original machine-id", "6.3 s", "++ RELEASED 8, holders 0, nonterminal 0", "200, generation 2, new worker (943 ms)"]
+    ] },
+    { "label": "R14: the server is killed while its retirement transaction is held inside MySQL (a trigger delays the one UPDATE that only the final step issues)", "pre": "09:03:53.318Z  st-a=LOST[holder kept]  st-b=LOST[holder kept]  st-c=LOST[holder CLEARED, session active, slot occupied]  st-d=LOST[holder CLEARED, ...]\n               executions: ABANDONED=101 PREPARED=31 SETTLED=2        <- the first 100-row batch is done, the second is not\n-- 09:03:53.410Z  crash 1: SIGKILL server pid 5755 (up 26 s)    held in MySQL: \"User sleep 23 s\"  (a retirement in flight)\n   09:03:55.000Z  unchanged after the crash: st-c, st-d still LOST with their holders cleared; nothing retired, nothing re-acquired\n-- 09:04:11.507Z  crash 2: SIGKILL server pid 6235 (up 14 s)    held in MySQL: \"User sleep 0 s\"   (the RETRIED retirement)\n   09:04:16.237Z  trigger dropped; the server restarted by systemd is on its own\n++ 09:04:24.958Z  st-c RELEASED · executions: ABANDONED=132 SETTLED=2\n++ 09:04:25.333Z  st-a, st-b RELEASED\n++ 09:04:45.769Z  st-d RELEASED                                   (once the killed server's 30 s operation claim had expired)\n++ receipts: 134 before, 134 after, identities unchanged · 132 ABANDONED without result · 2 SETTLED keep their result · worker processes: 0" },
+    { "note": "New in this round: the 'interrupt cleanup after the holder clear' item of the test plan, which round 1 could only cover through unit tests. Each crash costs at most one operation claim (30 s) before the next attempt; the absent holder is treated as already done." }
+  ]
+}
