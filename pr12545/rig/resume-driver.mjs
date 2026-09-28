@@ -80,8 +80,8 @@ writeFileSync(
 
 
 // ---------- resume scenario: launch in background, restart, send_message ----------
-const SDK_TOOLS = { 'sdk-str': 'read_file', 'sdk-arr': ['read_file'] }[scenario];
-const sdkMode = SDK_TOOLS !== undefined;
+const SDK_TOOLS = { 'sdk-str': 'read_file', 'sdk-arr': ['read_file'], 'sdk-null': null }[scenario];
+const sdkMode = scenario.startsWith('sdk-');
 const SUBTYPE = sdkMode ? 'probe-sdk' : { resume: 'probe-deny', 'resume-open': 'probe-open', 'resume-allow': 'probe-allow', 'resume-empty': 'probe-empty' }[scenario];
 if (!SUBTYPE) throw new Error(`unknown scenario ${scenario}`);
 function textOf(content) {
