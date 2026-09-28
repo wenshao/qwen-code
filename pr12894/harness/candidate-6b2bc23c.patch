@@ -1,0 +1,99 @@
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index 7365643667..69dc25bb85 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -398,7 +398,10 @@ export class HostedWorkspaceToolTurn {
+           routeRef,
+         });
+       }
+-      await this.harness.commitAwaitRuntimeBatch(bindings);
++      await this.harness.commitAwaitRuntimeBatch(bindings, {
++        turnId: this.promptId,
++        promptId: this.promptId,
++      });
+       if (shellBindings.size > 0) {
+         const owner = await this.publication!.owner.owner();
+         const authority = this.session.authority;
+diff --git a/packages/core/src/managed-runtime/managed-harness-factory.ts b/packages/core/src/managed-runtime/managed-harness-factory.ts
+index 0fd1c669d9..018ed1fa38 100644
+--- a/packages/core/src/managed-runtime/managed-harness-factory.ts
++++ b/packages/core/src/managed-runtime/managed-harness-factory.ts
+@@ -197,6 +197,7 @@ export interface ManagedHarnessHandle {
+    */
+   commitAwaitRuntimeBatch(
+     requests: readonly ManagedAwaitRuntimeCommit[],
++    turn?: { readonly turnId: string; readonly promptId: string },
+   ): Promise<HarnessDurableWaitBoundary>;
+   /**
+    * Settles admitted Runtime work so the turn may continue from
+@@ -487,6 +488,7 @@ class LocalManagedHarnessHandle implements ManagedHarnessHandle {
+ 
+   async commitAwaitRuntimeBatch(
+     requests: readonly ManagedAwaitRuntimeCommit[],
++    turn?: { readonly turnId: string; readonly promptId: string },
+   ): Promise<HarnessDurableWaitBoundary> {
+     if (requests.length === 0) {
+       throw new ManagedSessionConflictError(
+@@ -510,6 +512,17 @@ class LocalManagedHarnessHandle implements ManagedHarnessHandle {
+         );
+       }
+ 
++      if (
++        turn &&
++        (turn.turnId !== previous.identity.turnId ||
++          turn.promptId !== previous.identity.promptId) &&
++        previous.continuation.phase !== 'before_model' &&
++        previous.continuation.phase !== 'turn_settled'
++      ) {
++        throw new ManagedSessionConflictError(
++          'Runtime work cannot change the current unfinished turn.',
++        );
++      }
+       const priorItems = previous.tools?.items ?? [];
+       const pending = requests.filter(
+         (request) =>
+@@ -559,7 +572,16 @@ class LocalManagedHarnessHandle implements ManagedHarnessHandle {
+           };
+         });
+         const checkpoint = createAwaitRuntimeHarnessCheckpoint({
+-          previous,
++          previous: turn
++            ? {
++                ...previous,
++                identity: {
++                  ...previous.identity,
++                  ...turn,
++                  activationId: this.activation.activationId,
++                },
++              }
++            : previous,
+           ...identity,
+           attempt: previous.attempt ?? {
+             attemptId: pending[0].attemptId,
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java
+index 3d7f70ef2b..d8b137ac05 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java
+@@ -117,7 +117,9 @@ public final class ToolPublicationStore {
+                         + " writer_lease_until, recovery_status, activation_epoch, journal_revision"
+                         + " FROM qwen_managed_session_journal_head WHERE tenant_id = ? AND session_id = ? FOR UPDATE",
+                 row.tenant(), row.session());
+-        Timestamp lease = (Timestamp) head.get("writer_lease_until");
++        Object leaseValue = head.get("writer_lease_until");
++        Timestamp lease = leaseValue instanceof java.time.LocalDateTime local
++                ? Timestamp.valueOf(local) : (Timestamp) leaseValue;
+         require(row.workspace().equals(head.get("workspace_id")) && "ACTIVE".equals(head.get("state"))
+                 && text(binding, "writerId").equals(head.get("writer_id"))
+                 && ((Number) head.get("writer_generation")).longValue() == binding.get("writerGeneration").longValue()
+@@ -126,8 +128,10 @@ public final class ToolPublicationStore {
+                 "Original Session owner is fenced");
+         boolean found = false;
+         for (long revision = ((Number) head.get("journal_revision")).longValue(); revision > 0 && !found; revision--) {
++            // Locking read: the head row above was read FOR UPDATE, so a plain
++            // REPEATABLE READ snapshot can miss the revision it just saw.
+             byte[] record = jdbc.queryForObject("SELECT record_bytes FROM qwen_managed_session_journal_tx"
+-                    + " WHERE tenant_id = ? AND session_id = ? AND journal_revision = ?",
++                    + " WHERE tenant_id = ? AND session_id = ? AND journal_revision = ? FOR SHARE",
+                     byte[].class, row.tenant(), row.session(), revision);
+             if (record == null) {
+                 continue;

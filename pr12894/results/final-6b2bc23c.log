@@ -1,0 +1,204 @@
+spring up arm=pr3 worker=/Users/wenshao/git/qwen-code-pr12894: {"status":"UP"}
+## Stage A: PR as-is (jar + Harness + worker at 6b2bc23c)
+=== A1 echo
+[turn] admit=202 terminal=<none> recoveryBlocked=true 799ms
+[oss] PUT 0 created 0 exists 0 GET 0 faults 0
+[side-effects] generator ran 0 time(s); model calls 1, continuation calls 0
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"74213341-b65a-4e44-8854-653dc570c362"}}
+[catalog] []
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":2,"message.committed":2,"tool.intent":1}
+[harness s3-fA1] ["qwen serve: Hosted Harness turn a3554385-cacc-47bd-8024-de752c521f87 is recovery blocked: ManagedSessionStoreHttpError: The request body is invalid."]
+=== A2 echo
+[turn] admit=202 terminal=<none> recoveryBlocked=true 597ms
+[oss] PUT 0 created 0 exists 0 GET 0 faults 0
+[side-effects] generator ran 0 time(s); model calls 1, continuation calls 0
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"2ab9eb59-aabc-42fd-9b09-a8ac0492ee1a"}}
+[catalog] []
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":2,"message.committed":2,"tool.intent":1}
+[harness s3-fA2] ["qwen serve: Hosted Harness turn a81fb111-43d8-40bb-8db5-aa93247353db is recovery blocked: ManagedSessionStoreHttpError: The request body is invalid."]
+## Stage B: PR jar + candidate Harness (B1 fixed only)
+=== B1 echo
+[turn] not idle: Error: prompt did not become idle
+[turn] admit=timeout terminal=<none> recoveryBlocked=false ?ms
+[oss] PUT 0 created 0 exists 0 GET 0 faults 0
+[side-effects] generator ran 0 time(s); model calls 1, continuation calls 0
+[broker] POST /executions/0664fc0a:start -> 500 runtime_broker_internal_error Runtime Broker operation failed.
+[catalog] ["89beca09 state=OPEN phase=OPEN receiptSeq=- quarantined=0 held={\"capture\":268435456,\"producer\":2686976,\"admission\":2097152} used={\"capture\":0,\"producer\":0,\"admission\":0}"]
+[objects] {}
+[journal] {"activation.changed":3,"input.accepted":1,"wake.requested":1,"checkpoint.committed":2,"message.committed":2,"tool.intent":1}
+spring up arm=cand4 worker=/Users/wenshao/git/qwen-code-pr12894-cand4: {"status":"UP"}
+## Stage C: candidate (B1+B2+B4) on 6b2bc23c
+=== C echo stdout+stderr 4
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1890ms
+[oss] PUT 2 created 2 exists 0 GET 6 faults 0
+[side-effects] generator ran 0 time(s); model calls 2, continuation calls 1
+[broker] POST /executions/75ebbe73:start -> 200 state=executing
+[catalog] ["b8ac97c9 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":11,\"producer\":2661,\"admission\":1473} used={\"capture\":11,\"producer\":2661,\"admission\":1473}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":2,"terminal/VERIFIED":1}
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":6,"message.committed":4,"tool.intent":1,"tool.receipt":1,"turn.settled":1}
+=== C echo stdout+stderr 5
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1365ms
+[oss] PUT 2 created 2 exists 0 GET 6 faults 0
+[side-effects] generator ran 0 time(s); model calls 2, continuation calls 1
+[broker] POST /executions/9f9cdf7c:start -> 200 state=executing
+[catalog] ["d55322a0 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":11,\"producer\":2661,\"admission\":1473} used={\"capture\":11,\"producer\":2661,\"admission\":1473}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":2,"terminal/VERIFIED":1}
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":6,"message.committed":4,"tool.intent":1,"tool.receipt":1,"turn.settled":1}
+=== C echo stdout+stderr 6
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1122ms
+[oss] PUT 2 created 2 exists 0 GET 6 faults 0
+[side-effects] generator ran 0 time(s); model calls 2, continuation calls 1
+[broker] POST /executions/cb0058a4:start -> 200 state=executing
+[catalog] ["a80210a3 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":11,\"producer\":2661,\"admission\":1473} used={\"capture\":11,\"producer\":2661,\"admission\":1473}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":2,"terminal/VERIFIED":1}
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":6,"message.committed":4,"tool.intent":1,"tool.receipt":1,"turn.settled":1}
+=== C 100MiB+5MiB exit 7
+[broker] POST /executions/9d3a1226:start -> 200 state=executing
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 7479ms
+[oss] PUT 105 (created 105, exists 0) GET 315 versioning-checks 525 objects+105 bytes+110100480
+[side-effects] generator ran 1 time(s)
+[catalog] [{"id":"148fb273-f300-4f96-9514-ac00faee8fd6","state":"OPEN","phase":"REFERENCED","captureBytes":268435456,"held":{"capture":110100480,"producer":14056,"admission":3109},"used":{"capture":110100480,"producer":14056,"admission":310
+[objects] {"admission/VERIFIED/inline":1,"manifest/VERIFIED/inline":1,"page/VERIFIED/inline":2,"segment/VERIFIED/oss":105,"terminal/VERIFIED/inline":1}
+[bytes stdout] 100 segments, 104857600 B, sha256 41485fedd85e881a… oracle 41485fedd85e881a… EXACT
+[bytes stderr] 5 segments, 5242880 B, sha256 ea896222ba779be2… oracle ea896222ba779be2… EXACT
+[range stdout] offset=104853504 length=4096 -> 200 4096 B EXACT
+[range stdout] offset=0 length=1024 -> 200 1024 B EXACT
+[range stdout] offset=52428023 length=1500000 -> 200 1500000 B EXACT
+[range stdout] offset=104857600 length=0 -> 200 0 B EXACT
+[range stderr] offset=5238784 length=4096 -> 200 4096 B EXACT
+[range stderr] offset=0 length=1024 -> 200 1024 B EXACT
+[range stderr] offset=2620663 length=1500000 -> 200 1500000 B EXACT
+[range stderr] offset=5242880 length=0 -> 200 0 B EXACT
+[range wrong identity] 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"62b7d577-4e73-4187-b27b-61aa005d1280"}}
+[range stale writer] 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"bde3b136-82e5-44fe-8fa0-033e0659569d"}}
+=== C fault: segment reply lost
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1435ms
+[oss] PUT 8 created 8 exists 0 GET 24 faults 0
+[side-effects] generator ran 1 time(s); model calls 2, continuation calls 1
+[proxy] POST /publications/9b2d295e/segments/stdout/2 -> 200-reply-dropped [drop-reply] 
+[broker] POST /executions/452013b4:start -> 200 state=executing
+[catalog] ["9b2d295e state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":6291866,\"producer\":3755,\"admission\":2420} used={\"capture\":6291866,\"producer\":3755,\"admission\":2420}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":6,"message.committed":4,"tool.intent":1,"tool.receipt":1,"turn.settled":1}
+=== C fault: segment request lost
+[turn] admit=202 terminal=<none> recoveryBlocked=true 1120ms
+[oss] PUT 3 created 3 exists 0 GET 3 faults 0
+[side-effects] generator ran 1 time(s); model calls 1, continuation calls 0
+[proxy] POST /publications/c0820287/segments/stdout/2 -> dropped-before-server [drop-request] 
+[proxy] GET /publications/c0820287/operations/seg-stdout-2 -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"34aa8a72-a3ea-4a94-9945-1435b6ba7fe2"}}
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"cd1c6d82-734c-474a-95d3-e97b3a1882f8"}}
+[broker] POST /executions/c5ff6686:start -> 200 state=executing
+[catalog] ["c0820287 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":3145728,\"producer\":1722,\"admission\":2433} used={\"capture\":3145728,\"producer\":1722,\"admission\":2433}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"segment/VERIFIED":3,"terminal/VERIFIED":1}
+[bytes stdout] 2 seg 2097152 B differs from oracle (partial?)
+[bytes stderr] 1 seg 1048576 B differs from oracle (partial?)
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":2,"message.committed":3,"tool.intent":1,"tool.receipt":1}
+[harness s3-fCfb] ["qwen serve: Tool publication close was not confirmed: ManagedSessionStoreHttpError: The request body is invalid.","qwen serve: Hosted Harness turn a514adf7-09db-4c9f-85d4-7fc16c43f863 is recovery blocked: Error: Incomple
+=== C fault: finish reply lost
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1435ms
+[oss] PUT 8 created 8 exists 0 GET 24 faults 0
+[side-effects] generator ran 1 time(s); model calls 2, continuation calls 1
+[proxy] POST /publications/c6bbe5ff/finish -> 200-reply-dropped [drop-reply] 
+[broker] POST /executions/70b085ec:start -> 200 state=executing
+[catalog] ["c6bbe5ff state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":6291866,\"producer\":3755,\"admission\":2420} used={\"capture\":6291866,\"producer\":3755,\"admission\":2420}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":6,"message.committed":4,"tool.intent":1,"tool.receipt":1,"turn.settled":1}
+=== C fault: OSS PUT stored, reply lost
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2615ms
+[oss] PUT 9 created 8 exists 1 GET 24 faults 1
+[side-effects] generator ran 1 time(s); model calls 2, continuation calls 1
+[broker] POST /executions/4942ab39:start -> 200 state=executing
+[catalog] ["99c35741 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":6291866,\"producer\":11375,\"admission\":17660} used={\"capture\":6291866,\"producer\":11375,\"admission\":17660}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":6,"message.committed":4,"tool.intent":1,"tool.receipt":1,"turn.settled":1}
+[harness s3-fCob] ["qwen serve: Tool v3 ACK can be retried after its Session receipt: Error: Runtime Broker returned HTTP 409 (managed_runtime_identity_conflict)."]
+=== C fault: admission prepare reply lost
+[turn] admit=202 terminal=<none> recoveryBlocked=true 1203ms
+[oss] PUT 8 created 8 exists 0 GET 24 faults 0
+[side-effects] generator ran 1 time(s); model calls 1, continuation calls 0
+[proxy] POST /publications/c5087c59/admissions/prepare -> 200-reply-dropped [drop-reply] 
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"bdbc6098-2a25-437c-a915-fb363d5c4866"}}
+[broker] POST /executions/077f4915:start -> 200 state=executing
+[catalog] ["c5087c59 state=OPEN phase=FINISHED receiptSeq=- quarantined=0 held={\"capture\":6291866,\"producer\":3755,\"admission\":2097152} used={\"capture\":6291866,\"producer\":3755,\"admission\":2420}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":2,"message.committed":2,"tool.intent":1}
+[reload] detach 204 load 409 {"error":"hosted_turn_recovery_required","code":"hosted_turn_recovery_required"}
+[status after reload] {"error":"hosted_session_not_found","code":"hosted_session_not_found"}
+[harness s3-fCga] ["qwen serve: Tool publication close was not confirmed: ManagedSessionStoreHttpError: The request body is invalid.","qwen serve: Hosted Harness turn 6454a0a7-cb93-4798-8ac8-68473fda8a93 is recovery blocked: TypeError: fetc
+=== C crash after receipt commit
+[hold] POST /internal/managed-tool-publications/v1/sessions/b8dbbe55/publications/9b47a68b/receipts/commit -> 200-held (server committed, reply withheld)
+[crash] old Harness SIGKILLed after 1603 ms; generator runs so far: 1
+[load] 200  after 58841 ms
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false ?ms
+[oss] PUT 8 created 8 exists 0 GET 24 faults 0
+[side-effects] generator ran 1 time(s); model calls 2, continuation calls 1
+[proxy] POST /publications/9b47a68b/receipts/commit -> 200-held [forward-then-hold] 
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"2934269e-fc8f-43bb-9ca8-a2b155aed5f8"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"8f8eea8f-65de-4485-839a-f804d7e331bd"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"666b3a90-6a98-4dc5-beea-2fb73f1e8f62"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"75a970b5-0baa-4651-9879-b1d80186611d"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"e7ee5762-c4bd-43f6-9d90-4ad7fb6a2439"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"c3aa46ff-503c-4c7d-bf50-db09bf49cb95"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"c232aeaf-5e35-465f-b3e6-d16e3d448397"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"5bd45fe2-5354-4e6e-8691-1a22c0c31f52"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"f2cc3f54-a295-4de3-aefe-2f01748c426b"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"61a5e111-d24d-4215-9841-f61ffdc22844"}}
+[proxy] POST /writers:acquire -> 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"77b65027-4d35-4e00-865c-fdc4bd7cd4cc"}}
+[broker] POST /executions/52a8cccd:start -> 200 state=executing
+[catalog] ["9b47a68b state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":6291866,\"producer\":3755,\"admission\":2420} used={\"capture\":6291866,\"producer\":3755,\"admission\":2420}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[journal] {"activation.changed":2,"input.accepted":1,"wake.requested":1,"checkpoint.committed":6,"message.committed":4,"tool.intent":1,"tool.receipt":1,"turn.settled":1}
+=== C 1GiB #1
+[broker] POST /executions/92a58695:start -> 200 state=executing
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 92856ms
+[oss] PUT 1027 (created 1027, exists 0) GET 3081 versioning-checks 5135 objects+1027 bytes+1076887552
+[side-effects] generator ran 1 time(s)
+[catalog] [{"id":"9f1e248e-d53e-4b2b-a5f2-846276297193","state":"OPEN","phase":"REFERENCED","captureBytes":2147483648,"held":{"capture":1076887552,"producer":105730,"admission":3717},"used":{"capture":1076887552,"producer":105730,"admission
+[objects] {"admission/VERIFIED/inline":1,"manifest/VERIFIED/inline":1,"page/VERIFIED/inline":3,"segment/VERIFIED/oss":1027,"terminal/VERIFIED/inline":1}
+[bytes stdout] 1024 segments, 1073741824 B, sha256 241fdcc587e8daf0… oracle 241fdcc587e8daf0… EXACT
+[bytes stderr] 3 segments, 3145728 B, sha256 b4e85aff4984ab16… oracle b4e85aff4984ab16… EXACT
+[range stdout] offset=1073737728 length=4096 -> 200 4096 B EXACT
+[range stdout] offset=0 length=1024 -> 200 1024 B EXACT
+[range stdout] offset=536870135 length=1500000 -> 200 1500000 B EXACT
+[range stdout] offset=1073741824 length=0 -> 200 0 B EXACT
+[range stderr] offset=3141632 length=4096 -> 200 4096 B EXACT
+[range stderr] offset=0 length=1024 -> 200 1024 B EXACT
+[range stderr] offset=1572087 length=1500000 -> 200 1500000 B EXACT
+[range stderr] offset=3145728 length=0 -> 200 0 B EXACT
+[range wrong identity] 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"e23cd54d-3a32-4127-badb-5132ec6ebaa8"}}
+[range stale writer] 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"da3c56eb-ddc3-4660-ad95-5a3ea53fcaed"}}
+=== C 1GiB #2
+[broker] POST /executions/3e2eb2db:start -> 200 state=executing
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 81862ms
+[oss] PUT 1027 (created 1027, exists 0) GET 3081 versioning-checks 5135 objects+1027 bytes+1076887552
+[side-effects] generator ran 1 time(s)
+[catalog] [{"id":"e1fdca7b-f17f-4810-b843-2339472cca95","state":"OPEN","phase":"REFERENCED","captureBytes":2147483648,"held":{"capture":1076887552,"producer":105730,"admission":3717},"used":{"capture":1076887552,"producer":105730,"admission
+[objects] {"admission/VERIFIED/inline":1,"manifest/VERIFIED/inline":1,"page/VERIFIED/inline":3,"segment/VERIFIED/oss":1027,"terminal/VERIFIED/inline":1}
+[bytes stdout] 1024 segments, 1073741824 B, sha256 0192b0d9c4228ee2… oracle 0192b0d9c4228ee2… EXACT
+[bytes stderr] 3 segments, 3145728 B, sha256 98fb76997664dcdb… oracle 98fb76997664dcdb… EXACT
+[range stdout] offset=1073737728 length=4096 -> 200 4096 B EXACT
+[range stdout] offset=0 length=1024 -> 200 1024 B EXACT
+[range stdout] offset=536870135 length=1500000 -> 200 1500000 B EXACT
+[range stdout] offset=1073741824 length=0 -> 200 0 B EXACT
+[range stderr] offset=3141632 length=4096 -> 200 4096 B EXACT
+[range stderr] offset=0 length=1024 -> 200 1024 B EXACT
+[range stderr] offset=1572087 length=1500000 -> 200 1500000 B EXACT
+[range stderr] offset=3145728 length=0 -> 200 0 B EXACT
+[range wrong identity] 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"b5bcc381-f09d-4f3a-99ee-44dda54bac4e"}}
+[range stale writer] 409 {"error":{"code":"managed_session_writer_conflict","message":"The Managed Session writer grant is stale or unavailable.","request_id":"048251da-09c3-4959-8a5a-f3ee506556ee"}}
+EmptyResultDataAccessException in log: 0
+spring up arm=pr3 worker=/Users/wenshao/git/qwen-code-pr12894: {"status":"UP"}
+## Stage D: author's Hosted file-tool driver on PR as-is
+[driver] exit=0 6648ms
+[driver-out] HOSTED_WORKSPACE_TOOLS_OK: two Workspaces, parallel warmup, two tool rounds, lost start ACK, replay, Shell refusal, unknown blocking
+## done
