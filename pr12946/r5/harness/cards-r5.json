@@ -1,0 +1,63 @@
+[
+ {
+  "file": "r5-01-quota-2159a735.png",
+  "title": "Round 5 — admission quota at 2159a735 (sandbox Finding 1)",
+  "subtitle": "Fresh bundle + Spring jar from 2159a735; MySQL 8.4.11; 17 pin-able Streamable HTTP definitions p00..p16 per Workspace.",
+  "lines": [
+   "## The fix, on the real stack",
+   "++ create with 17 pins: 400 invalid_hosted_mcp_servers, 0 Broker requests (before: 200, then 503 on every prompt)",
+   "++ 16 pins warmed (16 connections): explicit reconfigure -> 409 managed_mcp_connection_quota",
+   "++ 16 pins: raw resource read at capacity -> 202 settled (no new connection needed)",
+   "++ mutants Q1-Q5 (cap removed, 409->503 on prompt/resource, lost code on configure, untyped quota) all killed by their",
+   "++    own new tests; unmutated baseline 130/130 (a first baseline run under concurrent load had 2 unrelated timing flakes)",
+   "",
+   "## New edge: exactly 16 pins (the new admitted maximum) cannot survive one list_changed",
+   "-- 16 pins, one server sends tools/list_changed: that turn turn_error, then every later turn turn_error",
+   "--    (text-only included, 0 effects, 3/3) until detach; detach 204 + load 200 recovers",
+   "++ 15 pins, same event: explicit reconfigure 202, notify turn end_turn, later text + tool turns end_turn",
+   "== cause: the F2 refresh opens the replacement before retiring the old connection; at 16 it needs a 17th",
+   "",
+   "## CI @2159a735",
+   "++ 20 pass, 1 pending (web-shell E2E smoke), no failures"
+  ],
+  "notes": [
+   {
+    "tone": "",
+    "text": "The quota fix does what the sandbox report asked. The effective ceiling for a Session that must survive a catalog change or reconnect is 15 pins, not 16; either cap creation at 15, retire-then-replace at capacity, or document it next to N2."
+   }
+  ]
+ },
+ {
+  "file": "r5-02-r1-rulings.png",
+  "title": "Round 5 — real-stack rulings on the unruled Critical candidates qqqys listed",
+  "subtitle": "R1-1/2/3/8 run on the real stack (MySQL 8.4.11); R1-7 from the Node 22 child_process source plus an exact emulation; R1-4/5/6 not ruled.",
+  "lines": [
+   "## R1-2  a transient mcp-discover failure permanently blocks the Session  -> CONFIRMED",
+   "-- one Broker 503 on the refresh before the model request: turn has no terminal event, recoveryBlocked, next prompt 409",
+   "-- detach 204 (lease released) but load 409 hosted_turn_recovery_required, still 409 after 60 s: Session unusable",
+   "++ lost reply instead of 503 (Runtime handled it): recovered through mcp-status, turn end_turn",
+   "++ candidate: refresh() throws a plain Error when discovery is unconfirmed (1 line): same 503 -> turn_error with 0 effects,",
+   "++    next turn end_turn with 1 effect, detach 204, load 200, turn after load OK; 130/130 focused tests (2 batch runs)",
+   "",
+   "## R1-7  Windows SYSTEMROOT/SystemRoot collision in the stdio child env  -> CONFIRMED (not run on Windows)",
+   "-- SDK win32 list contains SYSTEMROOT; the PR blanks it to \"\" and adds SystemRoot separately",
+   "-- Node 22 lib/child_process.js (win32): sort env keys, keep the first per upper-case name -> SYSTEMROOT wins",
+   "-- emulation of PR env -> SDK merge -> Node filter: child gets SYSTEMROOT = \"\" (the SystemRoot override is dropped)",
+   "",
+   "## R1-1  grant lease 300 s shorter than the 600 s timeout  -> NOT REPRODUCED",
+   "++ 310 s MCP tool: server done at 311.5 s, end_turn at 312.6 s, SETTLED/success, next prompt + detach OK",
+   "",
+   "## R1-3  unknown() never removes pending entries  -> real; its visible effect is the documented N1",
+   "== round 3: lost connection / no reply -> 630 s, blocked, detach 503, lease held; quotas moot while F1 locks the Workspace",
+   "",
+   "## R1-8  status/cancel outside the mcpBusy fence  -> no issue seen",
+   "++ rounds 3-4: cancel and status during a running raw operation returned consistent views; the op settled; detach 204"
+  ],
+  "notes": [
+   {
+    "tone": "red",
+    "text": "R1-2 is the one I would fix before merge: it is reachable by any transient Broker error on every model round since the F2 refresh, and it leaves a Session that can never be loaded again. The candidate is one line. R1-7 is a one-line Windows fix."
+   }
+  ]
+ }
+]
