@@ -1,0 +1,26 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index abcd692001..64121d05c1 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -1177,17 +1177,17 @@ public final class RuntimeBrokerService implements AutoCloseable {
+                 })
+                 .handle((outcome, error) -> {
+                     Throwable cause = unwrap(error);
++                    // One classification for the publish and the block below.
++                    boolean retryable = !(cause instanceof RuntimeBrokerException
++                            brokerFailure) || brokerFailure.isRetryable();
+                     // Published before taking the claim, which a renewal can
+                     // hold across a database round trip.
+-                    if (cause instanceof RuntimeBrokerException failure
+-                            && !failure.isRetryable()) {
++                    if (!retryable && cause instanceof RuntimeBrokerException failure) {
+                         nonRetryable.set(failure);
+                     }
+                     RuntimeBindingRecord currentClaim = renewal.stopAndGet();
+                     try {
+                         if (error != null) {
+-                            boolean retryable = !(cause instanceof RuntimeBrokerException
+-                                    brokerFailure) || brokerFailure.isRetryable();
+                             if (currentClaim != null) {
+                                 if (request.isManagedContext() || !retryable) {
+                                     // A retry cannot succeed once the binding

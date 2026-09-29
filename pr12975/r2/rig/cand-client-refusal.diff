@@ -1,0 +1,34 @@
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts	2026-09-29 11:53:36
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts	2026-09-29 12:47:27
+@@ -38,6 +38,19 @@
+ export interface HostedShellTurnOptions {
+   resources: DurableToolResultResourceStore;
+   assertWritable(): Promise<void>;
++}
++
++const UNPAIRED_SURROGATE = /\p{Cs}/u;
++
++function hasUnpairedSurrogate(value: unknown): boolean {
++  if (typeof value === 'string') return UNPAIRED_SURROGATE.test(value);
++  if (Array.isArray(value)) return value.some(hasUnpairedSurrogate);
++  if (value && typeof value === 'object')
++    return Object.entries(value).some(
++      ([key, item]) =>
++        UNPAIRED_SURROGATE.test(key) || hasUnpairedSurrogate(item),
++    );
++  return false;
+ }
+ 
+ const pathProperty = {
+@@ -229,6 +242,11 @@
+           }
+         }
+       }
++      // The Runtime Broker refuses an unpaired surrogate anywhere in the
++      // payload, so refuse it here, where the model can correct the call.
++      if (!validationError && hasUnpairedSurrogate(input))
++        validationError =
++          'Tool arguments contain an unpaired UTF-16 surrogate (a broken character). Remove it and retry.';
+       const payloadJson = JSON.stringify({
+         toolName: call.name,
+         input,
