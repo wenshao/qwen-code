@@ -1,0 +1,20 @@
+--- /Users/wenshao/pr12964-rig/src-merge/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/TakeoverReconciliationTest.java	2026-09-29 09:34:18
++++ /Users/wenshao/pr12964-rig/src-flakecand/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/TakeoverReconciliationTest.java	2026-09-29 10:12:28
+@@ -247,10 +247,13 @@
+     }
+ 
+     private static void awaitLeaseExpiry(List<ToolExecutionRecord> records) throws InterruptedException {
+-        Instant latest = records.stream().map(ToolExecutionRecord::getDispatchLeaseUntil)
+-                .max(Instant::compareTo).orElseThrow();
+-        Thread.sleep(Math.max(0, Duration.between(Instant.now(), latest.plusMillis(20)).toMillis()));
+-        assertTrue(records.stream().noneMatch(record -> record.hasLiveDispatchAt(Instant.now())));
++        // Poll the wall clock the leases are compared with: a sleep measures
++        // monotonic time and can end before a stepped-back wall clock passes them.
++        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
++        while (records.stream().anyMatch(record -> record.hasLiveDispatchAt(Instant.now()))) {
++            assertTrue(System.nanoTime() < deadline, "dispatch leases did not lapse");
++            Thread.sleep(10);
++        }
+     }
+ 
+     private static final class Fixture {

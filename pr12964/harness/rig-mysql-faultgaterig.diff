@@ -1,0 +1,67 @@
+--- /Users/wenshao/pr12964-rig/src-cand/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java	2026-09-29 09:34:18
++++ /Users/wenshao/pr12964-rig/src-mysql/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java	2026-09-29 09:51:16
+@@ -82,6 +82,8 @@
+     final JdbcRuntimeBindingRepository bindings;
+     private final Path cli;
+     private final Server database;
++    private static final String MYSQL_PORT = System.getProperty("gate.mysql.port");
++    private final String mysqlDatabase;
+     private final DataSource dataSource;
+     private final List<AutoCloseable> resources = new ArrayList<>();
+     private final List<BrokerProcess> brokers = new ArrayList<>();
+@@ -97,8 +99,19 @@
+         Files.createDirectories(root.resolve("home"));
+         database = Server.createTcpServer("-tcpPort", "0", "-ifNotExists",
+                 "-baseDir", root.resolve("db").toString()).start();
++        if (MYSQL_PORT != null) {
++            // Rig-only switch: run the gates on a real MySQL reachable on loopback.
++            mysqlDatabase = "gate_" + java.util.UUID.randomUUID().toString().replace("-", "");
++            try (var admin = java.sql.DriverManager.getConnection("jdbc:mysql://127.0.0.1:" + MYSQL_PORT
++                    + "/?allowPublicKeyRetrieval=true&useSSL=false", "sa", "");
++                    var statement = admin.createStatement()) {
++                statement.execute("CREATE DATABASE " + mysqlDatabase);
++            }
++        } else {
++            mysqlDatabase = null;
++        }
+         dataSource = new DriverManagerDataSource(
+-                jdbcUrl(database.getPort()), "sa", "");
++                jdbcUrl(dbPort()), "sa", "");
+         JdbcRuntimeBrokerSchema.initialize(dataSource);
+         executions = new JdbcToolExecutionRepository(dataSource);
+         bindings = new JdbcRuntimeBindingRepository(dataSource,
+@@ -162,7 +175,7 @@
+ 
+     /** A relay a gate can cut to take the database away from a Broker. */
+     TcpRelay databaseRelay() throws IOException {
+-        TcpRelay relay = new TcpRelay(database.getPort());
++        TcpRelay relay = new TcpRelay(dbPort());
+         resources.add(relay);
+         return relay;
+     }
+@@ -189,7 +202,7 @@
+         scopeConfig.put("capabilityDigest", scope.getCapabilityDigest());
+         scopeConfig.put("isolationClass", scope.getIsolationClass());
+         Map<String, Object> config = new LinkedHashMap<>();
+-        config.put("jdbcUrl", jdbcUrl(relay == null ? database.getPort()
++        config.put("jdbcUrl", jdbcUrl(relay == null ? dbPort()
+                 : relay.port()));
+         config.put("secretKey", SECRET_KEY);
+         config.put("ownerId", name + "-" + UUID.randomUUID());
+@@ -432,7 +445,15 @@
+         }
+     }
+ 
+-    private static String jdbcUrl(int port) {
++    private int dbPort() {
++        return MYSQL_PORT != null ? Integer.parseInt(MYSQL_PORT) : database.getPort();
++    }
++
++    private String jdbcUrl(int port) {
++        if (mysqlDatabase != null) {
++            return "jdbc:mysql://127.0.0.1:" + port + "/" + mysqlDatabase
++                    + "?allowPublicKeyRetrieval=true&useSSL=false";
++        }
+         return "jdbc:h2:tcp://127.0.0.1:" + port
+                 + "/broker;MODE=MySQL;DATABASE_TO_LOWER=TRUE";
+     }
