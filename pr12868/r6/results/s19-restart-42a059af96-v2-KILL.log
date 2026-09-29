@@ -1,0 +1,13 @@
+[Y-v2] prepared call reserved | cancel #1 200 cancelled | Session READY | binding READY/gen1 | record SETTLED/cancelled
+[Y-v2] Broker process stopped with SIGKILL and started again on the same database | the Session's worker survived the stop: true | Session READY | binding READY/gen1
+[Y-v2] cancel #2 404 runtime_session_not_found retryable=false "Runtime Session is not active in this Broker process" | GET 200 settled/cancelled | worker saw []
+[Y-v2] acquire again: answered after 120.0 s with 503 runtime_broker_reconcile_timeout retryable=true "Managed Runtime reconciliation timed out." | cancel 404 runtime_session_not_found retryable=false "Runtime Session is not active in this Broker process" | Session READY | binding READY/gen1 | worker saw []
+[Y-v2] worker killed | acquire again: answered after 120.0 s with 503 runtime_broker_reconcile_timeout retryable=true "Managed Runtime reconciliation timed out." | cancel 404 runtime_session_not_found retryable=false "Runtime Session is not active in this Broker process" | Session READY | binding READY/gen1
+[Y-v2] start of the cancelled call 404 runtime_session_not_found | file written=false | release 503 runtime_reconciliation_required "Runtime Session is not active in this Broker process" | Session READY | binding READY/gen1 | storage held=true
+[Y-v2] OBSERVED: the repeated cancellation was confirmed never
+[FAIL] Y-v2.1 after the Broker was replaced, the repeated cancellation is not a definite 404 :: 404 runtime_session_not_found retryable=false "Runtime Session is not active in this Broker process"
+[FAIL] Y-v2.2 it asks for adoption with a retryable 503 runtime_reconciliation_required :: 404 runtime_session_not_found retryable=false "Runtime Session is not active in this Broker process"
+[FAIL] Y-v2.3 acquiring again, as the answer asks, lets the cancellation be confirmed :: acquire 503 runtime_broker_reconcile_timeout after 120.0 s / cancel 404 runtime_session_not_found
+[FAIL] Y-v2.5 failing that, the cancellation is confirmed once the worker is gone :: acquire 503 runtime_broker_reconcile_timeout after 120.0 s / cancel 404 runtime_session_not_found
+[PASS] Y-v2.4 the receipt is readable and the cancelled call never executes
+[SUMMARY] 1/5 checks passed — failed: Y-v2.1, Y-v2.2, Y-v2.3, Y-v2.5

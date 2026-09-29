@@ -1,0 +1,13 @@
+[Y-v2] prepared call reserved | cancel #1 200 cancelled | Session READY | binding READY/gen1 | record SETTLED/cancelled
+[Y-v2] Broker process stopped with SIGTERM and started again on the same database | the Session's worker survived the stop: false | Session READY | binding READY/gen1
+[Y-v2] cancel #2 503 runtime_reconciliation_required retryable=true "Runtime Session is not active in this Broker process; acquire the Session again to confirm the cancellation" | GET 200 settled/cancelled | worker saw []
+[Y-v2] acquire again: answered after 120.0 s with 503 runtime_broker_reconcile_timeout retryable=true "Managed Runtime reconciliation timed out." | cancel 503 runtime_reconciliation_required retryable=true "Runtime Session is not active in this Broker process; acquire the Session again to confirm the cancellation" | Session READY | binding READY/gen1 | worker saw []
+[Y-v2] worker already gone | acquire again: answered after 120.0 s with 503 runtime_broker_reconcile_timeout retryable=true "Managed Runtime reconciliation timed out." | cancel 503 runtime_reconciliation_required retryable=true "Runtime Session is not active in this Broker process; acquire the Session again to confirm the cancellation" | Session READY | binding READY/gen1
+[Y-v2] start of the cancelled call 404 runtime_session_not_found | file written=false | release 503 runtime_reconciliation_required "Runtime Session is not active in this Broker process" | Session READY | binding READY/gen1 | storage held=true
+[Y-v2] OBSERVED: the repeated cancellation was confirmed never
+[PASS] Y-v2.1 after the Broker was replaced, the repeated cancellation is not a definite 404 :: 503 runtime_reconciliation_required retryable=true "Runtime Session is not active in this Broker process; acquire the Session again to confirm the cancellation"
+[PASS] Y-v2.2 it asks for adoption with a retryable 503 runtime_reconciliation_required :: 503 runtime_reconciliation_required retryable=true "Runtime Session is not active in this Broker process; acquire the Session again to confirm the cancellation"
+[FAIL] Y-v2.3 acquiring again, as the answer asks, lets the cancellation be confirmed :: acquire 503 runtime_broker_reconcile_timeout after 120.0 s / cancel 503 runtime_reconciliation_required
+[FAIL] Y-v2.5 failing that, the cancellation is confirmed once the worker is gone :: acquire 503 runtime_broker_reconcile_timeout after 120.0 s / cancel 503 runtime_reconciliation_required
+[PASS] Y-v2.4 the receipt is readable and the cancelled call never executes
+[SUMMARY] 3/5 checks passed — failed: Y-v2.3, Y-v2.5

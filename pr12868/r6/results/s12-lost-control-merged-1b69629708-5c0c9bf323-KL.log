@@ -1,0 +1,48 @@
+[GROUP] K v1 arm=merged-1b69629708-5c0c9bf323
+[K-v1] bind-history  reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw bind-history x2: 200(drop-reply), 200
+[K-v1] manifest      reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw manifest x2: 200(drop-reply), 200
+[K-v1] begin-turn    reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw begin-turn x2: 200(drop-reply), 200
+[K-v1] prepare       reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw prepare x2: 200(drop-reply), 200
+[PASS] K-v1.1 bind-history, manifest and begin-turn answer the repeated request after a lost reply :: 503 managed_runtime_unavailable → 200 | 503 managed_runtime_unavailable → 200 | 503 managed_runtime_unavailable → 200
+[PASS] K-v1.2 prepare repeated after a lost reply yields a usable invocation and no effect :: 503 managed_runtime_unavailable → 200
+[K-v1] confirm       reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw confirm x2: 200(drop-reply), 200
+[K-v1] preflight     reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw preflight x2: 200(drop-reply), 200
+[PASS] K-v1.3 confirm and preflight answer the repeated request after a lost reply :: 503 managed_runtime_unavailable → 200 | 503 managed_runtime_unavailable → 200
+[PASS] K-v1.4 the invocation then executes exactly once :: ok {"executionStatus":"success","result":{"llmContent":"Successfully created and
+[K-v1] release reply lost -> caller 503 managed_runtime_unavailable session=RELEASING storageHeld=false | a control in between -> 409 runtime_session_not_ready | release again -> 200 session=RELEASED storageHeld=false
+[K-v1] wire: /provider/v1/control[release] -> 200 (drop-reply), /provider/v1/control[release] -> 200
+[PASS] K-v1.5 a lost release acknowledgement admits no new work and a repeated release completes (storage dropped) :: lost=503 managed_runtime_unavailable between=409 runtime_session_not_ready again=200 session=RELEASED held=false
+[GROUP] K v2 arm=merged-1b69629708-5c0c9bf323
+[K-v2] bind-history  reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw bind-history x2: 200(drop-reply), 200
+[K-v2] manifest      reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw manifest x2: 200(drop-reply), 200
+[K-v2] begin-turn    reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw begin-turn x2: 200(drop-reply), 200
+[K-v2] prepare       reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw prepare x2: 200(drop-reply), 200
+[PASS] K-v2.1 bind-history, manifest and begin-turn answer the repeated request after a lost reply :: 503 managed_runtime_unavailable → 200 | 503 managed_runtime_unavailable → 200 | 503 managed_runtime_unavailable → 200
+[PASS] K-v2.2 prepare repeated after a lost reply yields a usable invocation and no effect :: 503 managed_runtime_unavailable → 200
+[K-v2] preflight     reply lost -> caller 503 managed_runtime_unavailable | same request again -> 200 | worker saw preflight x2: 200(drop-reply), 200
+[PASS] K-v2.3 confirm and preflight answer the repeated request after a lost reply :: 503 managed_runtime_unavailable → 200
+[PASS] K-v2.4 the invocation then executes exactly once :: ok {"executionStatus":"success","result":{"llmContent":"Successfully created and
+[K-v2] release reply lost -> caller 503 managed_runtime_unavailable session=RELEASING storageHeld=true | a control in between -> 409 runtime_session_not_ready | release again -> 200 session=RELEASED storageHeld=false
+[K-v2] wire: /provider/v1/control[release] -> 200 (drop-reply), /provider/v1/control[release] -> 200, /v3/activation -> 200
+[PASS] K-v2.5 a lost release acknowledgement admits no new work and a repeated release completes (storage dropped) :: lost=503 managed_runtime_unavailable between=409 runtime_session_not_ready again=200 session=RELEASED held=false
+[GROUP] L v1 arm=merged-1b69629708-5c0c9bf323
+[L-v1] core ToolConfirmationOutcome has 10 values: proceed_once, proceed_once_and_switch_to_default, proceed_always, proceed_always_server, proceed_always_tool, proceed_always_project, proceed_always_user, modify_with_editor, restore_previous, cancel
+[L-v1] confirm outcome "proceed_once"                         Broker -> 200                                      worker -> 200
+[L-v1] confirm outcome "proceed_once_and_switch_to_default"   Broker -> 200                                      worker -> 200
+[L-v1] confirm outcome "proceed_always"                       Broker -> 200                                      worker -> 200
+[L-v1] confirm outcome "proceed_always_server"                Broker -> 200                                      worker -> 200
+[L-v1] confirm outcome "proceed_always_tool"                  Broker -> 200                                      worker -> 200
+[L-v1] confirm outcome "proceed_always_project"               Broker -> 200                                      worker -> 200
+[L-v1] confirm outcome "proceed_always_user"                  Broker -> 200                                      worker -> 200
+[L-v1] confirm outcome "modify_with_editor"                   Broker -> 409 managed_runtime_provider_operation_failed worker -> 409 managed_runtime_provider_operation_failed :: Modified tool arguments require a new preparation.
+[L-v1] confirm outcome "restore_previous"                     Broker -> 400 runtime_control_operation_invalid    worker -> not reached
+[L-v1] confirm outcome "cancel"                               Broker -> 200                                      worker -> 200
+[L-v1] confirm outcome "approve"                              Broker -> 400 runtime_control_operation_invalid    worker -> not reached
+[L-v1] confirm outcome "PROCEED_ONCE"                         Broker -> 400 runtime_control_operation_invalid    worker -> not reached
+[L-v1] confirm outcome ""                                     Broker -> 400 runtime_control_operation_invalid    worker -> not reached
+[PASS] L-v1.1 no outcome is accepted by one side and rejected as malformed by the other :: Broker refuses ["restore_previous"]; worker-only 400: []
+[PASS] L-v1.2 values outside the enumeration are refused before any worker request
+[L-v1] kinds that reached the worker when sent bare through the public control route: ["manifest","history"]
+[PASS] L-v1.3 only manifest and history are admitted bare; transport-only and unknown kinds never reach the worker :: ["manifest","history"]
+[L-v1] release ok true
+[SUMMARY] 13/13 checks passed
