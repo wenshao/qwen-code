@@ -1,4 +1,4 @@
-// cand/storage-paths-lite.ts
+// storage-paths-lite.ts
 import * as os from "node:os";
 import * as path from "node:path";
 var SETTINGS_DIRECTORY_NAME = ".qwen";
@@ -61,12 +61,13 @@ function spawnedEnvironmentView(env) {
     }
   }
   if (os.platform() !== "win32") return passed;
+  const fold = (name) => name.replace(/[a-z]+/g, (s) => s.toUpperCase());
   const byUpperName = new Map(
-    Object.entries(passed).map(([name, value]) => [name.toUpperCase(), value])
+    Object.entries(passed).map(([name, value]) => [fold(name), value])
   );
   return new Proxy(passed, {
-    has: (_target, name) => typeof name === "string" && byUpperName.has(name.toUpperCase()),
-    get: (_target, name) => typeof name === "string" ? byUpperName.get(name.toUpperCase()) : void 0
+    has: (_target, name) => typeof name === "string" && byUpperName.has(fold(name)),
+    get: (_target, name) => typeof name === "string" ? byUpperName.get(fold(name)) : void 0
   });
 }
 function isFullyQualifiedPath(location) {

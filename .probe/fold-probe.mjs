@@ -56,3 +56,16 @@ for (const c of CHARS) {
   emit({ part: 'C', char: `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')} ${c}`, jsUpper: upper.slice(1, -1), windowsFindsUnderJsUpper: childUpper === 'v', viewFindsUnderJsUpper: viewUpper === 'v', childExact, agree: ok });
 }
 emit({ part: 'C', summary: true, chars: CHARS.length, agree });
+
+// A. Does Windows find a non-ASCII-spelled variable under a pure ASCII name? (would make ASCII-only folding miss it)
+const TO_ASCII = [['\u212A', 'K'], ['\u017F', 'S'], ['\u0131', 'I'], ['\u212B', 'A'], ['\uFF21', 'A'], ['\u0130', 'I'], ['\u00C5', 'A']];
+let asciiHits = 0;
+for (const [c, a] of TO_ASCII) {
+  const env = { ...baseEnv, [`QWEN_${c}X`]: 'v' };
+  const r = spawnSync(process.execPath, ['-e', `process.stdout.write(JSON.stringify([process.env[${JSON.stringify('QWEN_' + a + 'X')}] ?? null, process.env[${JSON.stringify('qwen_' + a.toLowerCase() + 'x')}] ?? null]))`], { env, encoding: 'utf8' });
+  const [upper, lower] = JSON.parse(r.stdout);
+  const view = lite.spawnedEnvironmentView(env)['QWEN_' + a + 'X'] ?? null;
+  if (upper === 'v' || lower === 'v') asciiHits++;
+  emit({ part: 'A', char: `U+${c.codePointAt(0).toString(16).toUpperCase()}`, ascii: a, windowsFindsUnderAscii: upper === 'v' || lower === 'v', viewFindsUnderAscii: view === 'v' });
+}
+emit({ part: 'A', summary: true, chars: TO_ASCII.length, windowsFindsUnderAscii: asciiHits });
