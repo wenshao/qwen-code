@@ -1,0 +1,60 @@
+[
+ {
+  "name": "r8-01-status",
+  "title": "Round 8 @ c670bf45 on the full real stack: combined-tail mojibake fixed on both Shell paths, earlier fixes hold",
+  "subtitle": "PR head as-is (c670bf45 changes one line in shellExecutionService.ts; Java jar identical); fresh MySQL 8.4.7 schema and storage roots; OSS double; fault proxy",
+  "lines": [
+   "## Fixed on this head",
+   "++ Defect C  CJK stdout above the preview budget: before, 4 of 6 fixtures reached the model as ~2,700 mojibake characters",
+   "++           (0 U+FFFD) on both O2 and local; now 0 of 6. Emoji (4-byte) stdout at 4 tail offsets: clean on both paths",
+   "",
+   "## Still holding from rounds 6-7",
+   "== R6-1  preview matrix on O2 same as round 7 (8,192 B, exit code visible in all 14 fixtures)",
+   "== R6-2  80 past O2 Shell calls: load 2.6 s, 816 Store requests, 0 ACKs, 0 warnings",
+   "== gate 2  absolute read_file -> correctable refusal, relative retry completes (O2 and local)",
+   "",
+   "## Regression (all pass)",
+   "== O2     echo 2/2 | 100 MiB + 5 MiB exit 7 exact | 1 GiB exact | crash after receipt | lost segment | lost admission reply",
+   "==        control chars + crash | reload, then a second Shell turn | ACK request lost",
+   "== local  echo 2/2 | 100 MiB + 5 MiB exit 7 | reload, then a second Shell turn",
+   "== mixed  2 O2 + 2 local Sessions x 64 MiB at once: 4/4, 0 deadlocks, 0 EmptyResultDataAccessException",
+   "== author's six-Workspace driver 2/2; real qwen3.8-max failing 3,000-line build: O2 4/4, local 2/2 with the error quoted",
+   "",
+   "## Mutants on c670bf45",
+   "++ reverting the tail decoder: killed | realign at most 1 continuation byte: killed (survived in round 5)",
+   "!! realign at most 2 continuation bytes survives: no test cuts a 4-byte character; the real stack handles it",
+   "",
+   "## Still open (deferred by the author)",
+   "!! gate 1  crash after /admissions/prepare -> load 409 hosted_turn_recovery_required for 150 s",
+   "!! R7-1 (#12957) renewal after settle -> /grants 400 + warning; still reproduces with a 12 s receipt-commit delay",
+   "!! F3 twice on O2 in the 57-64 KiB band (on local it varies by run); B2/B4 MySQL tests"
+  ],
+  "note": "The two preview artifacts deferred to #12969 (a cut ANSI prefix such as 31m, one spurious character before ASCII) did not reach the model on either Hosted path: 0 fragments in 6 ANSI runs. The 8 KiB head + tail bound drops the cut point.",
+  "noteColor": "#3fb950"
+ },
+ {
+  "name": "r8-02-utf8-tail",
+  "title": "Defect C on the real stack: CJK stdout tail decoded as mojibake before c670bf45, clean after",
+  "subtitle": "Mojibake characters (U+0080-U+2E7F plus U+FFFD) in the tool message received by the fake model. Same build and stack otherwise; the tail offset moves the ring start inside a character",
+  "lines": [
+   "## Fixture (stdout, then END_MARK)             033c74d3 O2       c670bf45 O2       033c74d3 local    c670bf45 local",
+   "== CJK stdout 200 KB, tail offset 0            0                 0                 0                 0",
+   "++ CJK stdout 200 KB, tail offset 1            2,699             0                 2,699             0",
+   "++ CJK stdout 200 KB, tail offset 2            2,698             0                 2,698             0",
+   "++ CJK log lines 200 KB, tail offset 0         2,677             0                 2,677             0",
+   "++ CJK log lines 200 KB, tail offset 1         2,677             0                 2,677             0",
+   "== CJK log lines 200 KB, tail offset 2         0                 0                 0                 0",
+   "== CJK stdout 90 KB                            0                 0                 0                 0",
+   "== emoji stdout 200 KB, tail offsets 0-3       -                 0 (x4)            -                 0 (x4)",
+   "== ANSI 200 KB, offsets 0-2 (ANSI fragments)   0 (x3)            0 (x3)            0 (x3)            0 (x3)",
+   "",
+   "## What the model read before the end marker (CJK stdout, tail offset 1)",
+   "-- 033c74d3  ...é”™è¯¯é“¾æŽ¥å™¨æ‰¾ä¸åˆ°ç¬¦å·å®šä¹‰ä¸­ / æž„å»ºç»“æŸ END_MARK~",
+   "++ c670bf45  ...错误链接器找不到符号定义中文输出构建日志错误链接器找不到符号定义中 / 构建结束 END_MARK~",
+   "",
+   "== The exit code and the ASCII end marker stayed visible before the fix; every CJK character in the ~6 KiB tail did not."
+  ],
+  "note": "Both Hosted paths take their 8 KiB model input from the same core preview, so both were affected and both are fixed. The unit test pins the 2-continuation-byte start; the emoji runs cover the 3-continuation-byte start that no test pins.",
+  "noteColor": "#3fb950"
+ }
+]
