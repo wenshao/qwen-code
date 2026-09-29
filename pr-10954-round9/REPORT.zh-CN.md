@@ -1,6 +1,6 @@
 # PR #10954 深度验证（第九轮，本地，Linux x86_64）
 
-Head 为 `b98dfa1927fc7ff54c2ad2ecaedd3b4b27123744`，第八轮验证的是 `4ae0857a8f`。第 1–8 轮都在 macOS arm64 上跑，每一轮都把 Linux 列为「未覆盖」。本轮在 Linux x86_64 上验证（Debian，内核 6.12，Node v22.22.2），全新执行 `pnpm install --frozen-lockfile`、`npm run build`、`npm run bundle`，全部 exit 0。用到的都是真实组件：`qwen serve` daemon；经发布的 bin 入口（`scripts/cli-entry.js`）执行的 `qwen --bg`；真实 supervisor；以及作为阳性对照的真实模型 **qwen3.8-max**。每个装置都使用独立的临时 `QWEN_HOME`。
+Head 为 `b98dfa1927fc7ff54c2ad2ecaedd3b4b27123744`，第八轮验证的是 `4ae0857a8f`。本地第 2–8 轮都在 macOS arm64 上跑，并把 Linux 列为「未覆盖」（第 1 轮是 CI 沙箱，无法运行真实 agent）。本轮在 Linux x86_64 上验证（Debian，内核 6.12，Node v22.22.2），全新执行 `pnpm install --frozen-lockfile`、`npm run build`、`npm run bundle`，全部 exit 0。用到的都是真实组件：`qwen serve` daemon；经发布的 bin 入口（`scripts/cli-entry.js`）执行的 `qwen --bg`；真实 supervisor；以及作为阳性对照的真实模型 **qwen3.8-max**。每个装置都使用独立的临时 `QWEN_HOME`。
 
 ## 本轮待验证的增量
 
@@ -185,7 +185,7 @@ Head 为 `b98dfa1927fc7ff54c2ad2ecaedd3b4b27123744`，第八轮验证的是 `4ae
 
 ## 未覆盖
 
-- 本轮未覆盖 macOS 和 Windows（第 1–8 轮在 macOS 上）。
+- 本轮未覆盖 macOS 和 Windows（第 2–8 轮在 macOS 上）。
 - 方案 (a)/(b) 本轮没有重新实测。
 - R16-2：控制命令在服务端已执行变更之后遇到不确定的传输失败。要触发它，需要锁被持有超过 30 秒，或服务端执行后连接断开。
 - EACCES/EIO/EMFILE 本身没有测。本轮以 root 运行，`chmod` 拦不住 root，所以用 EISDIR、ENOTDIR 和损坏的 JSON 代表「读不了」。

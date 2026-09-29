@@ -1,6 +1,6 @@
 # PR #10954 deep verification (round 9, local, Linux x86_64)
 
-Head `b98dfa1927fc7ff54c2ad2ecaedd3b4b27123744`. The round-8 head was `4ae0857a8f`. Rounds 1–8 ran on macOS arm64 and each listed Linux as not covered. This round ran on Linux x86_64 (Debian, kernel 6.12, Node v22.22.2) with a fresh `pnpm install --frozen-lockfile`, `npm run build` and `npm run bundle`, all exit 0. It used real `qwen serve` daemons, real `qwen --bg` launches through the shipped bin (`scripts/cli-entry.js`), a real supervisor, and the real model **qwen3.8-max** as a positive control. Each harness ran in its own scratch `QWEN_HOME`.
+Head `b98dfa1927fc7ff54c2ad2ecaedd3b4b27123744`. The round-8 head was `4ae0857a8f`. The local rounds 2–8 ran on macOS arm64 and listed Linux as not covered (round 1 was the CI sandbox, which could not run a real agent). This round ran on Linux x86_64 (Debian, kernel 6.12, Node v22.22.2) with a fresh `pnpm install --frozen-lockfile`, `npm run build` and `npm run bundle`, all exit 0. It used real `qwen serve` daemons, real `qwen --bg` launches through the shipped bin (`scripts/cli-entry.js`), a real supervisor, and the real model **qwen3.8-max** as a positive control. Each harness ran in its own scratch `QWEN_HOME`.
 
 ## Delta under test
 
@@ -181,7 +181,7 @@ What the split still carries is the route's own liveness logic in `managed-rows.
 
 ## Not covered
 
-- macOS and Windows this round (rounds 1–8 ran on macOS).
+- macOS and Windows this round (rounds 2–8 ran on macOS).
 - Options (a)/(b) were not re-measured.
 - R16-2: control commands facing a transport-ambiguous failure after a mutation. That needs a lock held past 30 s or a connection dropped after the server acts.
 - EACCES/EIO/EMFILE themselves. I ran as root, so `chmod` is no barrier; EISDIR, ENOTDIR and corrupt JSON stand in for "cannot read".
