@@ -1,0 +1,53 @@
+[SECTION] E v1
+[E-v1] worker answer to execute: HTTP 409 {"code":"managed_runtime_provider_operation_failed","error":"Managed tool preflight has not permitted execution."}
+[PASS] E-v1.1 worker refuses execute-before-preflight definitively (HTTP 409 body, no effect) :: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime execution outcome is unknown.
+[E-v1] Broker row after the definite refusal: UNKNOWN/- generation=1
+[PASS] E-v1.2 an UNKNOWN record is never replayed (no further execute on the wire, no effect) :: retry=refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Ma raw=409 runtime_broker_execution_unknown
+[E-v1] cancel=refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker | resolve=501 runtime_broker_operation_unsupported | release=refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HT
+[E-v1] row=UNKNOWN session=READY
+[E-v1] OBSERVED: definite refusal -> UNKNOWN -> Session unreleasable = true
+[SECTION] E v2
+[E-v2] worker answer to execute: HTTP 409 {"code":"managed_runtime_provider_operation_failed","error":"Managed tool preflight has not permitted execution."}
+[PASS] E-v2.1 worker refuses execute-before-preflight definitively (HTTP 409 body, no effect) :: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime execution outcome is unknown.
+[E-v2] Broker row after the definite refusal: UNKNOWN/- generation=1
+[PASS] E-v2.2 an UNKNOWN record is never replayed (no further execute on the wire, no effect) :: retry=refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Ma raw=409 runtime_broker_execution_unknown
+[E-v2] cancel=refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker | resolve=501 runtime_broker_operation_unsupported | release=refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HT
+[E-v2] row=UNKNOWN session=READY
+[E-v2] OBSERVED: definite refusal -> UNKNOWN -> Session unreleasable = true
+[E-v2] storage holder rows for this Runtime Session: [["2e9b77e70bf16ce0fc7f89df00bacd95950f13254e206dc6aa5a958972f11879","4c193f61-a92d-4d35-8ec5-48918033c3b7"]]
+[E-v2] next Runtime Session (same Harness Session, same storage) acquire: refused status=409 code=workspace_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Workspace storage 
+[E-v2] sibling Harness Session (same Workspace) acquire: refused status=409 code=workspace_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Workspace storage 
+[SECTION] F v1
+[PASS] F-v1.1 lost execute reply: the tool ran once and the record is UNKNOWN :: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runt row=UNKNOWN lines=1
+[PASS] F-v1.2 retries and a restarted provider never replay: one execute on the wire, one effect, still UNKNOWN :: executes=1 lines=1 row=UNKNOWN reReserve=refused status=409 code=runtime_broker_execution_unknown BrokerRespons inspect={"outcome":"unknown"} reconcile={"outcome":"unknown"}
+[F-v1] wire: /provider/v1/control[execute] -> 200 (drop-reply)
+[F-v1] release with the UNKNOWN record: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Ru session=READY
+[SECTION] F v2
+[PASS] F-v2.1 lost execute reply: the tool ran once and the record is UNKNOWN :: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runt row=UNKNOWN lines=1
+[PASS] F-v2.2 retries and a restarted provider never replay: one execute on the wire, one effect, still UNKNOWN :: executes=1 lines=1 row=UNKNOWN reReserve=refused status=409 code=runtime_broker_execution_unknown BrokerRespons inspect={"outcome":"unknown"} reconcile={"outcome":"unknown"}
+[F-v2] wire: /provider/v1/control[execute] -> 200 (drop-reply)
+[F-v2] release with the UNKNOWN record: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Ru session=READY
+[SECTION] H v1
+[PASS] H-v1.1 24 concurrent starts: one dispatch on the wire, one effect, every answer 200 :: executes=1 lines=1 statuses=200
+[H-v1] release ok true
+[H-v1] 12x start=200 release=409 runtime_session_busy row=SETTLED/success session=READY effect=1
+[PASS] H-v1.2 start racing release (12 rounds): never a released Session with an unsettled record, never an unrecorded effect :: violations=0
+[SECTION] H v2
+[PASS] H-v2.1 24 concurrent starts: one dispatch on the wire, one effect, every answer 200 :: executes=1 lines=1 statuses=200
+[H-v2] release ok true
+[H-v2] 12x start=200 release=409 runtime_session_busy row=SETTLED/success session=READY effect=1
+[PASS] H-v2.2 start racing release (12 rounds): never a released Session with an unsettled record, never an unrecorded effect :: violations=0
+[SECTION] I v1
+[I-v1] worker -> Broker: HTTP 400 {"code":"managed_runtime_tool_invalid","error":"File path must be absolute: relative/path.txt"}
+[I-v1] Broker -> caller: HTTP 400 {"error":"File path must be absolute: relative/path.txt","code":"managed_runtime_tool_invalid","retryable":false}
+[I-v1] provider error seen by the Harness: refused status=400 code=managed_runtime_tool_invalid BrokerResponseError: Managed Runtime Broker returned HTTP 400. File path must be absolute: relative/path.txt
+[I-v1] unknown tool: HTTP 400 {"error":"Managed Runtime tool is unavailable.","code":"managed_runtime_tool_invalid","retryable":false}
+[I-v1] release ok true
+[SECTION] I v2
+[I-v2] worker -> Broker: HTTP 400 {"code":"managed_runtime_tool_invalid","error":"File path must be absolute: relative/path.txt"}
+[I-v2] Broker -> caller: HTTP 400 {"error":"File path must be absolute: relative/path.txt","code":"managed_runtime_tool_invalid","retryable":false}
+[I-v2] provider error seen by the Harness: refused status=400 code=managed_runtime_tool_invalid BrokerResponseError: Managed Runtime Broker returned HTTP 400. File path must be absolute: relative/path.txt
+[I-v2] unknown tool: HTTP 400 {"error":"Managed Runtime tool is unavailable.","code":"managed_runtime_tool_invalid","retryable":false}
+[I-v2] release ok true
+[OBSERVED] {"E-v1":{"stuck":true},"E-v2":{"stuck":true,"held":1,"nextAcquire":{"ok":false,"status":409,"code":"workspace_busy","name":"BrokerResponseError","message":"Managed Runtime Broker returned HTTP 409. Workspace storage is held by another tool turn."},"siblingAcquire":{"ok":false,"status":409,"code":"workspace_busy","name":"BrokerResponseError","message":"Managed Runtime Broker returned HTTP 409. Workspace storage is held by another tool turn."}}}
+[SUMMARY] 12/12 checks passed

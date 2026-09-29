@@ -1,0 +1,9 @@
+[case] R1 valid raw write_file, then release
+[raw] acquire 200 
+[raw] r1: reserve=200 start=200  | worker /v2/execute -> HTTP 200  | row=SETTLED/success referenceKeys=promptId,dispatchMode,callId,argsDigest,sessionId
+[raw] file="raw\n"
+[raw] release 200  session=RELEASED storageHeld=false wire=/provider/v1/control[release] -> 200, /v3/activation -> 200
+[case] R2 raw call the worker refuses definitively (tool not admitted), then release
+[raw] acquire 200 
+[raw] r2: reserve=200 start=200  | worker /v2/execute -> HTTP 409 {"code":"managed_runtime_identity_conflict","error":"Managed Runtime does not admit this tool."} | row=UNKNOWN/- referenceKeys=promptId,dispatchMode,callId,argsDigest,sessionId
+[raw] release 409 runtime_session_busy session=READY storageHeld=true wire=

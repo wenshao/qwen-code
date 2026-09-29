@@ -1,0 +1,51 @@
+[Y1] raw path, an unpaired surrogate in a string of the input | reserve 200 | start 400 runtime_payload_invalid "Tool payload is invalid" | requests to the worker: 0 | record PREPARED/- | file bytes: <no file>
+[Y1] raw path, an unpaired surrogate in a key of the input | reserve 200 | start 400 runtime_payload_invalid "Tool payload is invalid" | requests to the worker: 0 | record PREPARED/- | file bytes: <no file>
+[Y1] raw path, an unpaired surrogate in the tool name | reserve 200 | start 400 runtime_payload_invalid "Tool payload is invalid" | requests to the worker: 0 | record PREPARED/- | file bytes: <no file>
+[Y1] release while the refused reservations stand: 409 runtime_session_busy | Session READY | storage held=true
+[Y1] the caller cancels the reservations: 200, 200, 200 | records SETTLED/cancelled, SETTLED/cancelled, SETTLED/cancelled
+[Y1] release afterwards 200 | Session RELEASED | storage held=false
+[Y1] OBSERVED: refused before anything was sent: 3 of 3
+[PASS] Y1.1 raw path: a deferred start whose tool name or input holds an unpaired surrogate answers 400 runtime_payload_invalid, and nothing is sent to the worker :: ["400 runtime_payload_invalid/0","400 runtime_payload_invalid/0","400 runtime_payload_invalid/0"]
+[PASS] Y1.2 once the caller has cancelled the refused reservations the Session is released and its storage is free :: release 200, Session RELEASED
+[Y2] provider path, an unpaired surrogate in a string of the input (write_file content) | the caller sent "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-string.txt\",\"content\":\"a\\ud800b\\n\"}}"
+[Y2]   prepare 200 | requests to the worker: 1 | the worker received "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-string.txt\",\"content\":\"a?b\\n\"}}"
+[Y2]   the call ran: success | y2-string.txt: "a?b\n" | bytes 61 3f 62 0a
+[Y2] provider path, an unpaired surrogate in the same, sent to the Broker by the rig | the caller sent "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-rig.txt\",\"content\":\"a\\ud800b\\n\"}}"
+[Y2]   prepare 200 | requests to the worker: 1 | the worker received "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-rig.txt\",\"content\":\"a?b\\n\"}}"
+[Y2]   the call ran: success | y2-rig.txt: "a?b\n" | bytes 61 3f 62 0a
+[Y2] provider path, an unpaired surrogate in a Shell command | the caller sent "{\"toolName\":\"run_shell_command\",\"input\":{\"command\":\"ls data-\\ud800.txt > <roots>/b/child/y2-listing.txt 2>&1\",\"is_background\":false}}"
+[Y2]   prepare 200 | requests to the worker: 1 | the worker received "{\"toolName\":\"run_shell_command\",\"input\":{\"command\":\"ls data-?.txt > <roots>/b/child/y2-listing.txt 2>&1\",\"is_background\":false}}"
+[Y2]   the call ran: success | y2-listing.txt: "data-1.txt\ndata-2.txt\n"
+[Y2] provider path, an unpaired surrogate in a key of the input | the caller sent "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-key.txt\",\"content\":\"key\\n\",\"k\\ud800\":\"v\"}}"
+[Y2]   prepare 200 | requests to the worker: 1 | the worker received "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-key.txt\",\"content\":\"key\\n\",\"k?\":\"v\"}}"
+[Y2]   the call ran: success | y2-key.txt: "key\n" | bytes 6b 65 79 0a
+[Y2] provider path, an unpaired surrogate in the tool name | the caller sent "{\"toolName\":\"write_file\\ud800\",\"input\":{\"file_path\":\"<roots>/b/child/y2-name.txt\",\"content\":\"name\\n\"}}"
+[Y2]   prepare 400 runtime_control_operation_invalid "Managed Runtime Broker returned HTTP 400. Runtime provider operation or identity" | requests to the worker: 0
+[Y2] release afterwards: ok | Session RELEASED | storage held=false
+[Y2] OBSERVED: of 4 inputs holding an unpaired surrogate, the Broker refused 0, sent 4 to the worker as other text, and 4 of those ran
+[PASS] Y2.1 provider path: a tool name holding an unpaired surrogate is refused with 400, and nothing is sent to the worker :: 400 runtime_control_operation_invalid, sent 0
+[FAIL] Y2.2 provider path: a tool input holding an unpaired surrogate does not reach the worker as other text :: 4 of 4 reached the worker altered; ran: 4
+[PASS] Y2.3 the Session is released afterwards
+[Y3] raw path, a surrogate pair (U+1F600) | start 200 | record SETTLED/success | file bytes: 61 f0 9f 98 80 62 0a | release 200
+[Y3] provider path, the same | prepare 200 | the call ran: success | file bytes: 61 f0 9f 98 80 62 0a | release ok
+[PASS] Y3.1 a surrogate pair passes both paths and is written as the four bytes of its code point :: raw 61 f0 9f 98 80 62 0a, provider 61 f0 9f 98 80 62 0a
+[Y4] provider path, run_shell_command with a directory outside the workspace (the directory of another storage) | prepare 200 | the call ran: success | pwd printed "<roots>/f/child"
+[Y4] provider path, run_shell_command with a directory inside the workspace | prepare 200 | the call ran: success | pwd printed "<roots>/e/child"
+[Y4] provider path, run_shell_command with a directory that leaves the workspace through .. | prepare 200 | the call ran: success | pwd printed "<roots>/f/child"
+[Y4] provider path, run_shell_command with a directory that is a symbolic link inside the workspace to a directory outside | prepare 200 | the call ran: success | pwd printed "<roots>/e/child/y4-link"
+[Y4] raw path, the same call | start 200 | worker -> 200 | record SETTLED/error | pwd printed nothing
+[Y4] release of the provider Session: ok
+[Y4] OBSERVED: the call with a directory outside the workspace ran in "<roots>/f/child"
+[FAIL] Y4.1 provider path: a Shell call with a directory outside the workspace is refused with 400 managed_runtime_tool_invalid and does not run :: prepare 200, ran in /rig-home/rig/roots-r10yyh9/f/child
+[PASS] Y4.2 the same call with a directory inside the workspace runs there :: success, in /rig-home/rig/roots-r10yyh9/e/child
+[FAIL] Y4.4 neither a path through .. nor a symbolic link takes a call out of the workspace :: ["200: <roots>/f/child","200: <roots>/e/child/y4-link"]
+[PASS] Y4.3 raw path: the same call does not run outside the workspace either :: record SETTLED/error
+[Y5] the worker answers a cancellation with lastSeq written as 65540S | the Broker answers the caller 200 cancelled | sent to the worker: cancel (answer rewritten), status | record SETTLED/cancelled | cancel again, answer untouched: 200 cancelled | release ok
+[Y5] the worker answers a cancellation with lastSeq written as 260B | the Broker answers the caller 200 cancelled | sent to the worker: cancel (answer rewritten), status | record SETTLED/cancelled | cancel again, answer untouched: 200 cancelled | release ok
+[Y5] the worker answers a cancellation with lastSeq written as 1.0000000000000001D | the Broker answers the caller 200 cancelled | sent to the worker: cancel (answer rewritten), status | record SETTLED/cancelled | cancel again, answer untouched: 200 cancelled | release ok
+[Y5] the worker answers a cancellation with lastSeq written as 4 | the Broker answers the caller 200 cancelled | sent to the worker: cancel (answer rewritten), status | record SETTLED/cancelled | cancel again, answer untouched: 200 cancelled | release ok
+[Y5] OBSERVED: cursors that are not exact integers and were taken as one: 3 of 3
+[FAIL] Y5.1 a cursor that is not written as an exact integer is refused, not read as another number :: ["65540S: 200","260B: 200","1.0000000000000001D: 200"]
+[PASS] Y5.2 a plain integer cursor is accepted :: 200
+[PASS] Y5.3 after a refused answer the cancellation can be repeated and the Session released :: ["200/true","200/true","200/true","200/true"]
+[SUMMARY] 9/13 checks passed — failed: Y2.2, Y4.1, Y4.4, Y5.1

@@ -1,0 +1,32 @@
+[Y1] raw path, an unpaired surrogate in a string of the input | reserve 200 | start 200 | requests to the worker: 1 | the worker received toolName="write_file" input="{\"file_path\":\"<roots>/a/child/y1-string.txt\",\"content\":\"a?b\\n\"}" | record SETTLED/success | file bytes: 61 3f 62 0a
+[Y1] raw path, an unpaired surrogate in a key of the input | reserve 200 | start 200 | requests to the worker: 1 | the worker received toolName="write_file" input="{\"file_path\":\"<roots>/a/child/y1-key.txt\",\"content\":\"key\\n\",\"k?\":\"v\"}" | record SETTLED/success | file bytes: 6b 65 79 0a
+[Y1] raw path, an unpaired surrogate in the tool name | reserve 200 | start 200 | requests to the worker: 1 | the worker received toolName="write_file?" input="{\"file_path\":\"<roots>/a/child/y1-name.txt\",\"content\":\"name\\n\"}" | record UNKNOWN/- | file bytes: <no file>
+[Y1] release while the refused reservations stand: 409 runtime_session_busy | Session READY | storage held=true
+[Y1] the caller cancels the reservations: none stands | records UNKNOWN/-, SETTLED/success, SETTLED/success
+[Y1] release afterwards 409 runtime_session_busy "Runtime Session has an active operation" | Session READY | storage held=true
+[Y1] OBSERVED: refused before anything was sent: 0 of 3
+[FAIL] Y1.1 raw path: a deferred start whose tool name or input holds an unpaired surrogate answers 400 runtime_payload_invalid, and nothing is sent to the worker :: ["200/1","200/1","200/1"]
+[FAIL] Y1.2 once the caller has cancelled the refused reservations the Session is released and its storage is free :: release 409 runtime_session_busy, Session READY
+[Y2] provider path, an unpaired surrogate in a string of the input (write_file content) | the caller sent "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-string.txt\",\"content\":\"a\\ud800b\\n\"}}"
+[Y2]   prepare 200 | requests to the worker: 1 | the worker received "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-string.txt\",\"content\":\"a?b\\n\"}}"
+[Y2]   the call ran: success | y2-string.txt: "a?b\n" | bytes 61 3f 62 0a
+[Y2] provider path, an unpaired surrogate in the same, sent to the Broker by the rig | the caller sent "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-rig.txt\",\"content\":\"a\\ud800b\\n\"}}"
+[Y2]   prepare 200 | requests to the worker: 1 | the worker received "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-rig.txt\",\"content\":\"a?b\\n\"}}"
+[Y2]   the call ran: success | y2-rig.txt: "a?b\n" | bytes 61 3f 62 0a
+[Y2] provider path, an unpaired surrogate in a Shell command | the caller sent "{\"toolName\":\"run_shell_command\",\"input\":{\"command\":\"ls data-\\ud800.txt > <roots>/b/child/y2-listing.txt 2>&1\",\"is_background\":false}}"
+[Y2]   prepare 200 | requests to the worker: 1 | the worker received "{\"toolName\":\"run_shell_command\",\"input\":{\"command\":\"ls data-?.txt > <roots>/b/child/y2-listing.txt 2>&1\",\"is_background\":false}}"
+[Y2]   the call ran: success | y2-listing.txt: "data-1.txt\ndata-2.txt\n"
+[Y2] provider path, an unpaired surrogate in a key of the input | the caller sent "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-key.txt\",\"content\":\"key\\n\",\"k\\ud800\":\"v\"}}"
+[Y2]   prepare 200 | requests to the worker: 1 | the worker received "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-key.txt\",\"content\":\"key\\n\",\"k?\":\"v\"}}"
+[Y2]   the call ran: success | y2-key.txt: "key\n" | bytes 6b 65 79 0a
+[Y2] provider path, an unpaired surrogate in the tool name | the caller sent "{\"toolName\":\"write_file\\ud800\",\"input\":{\"file_path\":\"<roots>/b/child/y2-name.txt\",\"content\":\"name\\n\"}}"
+[Y2]   prepare 400 runtime_control_operation_invalid "Managed Runtime Broker returned HTTP 400. Runtime provider operation or identity" | requests to the worker: 0
+[Y2] release afterwards: ok | Session RELEASED | storage held=false
+[Y2] OBSERVED: of 4 inputs holding an unpaired surrogate, the Broker refused 0, sent 4 to the worker as other text, and 4 of those ran
+[PASS] Y2.1 provider path: a tool name holding an unpaired surrogate is refused with 400, and nothing is sent to the worker :: 400 runtime_control_operation_invalid, sent 0
+[FAIL] Y2.2 provider path: a tool input holding an unpaired surrogate does not reach the worker as other text :: 4 of 4 reached the worker altered; ran: 4
+[PASS] Y2.3 the Session is released afterwards
+[Y3] raw path, a surrogate pair (U+1F600) | start 200 | record SETTLED/success | file bytes: 61 f0 9f 98 80 62 0a | release 200
+[Y3] provider path, the same | prepare 200 | the call ran: success | file bytes: 61 f0 9f 98 80 62 0a | release ok
+[PASS] Y3.1 a surrogate pair passes both paths and is written as the four bytes of its code point :: raw 61 f0 9f 98 80 62 0a, provider 61 f0 9f 98 80 62 0a
+[SUMMARY] 3/6 checks passed — failed: Y1.1, Y1.2, Y2.2

@@ -1,0 +1,98 @@
+[SECTION] A v1
+[PASS] A-v1.1 acquire leaves the Runtime Session READY
+[PASS] A-v1.2 manifest lists the four fixed tools
+[PASS] A-v1.3 prepare has no tool effect
+[PASS] A-v1.4 durable reservation: one PREPARED row, dispatch generation 0, no effect :: state=PREPARED gen=0
+[PASS] A-v1.5 stored reference has exactly the seven identity fields :: sessionId,promptId,callId,capabilityDigest,policyRevision,invocationId,argsDigest
+[PASS] A-v1.6 stored row holds no tool name, command text or marker
+[PASS] A-v1.7 approval + preflight allow the invocation
+[PASS] A-v1.8 start executes the original invocation :: status=success lines=1
+[PASS] A-v1.9 repeated start + restarted provider: same execution, one dispatch, one effect :: rows=1 gen=1 wireExecutes=1 lines=1 rawStart=200,200
+[PASS] A-v1.10 Broker -> worker execute carries only the reference (no arguments) :: operationKeys=reference,kind
+[PASS] A-v1.11 release succeeds and the Session is RELEASED :: ok true
+[PASS] A-v1.13 durable evidence survives release
+[SECTION] A v2
+[PASS] A-v2.1 acquire leaves the Runtime Session READY
+[PASS] A-v2.2 manifest lists the four fixed tools
+[PASS] A-v2.3 prepare has no tool effect
+[PASS] A-v2.4 durable reservation: one PREPARED row, dispatch generation 0, no effect :: state=PREPARED gen=0
+[PASS] A-v2.5 stored reference has exactly the seven identity fields :: sessionId,promptId,callId,capabilityDigest,policyRevision,invocationId,argsDigest
+[PASS] A-v2.6 stored row holds no tool name, command text or marker
+[PASS] A-v2.7 approval + preflight allow the invocation
+[PASS] A-v2.8 start executes the original invocation :: status=success lines=1
+[PASS] A-v2.9 repeated start + restarted provider: same execution, one dispatch, one effect :: rows=1 gen=1 wireExecutes=1 lines=1 rawStart=200,200
+[PASS] A-v2.10 Broker -> worker execute carries only the reference (no arguments) :: operationKeys=reference,kind
+[PASS] A-v2.11 release succeeds and the Session is RELEASED :: ok true
+[PASS] A-v2.12 worker release precedes Workspace deactivation; storage ownership dropped :: /provider/v1/control[release] -> 200 | /v3/activation -> 200
+[PASS] A-v2.13 durable evidence survives release
+[SECTION] B v1
+[PASS] B.1 start before preflight has no effect (worker refuses the execute) :: refused status=- code=no_answer NoAnswer: no answer within 30 s
+[B.1] row after the refused start: UNKNOWN/-
+[B.1b] DEFAULT approval, preflight + start with NO confirm: preflight=ok {"shouldProceed":true} start=ok {"executionStatus":"success","result":{"llmContent":"Succ fileWritten=true
+[PASS] B.2 a cancel decision never executes :: ok {"executionStatus":"not_started"}
+[PASS] B.3 approval decision is immutable (same repeats, different refused) :: same=ok undefined flipped=refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed tool confirmation already decided.
+[PASS] B.4 changed arguments under one call identity are refused :: refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed tool call already owns another invocation.
+[PASS] B.5 tampered argsDigest / invocationId are refused :: refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed tool invocation identity does not match. | refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed tool invocation identity does not match.
+[PASS] B.6 foreign Session reference refused before any worker request :: provider=refused status=409 code=managed_runtime_identity_conflict ManagedRuntimeProviderProtocolError: Managed Runtime provider Session identity conflicts. broker=400 runtime_control_operation_invalid reserve=409 runtime_reference_conflict wire=0
+[PASS] B.7 public control route refuses unknown kinds/fields and transport-only operations before dispatch :: 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid | 400 runtime_control_operation_invalid wire=0
+[PASS] B.8 after all refusals the approved invocation still runs once
+[PASS] B.9 file-history binding: foreign owner refused before any worker request; foreign directory refused; own binding accepted :: owner=400 runtime_control_operation_invalid runtime=400 runtime_control_operation_invalid wireBeforeCwd=0 cwd=409 managed_runtime_provider_operation_failed own=200
+[B] release ok true
+[B] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[SECTION] C v1
+[PASS] C-v1.1 provider reservation + payloadJson start fails before dispatch :: 409 runtime_execution_conflict wire=0
+[PASS] C-v1.2 start with an unknown field is refused :: 400 runtime_broker_invalid_request
+[PASS] C-v1.3 reservation refuses payload/tool fields beside or inside the reference :: 400 runtime_broker_invalid_request | 400 runtime_reference_invalid
+[PASS] C-v1.4 immediate raw route refuses a seven-field provider reference :: 400 runtime_reference_invalid
+[C-v1] raw reserve in provider-owned Session: 200  {"protocolVersion":1,"harnessSessionId":"72d2072a-72f1-4cf6-b975-bb503e9c9002","runtimeSessionId":"0c2b565c-5deb-4a0c-ae5c-56cc90785411","executionCallId":"7153d9d3-d724-47e8-83c1-ac80874b8cb3","statu
+[FAIL] C-v1.5 raw reservation + start without payloadJson fails before dispatch :: 400 runtime_payload_invalid wire=1
+[PASS] C-v1.6 raw tool call cannot enter a provider-owned Session (no effect) :: start=200  row=UNKNOWN/- result=null wire=/v2/execute -> 409
+[PASS] C-v1.7 the provider invocation is unaffected by the refused mixes
+[C-v1] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[C-v1] ["7-field SETTLED/success","5-field UNKNOWN/-"]
+[SECTION] C v2
+[PASS] C-v2.1 provider reservation + payloadJson start fails before dispatch :: 409 runtime_execution_conflict wire=0
+[PASS] C-v2.2 start with an unknown field is refused :: 400 runtime_broker_invalid_request
+[PASS] C-v2.3 reservation refuses payload/tool fields beside or inside the reference :: 400 runtime_broker_invalid_request | 400 runtime_reference_invalid
+[PASS] C-v2.4 immediate raw route refuses a seven-field provider reference :: 400 runtime_reference_invalid
+[C-v2] raw reserve in provider-owned Session: 200  {"protocolVersion":1,"harnessSessionId":"b4b153df-614b-4764-aba6-ed07d1b1709c","runtimeSessionId":"64e49ccc-f834-4d43-9f2b-feba83bf692d","executionCallId":"7ed435fc-865f-429c-ba0b-0fc996c5c211","statu
+[PASS] C-v2.5 raw reservation + start without payloadJson fails before dispatch :: 400 runtime_payload_invalid wire=0
+[PASS] C-v2.6 raw tool call cannot enter a provider-owned Session (no effect) :: start=200  row=UNKNOWN/- result=null wire=/provider/v1/control[status] -> 200,/v2/execute -> 409
+[PASS] C-v2.7 the provider invocation is unaffected by the refused mixes
+[C-v2] release refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[C-v2] ["7-field SETTLED/success","5-field UNKNOWN/-"]
+[SECTION] D v1
+[PASS] D-v1.1 release cleans up an unreserved preparation without effect :: ok true
+[PASS] D-v1.2 a released Session refuses a late reservation :: 404 runtime_session_not_found
+[PASS] D-v1.3 release with an uncancelled durable reservation is refused; Session stays READY :: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[PASS] D-v1.4 cancel before start settles cancelled with no effect and no execute on the wire :: ok {"state":"settled","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":0,"progressGap":false,"progress":[],"result":{"executionStatus":"cancelled"}} wire=/provider/v1/control[cancel] -> 200,/provider/v1/control[status] -> 200,/provider/v1/control[status] -> 200
+[PASS] D-v1.5 start after cancel never executes :: ok {"executionStatus":"cancelled"}
+[PASS] D-v1.6 release succeeds after the cancel :: ok true
+[PASS] D-v1.7 release during running work is refused; Session stays READY :: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[PASS] D-v1.8 cancel of running work settles cancelled well before the command would finish :: cancel=ok {"state":"cancel_requested","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":0,"p result=cancelled 86ms
+[PASS] D-v1.9 release succeeds once the work settled :: ok true
+[PASS] D-v1.10 the cancelled command left no late effect
+[PASS] D-v1.11 release is idempotent (provider and Broker) :: ok true raw=200
+[PASS] D-v1.12 a released Runtime Session admits no new acquire or control :: acquire=refused status=409 code=runtime_session_not_acquirable BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session is not acquirable control=404 runtime_session_not_found
+[PASS] D-v1.13 evidence of the cancelled execution is preserved
+[D-v1] Broker HTTP observation after release: 200 
+[PASS] D-v1.14 another Harness Session / turn kind cannot acquire, control or release it :: 409 runtime_session_conflict | 409 runtime_session_conflict | 409 runtime_session_conflict | 409 runtime_session_conflict
+[D-v1] release ok true
+[SECTION] D v2
+[PASS] D-v2.1 release cleans up an unreserved preparation without effect :: ok true
+[PASS] D-v2.2 a released Session refuses a late reservation :: 404 runtime_session_not_found
+[PASS] D-v2.3 release with an uncancelled durable reservation is refused; Session stays READY :: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[PASS] D-v2.4 cancel before start settles cancelled with no effect and no execute on the wire :: ok {"state":"settled","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":0,"progressGap":false,"progress":[],"result":{"executionStatus":"cancelled"}} wire=/provider/v1/control[cancel] -> 200,/provider/v1/control[status] -> 200
+[PASS] D-v2.5 start after cancel never executes :: ok {"executionStatus":"cancelled"}
+[PASS] D-v2.6 release succeeds after the cancel :: ok true
+[PASS] D-v2.7 release during running work is refused; Session stays READY :: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[PASS] D-v2.8 cancel of running work settles cancelled well before the command would finish :: cancel=ok {"state":"cancel_requested","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":0,"p result=cancelled 33ms
+[PASS] D-v2.9 release succeeds once the work settled :: ok true
+[PASS] D-v2.10 the cancelled command left no late effect
+[PASS] D-v2.11 release is idempotent (provider and Broker) :: ok true raw=200
+[PASS] D-v2.12 a released Runtime Session admits no new acquire or control :: acquire=refused status=409 code=runtime_session_not_acquirable BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session is not acquirable control=404 runtime_session_not_found
+[PASS] D-v2.13 evidence of the cancelled execution is preserved
+[D-v2] Broker HTTP observation after release: 200 
+[PASS] D-v2.14 another Harness Session / turn kind cannot acquire, control or release it :: 409 runtime_session_conflict | 409 runtime_session_conflict | 409 runtime_session_conflict | 409 runtime_session_conflict
+[D-v2] release ok true
+[SUMMARY] 75/76 checks passed — failed: C-v1.5

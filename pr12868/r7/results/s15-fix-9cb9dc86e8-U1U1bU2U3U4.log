@@ -1,0 +1,89 @@
+[GROUP] U1 v2 arm=9cb9dc86e8
+[U1-v2] worker of the Harness Session listens on a loopback port (seen on the wire) | first Runtime Session released: ok true
+[U1-v2] provider acquire for a Runtime Session whose context is not installed yet (sent by the rig): 409 managed_context_unavailable "Managed context directory is unavailable."
+[U1-v2] Broker acquires the same Runtime Session (context, activation): 200 | raw start 200 | worker /v2/execute -> 200 {"executionStatus":"success","responseParts":[{"type":"text","text":"Successfully created and wrote to new file: /privat
+[U1-v2] provider acquire for that Session once it has run raw work (sent by the rig): 409 managed_runtime_identity_conflict "Managed Runtime Session conflicts."
+[U1-v2] record SETTLED/success | file="raw after refused acquire\n" | release 200 | Session RELEASED | storage held=false
+[U1-v2] provider acquire for that Session after the release request (sent by the rig): 409 managed_runtime_provider_operation_failed "Managed Runtime Session is closed."
+[U1-v2] next Runtime Session of the same Workspace through the provider: ok
+[PASS] U1-v2.1 the worker refuses a provider acquire before the context is active :: 409 managed_context_unavailable "Managed context directory is unavailable."
+[PASS] U1-v2.2 the refused acquire leaves the raw protocol available: the raw call executes once :: worker 200 record SETTLED/success
+[PASS] U1-v2.3 the Session releases and drops its storage; the Workspace admits the next Runtime Session :: release 200 next ok
+[PASS] U1-v2.4 a Session that ran raw work cannot switch to the provider, and a released one stays closed :: 409 managed_runtime_identity_conflict "Managed Runtime Session conflicts." | 409 managed_runtime_provider_operation_failed "Managed Runtime Session is closed."
+[GROUP] U1b v2 arm=9cb9dc86e8
+[U1b-v2] three concurrent provider acquires before the context is installed (sent by the rig): 409 managed_context_unavailable, 409 managed_context_unavailable, 409 managed_context_unavailable
+[U1b-v2] the same Runtime Session through the provider and the Broker: acquired | call success | file="provider after refused acquire\n"
+[U1b-v2] a raw execute for the Session the provider now owns (sent by the rig): 409 managed_runtime_identity_conflict "Managed Runtime protocol conflicts." | raw file written=false | release ok true
+[PASS] U1b-v2.1 every concurrent acquire is refused while the context is not active :: 409 managed_context_unavailable, 409 managed_context_unavailable, 409 managed_context_unavailable
+[PASS] U1b-v2.2 the refused acquires do not block a later provider acquire; the call executes once
+[PASS] U1b-v2.3 a successful provider acquire still fences the raw protocol :: 409 managed_runtime_identity_conflict "Managed Runtime protocol conflicts."
+[PASS] U1b-v2.4 release succeeds :: ok true
+[GROUP] U2 v1 arm=9cb9dc86e8
+[U2-v1] call prepared and reserved in prompt p1, not started | begin-turn for p2 while it is unfinished: refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed Runtime still
+[U2-v1] cancel #1: caller 200 cancelled | worker saw [cancel -> 200 {"state":"cancel_requested","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":1,"progressGap":false,"progress":[]} ; status -> 200 {"state":"settled","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":1,"progressGap":false,"progress":[],"result":{]
+[U2-v1] begin-turn for p2 after the cancellation: ok (the worker now forgets the calls of p1)
+[U2-v1] cancel #2: caller 409 runtime_execution_cancel_unconfirmed retryable=false "Runtime no longer retains the prepared invocation" | worker saw [cancel -> 200 {"state":"unknown"}]
+[U2-v1] cancel #3: caller 409 runtime_execution_cancel_unconfirmed | worker saw [cancel -> 200 {"state":"unknown"}]
+[U2-v1] the same cancellation through the provider client: refused status=409 code=runtime_execution_cancel_unconfirmed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime no longer retains the prepared invocation
+[U2-v1] record SETTLED/cancelled cancel requested=true | GET 200 settled/cancelled | start of the old call: cancelled | file written=false
+[U2-v1] a call of p2 in the same Session: success | release ok true | cancel after release 200 worker saw [] | storage held=false
+[U2-v1] OBSERVED: a repeated cancellation of a call the worker forgot is answered to the caller with 409 runtime_execution_cancel_unconfirmed
+[PASS] U2-v1.1 the worker does not begin the next prompt while a prepared call is unfinished :: refused
+[PASS] U2-v1.2 the worker answers the cancellation of a call it no longer retains with exactly { state: "unknown" } :: cancel -> 200 {"state":"unknown"}
+[PASS] U2-v1.3 the forgotten call never executes and its record stays settled as cancelled
+[PASS] U2-v1.4 the Session keeps working for the new prompt and releases :: success | ok true
+[GROUP] U2 v2 arm=9cb9dc86e8
+[U2-v2] call prepared and reserved in prompt p1, not started | begin-turn for p2 while it is unfinished: refused status=409 code=managed_runtime_provider_operation_failed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Managed Runtime still
+[U2-v2] cancel #1: caller 200 cancelled | worker saw [cancel -> 200 {"state":"cancel_requested","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":1,"progressGap":false,"progress":[]} ; status -> 200 {"state":"settled","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":1,"progressGap":false,"progress":[],"result":{]
+[U2-v2] begin-turn for p2 after the cancellation: ok (the worker now forgets the calls of p1)
+[U2-v2] cancel #2: caller 409 runtime_execution_cancel_unconfirmed retryable=false "Runtime no longer retains the prepared invocation" | worker saw [cancel -> 200 {"state":"unknown"}]
+[U2-v2] cancel #3: caller 409 runtime_execution_cancel_unconfirmed | worker saw [cancel -> 200 {"state":"unknown"}]
+[U2-v2] the same cancellation through the provider client: refused status=409 code=runtime_execution_cancel_unconfirmed BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime no longer retains the prepared invocation
+[U2-v2] record SETTLED/cancelled cancel requested=true | GET 200 settled/cancelled | start of the old call: cancelled | file written=false
+[U2-v2] a call of p2 in the same Session: success | release ok true | cancel after release 200 worker saw [] | storage held=false
+[U2-v2] OBSERVED: a repeated cancellation of a call the worker forgot is answered to the caller with 409 runtime_execution_cancel_unconfirmed
+[PASS] U2-v2.1 the worker does not begin the next prompt while a prepared call is unfinished :: refused
+[PASS] U2-v2.2 the worker answers the cancellation of a call it no longer retains with exactly { state: "unknown" } :: cancel -> 200 {"state":"unknown"}
+[PASS] U2-v2.3 the forgotten call never executes and its record stays settled as cancelled
+[PASS] U2-v2.4 the Session keeps working for the new prompt and releases :: success | ok true
+[GROUP] U3 v1 arm=9cb9dc86e8
+[U3-v1] call of prompt p1 executed (success); prompt p2 begun; the worker no longer retains the call
+[U3-v1] status  (sent by the rig) 200 {"state":"unknown"}
+[U3-v1] cancel  (sent by the rig) 200 {"state":"unknown"}
+[U3-v1] execute (sent by the rig) 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | file="once\n"
+[U3-v1] retained call, argsDigest changed: status 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | cancel 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[U3-v1] retained call, other invocation id: status 200 {"state":"unknown"} | true reference: status 200 state=prepared cancelRequested=false
+[U3-v1] the retained call then runs: success | file="kept\n"
+[U3-v1] release ok true | records=["SETTLED/success","SETTLED/success"]
+[PASS] U3-v1.1 status and cancel for a call the worker no longer retains answer exactly { state: "unknown" } :: 200 {"state":"unknown"} | 200 {"state":"unknown"}
+[PASS] U3-v1.2 execute for that call is refused and the effect happened once :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v1.3 a changed reference of a retained call is a conflict and cancels nothing :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v1.4 an invocation id the worker never issued answers unknown and reveals nothing :: 200 {"state":"unknown"}
+[PASS] U3-v1.5 release succeeds :: ok true
+[GROUP] U3 v2 arm=9cb9dc86e8
+[U3-v2] call of prompt p1 executed (success); prompt p2 begun; the worker no longer retains the call
+[U3-v2] status  (sent by the rig) 200 {"state":"unknown"}
+[U3-v2] cancel  (sent by the rig) 200 {"state":"unknown"}
+[U3-v2] execute (sent by the rig) 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | file="once\n"
+[U3-v2] retained call, argsDigest changed: status 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | cancel 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[U3-v2] retained call, other invocation id: status 200 {"state":"unknown"} | true reference: status 200 state=prepared cancelRequested=false
+[U3-v2] the retained call then runs: success | file="kept\n"
+[U3-v2] release ok true | records=["SETTLED/success","SETTLED/success"]
+[PASS] U3-v2.1 status and cancel for a call the worker no longer retains answer exactly { state: "unknown" } :: 200 {"state":"unknown"} | 200 {"state":"unknown"}
+[PASS] U3-v2.2 execute for that call is refused and the effect happened once :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v2.3 a changed reference of a retained call is a conflict and cancels nothing :: 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match." | 409 managed_runtime_provider_operation_failed "Managed tool invocation identity does not match."
+[PASS] U3-v2.4 an invocation id the worker never issued answers unknown and reveals nothing :: 200 {"state":"unknown"}
+[PASS] U3-v2.5 release succeeds :: ok true
+[GROUP] U4 v1 arm=9cb9dc86e8
+[U4-v1] while the command runs: status after 0 -> state=executing lastSeq=4 progress seq [1,2,3,4]
+[U4-v1] status after 3 -> progress seq [4] | status after 4 -> progress seq []
+[U4-v1] command success | status after 0 once settled -> state=settled lastSeq=5 | release ok true
+[PASS] U4-v1.1 status returns only the progress after the cursor :: all=[1,2,3,4] tail=[4] none=[]
+[PASS] U4-v1.2 the command settles and the Session releases
+[GROUP] U4 v2 arm=9cb9dc86e8
+[U4-v2] while the command runs: status after 0 -> state=executing lastSeq=4 progress seq [1,2,3,4]
+[U4-v2] status after 3 -> progress seq [4] | status after 4 -> progress seq []
+[U4-v2] command success | status after 0 once settled -> state=settled lastSeq=5 | release ok true
+[PASS] U4-v2.1 status returns only the progress after the cursor :: all=[1,2,3,4] tail=[4] none=[]
+[PASS] U4-v2.2 the command settles and the Session releases
+[SUMMARY] 30/30 checks passed

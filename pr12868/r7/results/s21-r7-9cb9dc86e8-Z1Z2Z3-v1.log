@@ -1,0 +1,37 @@
+[GROUP] Z1 v1 arm=9cb9dc86e8
+[Z1-v1] one worker, 12 Runtime Sessions one after another, each ran one write_file and was released: 12 of 12 ok
+[Z1-v1] released Session  1 (11 released after it) | status (sent by the rig) unknown | cancel unknown | history 409 managed_runtime_provider_operation_failed | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session  2 (10 released after it) | status (sent by the rig) unknown | cancel unknown | history 409 managed_runtime_provider_operation_failed | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session  3 (9 released after it) | status (sent by the rig) unknown | cancel unknown | history 409 managed_runtime_provider_operation_failed | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session  4 (8 released after it) | status (sent by the rig) unknown | cancel unknown | history 409 managed_runtime_provider_operation_failed | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session  5 (7 released after it) | status (sent by the rig) settled | cancel settled | history 200 | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session  6 (6 released after it) | status (sent by the rig) settled | cancel settled | history 200 | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session  7 (5 released after it) | status (sent by the rig) settled | cancel settled | history 200 | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session  8 (4 released after it) | status (sent by the rig) settled | cancel settled | history 200 | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session  9 (3 released after it) | status (sent by the rig) settled | cancel settled | history 200 | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session 10 (2 released after it) | status (sent by the rig) settled | cancel settled | history 200 | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session 11 (1 released after it) | status (sent by the rig) settled | cancel settled | history 200 | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] released Session 12 (0 released after it) | status (sent by the rig) settled | cancel settled | history 200 | prepare of new work 409 managed_runtime_provider_operation_failed
+[Z1-v1] through the Broker, for the oldest Session: GET of its execution 200 settled/success | release repeated 200 | Session RELEASED
+[Z1-v1] a new Session on the same worker afterwards: success | release ok
+[Z1-v1] OBSERVED: Sessions that still answer in full: 8 of 12; tombstones: 4
+[PASS] Z1-v1.1 the 8 Sessions released last still answer their status in full :: ["settled","settled","settled","settled","settled","settled","settled","settled"]
+[PASS] Z1-v1.2 the 4 older ones are tombstones: status and cancel answer unknown :: ["unknown/unknown","unknown/unknown","unknown/unknown","unknown/unknown"]
+[PASS] Z1-v1.3 no released Session, kept or retired, admits new work :: ["409 managed_runtime_provider_operation_failed"]
+[PASS] Z1-v1.4 the Broker still reads the receipt of a retired Session, and the worker serves the next Session
+[GROUP] Z2 v1 arm=9cb9dc86e8
+[Z2-v1] twelve other Sessions ran and were released on the same worker: 12 of 12 ok | the command that ran meanwhile: success, 41 ticks, done=true
+[Z2-v1] the Session acquired first, its call prepared before the others: start success | file holds "written after twelve retirements\n" | a second call in it: success, output has "still-here"=true
+[Z2-v1] release of both: ok, ok | workers started meanwhile: 0
+[PASS] Z2-v1.1 twelve Sessions run and release beside a live one :: 12 of 12
+[PASS] Z2-v1.2 a command that runs while others are retired finishes
+[PASS] Z2-v1.3 the live Session runs the call it had prepared, and another one
+[PASS] Z2-v1.4 both release
+[GROUP] Z3 v1 arm=9cb9dc86e8
+[Z3-v1] 32 Sessions, 6 at a time, on one worker, each writes 50 KiB and releases: 32 of 32 ok in 1.2 s
+[Z3-v1] release at the worker: 32 requests, median 2 ms, 95th percentile 4 ms, slowest 4 ms | worker answers that were not 200: 0
+[Z3-v1] the Session acquired before them: another call success | release ok
+[PASS] Z3-v1.1 32 Sessions in parallel all run and release :: 32 of 32, refusals 0
+[PASS] Z3-v1.2 no release at the worker takes longer than 5 s :: slowest 4 ms
+[PASS] Z3-v1.3 the Session that was there first still works and releases
+[SUMMARY] 11/11 checks passed

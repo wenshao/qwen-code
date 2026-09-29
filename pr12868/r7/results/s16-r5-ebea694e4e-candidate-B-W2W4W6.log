@@ -1,0 +1,45 @@
+[GROUP] W2 v1 arm=ebea694e4e-candidate-B
+[W2-v1] 700,000 characters of output: start success | status (sent by the rig) 200 state=settled 1024 KiB | cancel (sent by the rig) 200 state=settled 1024 KiB
+[W2-v1] 3 MiB of progress (sent by the rig): while running: status 200 state=executing lastSeq=23 firstAvailableSeq=1 progressGap=false events=23 98 KiB | command success | once settled: status 200 state=settled lastSeq=38 firstAvailableSeq=39 progressGap=true events=0 1024 KiB
+[W2-v1] release ok | records=["SETTLED/success","SETTLED/success"]
+[PASS] W2-v1.1 status and cancel of a settled large result answer within the 1 MiB budget :: 200 | 200
+[PASS] W2-v1.2 heavy progress is evicted oldest first and announced through firstAvailableSeq and progressGap
+[PASS] W2-v1.3 release succeeds
+[GROUP] W2 v2 arm=ebea694e4e-candidate-B
+[W2-v2] 700,000 characters of output: start success | status (sent by the rig) 200 state=settled 1024 KiB | cancel (sent by the rig) 200 state=settled 1024 KiB
+[W2-v2] 3 MiB of progress (sent by the rig): while running: status 200 state=executing lastSeq=23 firstAvailableSeq=1 progressGap=false events=23 98 KiB | command success | once settled: status 200 state=settled lastSeq=38 firstAvailableSeq=39 progressGap=true events=0 1024 KiB
+[W2-v2] release ok | records=["SETTLED/success","SETTLED/success"]
+[PASS] W2-v2.1 status and cancel of a settled large result answer within the 1 MiB budget :: 200 | 200
+[PASS] W2-v2.2 heavy progress is evicted oldest first and announced through firstAvailableSeq and progressGap
+[PASS] W2-v2.3 release succeeds
+[GROUP] W4 v1 arm=ebea694e4e-candidate-B
+[W4-v1] cancel #1 200 cancelled | release with its acknowledgement lost: refused status=503 code=managed_runtime_unavailable Managed Runtime request failed. | Session RELEASING | storage held=false
+[W4-v1] cancel #2 while RELEASING: 200 cancelled | worker saw [] | GET 200
+[W4-v1] second release ok | Session RELEASED | cancel #3 200 | file written=false
+[PASS] W4-v1.1 a Session whose release acknowledgement was lost is RELEASING :: RELEASING
+[PASS] W4-v1.2 the repeated cancellation is answered from the stored receipt, with no worker request :: 200 worker saw []
+[PASS] W4-v1.3 the second release completes and nothing executed
+[GROUP] W4 v2 arm=ebea694e4e-candidate-B
+[W4-v2] cancel #1 200 cancelled | release with its acknowledgement lost: refused status=503 code=managed_runtime_unavailable Managed Runtime request failed. | Session RELEASING | storage held=false
+[W4-v2] cancel #2 while RELEASING: 200 cancelled | worker saw [] | GET 200
+[W4-v2] second release ok | Session RELEASED | cancel #3 200 | file written=false
+[PASS] W4-v2.1 a Session whose release acknowledgement was lost is RELEASING :: RELEASING
+[PASS] W4-v2.2 the repeated cancellation is answered from the stored receipt, with no worker request :: 200 worker saw []
+[PASS] W4-v2.3 the second release completes and nothing executed
+[GROUP] W6 v1 arm=ebea694e4e-candidate-B
+[W6-v1] control[prepare] with a 1,100 KiB operation: 413 runtime_control_operation_too_large retryable=false "Runtime provider operation exceeds its size limit." | requests that reached the worker: 0
+[W6-v1] reservation with an extra field: 400 runtime_broker_invalid_request retryable=false "Prepared execution fields are invalid." | rows written: 0
+[W6-v1] raw reservation whose reference holds a null: 400 runtime_reference_invalid retryable=false "Deferred execution reference is invalid" | rows written: 0
+[W6-v1] release ok
+[PASS] W6-v1.1 an operation the Broker cannot encode is refused for good (413, not retryable) before anything is sent :: 413 runtime_control_operation_too_large retryable=false "Runtime provider operation exceeds its size limit."
+[PASS] W6-v1.2 a malformed reservation envelope is a request error, a null in a reference is a 400; neither writes a row :: 400 runtime_broker_invalid_request retryable=false "Prepared execution fields are invalid." | 400 runtime_reference_invalid retryable=false "Deferred execution reference is invalid"
+[PASS] W6-v1.3 release succeeds
+[GROUP] W6 v2 arm=ebea694e4e-candidate-B
+[W6-v2] control[prepare] with a 1,100 KiB operation: 413 runtime_control_operation_too_large retryable=false "Runtime provider operation exceeds its size limit." | requests that reached the worker: 0
+[W6-v2] reservation with an extra field: 400 runtime_broker_invalid_request retryable=false "Prepared execution fields are invalid." | rows written: 0
+[W6-v2] raw reservation whose reference holds a null: 400 runtime_reference_invalid retryable=false "Deferred execution reference is invalid" | rows written: 0
+[W6-v2] release ok
+[PASS] W6-v2.1 an operation the Broker cannot encode is refused for good (413, not retryable) before anything is sent :: 413 runtime_control_operation_too_large retryable=false "Runtime provider operation exceeds its size limit."
+[PASS] W6-v2.2 a malformed reservation envelope is a request error, a null in a reference is a 400; neither writes a row :: 400 runtime_broker_invalid_request retryable=false "Prepared execution fields are invalid." | 400 runtime_reference_invalid retryable=false "Deferred execution reference is invalid"
+[PASS] W6-v2.3 release succeeds
+[SUMMARY] 18/18 checks passed

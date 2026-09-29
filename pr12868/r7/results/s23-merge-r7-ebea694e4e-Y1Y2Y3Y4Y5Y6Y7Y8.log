@@ -1,0 +1,68 @@
+[Y1] raw path, an unpaired surrogate in a string of the input | reserve 200 | start 400 runtime_payload_invalid "Tool payload is invalid" | requests to the worker: 0 | record PREPARED/- | file bytes: <no file>
+[Y1] raw path, an unpaired surrogate in a key of the input | reserve 200 | start 400 runtime_payload_invalid "Tool payload is invalid" | requests to the worker: 0 | record PREPARED/- | file bytes: <no file>
+[Y1] raw path, an unpaired surrogate in the tool name | reserve 200 | start 400 runtime_payload_invalid "Tool payload is invalid" | requests to the worker: 0 | record PREPARED/- | file bytes: <no file>
+[Y1] release while the refused reservations stand: 409 runtime_session_busy | Session READY | storage held=true
+[Y1] the caller cancels the reservations: 200, 200, 200 | records SETTLED/cancelled, SETTLED/cancelled, SETTLED/cancelled
+[Y1] release afterwards 200 | Session RELEASED | storage held=false
+[Y1] OBSERVED: refused before anything was sent: 3 of 3
+[PASS] Y1.1 raw path: a deferred start whose tool name or input holds an unpaired surrogate answers 400 runtime_payload_invalid, and nothing is sent to the worker :: ["400 runtime_payload_invalid/0","400 runtime_payload_invalid/0","400 runtime_payload_invalid/0"]
+[PASS] Y1.2 once the caller has cancelled the refused reservations the Session is released and its storage is free :: release 200, Session RELEASED
+[Y2] provider path, an unpaired surrogate in a string of the input (write_file content) | the caller sent "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-string.txt\",\"content\":\"a\\ud800b\\n\"}}"
+[Y2]   prepare 400 runtime_control_operation_invalid "Managed Runtime Broker returned HTTP 400. Runtime provider operation or identity" | requests to the worker: 0
+[Y2] provider path, an unpaired surrogate in the same, sent to the Broker by the rig | the caller sent "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-rig.txt\",\"content\":\"a\\ud800b\\n\"}}"
+[Y2]   prepare 400 runtime_control_operation_invalid "Runtime provider operation or identity is invalid." | requests to the worker: 0
+[Y2] provider path, an unpaired surrogate in a Shell command | the caller sent "{\"toolName\":\"run_shell_command\",\"input\":{\"command\":\"ls data-\\ud800.txt > <roots>/b/child/y2-listing.txt 2>&1\",\"is_background\":false}}"
+[Y2]   prepare 400 runtime_control_operation_invalid "Managed Runtime Broker returned HTTP 400. Runtime provider operation or identity" | requests to the worker: 0
+[Y2] provider path, an unpaired surrogate in a key of the input | the caller sent "{\"toolName\":\"write_file\",\"input\":{\"file_path\":\"<roots>/b/child/y2-key.txt\",\"content\":\"key\\n\",\"k\\ud800\":\"v\"}}"
+[Y2]   prepare 400 runtime_control_operation_invalid "Managed Runtime Broker returned HTTP 400. Runtime provider operation or identity" | requests to the worker: 0
+[Y2] provider path, an unpaired surrogate in the tool name | the caller sent "{\"toolName\":\"write_file\\ud800\",\"input\":{\"file_path\":\"<roots>/b/child/y2-name.txt\",\"content\":\"name\\n\"}}"
+[Y2]   prepare 400 runtime_control_operation_invalid "Managed Runtime Broker returned HTTP 400. Runtime provider operation or identity" | requests to the worker: 0
+[Y2] release afterwards: ok | Session RELEASED | storage held=false
+[Y2] OBSERVED: of 4 inputs holding an unpaired surrogate, the Broker refused 4, sent 0 to the worker as other text, and 0 of those ran
+[PASS] Y2.1 provider path: a tool name holding an unpaired surrogate is refused with 400, and nothing is sent to the worker :: 400 runtime_control_operation_invalid, sent 0
+[PASS] Y2.2 provider path: a tool input holding an unpaired surrogate does not reach the worker as other text :: 0 of 4 reached the worker altered; ran: 0
+[PASS] Y2.3 the Session is released afterwards
+[Y3] raw path, a surrogate pair (U+1F600) | start 200 | record SETTLED/success | file bytes: 61 f0 9f 98 80 62 0a | release 200
+[Y3] provider path, the same | prepare 200 | the call ran: success | file bytes: 61 f0 9f 98 80 62 0a | release ok
+[PASS] Y3.1 a surrogate pair passes both paths and is written as the four bytes of its code point :: raw 61 f0 9f 98 80 62 0a, provider 61 f0 9f 98 80 62 0a
+[Y4] provider path, run_shell_command with a directory outside the workspace (the directory of another storage) | prepare 400 managed_runtime_tool_invalid "Directory '<roots>/f/child' is not within any of the registered workspace directories." | the call ran: -
+[Y4] provider path, run_shell_command with a directory inside the workspace | prepare 200 | the call ran: success | pwd printed "<roots>/e/child"
+[Y4] provider path, run_shell_command with a directory that leaves the workspace through .. | prepare 400 managed_runtime_tool_invalid "Directory '<roots>/e/child/../../f/child' is not within any of the registered workspace directories." | the call ran: -
+[Y4] provider path, run_shell_command with a directory that is a symbolic link inside the workspace to a directory outside | prepare 400 managed_runtime_tool_invalid "Directory '<roots>/e/child/y4-link' is not within any of the registered workspace directories." | the call ran: -
+[Y4] raw path, the same call | start 200 | worker -> 200 | record SETTLED/error | pwd printed nothing
+[Y4] release of the provider Session: ok
+[Y4] OBSERVED: the call with a directory outside the workspace did not run
+[PASS] Y4.1 provider path: a Shell call with a directory outside the workspace is refused with 400 managed_runtime_tool_invalid and does not run :: prepare 400 managed_runtime_tool_invalid, ran in nothing
+[PASS] Y4.2 the same call with a directory inside the workspace runs there :: success, in /rig-home/rig/roots-r13iy/e/child
+[PASS] Y4.4 neither a path through .. nor a symbolic link takes a call out of the workspace :: ["400 managed_runtime_tool_invalid: did not run","400 managed_runtime_tool_invalid: did not run"]
+[PASS] Y4.3 raw path: the same call does not run outside the workspace either :: record SETTLED/error
+[Y5] the worker answers a cancellation with lastSeq written as 65540S | the Broker answers the caller 400 managed_runtime_attestation_invalid "Managed Runtime provider status cursor is invalid." | sent to the worker: cancel (answer rewritten) | record SETTLED/cancelled | cancel again, answer untouched: 200 cancelled | release ok
+[Y5] the worker answers a cancellation with lastSeq written as 260B | the Broker answers the caller 400 managed_runtime_attestation_invalid "Managed Runtime provider status cursor is invalid." | sent to the worker: cancel (answer rewritten) | record SETTLED/cancelled | cancel again, answer untouched: 200 cancelled | release ok
+[Y5] the worker answers a cancellation with lastSeq written as 1.0000000000000001D | the Broker answers the caller 400 managed_runtime_attestation_invalid "Managed Runtime provider status cursor is invalid." | sent to the worker: cancel (answer rewritten) | record SETTLED/cancelled | cancel again, answer untouched: 200 cancelled | release ok
+[Y5] the worker answers a cancellation with lastSeq written as 4 | the Broker answers the caller 200 cancelled | sent to the worker: cancel (answer rewritten), status | record SETTLED/cancelled | cancel again, answer untouched: 200 cancelled | release ok
+[Y5] OBSERVED: cursors that are not exact integers and were taken as one: 0 of 3
+[PASS] Y5.1 a cursor that is not written as an exact integer is refused, not read as another number :: ["65540S: 400 managed_runtime_attestation_invalid","260B: 400 managed_runtime_attestation_invalid","1.0000000000000001D: 400 managed_runtime_attestation_invalid"]
+[PASS] Y5.2 a plain integer cursor is accepted :: 200
+[PASS] Y5.3 after a refused answer the cancellation can be repeated and the Session released :: ["200/true","200/true","200/true","200/true"]
+[Y6] provider path, the worker's answer to execute is lost | start answers 200 executing | sent to the worker: execute (drop-reply) | record UNKNOWN/- | the command ran 1 time(s)
+[Y6] read afterwards: 200 settled/success | sent to the worker: status | record SETTLED/success
+[Y6] start sent again: 200 settled/success | cancel: 200 settled/success | sent to the worker: nothing | record SETTLED/success | the command ran 1 time(s)
+[Y6] release: ok | Session RELEASED | storage held=false
+[Y6] OBSERVED: execute requests for this call: 1 | the record ends SETTLED/success
+[PASS] Y6.1 the command runs once and is never dispatched a second time :: ran 1 time(s), execute requests 1
+[PASS] Y6.2 a read over Broker HTTP settles the record from the result the worker kept :: read 200 settled/success, record SETTLED/success
+[PASS] Y6.3 start sent again answers the settled result, and the Session is released with its storage free :: start again 200 settled/success, release ok
+[Y7] a Shell call is prepared with a directory that is a link to a directory inside the workspace: prepare 200 | the link is then pointed at the directory of another storage | start: error "" | pwd -P printed nothing | record SETTLED/error
+[Y7] release: ok | Session RELEASED
+[Y7] OBSERVED: the call did not run
+[PASS] Y7.1 a link moved out of the workspace after prepare does not take the call with it: the call settles as an error and does not run :: start error, pwd nothing
+[PASS] Y7.2 the Session is released afterwards
+[Y8] provider path, start of a call preflight never permitted | the worker answers execute with 409 managed_runtime_provider_operation_failed "Managed tool preflight has not permitted execution."
+[Y8] the caller's start: no answer after 20.0 s, still waiting | sent to the worker meanwhile: execute 1, status 314 | record UNKNOWN/- | file written=false
+[Y8] asked of the Broker directly: start 200 prepared | read 200 prepared
+[Y8] the caller cancels: 200 settled/not_started | record SETTLED/not_started | the provider is disposed; status requests in the next 2 s: 0 | release 200 | Session RELEASED | storage held=false | file written=false
+[Y8] OBSERVED: the caller had no answer within 20 s; status requests to the worker for a call that never ran: 316
+[FAIL] Y8.1 a start the worker refuses is answered to the caller, as a refusal, within 20 s :: no answer after 20.0 s
+[FAIL] Y8.2 the worker is not asked again and again about a call it never started :: status requests: 316
+[PASS] Y8.3 the call has no effect :: file written=false
+[SUMMARY] 19/21 checks passed — failed: Y8.1, Y8.2

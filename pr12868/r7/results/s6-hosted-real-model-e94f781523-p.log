@@ -1,0 +1,33 @@
+[setup] arm=e94f781523 model=qwen3.8-max harness=http://127.0.0.1:61418 broker=http://127.0.0.1:19882
+[T1] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 19719ms
+[T1 tool] call read_file({"file_path":"notes.txt"}) id=call_8419958cbf974e439146d3eb
+[T1 tool] result read_file status=success "release codename: HERON\nowner: platform-team\nstatus: draft\n"
+[T1 tool] call read_file({"file_path":"summary.txt"}) id=call_0edb2f4ca7ab4d44a1cb99ca
+[T1 tool] result read_file status=error "Could not read file because no file was found at the specified path."
+[T1 tool] call write_file({"file_path":"summary.txt","content":"heron\n"}) id=call_966e5af711f541cfbfd3a099
+[T1 tool] result write_file status=success "Successfully created and wrote to new file: /rig-home
+[T1 tool] call read_file({"file_path":"summary.txt"}) id=call_505c69167f5a4e46936dad05
+[T1 tool] result read_file status=success "heron\n"
+[T1 text] The codename is **HERON** (written to `summary.txt` in lower case as `heron`, one line, verified by reading the file back).
+[T1 wire] /v3/attest -> 200, /v3/attest -> 200, /v3/attest -> 200, /v3/context -> 200, /v3/activation -> 200, /v2/execute -> 200, /v2/execute -> 200, /v2/execute -> 200, /v2/execute -> 200, /provider/v1/control[release] -> 200, /v3/activation -> 200
+[T1 fs] summary.txt="heron\n"
+[T1 holders] []
+[T2] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 13362ms
+[T2 tool] call read_file({"file_path":"notes.txt"}) id=call_bd57f753500d42c4b00faada
+[T2 tool] result read_file status=success "release codename: HERON\nowner: platform-team\nstatus: draft\n"
+[T2 tool] call edit({"file_path":"notes.txt","old_string":"status: draft","new_string":"status: released"}) id=call_f7623e06ee2342fba2a38ad6
+[T2 tool] result edit status=success "The file: /rig-home
+[T2 tool] call read_file({"file_path":"notes.txt"}) id=call_00a5116e264149c2bd175e72
+[T2 tool] result read_file status=success "release codename: HERON\nowner: platform-team\nstatus: released\n"
+[T2 text] Updated `status: draft` → `status: released`. Final content of `notes.txt`: ``` release codename: HERON owner: platform-team status: released ``` `summary.txt` is unaffected and still contains `heron`.
+[T2 wire] /v3/attest -> 200, /v3/attest -> 200, /v3/context -> 200, /v3/activation -> 200, /v2/execute -> 200, /v2/execute -> 200, /v2/execute -> 200, /provider/v1/control[release] -> 200, /v3/activation -> 200
+[T2 fs] notes.txt="release codename: HERON\nowner: platform-team\nstatus: released\n"
+[T3] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 5127ms
+[T3 text] Two files, both in the workspace root: 1. **`summary.txt`** — created it with the single line `heron`. 2. **`notes.txt`** — edited it, changing `status: draft` to `status: released`. (`notes.txt` was also read, including a read-back to confirm the edit, but the only write operations were those two.)
+[T3 wire] /v3/attest -> 200
+[sessions] [["RELEASED","bootstrap","2"]]
+[executions] [["SETTLED","success","6"],["SETTLED","error","1"]]
+[reference shapes] ["argsDigest,callId,dispatchMode,promptId,sessionId"]
+[holders] []
+[status] {"sessionId":"0e37db1a-1c0b-4f05-ac72-a150337e6094","hasActivePrompt":false,"recoveryBlocked":false}
+[harness log tail] []
