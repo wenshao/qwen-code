@@ -7,98 +7,24 @@ permissions:
 jobs:
   windows:
     runs-on: 'windows-2022'
-    timeout-minutes: 80
-    env:
-      BASE_SHA: '9220c8535888f8dc4800789a6a74c875fc557035'
+    timeout-minutes: 20
     steps:
       - shell: 'powershell'
         run: 'git config --global core.autocrlf false'
       - uses: 'actions/checkout@v4'
-        with:
-          fetch-depth: 0
-      - name: 'Point temp at a short-alias-free directory'
-        shell: 'powershell'
-        run: |-
-          $temp = Join-Path $env:RUNNER_WORKSPACE 'qwen-code-temp'
-          New-Item -ItemType Directory -Force -Path $temp | Out-Null
-          "TEMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "TMP=$temp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - uses: 'actions/setup-node@v4'
-        with:
-          node-version: '24.x'
-      - name: 'Spawn oracle (Node 24)'
-        shell: 'bash'
-        run: |-
-          mkdir -p probe-out
-          node .probe/spawn-oracle.mjs .probe/lite-head.mjs 1500 12934 > probe-out/oracle-win-node24.txt 2>&1; echo "exit $?"
-          grep -E 'ORACLE_SUMMARY|MISMATCH|OVER|UNDER|ORACLE_R13' probe-out/oracle-win-node24.txt | cut -c1-600
       - uses: 'actions/setup-node@v4'
         with:
           node-version: '22.x'
-      - name: 'Spawn oracle (Node 22)'
+      - name: 'Fold probe (final head lite)'
         shell: 'bash'
         run: |-
-          node .probe/spawn-oracle.mjs .probe/lite-head.mjs 1500 12934 > probe-out/oracle-win-node22.txt 2>&1; echo "exit $?"
-          grep -E 'ORACLE_SUMMARY|MISMATCH|OVER|UNDER|ORACLE_R13' probe-out/oracle-win-node22.txt | cut -c1-600
-      - name: 'Install (prepare builds and bundles)'
-        shell: 'bash'
-        run: 'corepack pnpm install --frozen-lockfile --reporter=append-only'
-      - name: 'Ensure build output and the base arm'
+          mkdir -p probe-out
+          node .probe/fold-probe.mjs .probe/lite-head.mjs 2>&1 | tee probe-out/fold-final.txt
+      - name: 'Spawn oracle with the empty-name candidate'
         shell: 'bash'
         run: |-
-          if [ ! -f dist/cli.js ] || [ ! -f packages/cli/dist/src/config/managed-compatibility.js ]; then npm run build && npm run bundle; fi
-          ls -la dist/cli.js packages/cli/dist/src/config/managed-compatibility.js
-          echo "head marker count (expect 1): $(grep -c 'the home directory or the environment could not be read' packages/cli/dist/src/config/managed-compatibility.js)"
-          cp -r packages/cli/dist probe-dist-base
-          cp .probe/base-dist/*.js probe-dist-base/src/config/
-          echo "base marker count (expect 0): $(grep -c 'the home directory or the environment could not be read' probe-dist-base/src/config/managed-compatibility.js)"
-          { echo "head=$(git rev-parse HEAD) parent=$(git rev-parse HEAD^) base=$BASE_SHA"; node -v; cmd.exe /c ver; } | tee probe-out/env.txt
-      - name: 'PR targeted suites, natively on Windows (head)'
-        if: '${{ !cancelled() }}'
-        shell: 'bash'
-        env:
-          HOME: '${{ runner.temp }}/qwen-ci-home'
-          USERPROFILE: '${{ runner.temp }}/qwen-ci-home'
-          NO_COLOR: 'true'
-        run: |-
-          mkdir -p "$HOME"
-          cd packages/cli
-          set +e
-          npx vitest run src/config/storage-paths-lite.test.ts src/config/managed-compatibility.test.ts src/config/settings-snapshot.test.ts --coverage.enabled=false --reporter=default --reporter=json --outputFile.json=../../probe-out/targeted-head.json 2>&1 | tee ../../probe-out/targeted-head.txt
-          echo "PROBE_JSON {\"suite\":\"targeted-head\",\"exit\":${PIPESTATUS[0]}}" | tee -a ../../probe-out/targeted-head.txt
-      - name: 'src/config, natively on Windows (head)'
-        if: '${{ !cancelled() }}'
-        shell: 'bash'
-        env:
-          HOME: '${{ runner.temp }}/qwen-ci-home'
-          USERPROFILE: '${{ runner.temp }}/qwen-ci-home'
-          NO_COLOR: 'true'
-        run: |-
-          cd packages/cli
-          set +e
-          npx vitest run src/config --coverage.enabled=false --reporter=json --outputFile.json=../../probe-out/config-head.json > ../../probe-out/config-head.txt 2>&1
-          echo "PROBE_JSON {\"suite\":\"config-head\",\"exit\":$?}" | tee -a ../../probe-out/config-head.txt
-      - name: 'src/config, natively on Windows (base sources)'
-        if: '${{ !cancelled() }}'
-        shell: 'bash'
-        env:
-          HOME: '${{ runner.temp }}/qwen-ci-home'
-          USERPROFILE: '${{ runner.temp }}/qwen-ci-home'
-          NO_COLOR: 'true'
-        run: |-
-          git checkout "$BASE_SHA" -- packages/cli/src
-          git diff --stat HEAD -- packages/cli/src | tail -1
-          cd packages/cli
-          set +e
-          npx vitest run src/config --coverage.enabled=false --reporter=json --outputFile.json=../../probe-out/config-base.json > ../../probe-out/config-base.txt 2>&1
-          echo "PROBE_JSON {\"suite\":\"config-base\",\"exit\":$?}" | tee -a ../../probe-out/config-base.txt
-          cd ../..
-          git checkout HEAD -- packages/cli/src
-          git status --short -- packages/cli/src | head -5
-      - name: 'Host-oracle matrix on Windows'
-        if: '${{ !cancelled() }}'
-        shell: 'bash'
-        run: 'node .probe/win-host.mjs 2>&1 | tee probe-out/win-host.txt'
+          node .probe/spawn-oracle.mjs .probe/lite-candidate.mjs 1500 12934 > probe-out/oracle-win-candidate.txt 2>&1; echo "exit $?"
+          grep -E 'ORACLE_SUMMARY|"case":"empty name"|UNDER' probe-out/oracle-win-candidate.txt | cut -c1-400
       - uses: 'actions/upload-artifact@v4'
         if: '${{ !cancelled() }}'
         with:
