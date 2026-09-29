@@ -1,0 +1,64 @@
+--- TakeoverReconciliationTest.orig	2026-09-29 14:28:42
++++ TakeoverReconciliationTest.r118probe.java	2026-09-29 14:29:04
+@@ -238,7 +238,42 @@
+             assertEquals(Map.of("executionStatus", "error", "output", "concurrent result"), stored.getResult());
+             assertEquals(7, stored.getLastSequence());
+             assertEquals(original.getVersion() + 1, stored.getVersion());
++        }
++    }
++
++    // Verification probe for review thread R1-18 (not part of the PR).
++    @ParameterizedTest
++    @ValueSource(booleans = {false, true})
++    void probeSecondPageReadFailure(boolean jdbc) throws Exception {
++        Fixture fixture = new Fixture(jdbc);
++        List<ToolExecutionRecord> originals = new ArrayList<>();
++        for (int index = 0; index < 103; index++) {
++            originals.add(fixture.execution("page-" + index, ToolExecutionRecord.State.UNKNOWN));
++        }
++        fixture.failScanReadNumber = 2;
++        StringBuilder out = new StringBuilder("jdbc=" + jdbc);
++        try (RuntimeBrokerService broker = fixture.broker(reference -> settled())) {
++            var failure = assertThrows(java.util.concurrent.ExecutionException.class, () -> fixture.acquire(broker));
++            Throwable cause = failure;
++            while (cause.getCause() != null) {
++                cause = cause.getCause();
++            }
++            long settledAfterFailure = originals.stream().map(record -> fixture.executions.findByExecutionCallId(
++                    record.getExecutionCallId())).filter(ToolExecutionRecord::isSettled).count();
++            out.append(" firstAcquire=failed root=").append(cause.getClass().getSimpleName()).append(":").append(cause.getMessage())
++                    .append(" scanReads=").append(fixture.scanReads).append(" lookups=").append(fixture.lookups.size())
++                    .append(" settledAfterFailure=").append(settledAfterFailure);
++            String firstPageLookup = fixture.lookups.getFirst();
++            fixture.failScanReadNumber = 0;
++            fixture.lookups.clear();
++            fixture.acquire(broker);
++            long settledAfterRetry = originals.stream().map(record -> fixture.executions.findByExecutionCallId(
++                    record.getExecutionCallId())).filter(ToolExecutionRecord::isSettled).count();
++            out.append(" retryLookups=").append(fixture.lookups.size()).append(" retryRevisitsFirstPage=")
++                    .append(fixture.lookups.contains(firstPageLookup)).append(" settledAfterRetry=").append(settledAfterRetry);
+         }
++        java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "r118-probe.txt"),
++                out + "\n", java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+     }
+ 
+     private static CompletionStage<Map<String, Object>> settled() {
+@@ -264,6 +299,8 @@
+         boolean takeoverOnly = true;
+         int settlements;
+         int failSettlementNumber;
++        int scanReads;
++        int failScanReadNumber;
+ 
+         Fixture(boolean jdbc) {
+             if (jdbc) {
+@@ -356,6 +393,9 @@
+             ToolExecutionRepository observed = (ToolExecutionRepository) Proxy.newProxyInstance(
+                     ToolExecutionRepository.class.getClassLoader(), new Class<?>[] {ToolExecutionRepository.class},
+                     (proxy, method, args) -> {
++                        if (method.getName().equals("findUnsettled") && ++scanReads == failScanReadNumber) {
++                            throw new IllegalStateException("Ledger read unavailable");
++                        }
+                         if (method.getName().equals("resolveUnsettled") && ++settlements == failSettlementNumber) {
+                             throw new IllegalStateException("Ledger write unavailable");
+                         }
