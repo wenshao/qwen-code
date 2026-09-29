@@ -1,0 +1,41 @@
+[
+ {
+  "file": "r6-01-r1-fixes-801dceab.png",
+  "title": "Round 6 — 801dceab: R1-2, R1-5, R1-7 (and R1-4) fixes",
+  "subtitle": "CLI-only change (no Java or core diff since 2159a735); fresh bundle, same Spring jar; MySQL 8.4.11. R1-5 A/B runs the old and new Runtime workers in separate rigs.",
+  "lines": [
+   "## R1-2  one transient Broker 503 on the discover refresh",
+   "-- 2159a735 (round 5): turn has no terminal event, recoveryBlocked, next prompt 409, detach 204, load 409 for good",
+   "++ 801dceab: turn_error with 0 effects -> next turn end_turn (1 effect) -> detach 204 -> load 200 -> turn after load OK",
+   "",
+   "## R1-5  stdio server re-sends the reply of an already settled request 300 ms later",
+   "-- 2159a735: connectionGeneration 1 -> 2, stdio server process restarted (starts 1 -> 2)",
+   "++ 801dceab: generation stays 1, one stdio process, the next call on the same connection returns EFFECT_OK",
+   "",
+   "## R1-7  Windows root key in the stdio child environment",
+   "++ bundle writes SYSTEMROOT:process.env[\"SystemRoot\"] (was SystemRoot:); PR env -> SDK merge -> Node 22 win32 filter:",
+   "++    no case-duplicate keys, child gets SYSTEMROOT = \"C:\\\\Windows\" (emulation; not run on Windows)",
+   "",
+   "## R1-4  running-after-unknown configuration: unit level only (not reproduced on the real stack)",
+   "",
+   "## Regression on 801dceab",
+   "++ S1: 3 transports, results_ready, exact blob, 2 prompt messages, 409 conflicts, 0 leaks, detach + load",
+   "++ F2 list_changed recovers in the same turn; timeoutMs 5000 + 32 s tool settles late at 34.3 s (pending path intact)",
+   "",
+   "## Mutants (inverse of each fix), 6 cli test files, baseline 133/133",
+   "++ Z1   R1-2 unconfirmed discovery blocks again                       KILLED",
+   "++ Z2   R1-2 explicit discovery error blocks again                    KILLED",
+   "++ Z3   R1-4 backward transition committed again                      KILLED",
+   "++ Z4   R1-5 unmatched string-id reply reaches the SDK again          KILLED",
+   "++ Z5   R1-7 key back to SystemRoot                                   KILLED",
+   "",
+   "== documented, unchanged: exactly-16-pins refresh edge (keep one slot free), F1, N1-N3, R1-3, #12894 order, X3/X5/X7/X9"
+  ],
+  "notes": [
+   {
+    "tone": "green",
+    "text": "The item I asked to fix before merge (R1-2) is fixed exactly as the round-5 candidate behaved, R1-5 and R1-7 are fixed, and every fix is pinned by a test. What remains is the set of documented H1 limits."
+   }
+  ]
+ }
+]
