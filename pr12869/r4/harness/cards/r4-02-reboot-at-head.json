@@ -1,0 +1,101 @@
+{
+  "title": "Physical reboots with this code: power cut, controls, hands-off reboots, two crashes inside the cleanup",
+  "subtitle": "PR #12869 round 4 · same dedicated Linux host as rounds 1 and 2 (machine-id f03cd9a6…) · R16, R17, R19 on the jar of 55ded4c3, R20 on the jar of 62584d31, R21 on the merge with main (all three jars: same classes) · times UTC, 2026-09-29",
+  "blocks": [
+    {
+      "table": [
+        [
+          "run",
+          "host went down by",
+          "down at",
+          "boot id before → after",
+          "server start, new boot",
+          "all generations RELEASED"
+        ],
+        [
+          "R16",
+          "power loss",
+          "01:46:08Z",
+          "51fe1ae0 → 28c1c492",
+          "01:52:01.868Z (after controls)",
+          "++ 01:52:05.467Z  8 of 8"
+        ],
+        [
+          "R17",
+          "systemctl reboot, hands-off",
+          "01:52:47.648Z",
+          "28c1c492 → 402f9331",
+          "01:53:01.405Z",
+          "++ 01:53:06.434Z  8 of 8"
+        ],
+        [
+          "R19",
+          "systemctl reboot + 2 x SIGKILL",
+          "01:54:56.726Z",
+          "ef376540 → a2f6c01a",
+          "01:55:11Z",
+          "++ 01:56:18.324Z  4 of 4"
+        ],
+        [
+          "R20",
+          "systemctl reboot, hands-off\njar built from 62584d31",
+          "03:41:27.846Z",
+          "a2f6c01a → f00f4f5f",
+          "03:41:41.809Z",
+          "++ 03:41:46.179Z  8 of 8"
+        ],
+        [
+          "R21",
+          "systemctl reboot, hands-off\nmerge of 62584d31 into main b1eb94da",
+          "03:51:51.064Z",
+          "f00f4f5f → 06bb9b96",
+          "03:52:04.252Z",
+          "++ 03:52:09.233Z  8 of 8"
+        ]
+      ]
+    },
+    {
+      "pre": "R17, R20 and R21 needed no manual step. Last stop evidence after the reboot command: 17.7 s, 17.0 s, 16.0 s. All 8 RELEASED when first observed: 18.8 s, 18.3 s, 18.2 s."
+    },
+    {
+      "label": "R16: state left by the power cut = 8 bindings (READY 6, LOST 1, RECOVERY_BLOCKED 1), 6 holders, 132 nonterminal executions, 2 escaped writers (last line 01:46:09.018Z)",
+      "table": [
+        [
+          "step on the new boot",
+          "watched for",
+          "bindings, holders, executions",
+          "an authorized warm"
+        ],
+        [
+          "option OFF, same machine-id",
+          "2 min 47 s",
+          "== unchanged",
+          "503 runtime_broker_reconcile_timeout after 120.2 s"
+        ],
+        [
+          "option ON, foreign machine-id",
+          "2 min 46 s",
+          "== unchanged",
+          "503 runtime_broker_reconcile_timeout after 120.1 s"
+        ],
+        [
+          "option ON, original machine-id",
+          "3.6 s",
+          "++ RELEASED 8, holders 0, nonterminal 0",
+          "200, generation 2, new worker (600 ms)"
+        ]
+      ]
+    },
+    {
+      "label": "R16 afterwards",
+      "pre": "receipts      A call-settled SETTLED result kept · A call-escape ABANDONED no result · 130 prepared ABANDONED no result · C call-settled SETTLED result kept\nrevoked arm   warm 409 workspace_unavailable · acquire 409 workspace_unavailable\nold session   execute on the original Runtime Session -> 404 runtime_session_not_found\nprocesses     no worker and no escaped writer from the old boot; registrations RETIRED 8, each with the original boot id"
+    },
+    {
+      "label": "R19: a MySQL trigger holds the one UPDATE that only the final retirement issues; the server is killed while that statement is held",
+      "pre": "01:55:14.638Z  st-a=LOST[holder CLEARED, session active, slot occupied]  st-b=LOST[holder CLEARED, ...]  st-c=LOST[holder kept]  st-d=LOST[holder kept]\n-- 01:55:14.689Z  crash 1: SIGKILL server pid 1305 (up 3 s)     held in MySQL: \"User sleep 0 s\"   (the first retirement)\n   01:55:16.262Z  unchanged after the crash, nothing retired, nothing re-acquired\n-- 01:55:46.177Z  crash 2: SIGKILL server pid 2358 (up 28 s)    held in MySQL: \"User sleep 0 s\"   (a retirement started by the restarted server)\n   01:55:51.061Z  trigger dropped\n++ 01:55:53.294Z  st-a, st-c, st-d RELEASED\n++ 01:56:18.324Z  st-b RELEASED                                  (once the killed server's 30 s operation claim had expired)\n++ receipts: 134 before, 134 after, identities unchanged · 132 ABANDONED without result · 2 SETTLED keep their result · worker processes: 0"
+    },
+    {
+      "note": "An earlier attempt (R18) converged the same way, but its second kill hit the restarted server while MySQL still held the first server's statement. The watcher now requires the held statement to be younger than the running server; R19 is that run."
+    }
+  ]
+}

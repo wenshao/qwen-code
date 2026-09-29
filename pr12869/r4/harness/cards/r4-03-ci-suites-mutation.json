@@ -1,0 +1,144 @@
+{
+  "title": "CI guard before and after the rename, first CI run, merge with today's main, mutation results",
+  "subtitle": "PR #12869 round 4 · 62584d31 = 55ded4c3 + one test class renamed + two pom lines removed · jobs replayed step by step from .github/workflows/sdk-java.yml · times UTC, 2026-09-29",
+  "blocks": [
+    {
+      "label": "both Java jobs, same commands as the workflow, then the job's report guard (scripts/check-failsafe-reports.js)",
+      "table": [
+        [
+          "job",
+          "tree",
+          "where",
+          "Maven steps",
+          "integration tests that ran",
+          "report guard"
+        ],
+        [
+          "MariaDB 10.11.18",
+          "55ded4c3",
+          "replayed here",
+          "++ pass",
+          "JdbcRuntimeBrokerMySqlIT 3 · ManagedAgentMySqlIT 15",
+          "-- exit 1  WorkspaceRecoveryWorkerIT ran no test in this job"
+        ],
+        [
+          "Hosted, MySQL 8.4",
+          "55ded4c3",
+          "replayed here",
+          "++ pass",
+          "Hosted*IT 5 + 2 + 1 · WorkspaceRecoveryWorkerIT 1",
+          "-- exit 1  WorkspaceRecoveryWorkerIT ran outside the hosted family"
+        ],
+        [
+          "MariaDB 10.11.18",
+          "62584d31",
+          "replayed here",
+          "++ pass",
+          "JdbcRuntimeBrokerMySqlIT 3 · ManagedAgentMySqlIT 15",
+          "++ exit 0"
+        ],
+        [
+          "Hosted, MySQL 8.4",
+          "62584d31",
+          "replayed here",
+          "++ pass",
+          "Hosted*IT 5 + 2 + 1 · HostedWorkspaceRecoveryWorkerIT 1",
+          "++ exit 0"
+        ],
+        [
+          "MariaDB 10.11.18",
+          "62584d31",
+          "GitHub CI",
+          "++ pass",
+          "JdbcRuntimeBrokerMySqlIT 3 · ManagedAgentMySqlIT 15",
+          "++ pass"
+        ],
+        [
+          "Hosted, MySQL 8.4",
+          "62584d31",
+          "GitHub CI",
+          "++ pass",
+          "Hosted*IT 5 + 2 + 1 · HostedWorkspaceRecoveryWorkerIT 1",
+          "++ pass, then fault gates 41 of 41"
+        ]
+      ]
+    },
+    {
+      "pre": "== 55ded4c3 never had a CI run: pushed while the PR was a draft on a stacked base; 'base changed' and 'ready for review' do not start these workflows\n++ 62584d31 is the first CI run of this PR: SDK Java 8 of 8 jobs green, Qwen Code CI green (run on the merge with main 99adce25)\n++ unit suites in CI and in the replays agree: runtime-broker 430 run (2 skipped), managed-agent-server 184 run, 0 failed"
+    },
+    {
+      "label": "what the rename changes in the product",
+      "pre": "source tree   62584d31 is file for file the tree I tested as 'head + rename' before the push (10019 files, 0 differences)\nserver jar    610 entries compared by sha256 with the jar of 55ded4c3: 537 class files identical; the only difference is the embedded copy of pom.xml"
+    },
+    {
+      "label": "merge with today's main (b1eb94da, 4 commits after the PR's base; under sdk-java they change two Hosted test files only)",
+      "pre": "++ git merge of 62584d31 into main b1eb94da    no conflict · 17 migrations (V1 to V18, no V15), one file per version · this PR adds none\n++ server jar of the merge result              610 entries, every sha256 equal to the jar of 62584d31\n++ Hosted job replayed on the merge result     HostedWorkspaceToolTurnIT 6 (main added one) · HostedHarnessMySqlIT 2 · HostedProcessCrashIT 1\n++                                             HostedWorkspaceRecoveryWorkerIT 1 · report guard exit 0\n++ real reboot, that jar + main's bundle (R21) systemctl reboot 03:51:51.064Z -> 8 of 8 RELEASED when first observed 03:52:09.233Z = 18.2 s"
+    },
+    {
+      "label": "mutants: one changed line each, six stages each (unit x 2, gates, real-worker IT, MySQL IT x 2), sequential; a stage counts as a kill only if it fails twice. Run at 55ded4c3.",
+      "table": [
+        [
+          "mutant",
+          "result",
+          "killed by / why it survives"
+        ],
+        [
+          "F01 the fix reverted (healthy waiters get the 503)",
+          "++ killed",
+          "MaintenanceProbeWaiterTest.healthyBindingRemainsUsableDuringMaintenanceObservation"
+        ],
+        [
+          "F02 waiters served even if the operation failed",
+          "== survives",
+          "equivalent: the context is stored as the last step of a successful adoption"
+        ],
+        [
+          "F03 a DRAINING binding is adopted",
+          "== survives",
+          "masked: adoptObservation refuses it again (canReconcile)"
+        ],
+        [
+          "M16 default recoverResources allows managed cleanup",
+          "++ killed (rounds 1 to 3: survived)",
+          "RuntimeMaintenanceRecoveryTest.managedGenerationWithoutCleanupCallbackStaysPinned"
+        ],
+        [
+          "M01 rebooted() ignores the host id",
+          "!! survives",
+          "no test in the tree runs a reboot under another machine-id"
+        ],
+        [
+          "M25 evidence matches any lease",
+          "== survives",
+          "equivalent: the record constructor has already rejected such a lease"
+        ],
+        [
+          "M11 claim ignores the Runtime Session row",
+          "!! survives",
+          "as in rounds 1 to 3"
+        ],
+        [
+          "M19 recoverBinding ignores the expected generation",
+          "!! survives",
+          "as in rounds 1 to 3"
+        ],
+        [
+          "M21 overlapping scan batches",
+          "!! survives",
+          "as in rounds 1 to 3"
+        ],
+        [
+          "M02 the same boot counts as a reboot (control)",
+          "++ killed",
+          "LocalRebootFaultGateTest x 2"
+        ]
+      ]
+    },
+    {
+      "pre": "RebootRecoveryGapTest from round 1, dropped into 62584d31:  unmutated 2 of 2  ·  under M01 anotherMachineIsNeverTreatedAsARebootOfTheOriginalHost fails  ·  Checkstyle clean"
+    },
+    {
+      "note": "Correction to round 3: it listed M01 and M25 as killed by DurableLocalRuntimeFaultGateTest.absentWorkerAfterRestartLeavesItsDomainPinned. That gate builds its Brokers with trusted reboot recovery off, so it never calls rebooted(). Both mutants pass all six stages here. The round-3 failures were the load-sensitive gate, not kills."
+    }
+  ]
+}

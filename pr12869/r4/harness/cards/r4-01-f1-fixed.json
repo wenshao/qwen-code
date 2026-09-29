@@ -1,0 +1,83 @@
+{
+  "title": "F1 is fixed: healthy requests are served while the scan observes their binding",
+  "subtitle": "PR #12869 round 4 · dedicated Linux host (Ubuntu 24.04.4, kernel 6.8.0-117) · real server jar under systemd + MySQL 8.4.11 · measured on the jar of 55ded4c3; the jar of 62584d31 has the same 537 classes byte for byte · times UTC, 2026-09-29",
+  "blocks": [
+    {
+      "label": "healthy turns (one turn = warm + acquire of a new Runtime Session + execute + release, back to back)",
+      "table": [
+        [
+          "server",
+          "trusted-local-reboot-recovery",
+          "window",
+          "turns",
+          "refused"
+        ],
+        [
+          "f8bf5d74 (round 1)",
+          "true",
+          "180 s",
+          "871",
+          "-- 6   503 runtime_reconciliation_required"
+        ],
+        [
+          "9a1de09e (round 2)",
+          "true",
+          "180 s",
+          "470",
+          "-- 5   503 runtime_reconciliation_required"
+        ],
+        [
+          "55ded4c3 = 62584d31",
+          "true",
+          "300 s",
+          "1383",
+          "++ 0"
+        ],
+        [
+          "55ded4c3 = 62584d31",
+          "false",
+          "180 s",
+          "878",
+          "++ 0"
+        ]
+      ]
+    },
+    {
+      "label": "warm requests placed around the scan: 12 offsets from 120 ms before to 10 ms after the scan's write, 5 consecutive scans",
+      "pre": "-- f8bf5d74 (round 1)    9 of 60 refused     (20 ms before: 5 of 5 · 10 ms before: 3 of 5 · at the write: 1 of 5)\n++ 55ded4c3 = 62584d31   0 of 60 refused     scan period 5014 ms, the binding is still observed and rewritten by every scan"
+    },
+    {
+      "label": "full chain: packaged Hosted Harness + scripted model; turn 2's acquire is delivered unchanged while the scan holds its claim on the binding",
+      "pre": "++ turn 1   admit=202  turn_complete(end_turn)  recoveryBlocked=false\n++ turn 2   admit=202  turn_complete(end_turn)  recoveryBlocked=false      acquire -> 200   (9a1de09e: 503, Session recovery-blocked)\n++ turn 3   admit=202  turn_complete(end_turn)  recoveryBlocked=false      (9a1de09e: 409 hosted_turn_recovery_required)\n++ harness status afterwards: hasActivePrompt=false, recoveryBlocked=false"
+    },
+    {
+      "label": "the other side of the fix: requests that must NOT be served, fired back to back for 12 s (more than two scans)",
+      "table": [
+        [
+          "state of the binding",
+          "requests",
+          "served",
+          "answers",
+          "afterwards"
+        ],
+        [
+          "worker SIGKILLed just before",
+          "367 warm\n366 acquire",
+          "++ 0",
+          "503 runtime_broker_runtime_lost x729\n503 runtime_provision_fenced x3\n503 runtime_provision_failed x1",
+          "LOST, no stop proof\nno new worker, no new generation"
+        ],
+        [
+          "healthy, but the access is revoked",
+          "488 warm\n489 acquire",
+          "++ 0",
+          "409 workspace_unavailable x977",
+          "READY, untouched\nno new worker"
+        ]
+      ]
+    },
+    {
+      "note": "The fix is the candidate from round 1 (complete the reservation with the adopted context when the observation ends healthy). Everything else still ends with the 503: the dead-worker rows above are exactly those waiters."
+    }
+  ]
+}
