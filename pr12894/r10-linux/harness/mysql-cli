@@ -1,0 +1,13 @@
+#!/bin/sh
+# Docker-exec mysql client: drop the host-side -h/-P (container speaks 3306 on its own loopback).
+out=""
+skip=0
+for a in "$@"; do
+  if [ $skip = 1 ]; then skip=0; continue; fi
+  case "$a" in
+    -h|-P) skip=1; continue;;
+    -h*|-P*) continue;;
+  esac
+  out="$out $(printf '%s' "$a" | sed "s/'/'\\\\''/g; s/^/'/; s/$/'/")"
+done
+eval "exec docker exec -i mysql84-rig mysql $out"
