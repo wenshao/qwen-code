@@ -6,11 +6,12 @@ head `42a059af96` plus one commit.
 
 | Path | Content |
 | --- | --- |
-| `r6-0*.png` | the six figures of the round-6 report |
+| `r6-0*.png` | the seven figures of the round-6 report |
 | `harness/s18-r6.mjs` | X1 where the cut lands, X2 Session ids, X2s every ASCII character in an id, X4 worker lost under a live Broker, X5 content modification at prepare, X6 large writes step by step |
 | `harness/s19-restart.mjs` | the Broker process is replaced between two cancellations of a prepared call; then the caller acquires again, as the answer asks |
 | `harness/s20-linux-restart.mjs` | the same on Linux, server and workers in a container, with `durable-local-process` on or off |
 | `harness/linux/start.sh`, `harness/linux/fresh.sh` | how the server is started inside the container |
+| `harness/s3-retention.mjs`, `harness/s3b-retention-raw.mjs` | what a worker keeps after released Sessions, on the provider path and on the raw path; `CONTENT_BYTES` sets what each turn writes |
 | `harness/fit-fuzz.mjs` | 3,000 random results for the built `fitManagedRuntimeProviderResult`, eight invariants |
 | `harness/scenario-r6.sh`, `harness/regress-r6.sh` | one scenario on a fresh database and Broker; the probes of rounds 1 to 5 in one batch |
 | `harness/proxy.mjs` | now keeps large answers of the worker in files beside the ledger, so a probe can compare them with what the caller received |
@@ -29,8 +30,9 @@ Builds the logs name:
 | `42a059af96` | the round-5 head |
 | `5c0c9bf323` | this head |
 | `merged-1b69629708-5c0c9bf323` | trial merge of this head with `main` `1b69629708` |
+| `main-1b69629708` | `main` without this PR (retention on the raw path only) |
 
-In the harness the same builds are the arms `h6`, `h7` and `tm7`.
+In the harness the same builds are the arms `h6`, `h7`, `tm7` and `m7`.
 Paths of the machine the rig ran on are replaced by `/rig-home` and `/opt/...`.
 
 The Linux runs: Ubuntu 24.04 in a container (kernel 6.8, aarch64), JDK 21.0.9,

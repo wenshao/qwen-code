@@ -217,6 +217,17 @@ cards['r6-06-mutation'] = () => {
   return page('Mutation matrix on this head', 'Suites: runtime-broker unit, managed-agent-server unit, cli serve managed/broker/hosted, core managed-tool. K = this round, I = round 5, H = round 4, G = merge resolution, J = Java, T = TypeScript, N = round 2.', body);
 };
 
+cards['r6-07-retention'] = () => {
+  const block = (name) => log(name).filter((l) => /^\[sample\] released Sessions=(1|60|150|240|300) |^\[idle\]|^\[result\] (mode|raw)/.test(l)).map((l) => l.replace(/ worker pid=\d+/, '').replace(/ elapsed=\d+s/, '').replace(/^\[result\] mode=v2 /, '[result] provider path, boot v2, ')).map((l) => mark(paint(l), [[/(\+\d{2,} MiB, [\d.]+ KiB per released Session)/, 'warn'], [/(\+\d MiB, [\d.]+ KiB per released Session)/, 'ok']])).join('\n');
+  const body = `<h2>Provider path · previous head ${PREV} · each turn writes 200 KiB</h2><pre>${block('s3-retention-h6-v2-300x200KiB.log')}</pre>
+  <h2>Provider path · this head ${HEAD} · each turn writes 200 KiB</h2><pre>${block('s3-retention-h7-v2-300x200KiB.log')}</pre>
+  <h2>Provider path · this head ${HEAD} · each turn writes 4 KiB</h2><pre>${block('s3-retention-h7-v2-300x4KiB.log')}</pre>
+  <h2>Raw path, the one the Hosted harness uses today · this head ${HEAD} · each turn writes 200 KiB</h2><pre>${block('s3b-retention-raw-h7-v2-300x200KiB.log')}</pre>
+  <h2>Raw path · main ${MAIN}, without this PR · each turn writes 200 KiB</h2><pre>${block('s3b-retention-raw-m7-v2-300x200KiB.log')}</pre>
+  <div class="note warn">One worker, 300 Runtime Sessions one after another, each acquired, used for one write_file and released, as a Hosted turn does. The worker keeps what a released Session held. On the provider path that is about 1 MiB per released Session when each turn writes 200 KiB, the same on the previous head: this commit did not change it. The raw path keeps a third of that, on this head and on main alike. The memory is the resident set of the worker process 15 s after the last release. At this head no production code constructs the provider client; the provider path is reached by tests and by this rig.</div>`;
+  return page('What a worker keeps after a release', 'The review bot\'s R4-1, which is F3 of round 1, measured on the real chain.', body);
+};
+
 const want = process.argv[2] ? process.argv[2].split(',') : Object.keys(cards);
 const browser = await chromium.launch();
 const context = await browser.newContext({ deviceScaleFactor: 2, viewport: { width: 1600, height: 1000 } });
