@@ -1,0 +1,96 @@
+diff --git a/packages/cli/src/ui/hooks/slashCommandProcessor.test.ts b/packages/cli/src/ui/hooks/slashCommandProcessor.test.ts
+index fc38a69096..ddab77018d 100644
+--- a/packages/cli/src/ui/hooks/slashCommandProcessor.test.ts
++++ b/packages/cli/src/ui/hooks/slashCommandProcessor.test.ts
+@@ -3436,6 +3436,28 @@ describe('useSlashCommandProcessor', () => {
+       });
+     });
+ 
++    it('echoes the minted prompt id onto a stacked-skill invocation item', async () => {
++      const skillA = createSkillCommand('feat-dev', 'feature workflow');
++      const skillB = createSkillCommand('e2e-testing', 'e2e workflow');
++      const result = setupProcessorHook([skillA, skillB]);
++      await waitFor(() => expect(result.current.slashCommands).toHaveLength(2));
++
++      await act(async () => {
++        await result.current.handleSlashCommand(
++          '/feat-dev /e2e-testing implement X',
++          undefined,
++          undefined,
++          undefined,
++          'test-session########9',
++        );
++      });
++
++      expect(mockUpdateItem).toHaveBeenCalledWith(expect.any(Number), {
++        sentToModel: true,
++        promptId: 'test-session########9',
++      });
++    });
++
+     it('preserves context-file refresh intent from stacked skills', async () => {
+       const skillA: SlashCommand = createTestCommand(
+         {
+diff --git a/packages/cli/src/ui/utils/resumeHistoryUtils.test.ts b/packages/cli/src/ui/utils/resumeHistoryUtils.test.ts
+index b957cee385..55b71bcf6a 100644
+--- a/packages/cli/src/ui/utils/resumeHistoryUtils.test.ts
++++ b/packages/cli/src/ui/utils/resumeHistoryUtils.test.ts
+@@ -2245,6 +2245,41 @@ describe('resumed promptId attachment', () => {
+   });
+ });
+ 
++describe('resumed promptId attachment for @-command turns', () => {
++  it('attaches the recorded prompt identity to an @-command turn', () => {
++    const sessionData = {
++      conversation: {
++        messages: [
++          {
++            type: 'system',
++            subtype: 'at_command',
++            systemPayload: {
++              userText: '@file.ts summarize this',
++              filesRead: ['/tmp/file.ts'],
++              status: 'success',
++            },
++          },
++          {
++            type: 'user',
++            promptId: 's########4',
++            message: {
++              role: 'user',
++              parts: [{ text: 'expanded model prompt' }],
++            },
++          },
++        ],
++      },
++    } as unknown as ResumedSessionData;
++    const ui = buildResumedHistoryItems(sessionData, null, 1_000);
++    const userItem = ui.find((item) => item.type === 'user') as HistoryItem & {
++      text: string;
++      promptId?: string;
++    };
++    expect(userItem.text).toBe('@file.ts summarize this');
++    expect(userItem.promptId).toBe('s########4');
++  });
++});
++
+ describe('computeResumedPromptCountSeed', () => {
+   it('keeps seeding from zero when no turn claims an id', () => {
+     expect(computeResumedPromptCountSeed([], 's')).toBe(0);
+diff --git a/packages/core/src/core/llm-chat.test.ts b/packages/core/src/core/llm-chat.test.ts
+index 7c764c8ec2..ca54ae9433 100644
+--- a/packages/core/src/core/llm-chat.test.ts
++++ b/packages/core/src/core/llm-chat.test.ts
+@@ -5869,7 +5869,11 @@ describe('LlmChat', async () => {
+           {
+             type: 'system',
+             subtype: 'chat_compression',
+-            systemPayload: { ...recordPayload, promptIds },
++            // Persisted records cross JSON, which drops the Symbol-keyed
++            // mark; the resume builder must re-mark from promptIds.
++            systemPayload: JSON.parse(
++              JSON.stringify({ ...recordPayload, promptIds }),
++            ),
+           },
+           {
+             type: 'assistant',
