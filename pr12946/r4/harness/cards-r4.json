@@ -1,0 +1,36 @@
+[
+ {
+  "file": "r4-01-b1-fixed-7444dc97.png",
+  "title": "Round 4 — B1 fixed at 7444dc97 (explicit v2 reconciliation opt-in)",
+  "subtitle": "Fresh bundle + Spring jar from 7444dc97 (embedded Broker class byte-identical to the compiled one); MySQL 8.4.11; FG6C gate sources unchanged since 9b488679.",
+  "lines": [
+   "## B1: FG6C process-crash gate (HostedProcessCrashIT), full class, local MySQL 8.4",
+   "++ harness-prepare, harness-start, harness-result, spring-kill, worker-kill, worker-stop: 6 x HOSTED_PROCESS_CRASH_OK, 1/1 in 119.4 s",
+   "++ GitHub CI @7444dc97: 23 pass (Hosted process fault gates / MySQL 8.4, MariaDB, Test, Lint ...), only review-pr pending",
+   "",
+   "## MCP tool paths after the change",
+   "++ 32 s tool, timeoutMs 5000: UNKNOWN, late result accepted via ?reconcile=true, end_turn 37.0 s, next prompt + detach OK",
+   "++ 32 s tool, default timeout: end_turn at 37.0 s; prompt cancel at 5.5 s: turn cancelled at 15.0 s (deferred, as documented)",
+   "++ S1 regression: 3 transports, results_ready, blob exact, 2 prompt messages, 409 conflicts, 0 leaks, detach + load OK",
+   "",
+   "## New probe: Runtime worker SIGKILLed during an MCP tool call",
+   "== reconcile status reply 409 once -> turn ends 2 s after the kill (5.4 s), recoveryBlocked, next prompt 409, detach 503",
+   "== fails fast into the documented blocked state (no 630 s wait), same outcome as FG6C worker-kill for file tools",
+   "",
+   "## Mutants on the fix",
+   "++ Y1 MCP opt-in ignored -> KILLED (2)   Y2 reconcile every UNKNOWN read (B1 back) -> KILLED (2)",
+   "++ Y3 Hosted polls without ?reconcile=true -> KILLED (1)   Y4 reconcile value not validated -> KILLED (1)",
+   "",
+   "## Documented as H1 limits / follow-ups (unchanged behaviour, now stated in both design languages)",
+   "!! F1 one attached MCP owner per storage lease; N1 lost connection / no reply waits 630 s then blocks; N2 every pinned",
+   "!!    server must refresh before a model request; N3 deferred cancellation; Flyway: renumber above V21 if it already ran;",
+   "!!    unit-test gaps X3 / X5 / X7 / X9"
+  ],
+  "notes": [
+   {
+    "tone": "green",
+    "text": "The one blocker from round 3 is closed without touching the gate, the fix is pinned by tests, and CI is green. What remains is the maintainers accepting the documented H1 limits and the merge order with #12894."
+   }
+  ]
+ }
+]
