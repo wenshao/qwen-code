@@ -1,0 +1,34 @@
+--- <rig>/wt-pr/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedProviderControlProbe.java	2026-09-30 02:11:45
++++ packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedProviderControlProbe.java	2026-09-30 02:33:36
+@@ -112,6 +112,16 @@
+                 : request.path("sessionId").asText(request.path("reference").path("sessionId").asText());
+         String kind = provider ? request.path("operation").path("kind").asText() : "";
+         boolean release = kind.equals("release");
++        if (release && System.getenv("RIG_RELEASE_REQUEST_LOSS") != null && loseReleaseReply && dropped == 0) {
++            var lost = sessions.stream().filter(value -> value.get("sessionId")
++                    .equals(request.path("session").path("harnessSessionId").asText())).findFirst().orElseThrow();
++            if (lost.get("fault").equals("release-reply")) {
++                assertThat(sessionState(lost, runtimeId)).isEqualTo("RELEASING");
++                dropped++;
++                System.out.println("RIG_RELEASE_REQUEST_DROPPED " + runtimeId);
++                return;
++            }
++        }
+         if (kind.equals("execute") || path.endsWith("/v2/execute")) executions.merge(runtimeId, 1, Integer::sum);
+         if (release) releases.merge(runtimeId, 1, Integer::sum);
+         if (path.endsWith("/v3/activation") && request.path("operation").asText().equals("release")) {
+@@ -212,6 +222,14 @@
+         else assertThat(row.get("execution_status")).isEqualTo("success");
+         boolean released = phase.equals("released");
+         if (released) {
++            if (System.getenv("RIG_RELEASE_COUNT") != null) {
++                boolean replyLoss = session.get("fault").equals("release-reply")
++                        && System.getenv("RIG_RELEASE_REQUEST_LOSS") == null;
++                assertThat(releases.getOrDefault(runtimeId, 0)).as("worker closures forwarded")
++                        .isEqualTo(replyLoss ? 2 : 1);
++            }
++            System.out.println("RIG_RELEASES " + session.get("fault") + " forwarded=" + releases.getOrDefault(runtimeId, 0)
++                    + " deactivations=" + deactivations.getOrDefault(runtimeId, 0));
+             assertThat(owner(session).get("holder_key")).isNull();
+             assertThat(deactivations.getOrDefault(runtimeId, 0)).isEqualTo(1);
+             assertThat(sessionState(session, runtimeId)).isEqualTo("RELEASED");

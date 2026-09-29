@@ -1,0 +1,46 @@
+--- <rig>/wt-pr/integration-tests/helpers/hosted-provider-control-driver.ts	2026-09-30 02:11:19
++++ integration-tests/helpers/hosted-provider-control-driver.ts	2026-09-30 02:44:00
+@@ -137,8 +137,32 @@
+   return body;
+ }
+ 
++let rigPhase = 0;
+ async function changedReference() {
+   const reservation = structuredClone(current.reservation);
++  if (process.env['RIG_ALL_FIELDS']) {
++    rigPhase++;
++    for (const field of ['sessionId', 'promptId', 'callId', 'capabilityDigest', 'policyRevision', 'invocationId', 'argsDigest']) {
++      const original = current.reference[field] as string;
++      const last = original.slice(-1);
++      const replacement = field.endsWith('Digest')
++        ? original.slice(0, -1) + (last === '0' ? '1' : '0')
++        : original + '-changed';
++      const response = await fetch(new URL(prefix + 'executions:prepare', baseUrl), {
++        method: 'POST',
++        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
++        body: JSON.stringify({
++          protocolVersion: 1, requestId: randomUUID(), harnessSessionId: current.sessionId,
++          runtimeSessionId: current.runtimeSessionId, ...reservation,
++          ...(process.env['RIG_ALL_FIELDS'] === '2' ? { ...(field === 'sessionId' ? { runtimeSessionId: replacement } : {}), ...(field === 'promptId' ? { turnId: replacement } : {}), ...(field === 'callId' ? { toolCallId: replacement } : {}), ...(field === 'argsDigest' ? { requestDigest: replacement } : {}) } : {}),
++          reference: { ...current.reference, [field]: replacement },
++        }),
++        signal: signal(),
++      });
++      const body = (await response.json()) as { code?: string; executionCallId?: string };
++      console.log(`RIG_FIELD${process.env['RIG_ALL_FIELDS'] === '2' ? '_CONSISTENT' : ''} ${current.fault} ${rigPhase % 2 === 1 ? 'prepared' : 'settled'} ${field} ${response.status} ${body.code ?? 'ok'} ${body.executionCallId === current.executionCallId ? 'same-id' : body.executionCallId ? 'OTHER-ID' : '-'}`);
++    }
++  }
+   for (const field of ['policyRevision', 'capabilityDigest', 'invocationId']) {
+     const original = current.reference[field] as string;
+     const replacement =
+@@ -309,6 +333,10 @@
+       return settled.state === 'settled';
+     });
+     assert.equal(settled!.result?.executionStatus, 'success');
++    if (process.env['RIG_RETRY_AFTER_MS'] && current.fault === 'start-retry') {
++      console.log('RIG_RETRY_DELAY ' + process.env['RIG_RETRY_AFTER_MS']);
++      await new Promise((resolve) => setTimeout(resolve, Number(process.env['RIG_RETRY_AFTER_MS'])));
++    }
+     assert.deepEqual((await start()).result, settled!.result);
+     await invalidStart();
+     if (!raw) await changedReference();
