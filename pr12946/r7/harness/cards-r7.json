@@ -1,0 +1,68 @@
+[
+ {
+  "file": "r7-01-rerun-d472033c.png",
+  "title": "Round 7 — d472033c: R3 fixes + merge with main (#12868 provider controls)",
+  "subtitle": "Fresh bundle and Spring jar built from d472033c; MySQL 8.4.11. Same rig as rounds 1-6: Hosted Harness -> Java Broker/SQL -> Runtime worker -> stdio, Streamable HTTP and SSE MCP servers.",
+  "lines": [
+   "## New in this head",
+   "++ busy owner: B refused while A holds the Workspace (prompt 503, 0 effects) -> B detach 204",
+   "++    A's lease holder, binding and generation are unchanged; A's next turn runs 1 effect",
+   "++    after A detaches the lease row is cleared and a files Session writes its file",
+   "++ new owner IDs are path-safe mcp-<sha256> (no colon); NUL in a stdio command is rejected",
+   "",
+   "## Earlier fixes, rerun on d472033c",
+   "++ S1, 3 transports: results_ready, 3 effects, 2 model requests; tools/resources list_changed recover in the same turn",
+   "++ R1-2, one discover 503: turn_error with 0 effects -> next turn OK -> detach 204 -> load 200",
+   "++ R1-5, duplicate stdio reply: generation stays 1, one stdio process",
+   "++ quota: 17 pins -> 400 with 0 Broker calls; at 16 pins, reconfigure -> 409 managed_mcp_connection_quota",
+   "++ F6: 17 reconfigures keep 1 live stdio process, 0 after detach;  F5: HTTP server down at close -> detach 204",
+   "++ SSE server restart mid-Session -> next effect OK, detach 204;  timeoutMs 5000 + 32 s tool settles at 33.5 s",
+   "++ lost configure and invoke replies -> 1 physical effect;  replay after reload with Broker down: 0 requests, 0 effects",
+   "++ can_read revoked: close 204 and the lease is released; new work is refused (Broker acquire 409)",
+   "",
+   "## Mutants on the round-7 changes (cli baseline 158/159 with 1 load flake; server 206/206)",
+   "++ W1   owner ID back to mcp:<sessionId>                         KILLED",
+   "++ W3   NUL in a stdio command accepted again                    KILLED",
+   "++ W5   raw-op cancel no longer serialized by mcpBusy            KILLED",
+   "++ J9   busy-owner release always goes through physical release  KILLED",
+   "++ J10  the holder's RELEASING Session skips physical release    KILLED"
+  ],
+  "notes": [
+   {
+    "tone": "green",
+    "text": "No correctness blocker. Everything I checked in earlier rounds still holds, and the new busy-owner cleanup releases only the refused Session's incomplete acquisition, never the holder's lease."
+   }
+  ]
+ },
+ {
+  "file": "r7-02-behaviour-notes.png",
+  "title": "Round 7 — behaviour for the maintainers to accept or change",
+  "subtitle": "Same rig and head. None of these is a correctness failure; they are lifecycle choices that operators will see.",
+  "lines": [
+   "## A raw resource_read that never answers (server with the default timeoutMs)",
+   "!! at 4 s and at 61 s: op status 409, op cancel 409 hosted_mcp_operation_active, prompt 409, detach 409 hosted_turn_active",
+   "!! only GET /status answers; the client cannot cancel or detach until the operation ends (not measured to the end)",
+   "== round 5 answered the same cancel with 202 running; the fence is intentional (\"serialize close/status/cancel\")",
+   "",
+   "## Harness exits while an MCP Session is attached (no detach)",
+   "!! the Workspace lease stays held with no TTL; the runtime Session is still READY",
+   "++ recoverable: load in a new Harness 200 -> turn OK -> detach 204 -> lease 0   (related to the open R3-11 thread)",
+   "",
+   "## Unchanged documented limits",
+   "== N1 no reply possible: turn active until 633 s (UNKNOWN from 36.5 s), then blocked; detach 503, lease held",
+   "== worker SIGKILL during a call: blocked after 4.9 s; detach 503, lease held",
+   "== F1: an MCP Session holds the Workspace between turns (other MCP Session 503, files Session turn_error)",
+   "== exactly 16 pins + one list_changed: later turns fail until detach + load (15 pins recover)",
+   "== Flyway: main V18, this PR V21, #12894 (open) V19/V20 -> merge #12894 first or renumber",
+   "",
+   "## Test stability, local (load 11-20)",
+   "!! hosted-harness-session.test.ts: 6 of 8 full-file runs green; the 2 failures hit different tests",
+   "!!    (waitFor timeout in the R1-2 test; load 404 in the create/load test); each passed in the other 7 runs; CI green"
+  ],
+  "notes": [
+   {
+    "text": "The hung-operation fence and the orphan lease are the two items worth an explicit decision: each leaves a Session or Workspace unusable until a timeout ends the operation, or until someone loads the Session again and detaches it."
+   }
+  ]
+ }
+]
