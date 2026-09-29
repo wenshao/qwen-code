@@ -1,0 +1,30 @@
+// Single-site mutants of the PR's safety checks. Applied with exact-string replacement (count must be 1).
+export const B = 'packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/';
+export const S = 'packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/';
+export const mutants = [
+  { id: 'M01', what: 'attestOperatorStop accepts a live registered worker', file: B + 'LocalProcessRuntimeProvisioner.java',
+    from: `                                    && registration.state() != LocalRuntimeStore.State.RETIRED\n                            || !registration.processAbsent()) {`,
+    to: `                                    && registration.state() != LocalRuntimeStore.State.RETIRED) {` },
+  { id: 'M02', what: 'background scan no longer skips a prepared generation', file: B + 'JdbcRuntimeBindingRepository.java',
+    from: `                    + " AND NOT EXISTS (SELECT 1 FROM managed_workspace_operator_recovery recovery"\n                    + " WHERE recovery.binding_id = qwen_runtime_binding.binding_id"\n                    + " AND recovery.runtime_generation = qwen_runtime_binding.runtime_generation"\n                    + " AND recovery.completed_at IS NULL)"\n`, to: `` },
+  { id: 'M03', what: 'OPERATOR_RECOVERY no longer blocks placement', file: B + 'RuntimeBindingRecord.java',
+    from: `        boolean unreclaimed = state == State.LOST\n                || state == State.OPERATOR_RECOVERY\n`, to: `        boolean unreclaimed = state == State.LOST\n` },
+  { id: 'M04', what: 'OPERATOR_RECOVERY may move to any state', file: B + 'RuntimeBindingRecord.java',
+    from: `                || state == State.OPERATOR_RECOVERY\n                        && replacement.state != State.OPERATOR_RECOVERY\n                        && replacement.state != State.LOST) {`, to: `) {` },
+  { id: 'M05', what: 'prepare ignores the expected holder', file: S + 'store/WorkspaceOperatorRecoveryStore.java',
+    from: `            if (!expectedHolder.equals(current.holderKey())) {\n                throw blocked();\n            }\n`, to: `` },
+  { id: 'M06', what: 'attest accepts a changed statement', file: S + 'store/WorkspaceOperatorRecoveryStore.java',
+    from: `                if (!digest.equals(hashes.getFirst())) {\n                    throw blocked();\n                }\n`, to: `` },
+  { id: 'M07', what: 'any incomplete capture reason qualifies (not only producer_lost)', file: S + 'store/WorkspaceOperatorRecoveryStore.java',
+    from: `                        return !"producer_lost".equals(result.path("capture")\n                                .path("captureReason").asText()) ? null : new Capture(`, to: `                        return new Capture(` },
+  { id: 'M08', what: 'evidence may be group/world readable', file: S + 'service/WorkspaceRecoveryCommand.java',
+    from: `                || !PosixFilePermissions.toString(Files.getPosixFilePermissions(file))\n                        .equals("rw-------")) {`, to: `) {` },
+  { id: 'M09', what: 'evidence may live outside the state directory', file: S + 'service/WorkspaceRecoveryCommand.java',
+    from: `        if (!stateDirectory.equals(file.getParent()) || Files.isSymbolicLink(file)`, to: `        if (Files.isSymbolicLink(file)` },
+  { id: 'M10', what: 'complete skips the exact-holder check before publishing stop evidence', file: S + 'service/WorkspaceRecoveryCommand.java',
+    from: `                    operator.requireSnapshot(operation, current);\n                    operator.requireHeld(operation);\n`, to: `                    operator.requireSnapshot(operation, current);\n` },
+  { id: 'M11', what: 'prepare skips the durable registration preflight', file: S + 'service/WorkspaceRecoveryCommand.java',
+    from: `                    operator.inspect(args[1], generation);\n                    local.verifyOperatorRegistration(bindings.findById(args[1]));\n`, to: `                    operator.inspect(args[1], generation);\n` },
+  { id: 'M12', what: 'restartPrevention is not required', file: S + 'service/WorkspaceRecoveryCommand.java',
+    from: `                || !value.path("restartPrevention").asBoolean()\n`, to: `` },
+];

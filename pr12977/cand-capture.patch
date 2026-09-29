@@ -1,0 +1,74 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceOperatorRecoveryStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceOperatorRecoveryStore.java
+index 344d09447a..50ac13bef8 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceOperatorRecoveryStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceOperatorRecoveryStore.java
+@@ -293,7 +293,12 @@ public final class WorkspaceOperatorRecoveryStore {
+                     try {
+                         JsonNode reference = json.readTree(row.getString("reference_json"));
+                         JsonNode result = json.readTree(row.getString("result_json"));
+-                        if (!"run_shell_command".equals(reference.path("toolName").asText())
++                        // Protocol-3 deferred references carry no toolName; startExecution
++                        // admits only run_shell_command payloads for them.
++                        boolean shell = "run_shell_command".equals(reference.path("toolName").asText())
++                                || reference.path("runtimeProtocol").asInt() == 3
++                                        && "deferred".equals(reference.path("dispatchMode").asText());
++                        if (!shell
+                                 || "complete".equals(result.path("capture").path("captureStatus").asText())) {
+                             return null;
+                         }
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
+index 758d1a038c..760cdd7da1 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeTest.java
+@@ -82,6 +82,51 @@ class WorkspaceRuntimeTest {
+     @TempDir
+     private Path temp;
+ 
++    @Test
++    void operatorRecoveryInspectsTheDeferredShellReferenceHostedTurnsPersist() throws Exception {
++        SessionRecord session = createSession("storage", ".");
++        var scope = resolver(session, temp.toRealPath()).resolve(session.sessionId()).scope();
++        var bindings = bindings();
++        var request = new RuntimeProvisionRequest(scope, session.sessionId(),
++                "local-process", session.workspace().getStorageId());
++        RuntimeBindingRecord runtime = readyBinding(bindings, request, 2);
++        String runtimeSessionId = UUID.randomUUID().toString();
++        RuntimeSessionRecord held = bindings.admitSession(new JdbcRuntimeSessionRepository(dataSource),
++                new RuntimeSessionRecord(new RuntimeSession(session.sessionId(), runtimeSessionId,
++                        "bootstrap", scope), runtime.getBindingId(), runtime.getGeneration(),
++                        RuntimeSessionRecord.State.ACQUIRING, 0, Instant.now()));
++        authority.claim(session.workspace(), held);
++        String callId = UUID.randomUUID().toString();
++        // Shape written by RuntimeBrokerService.prepareExecution for a Hosted Shell call.
++        Map<String, Object> reference = new LinkedHashMap<>();
++        reference.put("sessionId", runtimeSessionId);
++        reference.put("promptId", "prompt");
++        reference.put("callId", "call");
++        String argsDigest = "sha256:" + "a".repeat(64);
++        reference.put("argsDigest", argsDigest);
++        reference.put("runtimeProtocol", 3);
++        reference.put("inputDigest", "b".repeat(64));
++        reference.put("dispatchMode", "deferred");
++        var executions = new JdbcToolExecutionRepository(dataSource);
++        executions.findOrCreate(ToolExecutionRecord.prepared(callId,
++                UUID.randomUUID().toString(), runtime.getBindingId(), runtime.getGeneration(),
++                session.sessionId(), runtimeSessionId, "prompt", "call", argsDigest, reference));
++        ToolExecutionRecord dispatched = executions.claimDispatch(callId, "dispatcher", Duration.ofMinutes(1));
++        Map<String, Object> result = new LinkedHashMap<>();
++        result.put("executionStatus", "success");
++        result.put("responseParts", List.of());
++        result.put("capture", Map.of("captureStatus", "partial", "captureReason", "producer_lost"));
++        assertThat(executions.compareAndSet(dispatched, dispatched.withResult(result, 1, Instant.now()),
++                "dispatcher", dispatched.getDispatchGeneration())).isNotNull();
++
++        var recovery = new WorkspaceOperatorRecoveryStore(jdbc,
++                new DataSourceTransactionManager(dataSource), bindings, new ObjectMapper());
++        var inspection = recovery.inspect(runtime.getBindingId(), runtime.getGeneration());
++        assertThat(inspection.executionCallId()).isEqualTo(callId);
++        assertThat(inspection.captureReason()).isEqualTo("producer_lost");
++        assertThat(inspection.eligibleForPrepare()).isTrue();
++    }
++
+     @Test
+     void operatorRecoveryFencesTheExactHeldGenerationBeforeAttestation() throws Exception {
+         SessionRecord session = createSession("storage", ".");
