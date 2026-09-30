@@ -1,0 +1,23 @@
+--- a/packages/cli/src/serve/channel-management-service.ts
++++ b/packages/cli/src/serve/channel-management-service.ts
+@@ -511,10 +511,16 @@
+       // it; the caller retries once the manager settles. Guarded above the
+       // branch split because the configured branch reads the same
+       // mid-transition committed set.
+-      if (opts.manager.state().transition !== 'idle') {
+-        throw runtimeOwnerMismatch(
+-          name,
+-          'The channel runtime is mid-transition.',
++      const controlState = opts.manager.state();
++      if (
++        controlState.transition !== 'idle' &&
++        (!configured || controlState.selection === null)
++      ) {
++        throw new ChannelManagementError(
++          'channel_service_conflict', // already mapped to 409, and reads as "busy"
++          `Channel "${name}" cannot be deleted while the channel runtime is ${
++            configured ? 'starting' : 'mid-transition'
++          }; retry shortly.`,
+         );
+       }
+       if (!configured) {
