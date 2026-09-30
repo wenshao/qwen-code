@@ -1,0 +1,94 @@
+
+ RUN  v3.2.7 /root/verify/pr11071/base/integration-tests
+
+
+Integration test output directory: /root/verify/pr11071/base/.integration-tests/1790804276869
+SDK E2E test output directory: /root/verify/pr11071/base/.integration-tests/sdk-e2e-1790804276869
+CLI path: /root/verify/pr11071/base/dist/cli.js
+ ❯ cli/qwen-serve-routes-prcopy.test.ts (42 tests | 1 failed) 34496ms
+   ✓ qwen serve — bearer auth (timing-safe compare) > right token → 200 18ms
+   ✓ qwen serve — bearer auth (timing-safe compare) > wrong same-length token → 401 6ms
+   ✓ qwen serve — bearer auth (timing-safe compare) > wrong shorter token → 401 2ms
+   ✓ qwen serve — bearer auth (timing-safe compare) > missing Authorization header → 401 3ms
+   ✓ qwen serve — bearer auth (timing-safe compare) > Basic scheme (not Bearer) → 401 1ms
+   ✓ qwen serve — bearer auth (timing-safe compare) > /health exempt: missing Authorization header → 200 4ms
+   ✓ qwen serve — CORS browser-origin denial > GET with Origin header → 403 + JSON 3ms
+   ✓ qwen serve — CORS browser-origin denial > GET without Origin header → 200 1ms
+   × qwen serve — capabilities envelope > advertises all baseline capabilities 21ms (retry x2)
+     → expected [ 'health', 'daemon_status', …(141) ] to deeply equal [ 'health', 'daemon_status', …(142) ]
+     → expected [ 'health', 'daemon_status', …(141) ] to deeply equal [ 'health', 'daemon_status', …(142) ]
+     → expected [ 'health', 'daemon_status', …(141) ] to deeply equal [ 'health', 'daemon_status', …(142) ]
+   ✓ qwen serve — local Extension install > installs an absolute daemon-local directory into managed storage  465ms
+   ✓ qwen serve — transcript paging route > serves persisted transcript pages through the SDK helper  5787ms
+   ✓ qwen serve — transcript paging route > indexes and opens frozen turns through the real daemon owner path  4045ms
+   ✓ qwen serve — transcript paging route > maps transcript request validation errors through the real daemon  675ms
+   ✓ qwen serve — transcript paging route > reads exact conflicts from active and maps archived/unavailable snapshots to 409  1510ms
+   ✓ qwen serve — transcript paging route > rejects oversized transcript snapshots with 413  1331ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > rejects relative cwd 4ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > honors and reserves a normalized caller-supplied session ID  4802ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > two parallel POSTs same workspace coalesce to one session  1384ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > confirms real model-only startup and the cached model notification  886ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > applies high over shared none and tears down only rejected startup selections  1544ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > rolls back rejected standalone startup so its caller id can be reused  1812ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > bad modelServiceId keeps the session alive on the default model 12ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > rejects cross-workspace cwd with 400 workspace_mismatch (#3803 §02) 2ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > omits cwd → falls back to bound workspace (#3803 §02) 2ms
+   ✓ qwen serve — POST /session validation + concurrent coalescing > GET /capabilities surfaces workspaceCwd (#3803 §02) 1ms
+   ✓ qwen serve — POST /permission/:requestId validation > 400 on empty optionId 4ms
+   ✓ qwen serve — POST /permission/:requestId validation > 400 on missing optionId 2ms
+   ✓ qwen serve — POST /permission/:requestId validation > 404 when valid vote targets unknown requestId 2ms
+   ✓ qwen serve — SSE Content-Type guard (SDK side) > throws DaemonHttpError when upstream returns 200 + JSON 1ms
+   ✓ qwen serve — Last-Event-ID strict parsing > malformed Last-Event-ID accepted but ignored 8ms
+   ✓ qwen serve — cancel + list > cancel called twice does not throw 6ms
+   ✓ qwen serve — cancel + list > listWorkspaceSessions returns the live session with metadata 5ms
+   ✓ qwen serve — GET /goals > returns an empty, versioned list when no session has a goal 4ms
+   ✓ qwen serve — GET /goals > probes each live session over the bridge without reporting a goal  785ms
+   ✓ qwen serve — GET /goals > requires the bearer token 1ms
+   ✓ qwen serve — DELETE /session/:id > 204 on explicit close  782ms
+   ✓ qwen serve — DELETE /session/:id > 204 on double close (idempotent via 404 absorption)  749ms
+   ✓ qwen serve — session approval-mode recovery > restores Full Access, explicit overrides, and Plan execution mode after cold load  3878ms
+   ✓ qwen serve — PATCH /session/:id/metadata > updates displayName  756ms
+   ✓ qwen serve — PATCH /session/:id/metadata > 400 on non-string displayName  725ms
+   ✓ qwen serve — POST /session/:id/continue > returns accepted:false on a session with no interrupted turn  647ms
+   ✓ qwen serve — prompt clientId admission > rejects an unregistered prompt clientId and re-registers via resume  885ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  cli/qwen-serve-routes-prcopy.test.ts > qwen serve — capabilities envelope > advertises all baseline capabilities
+ FAIL  cli/qwen-serve-routes-prcopy.test.ts > qwen serve — capabilities envelope > advertises all baseline capabilities
+ FAIL  cli/qwen-serve-routes-prcopy.test.ts > qwen serve — capabilities envelope > advertises all baseline capabilities
+AssertionError: expected [ 'health', 'daemon_status', …(141) ] to deeply equal [ 'health', 'daemon_status', …(142) ]
+
+- Expected
++ Received
+
+@@ -119,11 +119,10 @@
+    "session_branch_worktree",
+    "workspace_reload",
+    "channel_delivery",
+    "channel_control",
+    "channel_management",
+-   "channel_delete_config_loss_convergence",
+    "workspace_channel_observed_contacts",
+    "dynamic_workspace_registration",
+    "persistent_workspace_registration",
+    "workspace_display_name",
+    "scratch_workspace_registration",
+
+ ❯ cli/qwen-serve-routes-prcopy.test.ts:373:7
+    371|           feature !== 'workspace_runtime_stop',
+    372|       ),
+    373|     ).toEqual([
+       |       ^
+    374|       'health',
+    375|       'daemon_status',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 41 passed (42)
+   Start at  05:37:49
+   Duration  44.12s (transform 6.34s, setup 0ms, collect 2.22s, tests 34.50s, environment 0ms, prepare 63ms)
+
+EXIT=1

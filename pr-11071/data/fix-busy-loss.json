@@ -1,0 +1,879 @@
+{
+  "scenario": "busy-loss",
+  "arm": "fix",
+  "steps": [
+    {
+      "t": 3743,
+      "label": "boot",
+      "control": {
+        "enabled": true,
+        "selection": {
+          "mode": "names",
+          "names": [
+            "botA",
+            "botB"
+          ]
+        },
+        "transition": "idle",
+        "workers": [
+          {
+            "ws": "wsA",
+            "state": "running",
+            "channels": [
+              "botA"
+            ],
+            "pid": 2008865,
+            "alive": true
+          },
+          {
+            "ws": "wsB",
+            "state": "running",
+            "channels": [
+              "botB"
+            ],
+            "pid": 2009046,
+            "alive": true
+          }
+        ]
+      },
+      "peers": {
+        "slowC": {
+          "connects": 0,
+          "closes": 0,
+          "open": 0
+        },
+        "botA": {
+          "connects": 1,
+          "closes": 0,
+          "open": 1
+        },
+        "botB": {
+          "connects": 1,
+          "closes": 0,
+          "open": 1
+        }
+      },
+      "pidA_alive": true,
+      "pidB_alive": true,
+      "workerPids": [
+        2008865,
+        2009046
+      ],
+      "settingsA": {
+        "channels": {
+          "botA": {
+            "type": "plugin-example",
+            "serverWsUrl": "ws://127.0.0.1:35981",
+            "senderPolicy": "open",
+            "sessionScope": "user",
+            "cwd": "/tmp/pr11071-busy-loss-G9dJ67/wsA"
+          }
+        },
+        "serve": {
+          "channels": [
+            "botA"
+          ]
+        },
+        "$version": 4
+      },
+      "pidA": 2008865,
+      "pidB": 2009046
+    },
+    {
+      "t": 4275,
+      "label": "C transition in flight",
+      "transition": "reconciling",
+      "pendingSelection": {
+        "mode": "names",
+        "names": [
+          "botA",
+          "botB",
+          "slowC"
+        ]
+      }
+    },
+    {
+      "t": 4283,
+      "label": "DELETE config-lost botA in A (during C transition)",
+      "status": 409,
+      "ms": 5,
+      "code": "channel_runtime_owner_mismatch",
+      "error": "Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."
+    },
+    {
+      "t": 33782,
+      "label": "start slowC resolved",
+      "status": 502,
+      "ms": 30026,
+      "code": "channel_worker_start_failed"
+    },
+    {
+      "t": 35316,
+      "label": "after settle",
+      "control": {
+        "enabled": true,
+        "selection": {
+          "mode": "names",
+          "names": [
+            "botA",
+            "botB"
+          ]
+        },
+        "transition": "idle",
+        "workers": [
+          {
+            "ws": "wsA",
+            "state": "running",
+            "channels": [
+              "botA"
+            ],
+            "pid": 2008865,
+            "alive": true
+          },
+          {
+            "ws": "wsB",
+            "state": "running",
+            "channels": [
+              "botB"
+            ],
+            "pid": 2009046,
+            "alive": true
+          }
+        ]
+      },
+      "peers": {
+        "slowC": {
+          "connects": 0,
+          "closes": 0,
+          "open": 0
+        },
+        "botA": {
+          "connects": 1,
+          "closes": 0,
+          "open": 1
+        },
+        "botB": {
+          "connects": 1,
+          "closes": 0,
+          "open": 1
+        }
+      },
+      "pidA_alive": true,
+      "pidB_alive": true,
+      "workerPids": [
+        2008865,
+        2009046
+      ],
+      "settingsA": {
+        "serve": {
+          "channels": [
+            "botA"
+          ]
+        },
+        "$version": 4
+      }
+    },
+    {
+      "t": 35337,
+      "label": "retry DELETE botA after settle",
+      "status": 200,
+      "ms": 19,
+      "revision": "8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e",
+      "instances": [],
+      "instance": {
+        "startsWithServe": false,
+        "runtime": {
+          "state": "stopped"
+        }
+      }
+    },
+    {
+      "t": 36860,
+      "label": "after retry",
+      "control": {
+        "enabled": true,
+        "selection": {
+          "mode": "names",
+          "names": [
+            "botB"
+          ]
+        },
+        "transition": "idle",
+        "workers": [
+          {
+            "ws": "wsB",
+            "state": "running",
+            "channels": [
+              "botB"
+            ],
+            "pid": 2009046,
+            "alive": true
+          }
+        ]
+      },
+      "peers": {
+        "slowC": {
+          "connects": 0,
+          "closes": 0,
+          "open": 0
+        },
+        "botA": {
+          "connects": 1,
+          "closes": 1,
+          "open": 0
+        },
+        "botB": {
+          "connects": 1,
+          "closes": 0,
+          "open": 1
+        }
+      },
+      "pidA_alive": false,
+      "pidB_alive": true,
+      "workerPids": [
+        2009046
+      ],
+      "settingsA": {
+        "serve": {
+          "channels": []
+        },
+        "$version": 4
+      }
+    }
+  ],
+  "leakedWorkers": [],
+  "events": [
+    {
+      "t": 733,
+      "what": "daemon_ready",
+      "pid": 2008761
+    },
+    {
+      "t": 1569,
+      "what": "peer_upgrade_req",
+      "channel": "botA"
+    },
+    {
+      "t": 1572,
+      "what": "peer_connect",
+      "channel": "botA",
+      "connects": 1
+    },
+    {
+      "t": 2164,
+      "what": "peer_upgrade_req",
+      "channel": "botB"
+    },
+    {
+      "t": 2165,
+      "what": "peer_connect",
+      "channel": "botB",
+      "connects": 1
+    },
+    {
+      "t": 2206,
+      "what": "wait_ok",
+      "label": "botA + botB connected"
+    },
+    {
+      "t": 2214,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 8
+    },
+    {
+      "t": 2320,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 6
+    },
+    {
+      "t": 2421,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2522,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2624,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 2726,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 2828,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2929,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 3031,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 3132,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 3232,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 0
+    },
+    {
+      "t": 3334,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 3435,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 3536,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 3637,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 3738,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 3739,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 3756,
+      "what": "api",
+      "method": "POST",
+      "route": "/workspaces",
+      "status": 201,
+      "ms": 13
+    },
+    {
+      "t": 3771,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 15
+    },
+    {
+      "t": 3771,
+      "what": "wait_ok",
+      "label": "manager left idle"
+    },
+    {
+      "t": 4232,
+      "what": "hole_tcp",
+      "channel": "slowC"
+    },
+    {
+      "t": 4273,
+      "what": "wait_ok",
+      "label": "slowC worker dialing"
+    },
+    {
+      "t": 4275,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 4278,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspaces/aa181004ec094977/channels",
+      "status": 200,
+      "ms": 3
+    },
+    {
+      "t": 4283,
+      "what": "api",
+      "method": "DELETE",
+      "route": "/workspaces/aa181004ec094977/channels/botA",
+      "status": 409,
+      "ms": 5,
+      "body": {
+        "error": "Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition.",
+        "code": "channel_runtime_owner_mismatch"
+      }
+    },
+    {
+      "t": 33782,
+      "what": "api",
+      "method": "POST",
+      "route": "/workspaces/1c3826fd1795f79d/channels/slowC/start",
+      "status": 502,
+      "ms": 30026,
+      "body": {
+        "error": "Channel worker did not become ready within 30000ms.",
+        "code": "channel_worker_start_failed"
+      }
+    },
+    {
+      "t": 33784,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 33784,
+      "what": "wait_ok",
+      "label": "manager idle again"
+    },
+    {
+      "t": 33785,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 33887,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 33989,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 34090,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 34192,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 34293,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 34395,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 34496,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 34597,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 34699,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 34800,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 34902,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 35003,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 35105,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 35208,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 35310,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 35311,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 35318,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspaces/aa181004ec094977/channels",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 35333,
+      "what": "peer_close",
+      "channel": "botA",
+      "closes": 1
+    },
+    {
+      "t": 35337,
+      "what": "api",
+      "method": "DELETE",
+      "route": "/workspaces/aa181004ec094977/channels/botA",
+      "status": 200,
+      "ms": 19
+    },
+    {
+      "t": 35338,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 35439,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 35541,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 35642,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 35743,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 35844,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 35946,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36047,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36148,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36249,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36351,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36452,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36553,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36654,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36755,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36856,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36857,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 36879,
+      "what": "peer_close",
+      "channel": "botB",
+      "closes": 1
+    }
+  ],
+  "logLines": [
+    "2026-09-30T22:12:19.832Z [INFO] [DAEMON] channels=botA,botB requestedByWorkspace=botA@/tmp/pr11071-busy-loss-G9dJ67/wsA,botB@/tmp/pr11071-busy-loss-G9dJ67/wsB workspaceCwd=/tmp/pr11071-busy-loss-G9dJ67/primary restoring channels from workspace serve.channels",
+    "2026-09-30T22:12:19.880Z [INFO] [DAEMON] channels=botA workspace=/tmp/pr11071-busy-loss-G9dJ67/wsA channel worker group assigned",
+    "2026-09-30T22:12:19.880Z [INFO] [DAEMON] channels=botB workspace=/tmp/pr11071-busy-loss-G9dJ67/wsB channel worker group assigned",
+    "2026-09-30T22:12:20.950Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsA] stdout: [Extensions] Loaded channel \"plugin-example\" from \"qwen-channel-plugin-example\"",
+    "2026-09-30T22:12:20.964Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsA] stdout: [Channel] Restored 0 dormant route(s)",
+    "2026-09-30T22:12:20.964Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsA] stdout: [Channel] Connecting \"botA\"...",
+    "2026-09-30T22:12:20.975Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsA] stdout: [Channel] \"botA\" connected.",
+    "2026-09-30T22:12:20.979Z [INFO] [DAEMON] channels=botA pid=2008865 workspace=/tmp/pr11071-busy-loss-G9dJ67/wsA channel worker ready",
+    "2026-09-30T22:12:20.986Z [WARN] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsA] stderr: [scheduler] started, tick interval 60000ms, jobs 0, enabled 0, cleared stale running 0",
+    "2026-09-30T22:12:21.559Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsB] stdout: [Extensions] Loaded channel \"plugin-example\" from \"qwen-channel-plugin-example\"",
+    "2026-09-30T22:12:21.561Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsB] stdout: [Channel] Restored 0 dormant route(s)",
+    "2026-09-30T22:12:21.562Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsB] stdout: [Channel] Connecting \"botB\"...",
+    "2026-09-30T22:12:21.567Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsB] stdout: [Channel] \"botB\" connected.",
+    "2026-09-30T22:12:21.568Z [INFO] [DAEMON] channels=botB pid=2009046 workspace=/tmp/pr11071-busy-loss-G9dJ67/wsB channel worker ready",
+    "2026-09-30T22:12:21.570Z [WARN] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsB] stderr: [scheduler] started, tick interval 60000ms, jobs 0, enabled 0, cleared stale running 0",
+    "2026-09-30T22:12:21.613Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=6 status=200 request completed",
+    "2026-09-30T22:12:21.720Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=4 status=200 request completed",
+    "2026-09-30T22:12:21.822Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:21.923Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:22.025Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:22.127Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:22.228Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:22.330Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:22.431Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:22.533Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:22.633Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:22.734Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:22.836Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:22.937Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:23.038Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:23.139Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:23.140Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:23.172Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:23.627Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsC] stdout: [Extensions] Loaded channel \"plugin-example\" from \"qwen-channel-plugin-example\"",
+    "2026-09-30T22:12:23.630Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsC] stdout: [Channel] Restored 0 dormant route(s)",
+    "2026-09-30T22:12:23.631Z [INFO] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsC] stdout: [Channel] Connecting \"slowC\"...",
+    "2026-09-30T22:12:23.676Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:23.678Z [INFO] [DAEMON] route=GET /workspaces/aa181004ec094977/channels durationMs=2 status=200 request completed",
+    "2026-09-30T22:12:23.682Z [WARN] [DAEMON] route=DELETE /workspaces/aa181004ec094977/channels/botA durationMs=2 status=409 request completed",
+    "2026-09-30T22:12:53.173Z [WARN] [DAEMON] channel worker [/tmp/pr11071-busy-loss-G9dJ67/wsC] stderr: [Channel] daemon worker failed: Daemon worker startup aborted.",
+    "2026-09-30T22:12:53.182Z [WARN] [DAEMON] route=POST /workspaces/1c3826fd1795f79d/channels/slowC/start durationMs=30022 status=502 request completed",
+    "2026-09-30T22:12:53.185Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:53.186Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:53.288Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:53.390Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:53.491Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:53.593Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:53.694Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:53.796Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:53.897Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:53.998Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.100Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.201Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.302Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.404Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.506Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.608Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.710Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.712Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.719Z [INFO] [DAEMON] route=GET /workspaces/aa181004ec094977/channels durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.738Z [INFO] [DAEMON] route=DELETE /workspaces/aa181004ec094977/channels/botA durationMs=18 status=200 request completed",
+    "2026-09-30T22:12:54.739Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:54.840Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:54.941Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:55.043Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:55.144Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:55.245Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:55.347Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=1 status=200 request completed",
+    "2026-09-30T22:12:55.448Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:55.549Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:55.650Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:55.751Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:55.853Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:55.954Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:56.055Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:56.156Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:56.256Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed",
+    "2026-09-30T22:12:56.258Z [INFO] [DAEMON] route=GET /workspace/channel durationMs=0 status=200 request completed"
+  ]
+}

@@ -1,0 +1,466 @@
+##### file: data/base-loss.json
+=== base / loss
+## boot @5041  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1692986:alive","wsB:botB:1693205:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1692986,1693205],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1692986,"pidB":1693205}
+## config lost (3s later, no API call yet) @8047  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1692986:alive","wsB:botB:1693205:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1692986,1693205],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## GET channels A @8057  {"status":200,"revision":"0f4b939f872f663b17777db3e3a48bf74c9c52762abc7cf3724242e276ad3c31","instances":[]}
+## DELETE botA #1 @8063  {"status":404,"ms":6,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## after DELETE #1 @9589  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1692986:alive","wsB:botB:1693205:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1692986,1693205],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## DELETE botA #2 (current revision) @9593  {"status":404,"ms":2,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## after DELETE #2 @11119  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1692986:alive","wsB:botB:1693205:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1692986,1693205],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+##### file: data/base-stale.json
+=== base / stale
+## boot @4925  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1693009:alive","wsB:botB:1693221:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1693009,1693221],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1693009,"pidB":1693221}
+## DELETE botA with stale revision @4944  {"status":404,"ms":19,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## after stale DELETE @6476  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1693009:alive","wsB:botB:1693221:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1693009,1693221],"settingsA":{"channels":[],"serve":{"channels":["botA"]}},"settingsA_byte_identical":true}
+##### file: data/base-normal.json
+=== base / normal
+## boot @5011  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1693015:alive","wsB:botB:1693228:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1693015,1693228],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1693015,"pidB":1693228}
+## DELETE configured botA @5195  {"status":200,"ms":36,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after DELETE @6725  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1693228:alive"]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1693228],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-busy.json
+=== base / busy
+## boot @4447  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1750178:alive","wsB:botB:1750351:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1750178,1750351],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1750178,"pidB":1750351}
+## C transition in flight @5218  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]},"selection":{"mode":"names","names":["botA","botB"]}}
+## DELETE configured botA in A (during C transition) @34509  {"status":200,"ms":29135,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## right after DELETE @34517  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1750351:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1750351],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+## register C resolved @34517  {"status":201,"ms":15}
+## after settle @36058  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1750351:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1750351],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-busy-start.json
+=== base / busy-start
+## boot @4789  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1750199:alive","wsB:botB:1750408:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1750199,1750408],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1750199,"pidB":1750408}
+## C transition in flight @5721  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]},"selection":{"mode":"names","names":["botA","botB"]}}
+## DELETE configured botA in A (during C transition) @34891  {"status":200,"ms":29096,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## right after DELETE @34898  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1750408:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1750408],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+## start slowC resolved @34898  {"status":502,"ms":30061,"code":"channel_worker_start_failed"}
+## after settle @36444  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1750408:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1750408],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-busy-stop.json
+=== base / busy-stop
+## boot @3925  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1799367:alive","wsB:botB:1799586:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1799367,1799586],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1799367,"pidB":1799586}
+## C transition in flight @4457  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]}}
+## POST stop botA in A (during C transition) @34053  {"status":200,"ms":29596}
+## start slowC resolved @34053  {"status":502,"ms":30030,"code":"channel_worker_start_failed"}
+## after settle @35592  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1799586:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1799586],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}}}
+##### file: data/base-busy-loss.json
+=== base / busy-loss
+## boot @4247  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1821120:alive","wsB:botB:1821281:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1821120,1821281],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1821120,"pidB":1821281}
+## C transition in flight @4780  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]}}
+## DELETE config-lost botA in A (during C transition) @4786  {"status":404,"ms":4,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## start slowC resolved @34289  {"status":502,"ms":30030,"code":"channel_worker_start_failed"}
+## after settle @35826  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1821120:alive","wsB:botB:1821281:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1821120,1821281],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## retry DELETE botA after settle @35831  {"status":404,"ms":3,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## after retry @37358  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1821120:alive","wsB:botB:1821281:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1821120,1821281],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+##### file: data/base-inflight.json
+=== base / inflight
+## boot @4804  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:1750442:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## A restore in flight @5749  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botP","botA"]},"selection":{"mode":"names","names":["botP"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## GET channels A (mid restore) @5903  {"status":200,"revision":"a8568439af0f4de9e9d96900de38a5009a72fed89687759c539236845fbf6e95","instances":{"botA":{"state":"stopped"}}}
+## DELETE configured botA (mid restore) @5914  {"status":200,"ms":11,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## register A resolved @5914  {"status":201,"ms":26}
+## after settle @13325  {"control":{"sel":["botP","botA"],"tr":"idle","workers":["primary:botP:1750442:alive","wsA:botA:1750884:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":0,"open":1}},"workerPids":[1750442,1750884],"settingsA":{"channels":[],"serve":{"channels":[]}},"listA":{"status":200,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[]}}
+## DELETE botA again (current revision) @13328  {"status":404,"ms":3,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## final @14865  {"control":{"sel":["botP","botA"],"tr":"idle","workers":["primary:botP:1750442:alive","wsA:botA:1750884:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":0,"open":1}},"workerPids":[1750442,1750884],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-inflight-early.json
+=== base / inflight
+## boot @4305  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:1696781:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## A restore in flight @4366  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botP","botA"]},"selection":{"mode":"names","names":["botP"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## GET channels A (mid restore) @4518  {"status":200,"revision":"971db913e7ff5f270f33acaa9ce953911b172350c941ef58a997fe87a5c6f3d2","instances":{"botA":{"state":"stopped"}}}
+## DELETE configured botA (mid restore) @4525  {"status":200,"ms":7,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## register A resolved @4525  {"status":201,"ms":14}
+## after settle @6358  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:1696781:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"workerPids":[1696781],"settingsA":{"channels":[],"serve":{"channels":[]}},"listA":{"status":200,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[]}}
+## DELETE botA again (current revision) @6360  {"status":404,"ms":2,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## final @7882  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:1696781:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"workerPids":[1696781],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-poison.json
+=== base / poison
+## boot @4203  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1821085:alive","wsB:botB:1821273:alive"]},"peers":{"botC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1821085,1821273],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1821085,"pidB":1821273}
+## start botC in C (A lost config) @4228  {"status":400,"ms":11,"code":"channel_workspace_mismatch","error":"Channel \"botA\" is not configured in any registered workspace, or its \"cwd\" points outside them."}
+## DELETE botA in A @4234  {"status":404,"ms":4,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## start botC in C again @5766  {"status":400,"ms":2,"code":"channel_workspace_mismatch","error":"Channel \"botA\" is not configured in any registered workspace, or its \"cwd\" points outside them."}
+## final @7293  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1821085:alive","wsB:botB:1821273:alive"]},"peers":{"botC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1821085,1821273],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+##### file: data/base-twin-loss.json
+=== base / twin-loss
+## boot @3166  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1828062:alive","wsB:botB:1828131:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1828062,1828131],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1828062,"pidB":1828131}
+## DELETE botA in A (botB also lost) @3183  {"status":404,"ms":8,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## DELETE botB in B (botA also lost) @3187  {"status":404,"ms":3,"code":"channel_instance_not_found","error":"Channel \"botB\" is not configured in this workspace."}
+## after both @4717  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1828062:alive","wsB:botB:1828131:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1828062,1828131],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## DELETE /workspace/channel (stop all hosting) @4733  {"status":200,"ms":16}
+## DELETE botA after hosting stop @6256  {"status":404,"ms":2,"code":"channel_instance_not_found","error":"Channel \"botA\" is not configured in this workspace."}
+## DELETE botB after hosting stop @6259  {"status":404,"ms":2,"code":"channel_instance_not_found","error":"Channel \"botB\" is not configured in this workspace."}
+## final @7787  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":1,"open":0}},"pidA_alive":false,"pidB_alive":false,"workerPids":[],"settingsA":{"channels":[],"serve":{"channels":["botA"]}},"settingsB":{"serve":{"channels":["botB"]},"$version":4}}
+##### file: data/base-samename.json
+=== base / samename
+## boot @3957  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1934655:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"listA":{"botX":{"state":"stopped"}}}
+## C transition in flight @4481  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botX","slowC"]}}
+## DELETE A botX (during C transition) @4489  {"status":200,"ms":6,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## start slowC resolved @33989  {"status":502,"ms":30020,"code":"channel_worker_start_failed"}
+## after settle @35511  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1934655:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-stopped.json
+=== base / samename
+## boot @2723  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1939732:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"listA":{"botS":{"state":"stopped"}}}
+## C transition in flight @3246  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botX","slowC"]}}
+## DELETE A botS (during C transition) @3254  {"status":200,"ms":5,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## start slowC resolved @32756  {"status":502,"ms":30022,"code":"channel_worker_start_failed"}
+## after settle @34275  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1939732:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-samename-starting.json
+=== base / samename-starting
+## boot @9304  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2011226:alive"]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}}}
+## stop B botX @9381  {"status":200,"ms":77}
+## after stop @10898  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":1,"open":0}}}
+## B start in flight @11458  {"transition":"starting","pendingSelection":{"mode":"names","names":["botX"]},"selection":null}
+## DELETE A botX (during B start of same name) @11464  {"status":200,"ms":4,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## start B botX resolved @17415  {"status":200,"ms":6517}
+## after settle @18934  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2011603:alive"]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":2,"closes":1,"open":1}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-all-unrelated.json
+=== base / all-unrelated
+## boot @9367  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011255:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## DELETE /workspace/channel @9385  {"status":200,"ms":18}
+## after hosting stop @10903  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botP":{"connects":1,"closes":1,"open":0},"botA":{"connects":0,"closes":0,"open":0}}}
+## mode-all start in flight @11411  {"transition":"starting","pendingSelection":{"mode":"all"},"selection":null}
+## DELETE A botA (during mode-all start) @11501  {"status":200,"ms":5,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## PUT all resolved @17414  {"status":201,"ms":6511}
+## after settle @18933  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011604:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-all-samename.json
+=== base / all-samename
+## boot @9278  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011278:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## DELETE /workspace/channel @9298  {"status":200,"ms":20}
+## after hosting stop @10814  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botP":{"connects":1,"closes":1,"open":0},"botA":{"connects":0,"closes":0,"open":0}}}
+## mode-all start in flight @11377  {"transition":"starting","pendingSelection":{"mode":"all"},"selection":null}
+## DELETE A botP (during mode-all start) @11456  {"status":200,"ms":5,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## PUT all resolved @17347  {"status":201,"ms":6533}
+## after settle @18865  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011582:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/base-all-reload.json
+=== base / all-reload
+## boot @3342  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011252:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botN":{"connects":0,"closes":0,"open":0}}}
+## GET P after botN added on disk @3403  {"status":200,"instances":{"botP":{"state":"connected"},"botN":{"state":"stopped"}}}
+## reload in flight @3912  {"transition":"reconciling","pendingSelection":{"mode":"all"},"selection":{"mode":"all"}}
+## DELETE P botN (during reload) @3920  {"status":200,"ms":6,"revision":"d85ac899bfd2e3493b04b82b2270f2e5e8e554df1c89baffe6a7836472827308","instances":["botP"],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## reload resolved @9876  {"status":200,"ms":6473}
+## after settle @11401  {"control":{"sel":"all","tr":"idle","workers":["primary:botP,botN:2011446:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botN":{"connects":1,"closes":0,"open":1}},"settingsP":{"channels":{"botP":{"type":"plugin-example","serverWsUrl":"ws://127.0.0.1:39411","senderPolicy":"open","sessionScope":"user","cwd":"/tmp/pr11071-all-reload-PqYlfv/primary"}},"$version":4,"serve":{"channels":[]}}}
+##### file: data/base-late-collateral.json
+=== base / late-collateral
+## boot @2635  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2027460:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":0,"closes":0,"open":0},"botW":{"connects":0,"closes":0,"open":0}}}
+## C transition in flight @3104  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botP","slowC"]}}
+## register A (late) resolved @3113  {"status":201,"ms":9}
+## GET A mid-transition @3467  {"status":200,"instances":{"botA":{"state":"stopped"},"botW":{"state":"stopped"}}}
+## DELETE A botA (during C transition, A restore queued) @3473  {"status":200,"ms":6,"revision":"3738ebbd76091a4bfaf801e3ae4eb12d8f39fc970d46089f8e67604a45699472","instances":["botW"],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## start slowC resolved @32666  {"status":502,"ms":30031,"code":"channel_worker_start_failed"}
+## after settle @34192  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2027460:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":0,"closes":0,"open":0},"botW":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":["botW"],"serve":{"channels":["botW"]}},"listA":{"botW":{"state":"error","lastError":"Channel \"botA\" is not configured in any registered workspace, or its \"cwd\" points outside them."}}}
+##### file: data/head-loss.json
+=== head / loss
+## boot @3843  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1689089:alive","wsB:botB:1689246:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1689089,1689246],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1689089,"pidB":1689246}
+## config lost (3s later, no API call yet) @6848  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1689089:alive","wsB:botB:1689246:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1689089,1689246],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## GET channels A @6857  {"status":200,"revision":"0f4b939f872f663b17777db3e3a48bf74c9c52762abc7cf3724242e276ad3c31","instances":[]}
+## DELETE botA #1 @6887  {"status":200,"ms":30,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after DELETE #1 @8419  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1689246:alive"]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1689246],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+## DELETE botA #2 (current revision) @8424  {"status":200,"ms":3,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after DELETE #2 @9952  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1689246:alive"]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1689246],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-stale.json
+=== head / stale
+## boot @4327  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1692874:alive","wsB:botB:1693100:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1692874,1693100],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1692874,"pidB":1693100}
+## DELETE botA with stale revision @4342  {"status":409,"ms":14,"code":"channel_settings_conflict","error":"Channel settings changed; reload before trying again."}
+## after stale DELETE @5875  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1692874:alive","wsB:botB:1693100:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1692874,1693100],"settingsA":{"channels":[],"serve":{"channels":["botA"]}},"settingsA_byte_identical":true}
+##### file: data/head-normal.json
+=== head / normal
+## boot @4428  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1692890:alive","wsB:botB:1693143:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1692890,1693143],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1692890,"pidB":1693143}
+## DELETE configured botA @4510  {"status":200,"ms":22,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after DELETE @6046  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1693143:alive"]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1693143],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-busy.json
+=== head / busy
+## boot @4529  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1750219:alive","wsB:botB:1750371:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1750219,1750371],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1750219,"pidB":1750371}
+## C transition in flight @5355  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]},"selection":{"mode":"names","names":["botA","botB"]}}
+## DELETE configured botA in A (during C transition) @5479  {"status":409,"ms":9,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## right after DELETE @5486  {"control":{"sel":["botA","botB"],"tr":"reconciling","workers":["wsA:botA:1750219:alive","wsB:botB:1750371:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1750219,1750371,1750830],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}}}
+## register C resolved @5486  {"status":201,"ms":20}
+## after settle @36134  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1750219:alive","wsB:botB:1750371:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1750219,1750371],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}}}
+## retry DELETE botA after settle @36155  {"status":200,"ms":19,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @37688  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1750371:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1750371],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-busy-start.json
+=== head / busy-start
+## boot @4481  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1750221:alive","wsB:botB:1750386:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1750221,1750386],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1750221,"pidB":1750386}
+## C transition in flight @5332  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]},"selection":{"mode":"names","names":["botA","botB"]}}
+## DELETE configured botA in A (during C transition) @5447  {"status":409,"ms":8,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## right after DELETE @5455  {"control":{"sel":["botA","botB"],"tr":"reconciling","workers":["wsA:botA:1750221:alive","wsB:botB:1750386:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1750221,1750386,1750820],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}}}
+## start slowC resolved @34540  {"status":502,"ms":30044,"code":"channel_worker_start_failed"}
+## after settle @36081  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1750221:alive","wsB:botB:1750386:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1750221,1750386],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}}}
+## retry DELETE botA after settle @36102  {"status":200,"ms":20,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @37637  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1750386:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1750386],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-busy-stop.json
+=== head / busy-stop
+## boot @4038  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1799411:alive","wsB:botB:1799612:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1799411,1799612],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1799411,"pidB":1799612}
+## C transition in flight @4629  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]}}
+## POST stop botA in A (during C transition) @34172  {"status":200,"ms":29543}
+## start slowC resolved @34172  {"status":502,"ms":30034,"code":"channel_worker_start_failed"}
+## after settle @35708  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1799612:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1799612],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}}}
+##### file: data/head-busy-loss.json
+=== head / busy-loss
+## boot @4168  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1821091:alive","wsB:botB:1821265:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1821091,1821265],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1821091,"pidB":1821265}
+## C transition in flight @4701  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]}}
+## DELETE config-lost botA in A (during C transition) @4708  {"status":409,"ms":5,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## start slowC resolved @34212  {"status":502,"ms":30032,"code":"channel_worker_start_failed"}
+## after settle @35747  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1821091:alive","wsB:botB:1821265:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1821091,1821265],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## retry DELETE botA after settle @35768  {"status":200,"ms":19,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @37296  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:1821265:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1821265],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-inflight.json
+=== head / inflight
+## boot @4837  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:1750470:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## A restore in flight @5736  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botP","botA"]},"selection":{"mode":"names","names":["botP"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## GET channels A (mid restore) @5873  {"status":200,"revision":"8e062ca7d2e95077cc2fa932f841246c6988facc3f4843b27c1ec418d4677694","instances":{"botA":{"state":"stopped"}}}
+## DELETE configured botA (mid restore) @5878  {"status":409,"ms":5,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## register A resolved @5878  {"status":201,"ms":29}
+## after settle @13282  {"control":{"sel":["botP","botA"],"tr":"idle","workers":["primary:botP:1750470:alive","wsA:botA:1750903:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":0,"open":1}},"workerPids":[1750470,1750903],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"listA":{"status":200,"revision":"8e062ca7d2e95077cc2fa932f841246c6988facc3f4843b27c1ec418d4677694","instances":["botA"]}}
+## DELETE botA again (current revision) @13314  {"status":200,"ms":32,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## final @14850  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:1750470:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":1,"open":0}},"workerPids":[1750470],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-inflight-early.json
+=== head / inflight
+## boot @4268  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:1696780:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## A restore in flight @4328  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botP","botA"]},"selection":{"mode":"names","names":["botP"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## GET channels A (mid restore) @4453  {"status":200,"revision":"34eea3d3af427d9df4946ddfc6880d0eedac4c0dbbeaa86cbab975ca99ba5937","instances":{"botA":{"state":"stopped"}}}
+## DELETE configured botA (mid restore) @4459  {"status":409,"ms":5,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## register A resolved @4459  {"status":201,"ms":14}
+## after settle @12296  {"control":{"sel":["botP","botA"],"tr":"idle","workers":["primary:botP:1696780:alive","wsA:botA:1696997:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":0,"open":1}},"workerPids":[1696780,1696997],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"listA":{"status":200,"revision":"34eea3d3af427d9df4946ddfc6880d0eedac4c0dbbeaa86cbab975ca99ba5937","instances":["botA"]}}
+## DELETE botA again (current revision) @12313  {"status":200,"ms":17,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## final @13840  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:1696780:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":1,"open":0}},"workerPids":[1696780],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-poison.json
+=== head / poison
+## boot @4083  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1821060:alive","wsB:botB:1821236:alive"]},"peers":{"botC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1821060,1821236],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1821060,"pidB":1821236}
+## start botC in C (A lost config) @4110  {"status":400,"ms":14,"code":"channel_workspace_mismatch","error":"Channel \"botA\" is not configured in any registered workspace, or its \"cwd\" points outside them."}
+## DELETE botA in A @4133  {"status":200,"ms":21,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## start botC in C again @6188  {"status":200,"ms":527}
+## final @7710  {"control":{"sel":["botB","botC"],"tr":"idle","workers":["wsB:botB:1821236:alive","wsC:botC:1821582:alive"]},"peers":{"botC":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[1821236,1821582],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-twin-loss.json
+=== head / twin-loss
+## boot @3244  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1828079:alive","wsB:botB:1828139:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1828079,1828139],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":1828079,"pidB":1828139}
+## DELETE botA in A (botB also lost) @3265  {"status":400,"ms":10,"code":"channel_workspace_mismatch","error":"Channel \"botB\" is not configured in any registered workspace, or its \"cwd\" points outside them."}
+## DELETE botB in B (botA also lost) @3270  {"status":400,"ms":4,"code":"channel_workspace_mismatch","error":"Channel \"botA\" is not configured in any registered workspace, or its \"cwd\" points outside them."}
+## after both @4799  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:1828079:alive","wsB:botB:1828139:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[1828079,1828139],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## DELETE /workspace/channel (stop all hosting) @4813  {"status":200,"ms":14}
+## DELETE botA after hosting stop @6338  {"status":200,"ms":4,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## DELETE botB after hosting stop @6343  {"status":200,"ms":4,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## final @7871  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":1,"open":0}},"pidA_alive":false,"pidB_alive":false,"workerPids":[],"settingsA":{"channels":[],"serve":{"channels":[]}},"settingsB":{"serve":{"channels":[]},"$version":4}}
+##### file: data/head-samename.json
+=== head / samename
+## boot @3964  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1934602:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"listA":{"botX":{"state":"stopped"}}}
+## C transition in flight @4538  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botX","slowC"]}}
+## DELETE A botX (during C transition) @4545  {"status":409,"ms":5,"code":"channel_runtime_owner_mismatch","error":"Channel \"botX\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## start slowC resolved @33996  {"status":502,"ms":30020,"code":"channel_worker_start_failed"}
+## after settle @35518  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1934602:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":["botX"]}}
+## retry DELETE A botX after settle @35524  {"status":200,"ms":5,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @37045  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1934602:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-stopped.json
+=== head / samename
+## boot @2747  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1939745:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"listA":{"botS":{"state":"stopped"}}}
+## C transition in flight @3270  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botX","slowC"]}}
+## DELETE A botS (during C transition) @3275  {"status":409,"ms":4,"code":"channel_runtime_owner_mismatch","error":"Channel \"botS\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## start slowC resolved @32781  {"status":502,"ms":30023,"code":"channel_worker_start_failed"}
+## after settle @34301  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1939745:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":["botS"]}}
+## retry DELETE A botS after settle @34307  {"status":200,"ms":5,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @35823  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:1939745:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-samename-starting.json
+=== head / samename-starting
+## boot @9196  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2011198:alive"]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}}}
+## stop B botX @9271  {"status":200,"ms":75}
+## after stop @10790  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":1,"open":0}}}
+## B start in flight @11298  {"transition":"starting","pendingSelection":{"mode":"names","names":["botX"]},"selection":null}
+## DELETE A botX (during B start of same name) @11305  {"status":409,"ms":4,"code":"channel_runtime_owner_mismatch","error":"Channel \"botX\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## start B botX resolved @17277  {"status":200,"ms":6487}
+## after settle @18797  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2011575:alive"]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":2,"closes":1,"open":1}},"settingsA":{"channels":["botX"]}}
+## retry DELETE A botX after settle @18802  {"status":200,"ms":4,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @20322  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2011575:alive"]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":2,"closes":1,"open":1}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-all-unrelated.json
+=== head / all-unrelated
+## boot @9320  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011211:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## DELETE /workspace/channel @9338  {"status":200,"ms":18}
+## after hosting stop @10855  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botP":{"connects":1,"closes":1,"open":0},"botA":{"connects":0,"closes":0,"open":0}}}
+## mode-all start in flight @11363  {"transition":"starting","pendingSelection":{"mode":"all"},"selection":null}
+## DELETE A botA (during mode-all start) @11441  {"status":409,"ms":4,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## PUT all resolved @17357  {"status":201,"ms":6502}
+## after settle @18878  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011596:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":["botA"]}}
+## retry DELETE A botA after settle @18884  {"status":200,"ms":4,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @20402  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011596:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-all-samename.json
+=== head / all-samename
+## boot @9292  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011254:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## DELETE /workspace/channel @9309  {"status":200,"ms":17}
+## after hosting stop @10826  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botP":{"connects":1,"closes":1,"open":0},"botA":{"connects":0,"closes":0,"open":0}}}
+## mode-all start in flight @11337  {"transition":"starting","pendingSelection":{"mode":"all"},"selection":null}
+## DELETE A botP (during mode-all start) @11408  {"status":409,"ms":4,"code":"channel_runtime_owner_mismatch","error":"Channel \"botP\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## PUT all resolved @17319  {"status":201,"ms":6493}
+## after settle @18840  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011588:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":["botP"]}}
+## retry DELETE A botP after settle @18846  {"status":200,"ms":5,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @20364  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011588:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/head-all-reload.json
+=== head / all-reload
+## boot @3030  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2011180:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botN":{"connects":0,"closes":0,"open":0}}}
+## GET P after botN added on disk @3087  {"status":200,"instances":{"botP":{"state":"connected"},"botN":{"state":"stopped"}}}
+## reload in flight @3596  {"transition":"reconciling","pendingSelection":{"mode":"all"},"selection":{"mode":"all"}}
+## DELETE P botN (during reload) @3602  {"status":409,"ms":4,"code":"channel_runtime_owner_mismatch","error":"Channel \"botN\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## reload resolved @9549  {"status":200,"ms":6462}
+## after settle @11070  {"control":{"sel":"all","tr":"idle","workers":["primary:botP,botN:2011434:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botN":{"connects":1,"closes":0,"open":1}},"settingsP":{"channels":{"botP":{"type":"plugin-example","serverWsUrl":"ws://127.0.0.1:45113","senderPolicy":"open","sessionScope":"user","cwd":"/tmp/pr11071-all-reload-1bBpOH/primary"},"botN":{"type":"plugin-example","serverWsUrl":"ws://127.0.0.1:33233","senderPolicy":"open","sessionScope":"user","cwd":"/tmp/pr11071-all-reload-1bBpOH/primary"}},"$version":4}}
+## retry DELETE P botN after settle @11638  {"status":200,"ms":567,"revision":"7a644cded12575d3fb57c06495bd5c013ccc74d16dd90cd6f029dfcc3d2dca80","instances":["botP"],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @13154  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2011623:alive"]},"peers":{"botP":{"connects":3,"closes":2,"open":1},"botN":{"connects":1,"closes":1,"open":0}},"settingsP":{"channels":{"botP":{"type":"plugin-example","serverWsUrl":"ws://127.0.0.1:45113","senderPolicy":"open","sessionScope":"user","cwd":"/tmp/pr11071-all-reload-1bBpOH/primary"}},"$version":4,"serve":{"channels":[]}}}
+##### file: data/head-late-collateral.json
+=== head / late-collateral
+## boot @2698  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2027480:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":0,"closes":0,"open":0},"botW":{"connects":0,"closes":0,"open":0}}}
+## C transition in flight @3172  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botP","slowC"]}}
+## register A (late) resolved @3180  {"status":201,"ms":8}
+## GET A mid-transition @3535  {"status":200,"instances":{"botA":{"state":"stopped"},"botW":{"state":"stopped"}}}
+## DELETE A botA (during C transition, A restore queued) @3538  {"status":409,"ms":3,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## start slowC resolved @32733  {"status":502,"ms":30035,"code":"channel_worker_start_failed"}
+## after settle @34714  {"control":{"sel":["botP","botA","botW"],"tr":"idle","workers":["primary:botP:2027480:alive","wsA:botA,botW:2027770:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botW":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":["botA","botW"],"serve":{"channels":["botA","botW"]}},"listA":{"botA":{"state":"connected"},"botW":{"state":"connected"}}}
+## retry DELETE A botA after settle @35175  {"status":200,"ms":461,"revision":"3628dff83be9dac2003d7f1743ba99eedfd4168891fcb62dc2e807cfa4f37d9f","instances":["botW"],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @36694  {"control":{"sel":["botP","botW"],"tr":"idle","workers":["primary:botP:2027480:alive","wsA:botW:2027821:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botW":{"connects":2,"closes":1,"open":1}},"settingsA":{"channels":["botW"],"serve":{"channels":["botW"]}},"listA":{"botW":{"state":"connected"}}}
+##### file: data/fix-loss.json
+=== fix / loss
+## boot @4040  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2002306:alive","wsB:botB:2002490:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2002306,2002490],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":2002306,"pidB":2002490}
+## config lost (3s later, no API call yet) @7046  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2002306:alive","wsB:botB:2002490:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2002306,2002490],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## GET channels A @7058  {"status":200,"revision":"0f4b939f872f663b17777db3e3a48bf74c9c52762abc7cf3724242e276ad3c31","instances":[]}
+## DELETE botA #1 @7079  {"status":200,"ms":21,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after DELETE #1 @8602  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:2002490:alive"]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2002490],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+## DELETE botA #2 (current revision) @8607  {"status":200,"ms":3,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after DELETE #2 @10132  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:2002490:alive"]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2002490],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-stale.json
+=== fix / stale
+## boot @4150  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2002372:alive","wsB:botB:2002523:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2002372,2002523],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":2002372,"pidB":2002523}
+## DELETE botA with stale revision @4165  {"status":409,"ms":15,"code":"channel_settings_conflict","error":"Channel settings changed; reload before trying again."}
+## after stale DELETE @5695  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2002372:alive","wsB:botB:2002523:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2002372,2002523],"settingsA":{"channels":[],"serve":{"channels":["botA"]}},"settingsA_byte_identical":true}
+##### file: data/fix-normal.json
+=== fix / normal
+## boot @4070  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2002288:alive","wsB:botB:2002499:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2002288,2002499],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":2002288,"pidB":2002499}
+## DELETE configured botA @4151  {"status":200,"ms":22,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after DELETE @5679  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:2002499:alive"]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2002499],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-busy.json
+=== fix / busy
+## boot @3857  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2008930:alive","wsB:botB:2009065:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2008930,2009065],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":2008930,"pidB":2009065}
+## C transition in flight @4370  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]},"selection":{"mode":"names","names":["botA","botB"]}}
+## DELETE configured botA in A (during C transition) @33913  {"status":200,"ms":29483,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## right after DELETE @33918  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:2009065:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2009065],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+## register C resolved @33918  {"status":201,"ms":16}
+## after settle @35448  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:2009065:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2009065],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-busy-start.json
+=== fix / busy-start
+## boot @3852  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2008887:alive","wsB:botB:2009077:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2008887,2009077],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":2008887,"pidB":2009077}
+## C transition in flight @4388  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]},"selection":{"mode":"names","names":["botA","botB"]}}
+## DELETE configured botA in A (during C transition) @33918  {"status":200,"ms":29476,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## right after DELETE @33924  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:2009077:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2009077],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+## start slowC resolved @33924  {"status":502,"ms":30032,"code":"channel_worker_start_failed"}
+## after settle @35458  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:2009077:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2009077],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-busy-stop.json
+=== fix / busy-stop
+## boot @3783  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2008908:alive","wsB:botB:2009055:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2008908,2009055],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":2008908,"pidB":2009055}
+## C transition in flight @4317  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]}}
+## POST stop botA in A (during C transition) @33918  {"status":200,"ms":29601}
+## start slowC resolved @33918  {"status":502,"ms":30027,"code":"channel_worker_start_failed"}
+## after settle @35452  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:2009055:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2009055],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}}}
+##### file: data/fix-busy-loss.json
+=== fix / busy-loss
+## boot @3743  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2008865:alive","wsB:botB:2009046:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2008865,2009046],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":2008865,"pidB":2009046}
+## C transition in flight @4275  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botA","botB","slowC"]}}
+## DELETE config-lost botA in A (during C transition) @4283  {"status":409,"ms":5,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## start slowC resolved @33782  {"status":502,"ms":30026,"code":"channel_worker_start_failed"}
+## after settle @35316  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2008865:alive","wsB:botB:2009046:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2008865,2009046],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## retry DELETE botA after settle @35337  {"status":200,"ms":19,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @36860  {"control":{"sel":["botB"],"tr":"idle","workers":["wsB:botB:2009046:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2009046],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-inflight.json
+=== fix / inflight
+## boot @4287  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2002548:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## A restore in flight @4799  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botP","botA"]},"selection":{"mode":"names","names":["botP"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## GET channels A (mid restore) @4907  {"status":200,"revision":"a00630fc02ea309535fd804e9bed8c72a675abafb0007996886dcd596f1acf6b","instances":{"botA":{"state":"stopped"}}}
+## DELETE configured botA (mid restore) @4911  {"status":409,"ms":4,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## register A resolved @4911  {"status":201,"ms":13}
+## after settle @12305  {"control":{"sel":["botP","botA"],"tr":"idle","workers":["primary:botP:2002548:alive","wsA:botA:2003017:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":0,"open":1}},"workerPids":[2002548,2003017],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"listA":{"status":200,"revision":"a00630fc02ea309535fd804e9bed8c72a675abafb0007996886dcd596f1acf6b","instances":["botA"]}}
+## DELETE botA again (current revision) @12322  {"status":200,"ms":17,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## final @13846  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2002548:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":1,"open":0}},"workerPids":[2002548],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-inflight-early.json
+=== fix / inflight
+## boot @4224  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2002549:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## A restore in flight @4283  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botP","botA"]},"selection":{"mode":"names","names":["botP"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## GET channels A (mid restore) @4393  {"status":200,"revision":"769064f53eb578a543bb00676821be2cfb890a4f8092b3056c6f3031b31a08be","instances":{"botA":{"state":"stopped"}}}
+## DELETE configured botA (mid restore) @4399  {"status":409,"ms":6,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## register A resolved @4399  {"status":201,"ms":13}
+## after settle @12305  {"control":{"sel":["botP","botA"],"tr":"idle","workers":["primary:botP:2002549:alive","wsA:botA:2003010:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":0,"open":1}},"workerPids":[2002549,2003010],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"listA":{"status":200,"revision":"769064f53eb578a543bb00676821be2cfb890a4f8092b3056c6f3031b31a08be","instances":["botA"]}}
+## DELETE botA again (current revision) @12322  {"status":200,"ms":17,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## final @13842  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2002549:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":1,"open":0}},"workerPids":[2002549],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-poison.json
+=== fix / poison
+## boot @4059  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2002287:alive","wsB:botB:2002505:alive"]},"peers":{"botC":{"connects":0,"closes":0,"open":0},"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2002287,2002505],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":2002287,"pidB":2002505}
+## start botC in C (A lost config) @4083  {"status":400,"ms":12,"code":"channel_workspace_mismatch","error":"Channel \"botA\" is not configured in any registered workspace, or its \"cwd\" points outside them."}
+## DELETE botA in A @4104  {"status":200,"ms":18,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## start botC in C again @6137  {"status":200,"ms":509}
+## final @7661  {"control":{"sel":["botB","botC"],"tr":"idle","workers":["wsB:botB:2002505:alive","wsC:botC:2003266:alive"]},"peers":{"botC":{"connects":1,"closes":0,"open":1},"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":false,"pidB_alive":true,"workerPids":[2002505,2003266],"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-twin-loss.json
+=== fix / twin-loss
+## boot @4000  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2002263:alive","wsB:botB:2002483:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2002263,2002483],"settingsA":{"channels":["botA"],"serve":{"channels":["botA"]}},"pidA":2002263,"pidB":2002483}
+## DELETE botA in A (botB also lost) @4020  {"status":400,"ms":9,"code":"channel_workspace_mismatch","error":"Channel \"botB\" is not configured in any registered workspace, or its \"cwd\" points outside them."}
+## DELETE botB in B (botA also lost) @4026  {"status":400,"ms":4,"code":"channel_workspace_mismatch","error":"Channel \"botA\" is not configured in any registered workspace, or its \"cwd\" points outside them."}
+## after both @5555  {"control":{"sel":["botA","botB"],"tr":"idle","workers":["wsA:botA:2002263:alive","wsB:botB:2002483:alive"]},"peers":{"botA":{"connects":1,"closes":0,"open":1},"botB":{"connects":1,"closes":0,"open":1}},"pidA_alive":true,"pidB_alive":true,"workerPids":[2002263,2002483],"settingsA":{"channels":[],"serve":{"channels":["botA"]}}}
+## DELETE /workspace/channel (stop all hosting) @5570  {"status":200,"ms":15}
+## DELETE botA after hosting stop @7096  {"status":200,"ms":4,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## DELETE botB after hosting stop @7100  {"status":200,"ms":3,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## final @8621  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botA":{"connects":1,"closes":1,"open":0},"botB":{"connects":1,"closes":1,"open":0}},"pidA_alive":false,"pidB_alive":false,"workerPids":[],"settingsA":{"channels":[],"serve":{"channels":[]}},"settingsB":{"serve":{"channels":[]},"$version":4}}
+##### file: data/fix-samename.json
+=== fix / samename
+## boot @3440  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2002327:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"listA":{"botX":{"state":"stopped"}}}
+## C transition in flight @3912  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botX","slowC"]}}
+## DELETE A botX (during C transition) @3917  {"status":409,"ms":3,"code":"channel_runtime_owner_mismatch","error":"Channel \"botX\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## start slowC resolved @33470  {"status":502,"ms":30019,"code":"channel_worker_start_failed"}
+## after settle @34990  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2002327:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":["botX"]}}
+## retry DELETE A botX after settle @34996  {"status":200,"ms":4,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @36513  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2002327:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-stopped.json
+=== fix / samename
+## boot @3400  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2002341:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"listA":{"botS":{"state":"stopped"}}}
+## C transition in flight @3872  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botX","slowC"]}}
+## DELETE A botS (during C transition) @3881  {"status":200,"ms":7,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## start slowC resolved @33431  {"status":502,"ms":30020,"code":"channel_worker_start_failed"}
+## after settle @34953  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2002341:alive"]},"peers":{"slowC":{"connects":0,"closes":0,"open":0},"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-samename-starting.json
+=== fix / samename-starting
+## boot @9143  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2008859:alive"]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":0,"open":1}}}
+## stop B botX @9222  {"status":200,"ms":79}
+## after stop @10739  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":1,"closes":1,"open":0}}}
+## B start in flight @11198  {"transition":"starting","pendingSelection":{"mode":"names","names":["botX"]},"selection":null}
+## DELETE A botX (during B start of same name) @11202  {"status":409,"ms":2,"code":"channel_runtime_owner_mismatch","error":"Channel \"botX\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## start B botX resolved @17190  {"status":200,"ms":6451}
+## after settle @18709  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2009371:alive"]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":2,"closes":1,"open":1}},"settingsA":{"channels":["botX"]}}
+## retry DELETE A botX after settle @18715  {"status":200,"ms":4,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @20232  {"control":{"sel":["botX"],"tr":"idle","workers":["wsB:botX:2009371:alive"]},"peers":{"botXa":{"connects":0,"closes":0,"open":0},"botXb":{"connects":2,"closes":1,"open":1}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-all-unrelated.json
+=== fix / all-unrelated
+## boot @9371  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2008958:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## DELETE /workspace/channel @9389  {"status":200,"ms":18}
+## after hosting stop @10909  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botP":{"connects":1,"closes":1,"open":0},"botA":{"connects":0,"closes":0,"open":0}}}
+## mode-all start in flight @11367  {"transition":"starting","pendingSelection":{"mode":"all"},"selection":null}
+## DELETE A botA (during mode-all start) @11430  {"status":409,"ms":3,"code":"channel_runtime_owner_mismatch","error":"Channel \"botA\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## PUT all resolved @17364  {"status":201,"ms":6454}
+## after settle @18880  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2009380:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":["botA"]}}
+## retry DELETE A botA after settle @18887  {"status":200,"ms":5,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @20402  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2009380:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-all-samename.json
+=== fix / all-samename
+## boot @9175  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2008888:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botA":{"connects":0,"closes":0,"open":0}}}
+## DELETE /workspace/channel @9192  {"status":200,"ms":17}
+## after hosting stop @10709  {"control":{"sel":null,"tr":"idle","workers":[]},"peers":{"botP":{"connects":1,"closes":1,"open":0},"botA":{"connects":0,"closes":0,"open":0}}}
+## mode-all start in flight @11167  {"transition":"starting","pendingSelection":{"mode":"all"},"selection":null}
+## DELETE A botP (during mode-all start) @11231  {"status":409,"ms":3,"code":"channel_runtime_owner_mismatch","error":"Channel \"botP\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## PUT all resolved @17165  {"status":201,"ms":6456}
+## after settle @18683  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2009364:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":["botP"]}}
+## retry DELETE A botP after settle @18689  {"status":200,"ms":5,"revision":"8c575c15176bed03007d15d1438b49749a898942bc765fde17ae5d081424d67e","instances":[],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @20206  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2009364:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botA":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":[],"serve":{"channels":[]}}}
+##### file: data/fix-all-reload.json
+=== fix / all-reload
+## boot @3313  {"control":{"sel":"all","tr":"idle","workers":["primary:botP:2008942:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"botN":{"connects":0,"closes":0,"open":0}}}
+## GET P after botN added on disk @3371  {"status":200,"instances":{"botP":{"state":"connected"},"botN":{"state":"stopped"}}}
+## reload in flight @3881  {"transition":"reconciling","pendingSelection":{"mode":"all"},"selection":{"mode":"all"}}
+## DELETE P botN (during reload) @3888  {"status":409,"ms":5,"code":"channel_runtime_owner_mismatch","error":"Channel \"botN\" does not have one confirmed runtime owner in this workspace. The channel runtime is mid-transition."}
+## reload resolved @9857  {"status":200,"ms":6486}
+## after settle @11380  {"control":{"sel":"all","tr":"idle","workers":["primary:botP,botN:2009124:alive"]},"peers":{"botP":{"connects":2,"closes":1,"open":1},"botN":{"connects":1,"closes":0,"open":1}},"settingsP":{"channels":{"botP":{"type":"plugin-example","serverWsUrl":"ws://127.0.0.1:46547","senderPolicy":"open","sessionScope":"user","cwd":"/tmp/pr11071-all-reload-VUy68K/primary"},"botN":{"type":"plugin-example","serverWsUrl":"ws://127.0.0.1:45853","senderPolicy":"open","sessionScope":"user","cwd":"/tmp/pr11071-all-reload-VUy68K/primary"}},"$version":4}}
+## retry DELETE P botN after settle @11839  {"status":200,"ms":457,"revision":"2bd8dd8e35ccf3f65f52aea2b3632ce7e8e52223ef503203a952ee268d7d87b1","instances":["botP"],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## after retry @13359  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2009432:alive"]},"peers":{"botP":{"connects":3,"closes":2,"open":1},"botN":{"connects":1,"closes":1,"open":0}},"settingsP":{"channels":{"botP":{"type":"plugin-example","serverWsUrl":"ws://127.0.0.1:46547","senderPolicy":"open","sessionScope":"user","cwd":"/tmp/pr11071-all-reload-VUy68K/primary"}},"$version":4,"serve":{"channels":[]}}}
+##### file: data/fix-late-collateral.json
+=== fix / late-collateral
+## boot @2697  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2027474:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":0,"closes":0,"open":0},"botW":{"connects":0,"closes":0,"open":0}}}
+## C transition in flight @3216  {"transition":"reconciling","pendingSelection":{"mode":"names","names":["botP","slowC"]}}
+## register A (late) resolved @3224  {"status":201,"ms":8}
+## GET A mid-transition @3578  {"status":200,"instances":{"botA":{"state":"stopped"},"botW":{"state":"stopped"}}}
+## DELETE A botA (during C transition, A restore queued) @3584  {"status":200,"ms":6,"revision":"9fe50874b6dcf6917518e36e7f8b5b5db5c1a295b102fbe554cf4886ea5e3d31","instances":["botW"],"instance":{"startsWithServe":false,"runtime":{"state":"stopped"}}}
+## start slowC resolved @32729  {"status":502,"ms":30032,"code":"channel_worker_start_failed"}
+## after settle @34252  {"control":{"sel":["botP"],"tr":"idle","workers":["primary:botP:2027474:alive"]},"peers":{"botP":{"connects":1,"closes":0,"open":1},"slowC":{"connects":0,"closes":0,"open":0},"botA":{"connects":0,"closes":0,"open":0},"botW":{"connects":0,"closes":0,"open":0}},"settingsA":{"channels":["botW"],"serve":{"channels":["botW"]}},"listA":{"botW":{"state":"error","lastError":"Channel \"botA\" is not configured in any registered workspace, or its \"cwd\" points outside them."}}}
