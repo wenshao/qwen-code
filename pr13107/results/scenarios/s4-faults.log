@@ -1,0 +1,22 @@
+# s4-faults  db=ui2  2026-09-30T13:43:08.934Z
+PASS  [a] card shown  -> session=ee77e82f-4cf7-42fd-b9a9-045067c3172d action=tool_approval_3ebe23b5dc3bad055c7f6fd9c56561d3
+PASS  [a] 503: the card comes back and the failure text is shown  -> alert="The approval answer could not be sent. Try again."
+PASS  [a] 503: nothing was committed  -> state=requested operations=0
+PASS  [a] retry succeeds with the same idempotency key  -> keys=["tool_approval_3ebe23b5dc3bad055c7f6fd9c56561d3:allow","tool_approval_3ebe23b5dc3bad055c7f6fd9c56561d3:allow"] statuses=[503,202]
+PASS  [a] Turn completes; file written once  -> status=COMPLETED executions=1
+PASS  [a] the failure text is gone after the successful retry  -> alert=""
+PASS  [b] card shown  -> session=eef0a9b7-7501-4c4f-acc5-1ef20a1cb756 action=tool_approval_f85359f5c9d55f63702910adaa44bbab
+PASS  [b] lost reply while delivery is slow: the card comes back with the failure text  -> card=1 alert="The approval answer could not be sent. Try again." action=requested operations=[["RUNNING","tool_approval_f85359f5c9d55f63702910adaa44bbab:allow"]]
+PASS  [b] one durable operation only, however many clicks  -> [["COMPLETED","tool_approval_f85359f5c9d55f63702910adaa44bbab:allow",""]]
+PASS  [b] Turn completes; the tool ran once  -> status=COMPLETED executions=1
+NOTE  [b] respond calls seen by the page  -> [{"status":0,"failure":"net::ERR_CONNECTION_RESET","key":"tool_approval_f85359f5c9d55f63702910adaa44bbab:allow"},{"status":202,"key":"tool_approval_f85359f5c9d55f63702910adaa44bbab:allow","replayed":true}]
+NOTE  [b] end state of the page  -> card=0 alert=""
+PASS  [c] card shown  -> session=180bac4a-8578-473c-86e2-4e6219af5249 action=tool_approval_5f94fcc4f34ab6075a271de99dd64789
+PASS  [c] lost "allow" reply while delivery is slow: the card comes back with the failure text  -> card=1 alert="The approval answer could not be sent. Try again." action=requested operations=[["RUNNING","tool_approval_5f94fcc4f34ab6075a271de99dd64789:allow"]]
+NOTE  [c] respond calls seen by the page  -> [{"status":0,"failure":"net::ERR_CONNECTION_RESET","option":"allow","key":"tool_approval_5f94fcc4f34ab6075a271de99dd64789:allow"},{"status":202,"option":"deny","key":"tool_approval_5f94fcc4f34ab6075a271de99dd64789:deny","opStatus":"pending"}]
+NOTE  [c] operations  -> [["COMPLETED","tool_approval_5f94fcc4f34ab6075a271de99dd64789:allow",""],["FAILED","tool_approval_5f94fcc4f34ab6075a271de99dd64789:deny","action_already_resolved"]]
+NOTE  [c] outcome  -> Turn=COMPLETED file="ALLOWED-THEN-DENIED" executions=1 final=UI_DONE rounds=1 results=["[{"type":"text","text":"Successfully created and wrote to new file: /Users/wenshao/pr13107-rig/run/ui2/ws/a/child/s4c-muo5ofsi.txt."}]
+NOTE  [c] end state of the page  -> card=0 alert=""
+PASS  [c] the first committed answer wins (allow): the tool ran although the last click was "Reject"  -> file="ALLOWED-THEN-DENIED"
+PASS  [c] the page never tells the owner that the second answer lost  -> alert=""
+== s4-faults: 14 passed, 0 failed

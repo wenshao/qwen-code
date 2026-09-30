@@ -1,0 +1,173 @@
+diff --git a/packages/web-shell/client/components/managed/ManagedSessionsPage.test.tsx b/packages/web-shell/client/components/managed/ManagedSessionsPage.test.tsx
+index 062355e0df..076fe980cd 100644
+--- a/packages/web-shell/client/components/managed/ManagedSessionsPage.test.tsx
++++ b/packages/web-shell/client/components/managed/ManagedSessionsPage.test.tsx
+@@ -227,6 +227,51 @@ describe('ManagedSessionsPage', () => {
+     ).toBeNull();
+   });
+ 
++  it('brings the card back with a failure message when the answer is not sent', async () => {
++    mocks.client.getSession.mockImplementation(async (id: string) =>
++      summary(id, {
++        phase: 'agent_running',
++        capabilities: { canSend: false, canCancel: true, actions: true },
++      }),
++    );
++    const action = {
++      actionId: 'tool_approval_1',
++      sessionId: 's1',
++      turnId: 'p1',
++      functionCallId: 'call-1',
++      toolName: 'write_file',
++      inputRevision: 1,
++      policyRevision: 'hosted-tool-approval/1',
++      expiresAt: Date.now() + 600_000,
++      options: [
++        { id: 'allow', label: 'Allow' },
++        { id: 'deny', label: 'Deny' },
++      ],
++    };
++    const listPending = vi.fn().mockResolvedValue([action]);
++    const respond = vi.fn().mockRejectedValue(new Error('offline'));
++    provider = { ...provider, actions: { listPending, respond } };
++
++    await render('s1');
++    await act(async () => flush());
++    const reject = Array.from(
++      container.querySelectorAll('[data-testid="managed-approval"] button'),
++    ).find((button) => button.textContent?.includes('Reject'));
++    expect(reject).toBeDefined();
++    await act(async () => {
++      (reject as HTMLButtonElement).click();
++      await flush();
++    });
++
++    expect(respond).toHaveBeenCalledWith(action, 'deny', expect.anything());
++    expect(
++      container.querySelector('[data-testid="managed-approval"]'),
++    ).not.toBeNull();
++    expect(container.textContent).toContain(
++      'The approval answer could not be sent. Try again.',
++    );
++  });
++
+   it('does not read approvals for a Session without the actions capability', async () => {
+     const listPending = vi.fn().mockResolvedValue([]);
+     provider = {
+diff --git a/packages/web-shell/client/components/managed/managed-approval.test.ts b/packages/web-shell/client/components/managed/managed-approval.test.ts
+index c93cf10574..24e8e96f6a 100644
+--- a/packages/web-shell/client/components/managed/managed-approval.test.ts
++++ b/packages/web-shell/client/components/managed/managed-approval.test.ts
+@@ -60,6 +60,21 @@ describe('Managed approval presentation', () => {
+     });
+   });
+ 
++  it('matches the Action Turn even when a later Turn reuses the call ID', () => {
++    const messages = [
++      toolGroup('turn-1', 'call-1'),
++      toolGroup('turn-2', 'call-1'),
++    ];
++    const earlier = { ...action, turnId: 'turn-1' };
++    expect(findManagedApprovalTool(messages, earlier)?.callId).toBe(
++      'turn-1:call-1',
++    );
++    expect(toManagedPermissionRequest(earlier, messages).rawInput).toEqual({
++      file_path: 'notes.md',
++      content: 'turn-1',
++    });
++  });
++
+   it('falls back to the latest matching call when the Turn is unresolved', () => {
+     const { turnId: _turnId, ...unresolved } = action;
+     const messages = [
+diff --git a/packages/web-shell/client/components/managed/use-managed-actions.test.tsx b/packages/web-shell/client/components/managed/use-managed-actions.test.tsx
+index ed4814d1b8..40ffe995f3 100644
+--- a/packages/web-shell/client/components/managed/use-managed-actions.test.tsx
++++ b/packages/web-shell/client/components/managed/use-managed-actions.test.tsx
+@@ -49,6 +49,7 @@ describe('useManagedActions', () => {
+     initial: {
+       enabled: boolean;
+       events: ManagedAgentSessionEvent[];
++      sessionId?: string;
+     },
+   ) {
+     let latest: ReturnType<typeof useManagedActions> | undefined;
+@@ -56,7 +57,7 @@ describe('useManagedActions', () => {
+     function Probe(current: typeof initial) {
+       latest = useManagedActions(
+         provider,
+-        'session-1',
++        current.sessionId ?? 'session-1',
+         'client-1',
+         current.enabled,
+         current.events,
+@@ -130,4 +131,69 @@ describe('useManagedActions', () => {
+     await vi.waitFor(() => expect(hook.latest?.action).toBeUndefined());
+     expect(listPending).toHaveBeenCalledTimes(2);
+   });
++
++  it('keeps an answered approval hidden while the answer is in flight', async () => {
++    let settle: () => void = () => {};
++    const respond = vi.fn(
++      () => new Promise<void>((resolve) => (settle = resolve)),
++    );
++    const listPending = vi.fn().mockResolvedValue([pending]);
++    const provider = {
++      actions: { listPending, respond },
++    } as unknown as ManagedAgentProvider;
++    const hook = mount(provider, { enabled: true, events: [] });
++    await vi.waitFor(() => expect(hook.latest?.action).toEqual(pending));
++
++    let answer: Promise<void> | undefined;
++    act(() => {
++      answer = hook.latest!.respond('tool_approval_1', 'allow');
++    });
++    expect(hook.latest?.action).toBeUndefined();
++    await act(async () => {
++      settle();
++      await answer;
++    });
++    // The list still reports it as requested; it stays hidden while it settles.
++    expect(hook.latest?.action).toBeUndefined();
++  });
++
++  it('re-reads shortly after the earliest approval expires', async () => {
++    const listPending = vi
++      .fn()
++      .mockResolvedValueOnce([{ ...pending, expiresAt: Date.now() + 50 }])
++      .mockResolvedValue([]);
++    const provider = {
++      actions: { listPending, respond: vi.fn() },
++    } as unknown as ManagedAgentProvider;
++    const hook = mount(provider, { enabled: true, events: [] });
++    await vi.waitFor(() => expect(hook.latest?.action).toBeDefined());
++
++    await vi.waitFor(() => expect(hook.latest?.action).toBeUndefined(), {
++      timeout: 3000,
++    });
++    expect(listPending).toHaveBeenCalledTimes(2);
++  });
++
++  it('reports a failed read and shows nothing from another Session', async () => {
++    const listPending = vi
++      .fn()
++      .mockResolvedValueOnce([pending])
++      .mockRejectedValueOnce(new Error('offline'))
++      .mockReturnValue(new Promise(() => {}));
++    const provider = {
++      actions: { listPending, respond: vi.fn() },
++    } as unknown as ManagedAgentProvider;
++    const hook = mount(provider, { enabled: true, events: [] });
++    await vi.waitFor(() => expect(hook.latest?.action).toEqual(pending));
++
++    hook.rerender({ events: [update(7)] });
++    await vi.waitFor(() =>
++      expect(hook.latest?.error).toEqual(new Error('offline')),
++    );
++
++    // Another Session: neither the first Session's approval nor its error.
++    hook.rerender({ sessionId: 'session-2' });
++    expect(hook.latest?.action).toBeUndefined();
++    expect(hook.latest?.error).toBeUndefined();
++  });
+ });
