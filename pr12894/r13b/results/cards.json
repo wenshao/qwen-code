@@ -1,0 +1,53 @@
+[
+ {
+  "name": "r13b-01-status",
+  "title": "Real Aliyun OSS and a second host @ 42e2e8b1: the O2 path holds on both; two things to know",
+  "subtitle": "Temporary private, unversioned bucket in cn-hangzhou (deleted afterwards); AliyunToolPublicationObjectStore against real OSS with the default trust store. Second host: Harness on an Orange Pi (linux-arm64, Node 24), Spring + MySQL + workers on this Mac",
+  "lines": [
+   "## Real OSS",
+   "++ echo | 100 MiB + 5 MiB exit 7: every segment downloaded back from the bucket matches the catalog and the oracle; ranges exact",
+   "++ crash after receipt | lost segment | lost admission reply | control chars + crash | reload + second turn: pass, bytes exact",
+   "++ 2 O2 Sessions x 64 MiB at once: exact, 0 deadlocks | preview matrix same as the OSS double | real qwen3.8-max 2/2",
+   "++ objects are private (anonymous GET 403); small resources stay inline in SQL (the echo turn wrote 2 objects, 21 B)",
+   "++ one bit flipped in a stored segment -> reads refused, publication FENCED + quarantined, segment QUARANTINED",
+   "== 1 GiB on a 13 Mbps uplink: backpressure paces the command to the upload rate and the 120 s Shell timeout stops it at",
+   "==   326 MiB; the captured prefix is byte-exact and the model is told the command timed out (300 MiB: complete, exact)",
+   "-- R13-2 versioning switched on while running: reads fail with 500 (fail closed); a new Shell turn retries",
+   "--        \"cannot enforce immutable objects\" about 9 times a second for 4 minutes, then the Session is recovery-blocked",
+   "",
+   "## Second host (O2)",
+   "++ crash after receipt, Mac Harness killed -> Pi Harness recovers; and Pi -> Mac: load after 48-55 s, command ran once, exact",
+   "++ control chars + crash after receipt, Mac -> Pi: pass",
+   "++ clean hand-off Mac -> Pi -> Mac: 3 turns, 3 publications REFERENCED, each continuation sees the whole history",
+   "",
+   "## Second host (local capture path, #12848 on main)",
+   "!! needs the Harness and the worker on one host: the publisher listens on 127.0.0.1 (hosted-shell-publisher.ts:126), so",
+   "!!   with the Harness on the Pi the first Shell call blocks the Session (409 execution_unknown) - this is what O2 is for"
+  ],
+  "note": "A startup check already refuses a versioned or non-private bucket (AliyunToolPublicationObjectStore constructor); R13-2 only covers versioning being turned on later. Every object PUT and GET also asks OSS for the bucket versioning first, one extra round trip per segment.",
+  "noteColor": "#d29922"
+ },
+ {
+  "name": "r13b-02-versioning",
+  "title": "R13-2: with bucket versioning turned on mid-run, a Shell turn retries for 4 minutes, then blocks the Session",
+  "subtitle": "New O2 Shell turn (2 MB output) after enabling versioning on the temporary bucket; exceptions counted per minute from the JDI tap",
+  "lines": [
+   "## requireUnversioned() refusals, \"Tool publication bucket cannot enforce immutable objects\"",
+   "== 14:45   153",
+   "== 14:46   555",
+   "== 14:47   549   + 2 x \"Publication operation expired\"",
+   "== 14:48   573",
+   "== 14:49   426   then \"Runtime execution outcome is unknown\" -> /finished 400 -> close_not_started 400",
+   "",
+   "-- turn: 241 s, then recoveryBlocked=true; the publication stays OPEN/FINISHING",
+   "-- each refusal first calls GetBucketVersioning on OSS (AliyunToolPublicationObjectStore.java:28-35): ~2,256 requests",
+   "== range read of an existing publication with versioning on: 500 internal_error, catalog unchanged",
+   "",
+   "## Suggestion",
+   "== treat this refusal as a configuration error rather than a retryable one: fail the capture at once with a clear",
+   "== error (or a correctable not_started), so the turn does not stall and the Session is not blocked"
+  ],
+  "note": "Failing closed is right for a bucket that can no longer keep objects immutable. The cost today is a four-minute stall, a burst of OSS requests and a blocked Session for every Shell turn until the bucket is fixed.",
+  "noteColor": "#d29922"
+ }
+]
