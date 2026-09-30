@@ -84,7 +84,7 @@ function build() {
     log({ method: 'resources/read', uri: uri.href, phase: aborted ? 'aborted' : 'done' });
     return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: 'SLOW_RESOURCE' }] };
   });
-  // Round 8: an answered but schema-invalid reply (R4-1), and a URI echo (R4-3).
+  // Round 8: an answered but schema-invalid reply (R4-1), and a URI echo (R4-9).
   server.resource('bad', 'mem://bad', { mimeType: 'text/plain', description: 'Answers with an invalid result' }, async (uri) => {
     log({ method: 'resources/read', uri: uri.href, phase: 'bad' });
     return { contents: 'not-a-contents-array' };

@@ -1,4 +1,4 @@
-// Round-8 mutants: changes in 06c1df7f (R3-10, R4-1, R4-3 fixes + observe() merge).
+// Round-8 mutants: changes in 06c1df7f (R3-10, R4-1, R4-9 fixes + observe() merge).
 const HH = 'packages/cli/src/serve/hosted-harness-session.ts';
 const RT = 'packages/cli/src/serve/managed-mcp-runtime.ts';
 const MP = 'packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ManagedMcpProtocol.java';
@@ -27,7 +27,7 @@ module.exports = [
     replace: '    const control = operation.control as ManagedMcpInvoke;' },
   { id: 'V9', what: 'dispatch never marks a request as awaiting a reply (quota never reached)', file: RT, group: 'ts',
     find: '      operation.awaitingReply = true;\n', replace: '' },
-  { id: 'J11', what: 'R4-3 reverted: no well-formedness check on MCP control operations', file: MP, group: 'broker',
+  { id: 'J11', what: 'R4-9 reverted: no well-formedness check on MCP control operations', file: MP, group: 'broker',
     find: '        if (!BrokerValues.isWellFormedJson(operation)) {\n            throw invalid("MCP operation is invalid.");\n        }\n', replace: '' },
   { id: 'J12', what: 'observe(): explicit reconcile no longer bypasses the observable-after-loss gate', file: HS, group: 'broker',
     find: '|| (!reconcile && !record.observableAfterLoss())) {', replace: '|| !record.observableAfterLoss()) {' },
