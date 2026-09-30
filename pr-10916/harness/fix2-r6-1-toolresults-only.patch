@@ -1,0 +1,111 @@
+diff --git a/packages/core/src/core/client.test.ts b/packages/core/src/core/client.test.ts
+index 2bb53b6240..3bbb8e2f1f 100644
+--- a/packages/core/src/core/client.test.ts
++++ b/packages/core/src/core/client.test.ts
+@@ -10596,6 +10596,10 @@ hello
+     async function runFailingToolTurns(
+       errorFor: (round: number) => string,
+       maxRounds = 5,
++      steer?: {
++        round: number;
++        input: { parts: Part[]; accept: () => void; restore: () => void };
++      },
+     ) {
+       const promptId = 'prompt-repeated-tool-error';
+       const allEvents: Array<{ type: string; value?: unknown }> = [];
+@@ -10614,6 +10618,7 @@ hello
+             };
+           })(),
+         );
++        const steerThisRound = steer && steer.round === round;
+         const contents =
+           round === 0
+             ? [{ text: 'do the work' }]
+@@ -10625,6 +10630,9 @@ hello
+                     response: { error: errorFor(round - 1) },
+                   },
+                 },
++                // The CLI appends a drained mid-turn steer after the tool
++                // results and hands the carrier over as `steerInput`.
++                ...(steerThisRound ? steer.input.parts : []),
+               ];
+         const events = await fromAsync(
+           client.sendMessageStream(
+@@ -10636,6 +10644,7 @@ hello
+                 round === 0
+                   ? SendMessageType.UserQuery
+                   : SendMessageType.ToolResult,
++              ...(steerThisRound ? { steerInput: steer.input } : {}),
+             },
+           ),
+         );
+@@ -10703,6 +10712,42 @@ hello
+       ).toBe(true);
+     });
+ 
++    it('writes only the tool results on halt and restores the steer carrier once (#10887)', async () => {
++      // The halt must pair the executed calls in history but must not also
++      // write the attached steer parts: the carrier is restored (re-queued)
++      // by the outer finally, so writing them too would deliver them twice.
++      const addHistorySpy = vi.spyOn(client.getChat(), 'addHistory');
++      const accept = vi.fn();
++      const restore = vi.fn();
++      const events = await runFailingToolTurns(
++        () =>
++          'fatal: not a git repository (or any of the parent directories): .git',
++        5,
++        {
++          round: 3,
++          input: {
++            parts: [{ text: 'steer: summarize instead' }],
++            accept,
++            restore,
++          },
++        },
++      );
++      expect(events.some((e) => e.type === LlmEventType.LoopDetected)).toBe(
++        true,
++      );
++      expect(restore).toHaveBeenCalledTimes(1);
++      expect(accept).not.toHaveBeenCalled();
++      const recorded = addHistorySpy.mock.calls.flatMap(
++        ([content]) => (content as Content).parts ?? [],
++      );
++      expect(
++        recorded.some((part) => part.functionResponse?.id === 'fail-2'),
++      ).toBe(true);
++      expect(
++        recorded.some((part) => part.text === 'steer: summarize instead'),
++      ).toBe(false);
++    });
++
+     it('should halt via the always-on turn cap before the skipLoopDetection gate', async () => {
+       let abortHandlerInvoked = false;
+       mockMemoryManager.recall.mockImplementation((_root, _query, opts) => {
+diff --git a/packages/core/src/core/client.ts b/packages/core/src/core/client.ts
+index 565716cec7..860ed71e15 100644
+--- a/packages/core/src/core/client.ts
++++ b/packages/core/src/core/client.ts
+@@ -4665,7 +4665,21 @@ export class LlmClient {
+           // path pushes. The pending tool-result memory recall is
+           // deliberately left unconsumed: there is no send to deliver it on,
+           // and consuming it here would drop it instead of deferring it.
+-          this.getChat().addHistory(createUserContent(requestToSend));
++          // Only this round's functionResponse parts. requestToSend can also
++          // carry the parts of an attached steer / teammate carrier (the CLI
++          // appends drained mid-turn input after the tool results); the outer
++          // finally restores that carrier, so writing its parts here as well
++          // would deliver the same user input to the model twice.
++          this.getChat().addHistory(
++            createUserContent(
++              requestToSend.filter(
++                (part) =>
++                  typeof part === 'object' &&
++                  part !== null &&
++                  'functionResponse' in part,
++              ),
++            ),
++          );
+           for (const goalEvent of await finalizeInterruptedGoalTurn(
+             undefined,
+             'loop detected',

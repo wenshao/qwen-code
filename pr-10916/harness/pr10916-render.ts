@@ -1,0 +1,12 @@
+import { TerminalCapture } from './pr10916-capture.js';
+import { readFileSync } from 'node:fs';
+const [ansiFile, outDir, name, colsS] = process.argv.slice(2);
+const text = readFileSync(ansiFile, 'utf8');
+const cols = Number(colsS || 170);
+const rows = text.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.replace(/\x1b\[[0-9;]*m/g, '').length / cols)), 0) + 2;
+const t = await TerminalCapture.create({ cols, rows, theme: 'github-dark' as any, chrome: false, outputDir: outDir });
+await t.spawn('bash', ['-c', `printf '\\033[?25l'; cat ${ansiFile}; sleep 2`]);
+await t.idle(800, 5000);
+await t.capture(name);
+await t.close();
+process.exit(0);

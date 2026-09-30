@@ -1,0 +1,102 @@
+diff --git a/packages/core/src/core/client.test.ts b/packages/core/src/core/client.test.ts
+index 2bb53b6240..4113d922a4 100644
+--- a/packages/core/src/core/client.test.ts
++++ b/packages/core/src/core/client.test.ts
+@@ -10596,6 +10596,10 @@ hello
+     async function runFailingToolTurns(
+       errorFor: (round: number) => string,
+       maxRounds = 5,
++      steer?: {
++        round: number;
++        input: { parts: Part[]; accept: () => void; restore: () => void };
++      },
+     ) {
+       const promptId = 'prompt-repeated-tool-error';
+       const allEvents: Array<{ type: string; value?: unknown }> = [];
+@@ -10614,6 +10618,7 @@ hello
+             };
+           })(),
+         );
++        const steerThisRound = steer && steer.round === round;
+         const contents =
+           round === 0
+             ? [{ text: 'do the work' }]
+@@ -10625,6 +10630,9 @@ hello
+                     response: { error: errorFor(round - 1) },
+                   },
+                 },
++                // The CLI appends a drained mid-turn steer after the tool
++                // results and hands the carrier over as `steerInput`.
++                ...(steerThisRound ? steer.input.parts : []),
+               ];
+         const events = await fromAsync(
+           client.sendMessageStream(
+@@ -10636,6 +10644,7 @@ hello
+                 round === 0
+                   ? SendMessageType.UserQuery
+                   : SendMessageType.ToolResult,
++              ...(steerThisRound ? { steerInput: steer.input } : {}),
+             },
+           ),
+         );
+@@ -10703,6 +10712,32 @@ hello
+       ).toBe(true);
+     });
+ 
++    it('settles a steer carrier written by the halt as accepted, not restored (#10887)', async () => {
++      // The halt writes requestToSend — tool results AND the attached steer
++      // parts — to history. Restoring the carrier afterwards would re-queue
++      // the same user input and deliver it to the model a second time.
++      const accept = vi.fn();
++      const restore = vi.fn();
++      const events = await runFailingToolTurns(
++        () =>
++          'fatal: not a git repository (or any of the parent directories): .git',
++        5,
++        {
++          round: 3,
++          input: {
++            parts: [{ text: 'steer: summarize instead' }],
++            accept,
++            restore,
++          },
++        },
++      );
++      expect(events.some((e) => e.type === LlmEventType.LoopDetected)).toBe(
++        true,
++      );
++      expect(accept).toHaveBeenCalledTimes(1);
++      expect(restore).not.toHaveBeenCalled();
++    });
++
+     it('should halt via the always-on turn cap before the skipLoopDetection gate', async () => {
+       let abortHandlerInvoked = false;
+       mockMemoryManager.recall.mockImplementation((_root, _query, opts) => {
+diff --git a/packages/core/src/core/client.ts b/packages/core/src/core/client.ts
+index 565716cec7..99d8506ef4 100644
+--- a/packages/core/src/core/client.ts
++++ b/packages/core/src/core/client.ts
+@@ -4666,6 +4666,23 @@ export class LlmClient {
+           // deliberately left unconsumed: there is no send to deliver it on,
+           // and consuming it here would drop it instead of deferring it.
+           this.getChat().addHistory(createUserContent(requestToSend));
++          // requestToSend also carries the parts of an attached steer /
++          // teammate carrier (the CLI appends them after the tool results),
++          // and they were just written to history above. Settle the carrier
++          // as accepted, as the normal send path does after its push —
++          // otherwise the outer finally restores it and the same user input
++          // is delivered to the model a second time.
++          if (
++            attachedSteerInput &&
++            !this.settledSteerInputs.has(attachedSteerInput)
++          ) {
++            this.settledSteerInputs.add(attachedSteerInput);
++            try {
++              attachedSteerInput.accept();
++            } catch (error) {
++              debugLogger.warn(`Failed to settle steer input: ${error}`);
++            }
++          }
+           for (const goalEvent of await finalizeInterruptedGoalTurn(
+             undefined,
+             'loop detected',
