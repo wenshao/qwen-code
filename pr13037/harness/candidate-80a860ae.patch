@@ -1,0 +1,68 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedArtifactService.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedArtifactService.java
+index 1aee71f7f5..01c4af3ac4 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedArtifactService.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedArtifactService.java
+@@ -32,6 +32,7 @@ public class ManagedArtifactService {
+     private static final ObjectMapper JSON = new ObjectMapper();
+     private static final Logger LOG = LoggerFactory.getLogger(ManagedArtifactService.class);
+     private static final int RANGE_LIMIT = 1024 * 1024;
++    private static final int STREAM_CHUNK = RANGE_LIMIT;
+     private static final Pattern ARTIFACT_ID = Pattern.compile("artifact_[0-9a-f]{64}");
+     private static final Pattern RANGE = Pattern.compile("^bytes=([0-9]*)-([0-9]*)$");
+     private final ManagedAgentService sessions;
+@@ -233,13 +234,13 @@ public class ManagedArtifactService {
+                     sent = bytes.length;
+                 } else {
+                     try (var input = reader.open(artifact, guard)) {
+-                        byte[] buffer = new byte[64 * 1024];
++                        byte[] buffer = new byte[STREAM_CHUNK];
+                         int count = input.read(buffer);
+                         guard.run();
+                         headers(response, artifact, etag, selection, size);
+                         response.flushBuffer();
+                         while (count != -1) {
+-                            guard.run();
++                            // The stream ran the guard immediately before handing out these bytes.
+                             response.getOutputStream().write(buffer, 0, count);
+                             sent += count;
+                             count = input.read(buffer);
+@@ -274,6 +275,10 @@ public class ManagedArtifactService {
+         response.setHeader("Accept-Ranges", "bytes");
+         response.setHeader("Cache-Control", "private, no-store, no-transform");
+         response.setHeader("X-Content-Type-Options", "nosniff");
++        if (!selection.partial()) {
++            // A stream stopped after the headers must end the connection at once.
++            response.setHeader("Connection", "close");
++        }
+         response.setHeader("Content-Disposition", "attachment; filename=\""
+                 + artifact.streamId() + ".bin\"");
+         response.setHeader("Repr-Digest", "sha-256=:" + Base64.getEncoder().encodeToString(
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationDataStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationDataStore.java
+index c933913b29..d2db8b7bbf 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationDataStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationDataStore.java
+@@ -1453,20 +1453,21 @@ public final class ToolPublicationDataStore {
+                     if (length == 0) {
+                         return 0;
+                     }
+-                    guard.run();
+                     while (verified == null || position == verified.length) {
+                         if (partIndex == parts.size()) {
+                             return -1;
+                         }
+                         var part = parts.get(partIndex);
+                         byte[] candidate = new byte[Math.toIntExact(part.resource().length())];
++                        // One check before fetching a segment; the bytes are checked again before release.
++                        guard.run();
+                         copyVerified(part.resource(), scope, publicationId, 0,
+-                                candidate, 0, candidate.length, guard);
++                                candidate, 0, candidate.length, () -> { });
+                         verified = candidate;
+                         position = 0;
+                         partIndex++;
+                     }
+-                    int count = Math.min(Math.min(length, 64 * 1024), verified.length - position);
++                    int count = Math.min(length, verified.length - position);
+                     guard.run();
+                     System.arraycopy(verified, position, target, offset, count);
+                     position += count;

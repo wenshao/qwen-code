@@ -1,0 +1,3 @@
+#!/bin/bash
+export TZ=UTC
+exec /Users/wenshao/Install/mysql-8.4.7-macos15-arm64/bin/mysqld --no-defaults --datadir=/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/19f717cd-fa69-4495-b803-21c540ab1bd6/scratchpad/rig/mysql-data --basedir=/Users/wenshao/Install/mysql-8.4.7-macos15-arm64 --port=23037 --bind-address=127.0.0.1 --socket=/private/tmp/claude-501/p13037/s --mysqlx=OFF --log-error=/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/19f717cd-fa69-4495-b803-21c540ab1bd6/scratchpad/logs/mysqld.err --pid-file=/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/19f717cd-fa69-4495-b803-21c540ab1bd6/scratchpad/rig/run/mysqld.pid --log-bin-trust-function-creators=1 --default-time-zone=+00:00 --max-connections=400

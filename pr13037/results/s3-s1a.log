@@ -1,0 +1,32 @@
+[step] 1. baseline
+[baseline] {"session":"200 artifacts=true","result":"200 exec=error canRead=true arts=available,available","webShellResult":200,"artifact":"200 available canRead=true","range":"206 exact=true","malformedRange":"400 invalid_range"}
+[step] 2. Workspace read grant revoked, then removed, then restored
+[can_read=false] {"session":"404","result":"404 session_not_found","webShellResult":404,"artifact":"404 session_not_found","range":"404 session_not_found","malformedRange":"404 session_not_found"}
+[grant row deleted] {"session":"404","result":"404 session_not_found","webShellResult":404,"artifact":"404 session_not_found","range":"404 session_not_found","malformedRange":"404 session_not_found"}
+[grant restored] {"session":"200 artifacts=true","result":"200 exec=error canRead=true arts=available,available","webShellResult":200,"artifact":"200 available canRead=true","range":"206 exact=true","malformedRange":"400 invalid_range"}
+[step] 3. publication quarantined (SQL flag), then cleared
+[quarantined] {"session":"200 artifacts=true","result":"200 exec=error canRead=false arts=unavailable,unavailable","webShellResult":200,"artifact":"200 unavailable canRead=false","range":"503 artifact_unavailable","malformedRange":"503 artifact_unavailable"}
+[quarantine cleared] {"session":"200 artifacts=true","result":"200 exec=error canRead=true arts=available,available","webShellResult":200,"artifact":"200 available canRead=true","range":"206 exact=true","malformedRange":"400 invalid_range"}
+[step] 4. Session status (set in SQL: lifecycle operations are gated for Workspace Sessions on main)
+[public close attempt] 409 workspace_unavailable
+[status=CLOSED] {"session":"200 artifacts=true","result":"200 exec=error canRead=true arts=available,available","webShellResult":200,"artifact":"200 available canRead=true","range":"206 exact=true","malformedRange":"400 invalid_range"}
+[status=ARCHIVED] {"session":"200 artifacts=true","result":"200 exec=error canRead=true arts=available,available","webShellResult":200,"artifact":"200 available canRead=true","range":"206 exact=true","malformedRange":"400 invalid_range"}
+[status=DELETING] {"session":"200 artifacts=false","result":"404 artifact_not_found","webShellResult":404,"artifact":"404 artifact_not_found","range":"404 artifact_not_found","malformedRange":"404 artifact_not_found"}
+[status=DELETED] {"session":"404","result":"404 session_not_found","webShellResult":404,"artifact":"404 session_not_found","range":"404 session_not_found","malformedRange":"404 session_not_found"}
+[status=ACTIVE] {"session":"200 artifacts=true","result":"200 exec=error canRead=true arts=available,available","webShellResult":200,"artifact":"200 available canRead=true","range":"206 exact=true","malformedRange":"400 invalid_range"}
+[step] 5. grant revoked in the middle of a full download (slow reader)
+[mid-stream revoke] {"status":200,"declared":41943040,"revokedAt":4308992,"received":4849664,"afterRevoke":540672,"clientError":"TypeError: UND_ERR_SOCKET","receivedIsExactPrefix":true,"jsonAppended":false,"ms":61072}
+[after restore] {"session":"200 artifacts=true","result":"200 exec=error canRead=true arts=available,available","webShellResult":200,"artifact":"200 available canRead=true","range":"206 exact=true","malformedRange":"400 invalid_range"}
+[step] 6. concurrency limit: 5 slow full downloads + one range read
+[5 parallel downloads] 200 | 200 | 200 | 200 | 429 Retry-After=1
+[64 KiB page read while 4 downloads are in flight] 429 artifact_read_limit Retry-After=1
+[page read of ANOTHER Session while 4 downloads are in flight] 429 artifact_read_limit
+[page read after the clients disconnected] 206
+[step] 7. a later segment is corrupted in object storage, then a full download starts
+[before corruption] {"status":200,"exact":true}
+[flipped one bit in segment 5 of 8] {"at":524288}
+[full download] {"status":200,"declared":8388608,"received":5242880,"receivedMiB":5,"clientError":"TypeError: UND_ERR_SOCKET","receivedIsExactPrefix":true,"corruptByteDelivered":false}
+[range inside the corrupt segment] 503 artifact_unavailable bytes=0
+[range inside an intact segment afterwards] 503 artifact_unavailable
+[metadata afterwards] {"artifact":"200 unavailable canRead=false","result":"200 exec=success capture=complete delivery=committed","quarantinedFlag":"1"}
+[done] ok

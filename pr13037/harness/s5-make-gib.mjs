@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import * as L from './lib.mjs';
+L.openLog('s5-make-gib');
+const GiB = 1024 * 1024 * 1024;
+const cmd = `${L.NODE22} ${L.R}/gen.mjs gib ${GiB} 0 0`;
+L.register('ws-s5-gib', 'st-s24');
+const t0 = Date.now();
+const session = await L.createShellSession('ws-s5-gib', L.shellPrompt('One GiB of output', cmd));
+const turn = await L.waitTurn(session, { timeoutMs: 1_200_000 });
+const tTurn = Date.now() - t0;
+const proj = await L.waitProjection(session, { timeoutMs: 600_000 });
+const arts = (await L.api('GET', `/v1/agents/sessions/${session}/artifacts`)).json.data?.map((e) => e.artifact) ?? [];
+const so = arts.find((a) => a.stream_role === 'stdout');
+const local = execFileSync('/bin/bash', ['-c', `${cmd} 2>/dev/null | shasum -a 256 | cut -d' ' -f1; true`], { encoding: 'utf8' }).trim();
+const row = { session, turn: turn.status, turnError: turn.error, turnMs: tTurn, projectedMsAfterCreate: Date.now() - t0, sources: proj.rows.map((r) => `${r.state}/${r.failure}/${r.attempts}`), stdout: so && { id: so.id, bytes: so.byte_length, sha256: so.sha256, revision: so.revision, matchesLocalRun: so.sha256 === local } };
+L.say('gib', row);
+fs.writeFileSync(`${L.R}/out/s5-gib.json`, JSON.stringify(row, null, 2));
