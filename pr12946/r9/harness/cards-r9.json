@@ -1,8 +1,8 @@
 [
  {
   "file": "r9-01-fixes-ab-40b05a74.png",
-  "title": "Round 9 — 40b05a74: A/B of this head's fixes on the real stack",
-  "subtitle": "Old arm = 67c908ea build (bundle + Broker jar kept aside); new arm = 40b05a74; MySQL 8.4.11; Hosted Harness -> Java Broker/SQL -> Runtime worker -> real stdio / Streamable HTTP / SSE MCP servers.",
+  "title": "Round 9 — 40b05a74 / f2618e30: A/B of this head's fixes on the real stack",
+  "subtitle": "Old arm = 67c908ea build (bundle + Broker jar kept aside); new arm = 40b05a74, then every row rechecked on f2618e30 (merge of main incl. #12894); MySQL 8.4.11.",
   "lines": [
    "## R4-9 (my round-8 trap): lone surrogate in a resource URI, prompt name, argument key or argument value",
    "-- 67c908ea (value and key, round 8): Broker 400 -> outcome_unknown -> Session blocked, detach 503, lease held",
@@ -36,7 +36,7 @@
  },
  {
   "file": "r9-02-release-flyway-regression.png",
-  "title": "Round 9 — release paths that still never finish, Flyway and regression",
+  "title": "Round 9 — release paths that still never finish, Flyway and regression (40b05a74 and f2618e30)",
   "subtitle": "Same rig and arms. A stuck release keeps the Session undetachable and the Workspace lease held.",
   "lines": [
    "## R5-2, Session with one pinned server: the first mcp-release never reaches the Runtime (Broker proxy 503)",
@@ -50,16 +50,16 @@
    "!! two pinned servers (both heads), or a server replaced on 40b05a74: detach 503 for 98 s / 134 s, lease held",
    "!!    40b05a74 re-sends mcp-release with the same id and gets the stored outcome_unknown/managed_mcp_drain_unknown",
    "",
-   "## Flyway V23",
-   "++ this PR alone: ..19, 23; with #12894 V20-V22 on an empty database: ..19, 20, 21, 22, 23",
-   "!! this PR applied first, then #12894: \"Detected resolved migration not applied to database: 20\"",
+   "## Flyway: #12894 has landed on main",
+   "++ f2618e30 carries V20-V22 (publication) and V23 (MCP); an empty database migrates to 1..23 and starts",
+   "== on 40b05a74, applying this PR first and #12894 later failed validation; that order can no longer happen",
    "",
-   "## Regression on 40b05a74: the rounds 1-8 set still holds (worker SIGKILL not rerun)",
+   "## Regression: the rounds 1-8 set holds on 40b05a74; the key subset reran on f2618e30 with identical results",
    "== N1 638 s; F1; R3-11 is an accepted limitation per the maintainer approval"
   ],
   "notes": [
    {
-    "text": "Before merge: fix R5-2 for the one-server Session (the common shape) or accept it alongside R3-11, and land #12894 first (or renumber it above 23). The timed-out release is not new but is not covered by the R5-2 retry."
+    "text": "Before merge: fix R5-2 for the one-server Session (the common shape) or accept it alongside R3-11. The timed-out release is not new, but the R5-2 retry does not cover it. Both are unchanged on f2618e30."
    }
   ]
  }

@@ -1,0 +1,15 @@
+const fs = require('fs'); const R = process.argv[2];
+const get = (f) => { try { const l = fs.readFileSync(`${R}/${f}.log`, 'utf8').split('\n').filter((x) => x.startsWith('RESULT')).at(-1); return JSON.parse(l.slice(l.indexOf('{'))); } catch { return null; } };
+const o = {};
+let r = get('s25b-value'); o.r49 = r && { post: r.case?.post, broker: r.case?.broker?.length, next: r.nextRead, detach: r.detach, lease: r.lease };
+r = get('s32n-acquire-nodetach'); o.p1acq = r && { held: r.heldAt, cancel: r.cancel, turnEnd: r.turnEndedAt, cfgAfter: r.configuresAfterCancel, next: r.nextTurn?.terminal, detach: r.detach, lease: r.lease };
+r = get('s32-dispatch'); o.p1disp = r && { held: r.heldAt, cfgTotal: r.configuresTotal, detachHeld: r.detachWhileHeld, next: r.nextTurn?.terminal, detach: r.detach };
+r = get('s33q-approval-quick'); o.appr2 = r && { req: r.requested?.at, resolve: r.resolve, effects: r.effects, terminal: r.terminal, detach: r.detach };
+r = get('s30-proto-notify'); o.r53 = r && Object.fromEntries(Object.entries(r).filter(([k]) => k.startsWith('method:')).map(([k, v]) => [k, v.configures]));
+r = get('s29s-release-undelivered-single'); o.r52one = r && { d1: r.detach1?.status, d2: r.detach2?.status, d3: r.detach3?.status, d2broker: r.detach2?.broker?.map((x) => x.slice(0, 40)), lease: r.lease };
+r = get('s29-release-undelivered'); o.r52two = r && { servers: r.servers, d1: r.detach1?.status, d2: r.detach2?.status, lease: r.lease };
+r = get('s28-config-during-turn'); o.r51 = r && { turn: r.turnTerminal, config: r.config, after: r.afterTurn?.terminal, detach: r.detachTries?.map((x) => x.split(' ')[0]), lease: r.lease };
+r = get('s31b-sticky-multi'); o.drainMulti = r && { tries: r['detachTries(sinceGrandchildStart)'], lease: r.lease };
+r = get('s31-sticky-detach'); o.drainOne = r && { tries: r['detachTries(sinceGrandchildStart)'], lease: r.lease };
+r = get('s26-reload-stuck'); o.orphan = r;
+for (const [k, v] of Object.entries(o)) console.log(k.padEnd(10), JSON.stringify(v));
