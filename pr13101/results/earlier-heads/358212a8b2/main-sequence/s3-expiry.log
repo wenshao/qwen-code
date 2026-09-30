@@ -1,0 +1,20 @@
+# s3-expiry  db=d6h  2026-09-30T13:58:56.158Z
+## a. nobody answers
+PASS  Action carries the deployment timeout (8 s)  -> expires_at - created_at = 8000 ms
+PASS  Turn ends by itself about one timeout later  -> COMPLETED 9494 ms after creation
+PASS  Action reads expired on both surfaces, without a decision receipt  -> public={"id":"tool_approval_b90fff9dfac585b813a18625bcd73828","session_id":"9ac9bbe3-80b7-41c4-9d30-74da3c654d9a","kind":"permission","state":"expired","source":{"kind":"tool_call","id":"rig-call-0-0"},"inpu
+PASS  expired Action left the pending list; call never ran  -> executions=0
+PASS  answer after expiry -> 409 action_expired (both surfaces)  -> public HTTP 409 {"code":"action_expired","message":"The Action has already ended.","request_id":"b87e69d2-dbfd-4bbd-ae85-80aa77238f9c"} / web HTTP 409 {"code":"action_expired","message":"The Action has already ended.","request_id":"rig-req"}
+NOTE  final model text  -> D6_DONE rounds=1 results=["[{"type":"text","text":"Nobody answered the approval request before it expired, so this tool call was not run."}]
+PASS  events: action.updated requested then expired  -> [{"schema_version":1,"projection_version":1,"sequence":6,"event_id":"evt_7d729b2d380643fe8f7c4dd3a8765d09","session_id":"9ac9bbe3-80b7-41c4-9d30-74da3c654d9a","type":"action.updated","created_at":1790776737,"data":{"state":"requested","actionId":"tool_approval_b90fff9dfac585b813a18625bcd73828"},"terminal":false},{"schema_version":1,"projection_version":1,"sequence":7,"event_id":"evt_c0985c54b04d446c8aea687d95fd5ec3","session_id":"9ac9bbe3-80b7-41c4-9d30-74da3c654d9a","type":"action.updated","created_at":1790776745,"data":{"state":"expired","actionId":"tool_approval_b90fff9dfac585b813a18625bcd73828"},"terminal":false}]
+## b. three sequential writes, nobody answers
+PASS  only the first call is asked about; the Turn ends after one timeout, not three  -> COMPLETED after 9021 ms, actions=1, executions=0
+NOTE  final model text  -> D6_DONE rounds=3 results=["[{"type":"text","text":"Nobody answered the approval request before it expired, so this tool call was not run."}]
+## c. admitted before expiry, delivery delayed past it (tap delays the resolve call 10 s)
+PASS  admitted while the Action was still open  -> HTTP 202 {"id":"op_2ec20a564d2e42adbbb6220cdce196a0","session_id":"4afe12db-25bf-4225-92d3-2de0de970517","type":"action_response","status":"pending","admission_stage":"java_durable","delivery_state":"pending","replayed":false}
+PASS  operation ends failed with failure_code action_expired (not decided)  -> 10057 ms {"id":"op_2ec20a564d2e42adbbb6220cdce196a0","session_id":"4afe12db-25bf-4225-92d3-2de0de970517","type":"action_response","status":"failed","admission_stage":"harness_confirmed","delivery_state":"confirmed","receipt_id":"rcpt_9537dbdfbcd346f187622565451e7006","replayed":false,"failure_code":"action_expired"}
+PASS  WebShell operation shows failureCode action_expired  -> {"operationId":"op_2ec20a564d2e42adbbb6220cdce196a0","sessionId":"4afe12db-25bf-4225-92d3-2de0de970517","type":"action_response","status":"failed","admissionStage":"harness_confirmed","deliveryState":"confirmed","receiptId":"rcpt_9537dbdfbcd346f187622565451e7006","replayed":false,"failureCode":"action_expired"}
+PASS  the call did not run although the owner said allow  -> turn=COMPLETED file=null action=expired
+NOTE  Harness answers to the delayed resolve  -> [{"status":409,"body":{"error":"action_expired","code":"action_expired"}}]
+PASS  replaying the key returns the failed operation  -> HTTP 202 {"id":"op_2ec20a564d2e42adbbb6220cdce196a0","session_id":"4afe12db-25bf-4225-92d3-2de0de970517","type":"action_response","status":"failed","admission_stage":"harness_confirmed","delivery_state":"confirmed","receipt_id":"rcpt_9537dbdfbcd346f187622565451e7006","replayed":true,"failure_code":"action_expired"}
+== s3-expiry: 12 passed, 0 failed

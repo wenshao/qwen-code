@@ -1,0 +1,16 @@
+# s7c-harness-restart  db=d6b  2026-09-30T12:23:23.487Z
+PASS  pending approval with a 30 s timeout  -> action=tool_approval_dab9a4d4e436fa25a59290d101b9f066
+stopped harness pid=15916 sig=KILL
+harness pid=26148 up after 3s log=/rig/run/d6b/harness-1.log
+stopped spring pid=25925 sig=TERM
+spring up after 5s
+NOTE  both processes restarted  -> 22511 ms before the approval's expiry
+PASS  the approval is still listed as requested  -> [["tool_approval_dab9a4d4e436fa25a59290d101b9f066","requested"]]
+PASS  an answer before the expiry is admitted (202)  -> HTTP 202 {"id":"op_5986eff1df2447b59fcd2c0565d1a1a7","session_id":"ff52813d-6f1a-49d3-b5f3-b1624fe9adcb","type":"action_response","status":"pending","admission_stage":"java_durable","delivery_state":"pending","replayed":false}
+NOTE  Java -> Harness calls for this Session after the restart  -> {"/load 503":8}
+PASS  6 s after the expiry: the Action is still requested, the operation still running  -> action=requested op=running/pending attempts=5
+PASS  the pending list still returns it after its expiry time (no local expiry)  -> listed=1 expired 6118 ms ago
+PASS  a new answer after the expiry -> 409 action_expired  -> HTTP 409 {"code":"action_expired","message":"The Action has expired.","request_id":"a7b02bdb-4fed-4dc5-b78e-13c340b44b2c"}
+PASS  fail closed: the write never ran  -> file=null executions=0
+NOTE  Session and Turn as the client sees them  -> session=active turn=running db turn=["RUNNING","","5"]
+== s7c-harness-restart: 7 passed, 0 failed

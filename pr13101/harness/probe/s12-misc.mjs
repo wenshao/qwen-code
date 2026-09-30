@@ -1,0 +1,34 @@
+// VERIFICATION RIG ONLY: what else a client can and cannot do while a Turn waits for an approval. Needs `default` mode.
+// usage: DB=<db> node s12-misc.mjs <workspace> <storage>
+import { api, one, ensureWorkspace, createSession, listActions, getAction, respond, getOp, waitPending, waitOp, waitTurn, actionRow, sessionRow, readWs, executions, Report, sleep, j } from './lib.mjs';
+const [workspace = 'ws-f', storage = 'f'] = process.argv.slice(2);
+const R = new Report('s12-misc');
+ensureWorkspace(workspace, `st-${storage}`);
+const tag = Date.now().toString(36);
+const f = `misc-${tag}.txt`;
+const c = await createSession('public', workspace, `D6_WRITE name=${f} content=misc`);
+const S = c.session;
+const p = await waitPending(S);
+const A = p.action.id;
+const turn = p.action.turn_id;
+const items = await api('GET', `/v1/agents/sessions/${S}/items`);
+R.note('Session Items while the Turn waits', `HTTP ${items.status}; ${items.json.data?.length} item(s): ${j(items.json.data?.map((i) => `${i.type}/${i.role}`))}; mentions the tool call: ${JSON.stringify(items.json).includes('write_file')}`);
+const tr = await api('GET', `/v1/agents/sessions/${S}/turns/${turn}`);
+R.check('the Turn reads running while it waits', tr.json.status === 'running', `turn=${tr.json.status}`);
+const cancelW = await api('POST', '/api/agent/web-shell/v1/turns/cancel', { sessionId: S, turnId: turn, idempotencyKey: `cancel-${tag}` });
+R.note('WebShell turns/cancel on the waiting Turn', `HTTP ${cancelW.status} ${j(cancelW.json.error ?? cancelW.json)}`);
+const again = await api('POST', `/v1/agents/sessions/${S}/events`, { type: 'agent.session.input.message', input: [{ type: 'input_text', text: 'another' }] }, { key: `again-${tag}` });
+R.note('a second message to the waiting Session', `HTTP ${again.status} ${j(again.json.error ?? again.json)}`);
+const close = await api('POST', `/v1/agents/sessions/${S}/close`, undefined, { key: `close-${tag}` });
+const del = await api('DELETE', `/v1/agents/sessions/${S}`, undefined, { key: `delete-${tag}` });
+R.note('close / delete of the waiting Session', `close HTTP ${close.status} ${close.json.error?.code ?? ''}; delete HTTP ${del.status} ${del.json.error?.code ?? ''}`);
+await sleep(1500);
+R.check('none of these ended the approval: Action still requested, Turn still running, nothing ran', actionRow(A)[0] === 'requested' && one(`SELECT status FROM managed_agent_turn WHERE session_id='${S}'`) === 'RUNNING' && executions(S) === 0 && sessionRow(S)[0] === 'ACTIVE', `action=${actionRow(A)[0]} turn=${one(`SELECT status FROM managed_agent_turn WHERE session_id='${S}'`)} session=${sessionRow(S)[0]}`);
+const r = await respond('public', S, p.action, 'allow', { key: `misc-${tag}` });
+const d = await waitOp(S, r.json.id);
+const bobOp = await getOp('public', S, r.json.id, { actor: 'bob' });
+const malOp = await getOp('public', S, r.json.id, { actor: 'mallory' });
+R.check('a reader can read the response operation; an actor without access cannot', bobOp.status === 200 && bobOp.json.status === 'completed' && malOp.status === 404, `bob HTTP ${bobOp.status}, mallory HTTP ${malOp.status}`);
+const t = await waitTurn(S);
+R.check('the owner\'s answer still completes the Turn', d.json.status === 'completed' && t.status === 'COMPLETED' && readWs(storage, `child/${f}`) === 'misc', `op=${d.json.status} turn=${t.status}`);
+R.done();

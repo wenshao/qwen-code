@@ -1,0 +1,54 @@
+# s2-decisions  db=d6h  2026-09-30T13:57:27.657Z
+## a. deny (public API)
+PASS  deny -> operation completed with outcome decided  -> 169 ms {"id":"op_e204978be9da434b8c438680bea05093","session_id":"4eaba14f-20b4-40c7-8c29-b99f01ea5dba","type":"action_response","status":"completed","admission_stage":"harness_confirmed","delivery_state":"confirmed","receipt_id":"rcpt_049278ed79ad4d8b9b281fbb69c92afe","replayed":false,"action_resolution":{"action_id":"tool_approval_a1ecb42590be0a9feb684a3204d98c39","outcome":"decided","receipt_id":"rcpt_049278ed79ad4d8b9b281fbb69c92afe","decision_receipt_id":"decision_302a51438655ea513e6569065d5f7fb6930845be46f598474d75126004bf3a1e"}}
+PASS  Turn completes after the refusal  -> COMPLETED after 256 ms
+PASS  denied write never ran: file absent, 0 tool executions  -> file=null executions=0
+PASS  model received a refusal result and continued  -> D6_DONE rounds=1 results=["[{"type":"text","text":"The Session owner denied this tool call, so it was not run."}]
+PASS  Action reads decided with a receipt; pending list empty  -> state=decided
+PASS  allow after a deny -> 409 action_already_resolved, file still absent  -> HTTP 409 {"code":"action_already_resolved","message":"The Action has already ended.","request_id":"632b8ba3-8488-455a-97af-80aef0245e57"}
+## b. mixed batch, answered through WebShell
+PASS  calls are asked one at a time  -> pending=1 tool=write_file call=rig-call-0-0
+PASS  second call asked after the first is decided; nothing dispatched yet  -> call=rig-call-0-1 file1=null executions=0
+PASS  both operations decided, Turn completes  -> op1=completed op2=completed turn=COMPLETED
+PASS  only the allowed call ran  -> f1="batch-b1-muo66grq.txt" f2=null executions=1
+NOTE  final model text  -> D6_DONE rounds=1 results=["[{"type":"text","text":"Successfully created and wrote to new file: /rig/run/d6h/ws/b/child/b1-muo66grq.txt."}]
+## c0. allow vs deny race (different keys)
+PASS  exactly one decision wins; the other reports action_already_resolved  -> [{"name":"allow","http":202,"status":"completed","outcome":"decided"},{"name":"deny","http":202,"status":"failed","failure":"action_already_resolved"}]
+PASS  the effect matches the winner  -> winner=allow fileExists=true executions=1
+## c1. allow vs deny race (different keys)
+PASS  exactly one decision wins; the other reports action_already_resolved  -> [{"name":"allow","http":202,"status":"completed","outcome":"decided"},{"name":"deny","http":202,"status":"failed","failure":"action_already_resolved"}]
+PASS  the effect matches the winner  -> winner=allow fileExists=true executions=1
+## c2. allow vs deny race (different keys)
+PASS  exactly one decision wins; the other reports action_already_resolved  -> [{"name":"allow","http":202,"status":"completed","outcome":"decided"},{"name":"deny","http":202,"status":"failed","failure":"action_already_resolved"}]
+PASS  the effect matches the winner  -> winner=allow fileExists=true executions=1
+## d/e. same decision under two keys at once; 20 identical requests
+PASS  20 concurrent identical requests -> one operation  -> statuses=[202] operations=1 firsts=1
+PASS  same decision under a second key: 202+decided with the same decision receipt, or 409 once it has ended  -> [{"http":202,"status":"completed","receipt":"decision_2c2124f1c40d2d7905b7614618cbc712118a932124594165e4d87a6f38bb973a"},{"http":409,"code":"action_already_resolved"}]
+PASS  write ran exactly once  -> turn=COMPLETED executions=1
+## f. request validation (Action stays requested throughout)
+PASS  public: stale input_revision 2 -> 400 invalid_action_response  -> HTTP 400 {"code":"invalid_action_response","message":"The response does not match the original Action.","request_id":"14dca0d1-59a9-4293-941d-b4fcc5743e2b"}
+PASS  public: input_revision as string "1" -> 400 invalid_action_response  -> HTTP 400 {"code":"invalid_action_response","message":"Only permission responses are supported.","request_id":"2c874a90-1419-4453-babf-84538b8515ce"}
+PASS  public: input_revision 1.5 -> 400 invalid_action_response  -> HTTP 400 {"code":"invalid_action_response","message":"Only permission responses are supported.","request_id":"ef6fa60e-8f07-423f-9b2c-acbefb94e190"}
+PASS  public: other policy_revision -> 400 invalid_action_response  -> HTTP 400 {"code":"invalid_action_response","message":"The response does not match the original Action.","request_id":"5b90da9e-0318-4aa1-a941-9ea549333d00"}
+PASS  public: unknown option -> 400 invalid_action_response  -> HTTP 400 {"code":"invalid_action_response","message":"The response does not match the original Action.","request_id":"462b618c-b44c-4f9a-aaea-51b286a0120b"}
+PASS  public: question kind -> 400 invalid_action_response  -> HTTP 400 {"code":"invalid_action_response","message":"Only permission responses are supported.","request_id":"f1c3800c-c7e9-4717-b850-2f9e4610ee01"}
+PASS  public: unknown extra field -> 400  -> HTTP 400 {"code":"invalid_request","message":"The request body is invalid.","request_id":"35153910-42d6-4a9d-b53a-668a48eaeceb"}
+PASS  public: missing option_id -> 400  -> HTTP 400 {"code":"invalid_request","message":"The request body is invalid.","request_id":"64d5af1b-b544-48cf-84dc-eb154a2511e5"}
+PASS  public: camelCase on the public route -> 400  -> HTTP 400 {"code":"invalid_request","message":"The request body is invalid.","request_id":"1f9f64b4-45f8-4e55-af1d-0a0044e457da"}
+PASS  public: missing Idempotency-Key -> 400  -> HTTP 400 {"code":"invalid_request","message":"The request body is invalid.","request_id":"b5322c07-7651-4556-9892-ee7b5c199185"}
+PASS  public: oversized Idempotency-Key -> 400  -> HTTP 400 {"code":"invalid_idempotency_key","message":"Idempotency-Key must contain 1-128 visible characters.","request_id":"1ecf90eb-c9f3-4dd9-8546-533eb62a2f2b"}
+PASS  public: unknown Action id -> 404 action_not_found  -> HTTP 404 {"code":"action_not_found","message":"The Action was not found.","request_id":"eb41d167-7c6c-4e05-9995-5d1a106402a5"}
+PASS  public: malformed Action id -> 404 action_not_found  -> HTTP 404 {"code":"action_not_found","message":"The Action was not found.","request_id":"c9feae58-9d67-45d9-b551-d17b5a1a9d82"}
+PASS  WebShell: stale inputRevision -> 400 invalid_action_response  -> HTTP 400 {"code":"invalid_action_response","message":"The response does not match the original Action.","request_id":"rig"}
+PASS  WebShell: snake_case response fields -> 400  -> HTTP 400 {"code":"invalid_request","message":"The request body is invalid.","request_id":"fe6f2e51-1729-4367-8478-afa5f75d32f1"}
+PASS  WebShell: unknown top-level field -> 400  -> HTTP 400 {"code":"invalid_request","message":"The request body is invalid.","request_id":"ff191ea1-79af-4059-bcb7-c60c234d436a"}
+PASS  WebShell: missing idempotencyKey -> 400  -> HTTP 400 {"code":"invalid_request","message":"The request body is invalid.","request_id":"84fd8666-5b98-4215-8436-6dd29fd30aab"}
+PASS  WebShell: missing response -> 400  -> HTTP 400 {"code":"invalid_request","message":"The request body is invalid.","request_id":"b4c439a5-2e0b-4767-8360-50118d00b2ab"}
+PASS  public list: limit=0 -> 400  -> HTTP 400 {"code":"invalid_limit","message":"Limit must be between 1 and 100.","request_id":"149b9f14-b733-435d-a505-034a1fd3ebd4"}
+PASS  public list: limit=101 -> 400  -> HTTP 400 {"code":"invalid_limit","message":"Limit must be between 1 and 100.","request_id":"0eeb3cff-daef-4928-85f0-f9faebe51558"}
+PASS  public list: garbage cursor -> 400  -> HTTP 400 {"code":"invalid_cursor","message":"Action cursor is invalid.","request_id":"862d2461-c8b4-4a3b-8fa3-0550cadc9664"}
+PASS  public list: well-formed foreign cursor -> 200  -> HTTP 200 {"data":[],"has_more":false,"next_cursor":null}
+PASS  after every rejected request: no operation, Action still requested, nothing ran  -> operations=0 state=requested
+PASS  a valid answer afterwards still completes the Turn  -> HTTP 202 op=completed turn=COMPLETED
+PASS  WebShell respond echoes the client requestId  -> {"x-request-id":"rig"}
+== s2-decisions: 44 passed, 0 failed

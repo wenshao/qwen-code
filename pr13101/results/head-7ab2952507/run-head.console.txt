@@ -1,0 +1,83 @@
+spring up after 8s
+harness pid=77678 up after 3s log=/rig/run/d6i/harness-0.log
+# s1-testplan-public  db=d6i  2026-09-30T14:16:49.504Z
+== s1-testplan-public: 41 passed, 0 failed
+# s1-testplan-web  db=d6i  2026-09-30T14:16:53.007Z
+== s1-testplan-web: 41 passed, 0 failed
+# s2-decisions  db=d6i  2026-09-30T14:16:56.005Z
+## a. deny (public API)
+## b. mixed batch, answered through WebShell
+## c0. allow vs deny race (different keys)
+## c1. allow vs deny race (different keys)
+## c2. allow vs deny race (different keys)
+## d/e. same decision under two keys at once; 20 identical requests
+## f. request validation (Action stays requested throughout)
+== s2-decisions: 44 passed, 0 failed
+# s5-faults  db=d6i  2026-09-30T14:17:10.104Z
+## a. the Harness records the decision, its answer is lost (drop-after x1)
+## b. delivery fails 4 times before reaching the Harness (drop-before x4)
+## c. the Harness answers 503 twice (respond 503 x2)
+## d. the Harness answers 400 invalid_action_response (respond 400 x1)
+== s5-faults: 15 passed, 0 failed
+# s6-sse  db=d6i  2026-09-30T14:17:40.466Z
+== s6-sse: 5 passed, 0 failed
+# s10-busy  db=d6i  2026-09-30T14:17:42.925Z
+== s10-busy: 5 passed, 0 failed
+# s12-misc  db=d6i  2026-09-30T14:17:48.511Z
+== s12-misc: 4 passed, 0 failed
+# s13-visibility  db=d6i  2026-09-30T14:17:52.580Z
+FAIL  EXPECTED (design 5.2/6.3, "arguments come from Items"): some client-visible surface shows the call's arguments before the answer  -> surfaces showing arguments: []
+== s13-visibility: 1 passed, 1 failed
+# s11-skew-h3-strip-default  db=d6i  2026-09-30T14:17:54.926Z
+== s11-skew-h3-strip-default: 1 passed, 0 failed
+spring up after 6s
+# s3-expiry  db=d6i  2026-09-30T14:18:37.097Z
+## a. nobody answers
+## b. three sequential writes, nobody answers
+## c. admitted before expiry, delivery delayed past it (tap delays the resolve call 10 s)
+== s3-expiry: 12 passed, 0 failed
+spring up after 4s
+# s4-mode-auto-edit  db=d6i  2026-09-30T14:19:12.005Z
+== s4-mode-auto-edit: 8 passed, 0 failed
+spring up after 5s
+# s4-mode-yolo  db=d6i  2026-09-30T14:19:23.777Z
+== s4-mode-yolo: 8 passed, 0 failed
+# s11-skew-h3-strip-yolo  db=d6i  2026-09-30T14:19:28.414Z
+== s11-skew-h3-strip-yolo: 1 passed, 0 failed
+spring up after 9s
+# s7-java-restart-r1  db=d6i  2026-09-30T14:20:13.215Z
+NOTE  Java server restarted (Harness process untouched)  -> unavailable for 18.0 s
+# s7-java-restart-r2  db=d6i  2026-09-30T14:20:34.094Z
+NOTE  Java server restarted (Harness process untouched)  -> unavailable for 49.9 s
+FAIL  EXPECTED: the answer reaches the Harness and the operation completes  -> after 12 s: op=running/pending attempts=4; Java -> Harness calls: {"/load 409":6}
+NOTE  outcome B  -> 75 s after the expiry: Action still requested, operation still running (attempts=8); Harness log reports "session log writes stopped" since the restart: true
+== s7-java-restart-r2: 5 passed, 1 failed
+# s7c-harness-restart  db=d6i  2026-09-30T14:23:55.302Z
+== s7c-harness-restart: 7 passed, 0 failed
+spring up after 21s
+harness pid=88108 up after 3s log=/rig/run/d6iu/harness-0.log
+# s8a-base-v23  db=d6iu  2026-09-30T14:24:59.222Z
+== s8a-base-v23: 5 passed, 0 failed
+# s7b-midturn-restart-main2  db=d6iu  2026-09-30T14:25:05.403Z
+NOTE  Java server restarted  -> 20271 ms; Harness process untouched
+NOTE  60 s after the restart  -> Java Turn=RUNNING retry_count=5 file=null executions=0
+NOTE  [main2] a new Session on the same Workspace afterwards  -> turn=FAILED/hosted_turn_failed
+== s7b-midturn-restart-main2: 2 passed, 0 failed
+spring up after 5s
+harness pid=90596 up after 2s log=/rig/run/d6iu/harness-1.log
+# s8b-upgraded-v23-to-v24  db=d6iu  2026-09-30T14:26:36.118Z
+== s8b-upgraded-v23-to-v24: 8 passed, 0 failed
+# s1-testplan-public  db=d6iu  2026-09-30T14:27:10.757Z
+== s1-testplan-public: 41 passed, 0 failed
+matrix h3: 7 start / 6 refuse
+spring up after 7s
+harness pid=92750 up after 2s log=/rig/run/d6ireal/harness-0.log
+# s14-real-model  db=d6ireal  2026-09-30T14:28:18.871Z
+## a: the owner answers allow through public
+PASS  the real model's write_file call #1 waits for the owner; allow -> completed/decided  -> asked 6.6 s after creation; operation completed in 163 ms
+PASS  Turn completes and the file holds the requested content  -> turn=COMPLETED after 9.9 s, file="approved by the owner", tool executions=1, approvals asked=1
+## b: the owner answers deny through web
+PASS  the real model's write_file call #1 waits for the owner; deny -> completed/decided  -> asked 4.9 s after creation; operation completed in 164 ms
+PASS  Turn completes, nothing was written  -> turn=COMPLETED after 7.6 s, file=null, tool executions=0, approvals asked (all denied)=1
+== s14-real-model: 4 passed, 0 failed
+RUN-HEAD-DONE h3 14:28:37

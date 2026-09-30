@@ -1,0 +1,221 @@
+{
+  "name": "s1-testplan-web",
+  "pass": 41,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "create Workspace Session through web",
+      "ok": true,
+      "detail": "HTTP 202 session=d915c538-c77c-48da-9938-06ab85825ad9"
+    },
+    {
+      "label": "a pending Action appears",
+      "ok": true,
+      "detail": "after 806 ms: {\"actionId\":\"tool_approval_2c509aa22db40d51230e19a251a178f7\",\"sessionId\":\"d915c538-c77c-48da-9938-06ab85825ad9\",\"kind\":\"permission\",\"state\":\"requested\",\"source\":{\"kind\":\"tool_call\",\"id\":\"rig-call-0-0\"},\"inputRevision\":1,\"policyRevision\":\"hosted-tool-approval/1\",\"createdAt\":1790776645382,\"expiresAt\":1790777245382,\"functionCallId\":\"rig-call-0-0\",\"toolName\":\"write_file\",\"turnId\":\"turn_cb337a7f747747938d099dc189074688\",\"options\":[{\"id\":\"allow\",\"label\":\"Allow\"},{\"id\":\"deny\",\"label\":\"Deny\"}]}"
+    },
+    {
+      "label": "Session reports Actions support (public capabilities.actions)",
+      "ok": true,
+      "detail": "{\"items\":true,\"snapshots\":true,\"artifacts\":false,\"resync\":true,\"session_lifecycle\":false,\"tasks\":true,\"actions\":true}"
+    },
+    {
+      "label": "Session reports Actions support (WebShell capabilities.actions)",
+      "ok": true,
+      "detail": "{\"tasks\":true,\"actions\":true}"
+    },
+    {
+      "label": "approval mode pinned on the Session row",
+      "ok": true,
+      "detail": "approval_mode=default"
+    },
+    {
+      "label": "pending Action listed on both surfaces with the same id",
+      "ok": true,
+      "detail": "public=tool_approval_2c509aa22db40d51230e19a251a178f7 web=tool_approval_2c509aa22db40d51230e19a251a178f7"
+    },
+    {
+      "label": "public detail: requested permission for write_file, allow/deny",
+      "ok": true,
+      "detail": "{\"id\":\"tool_approval_2c509aa22db40d51230e19a251a178f7\",\"session_id\":\"d915c538-c77c-48da-9938-06ab85825ad9\",\"kind\":\"permission\",\"state\":\"requested\",\"source\":{\"kind\":\"tool_call\",\"id\":\"rig-call-0-0\"},\"input_revision\":1,\"policy_revision\":\"hosted-tool-approval/1\",\"created_at\":1790776645382,\"expires_at\":1790777245382,\"function_call_id\":\"rig-call-0-0\",\"tool_name\":\"write_file\",\"turn_id\":\"turn_cb337a7f747747938d099dc189074688\",\"options\":[{\"id\":\"allow\",\"label\":\"Allow\"},{\"id\":\"deny\",\"label\":\"Deny\"}]}"
+    },
+    {
+      "label": "WebShell detail matches (camelCase)",
+      "ok": true,
+      "detail": "{\"actionId\":\"tool_approval_2c509aa22db40d51230e19a251a178f7\",\"sessionId\":\"d915c538-c77c-48da-9938-06ab85825ad9\",\"kind\":\"permission\",\"state\":\"requested\",\"source\":{\"kind\":\"tool_call\",\"id\":\"rig-call-0-0\"},\"inputRevision\":1,\"policyRevision\":\"hosted-tool-approval/1\",\"createdAt\":1790776645382,\"expiresAt\":1790777245382,\"functionCallId\":\"rig-call-0-0\",\"toolName\":\"write_file\",\"turnId\":\"turn_cb337a7f747747938d099dc189074688\",\"options\":[{\"id\":\"allow\",\"label\":\"Allow\"},{\"id\":\"deny\",\"label\":\"Deny\"}]}"
+    },
+    {
+      "label": "Action names the public Turn",
+      "ok": true,
+      "detail": "turn_id=turn_cb337a7f747747938d099dc189074688 db=turn_cb337a7f747747938d099dc189074688"
+    },
+    {
+      "label": "public detail shows no tool arguments",
+      "ok": true,
+      "detail": "no file name/content in the Action view"
+    },
+    {
+      "label": "nothing ran while waiting: file absent, 0 tool executions, Turn running",
+      "ok": true,
+      "detail": "file=null executions=0 turn=running"
+    },
+    {
+      "label": "reader (not the creator) can read the Action",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "label": "reader answering gets 403 action_forbidden",
+      "ok": true,
+      "detail": "HTTP 403 {\"code\":\"action_forbidden\",\"message\":\"Only the Session's creator may answer its Actions.\",\"request_id\":\"rig-req\"}"
+    },
+    {
+      "label": "reader answering through public gets 403 too",
+      "ok": true,
+      "detail": "HTTP 403 {\"code\":\"action_forbidden\",\"message\":\"Only the Session's creator may answer its Actions.\",\"request_id\":\"55f63c84-6ae8-40f4-bbea-139e1b790d64\"}"
+    },
+    {
+      "label": "another creator of the same Workspace gets 403",
+      "ok": true,
+      "detail": "HTTP 403 {\"code\":\"action_forbidden\",\"message\":\"Only the Session's creator may answer its Actions.\",\"request_id\":\"rig-req\"}"
+    },
+    {
+      "label": "actor without Workspace access cannot see the Session",
+      "ok": true,
+      "detail": "HTTP 404 {\"code\":\"session_not_found\",\"message\":\"The Session was not found.\",\"request_id\":\"rig-req\"}"
+    },
+    {
+      "label": "request without a trusted actor is refused",
+      "ok": true,
+      "detail": "HTTP 404 {\"code\":\"session_not_found\",\"message\":\"The Session was not found.\",\"request_id\":\"rig-req\"}"
+    },
+    {
+      "label": "another tenant is refused",
+      "ok": true,
+      "detail": "HTTP 404 {\"code\":\"session_not_found\",\"message\":\"The Session was not found.\",\"request_id\":\"rig-req\"}"
+    },
+    {
+      "label": "refused answers admitted no operation and left the Action requested",
+      "ok": true,
+      "detail": "operations=0 state=requested"
+    },
+    {
+      "label": "creator allow -> 202 action_response operation",
+      "ok": true,
+      "detail": "HTTP 202 {\"operationId\":\"op_2b86fe8aa1314285aa52120c82ee7f19\",\"sessionId\":\"d915c538-c77c-48da-9938-06ab85825ad9\",\"type\":\"action_response\",\"status\":\"pending\",\"admissionStage\":\"java_durable\",\"deliveryState\":\"pending\",\"replayed\":false}"
+    },
+    {
+      "label": "same key again -> same operation, replayed",
+      "ok": true,
+      "detail": "HTTP 202 op=op_2b86fe8aa1314285aa52120c82ee7f19 replayed=true"
+    },
+    {
+      "label": "same key through public -> same operation",
+      "ok": true,
+      "detail": "HTTP 202 op=op_2b86fe8aa1314285aa52120c82ee7f19 replayed=true"
+    },
+    {
+      "label": "same key with different content -> 409 idempotency_conflict",
+      "ok": true,
+      "detail": "HTTP 409 {\"code\":\"idempotency_conflict\",\"message\":\"The idempotency key was reused with different content.\",\"request_id\":\"rig-req\"}"
+    },
+    {
+      "label": "operation completes with a decided receipt",
+      "ok": true,
+      "detail": "5 ms {\"id\":\"op_2b86fe8aa1314285aa52120c82ee7f19\",\"session_id\":\"d915c538-c77c-48da-9938-06ab85825ad9\",\"type\":\"action_response\",\"status\":\"completed\",\"admission_stage\":\"harness_confirmed\",\"delivery_state\":\"confirmed\",\"receipt_id\":\"rcpt_da8317f016c847e8b2dc24465ac9febe\",\"replayed\":false,\"action_resolution\":{\"action_id\":\"tool_approval_2c509aa22db40d51230e19a251a178f7\",\"outcome\":\"decided\",\"receipt_id\":\"rcpt_da8317f016c847e8b2dc24465ac9febe\",\"decision_receipt_id\":\"decision_ef5f57fbf2dde9c89b83135c84f5cc546213b327b42c70c09efd6fab942054a7\"}}"
+    },
+    {
+      "label": "WebShell operation query shows the same result",
+      "ok": true,
+      "detail": "{\"operationId\":\"op_2b86fe8aa1314285aa52120c82ee7f19\",\"sessionId\":\"d915c538-c77c-48da-9938-06ab85825ad9\",\"type\":\"action_response\",\"status\":\"completed\",\"admissionStage\":\"harness_confirmed\",\"deliveryState\":\"confirmed\",\"receiptId\":\"rcpt_da8317f016c847e8b2dc24465ac9febe\",\"replayed\":false,\"actionResolution\":{\"actionId\":\"tool_approval_2c509aa22db40d51230e19a251a178f7\",\"outcome\":\"decided\",\"receiptId\":\"rcpt_da8317f016c847e8b2dc24465ac9febe\",\"decisionReceiptId\":\"decision_ef5f57fbf2dde9c89b83135c84f5cc546213b327b42c70c09efd6fab942054a7\"}}"
+    },
+    {
+      "label": "only one operation row despite the replays",
+      "ok": true,
+      "detail": "[\"COMPLETED\",\"HARNESS_CONFIRMED\",\"CONFIRMED\",\"0\",\"1\",\"\",\"decision_ef5f57fbf2dde9c89b83135c84f5cc546213b327b42c70c09efd6fab942054a7\"]"
+    },
+    {
+      "label": "decided Action stays readable with its decision receipt (both surfaces)",
+      "ok": true,
+      "detail": "public=decided/decision_ef5f57fbf2dde9c89b83135c84f5cc546213b327b42c70c09efd6fab942054a7 web=decided"
+    },
+    {
+      "label": "decision receipt is not a storage resource id",
+      "ok": true,
+      "detail": "decision_ef5f57fbf2dde9c89b83135c84f5cc546213b327b42c70c09efd6fab942054a7"
+    },
+    {
+      "label": "next Action (edit) appears; the decided one left the pending list",
+      "ok": true,
+      "detail": "after 331 ms: {\"id\":\"tool_approval_180a5b660a4734e8dfe4dd16b305f890\",\"session_id\":\"d915c538-c77c-48da-9938-06ab85825ad9\",\"kind\":\"permission\",\"state\":\"requested\",\"source\":{\"kind\":\"tool_call\",\"id\":\"rig-call-1-0\"},\"input_revision\":1,\"policy_revision\":\"hosted-tool-approval/1\",\"created_at\":1790776646267,\"expires_at\":1790777246267,\"function_call_id\":\"rig-call-1-0\",\"tool_name\":\"edit\",\"turn_id\":\"turn_cb337a7f747747938d099dc189074688\",\"options\":[{\"id\":\"allow\",\"label\":\"Allow\"},{\"id\":\"deny\",\"label\":\"Deny\"}]}"
+    },
+    {
+      "label": "write ran only after the allow",
+      "ok": true,
+      "detail": "file=\"before\" executions=1"
+    },
+    {
+      "label": "creator allow through public -> completed/decided",
+      "ok": true,
+      "detail": "165 ms {\"id\":\"op_b33fd56c9f49490bac6051a9da9b5bf8\",\"session_id\":\"d915c538-c77c-48da-9938-06ab85825ad9\",\"type\":\"action_response\",\"status\":\"completed\",\"admission_stage\":\"harness_confirmed\",\"delivery_state\":\"confirmed\",\"receipt_id\":\"rcpt_31e92d9a865841f7a445329822275bf8\",\"replayed\":false,\"action_resolution\":{\"action_id\":\"tool_approval_180a5b660a4734e8dfe4dd16b305f890\",\"outcome\":\"decided\",\"receipt_id\":\"rcpt_31e92d9a865841f7a445329822275bf8\",\"decision_receipt_id\":\"decision_2a3a296cb64e6080b128ad7368602f7bbc82c348297f22b6d5ae4a5ecb5c9519\"}}"
+    },
+    {
+      "label": "Turn completes",
+      "ok": true,
+      "detail": "COMPLETED  after 704 ms"
+    },
+    {
+      "label": "file holds the edited content; read_file was never asked about",
+      "ok": true,
+      "detail": "file=\"after\" actions=2"
+    },
+    {
+      "label": "3 tool executions, 4 model calls",
+      "ok": true,
+      "detail": "executions=3 modelCalls=4"
+    },
+    {
+      "label": "model saw the three results",
+      "ok": true,
+      "detail": "D6_DONE rounds=3 results=[\"[{\"type\":\"text\",\"text\":\"Successfully created and wrote to new file: /rig/run/d6h/ws/a/child/proof-web-muo66edp.txt.\"}]"
+    },
+    {
+      "label": "pending list is empty on both surfaces",
+      "ok": true,
+      "detail": "public={\"data\":[],\"has_more\":false,\"next_cursor\":null} web={\"data\":[],\"nextCursor\":null,\"hasMore\":false}"
+    },
+    {
+      "label": "new answer to a decided Action -> 409 action_already_resolved",
+      "ok": true,
+      "detail": "HTTP 409 {\"code\":\"action_already_resolved\",\"message\":\"The Action has already ended.\",\"request_id\":\"rig-req\"}"
+    },
+    {
+      "label": "same decision under a new key after the end -> 409 action_already_resolved",
+      "ok": true,
+      "detail": "HTTP 409 {\"code\":\"action_already_resolved\",\"message\":\"The Action has already ended.\",\"request_id\":\"rig-req\"}"
+    },
+    {
+      "label": "original key after the end -> the original operation",
+      "ok": true,
+      "detail": "HTTP 202 op=op_2b86fe8aa1314285aa52120c82ee7f19 status=completed"
+    },
+    {
+      "label": "Session events carry action.updated for each change (2 requested + 2 decided)",
+      "ok": true,
+      "detail": "[{\"actionId\":\"tool_approval_2c509aa22db40d51230e19a251a178f7\",\"state\":\"requested\"},{\"actionId\":\"tool_approval_2c509aa22db40d51230e19a251a178f7\",\"state\":\"decided\"},{\"actionId\":\"tool_approval_180a5b660a4734e8dfe4dd16b305f890\",\"state\":\"requested\"},{\"actionId\":\"tool_approval_180a5b660a4734e8dfe4dd16b305f890\",\"state\":\"decided\"}]"
+    },
+    {
+      "label": "Session lifecycle status unchanged by the answers",
+      "ok": true,
+      "detail": "status=ACTIVE"
+    }
+  ],
+  "session": "d915c538-c77c-48da-9938-06ab85825ad9",
+  "actions": [
+    "tool_approval_2c509aa22db40d51230e19a251a178f7",
+    "tool_approval_180a5b660a4734e8dfe4dd16b305f890"
+  ],
+  "operations": [
+    "op_2b86fe8aa1314285aa52120c82ee7f19",
+    "op_b33fd56c9f49490bac6051a9da9b5bf8"
+  ]
+}

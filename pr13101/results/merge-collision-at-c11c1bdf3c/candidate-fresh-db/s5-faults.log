@@ -1,0 +1,23 @@
+# s5-faults  db=d6c  2026-09-30T13:09:51.799Z
+## a. the Harness records the decision, its answer is lost (drop-after x1)
+PASS  operation completes decided from the committed journal decision  -> 170 ms {"id":"op_503dcca5fd7c4d3186b080062074a70f","session_id":"d99743a0-e7c0-4ba9-8abf-3f78488461ae","type":"action_response","status":"completed","admission_stage":"harness_confirmed","delivery_state":"confirmed","receipt_id":"rcpt_b07d07fa456f4fa791383fb839be61c3","replayed":false,"action_resolution":{"action_id":"tool_approval_6f9d5d9a3f3a5293c5c1c94be4b78efd","outcome":"decided","receipt_id":"rcpt_b07d07fa456f4fa791383fb839be61c3","decision_receipt_id":"decision_faed9a288a2718484cf8d9bcadcc2abc54323bde5beddbb7da038279adaf401b"}}
+PASS  the Harness was asked once and answered 200; no second delivery was needed  -> [{"fault":"drop-after","status":200,"body":{"requestId":"tool_approval_6f9d5d9a3f3a5293c5c1c94be4b78efd","state":"decided","optionId":"allow"}}]
+PASS  no retry was scheduled (attempt_count 0)  -> row=["COMPLETED","HARNESS_CONFIRMED","CONFIRMED","0","1","","decision_faed9a288a2718484cf8d9bcadcc2abc54323bde5beddbb7da038279adaf401b"]
+PASS  Turn completes, write ran once  -> turn=COMPLETED executions=1
+PASS  Session lifecycle status unchanged  -> ACTIVE -> ACTIVE
+## b. delivery fails 4 times before reaching the Harness (drop-before x4)
+NOTE  operation while the Harness is unreachable  -> 1s:running/pending  2s:running/pending  3s:running/pending  4s:running/pending  5s:running/pending  6s:running/pending  7s:running/pending  8s:running/pending
+PASS  operation stays pending/running through the failures, then completes decided  -> 15986 ms {"id":"op_b86d8987c1b84d5681ba026345cac9bb","session_id":"67258a45-09b7-40c9-9569-b037f51da0e5","type":"action_response","status":"completed","admission_stage":"harness_confirmed","delivery_state":"confirmed","receipt_id":"rcpt_3402fa540ced4bfabffe4b5899d43e34","replayed":false,"action_resolution":{"action_id":"tool_approval_c27e31e3e7c0d2215576a67481fe5350","outcome":"decided","receipt_id":"rcpt_3402fa540ced4bfabffe4b5899d43e34","decision_receipt_id":"decision_15a00d6f0de1a33252674b59739290c9e331c36db8a6cc8376312adfa8da3317"}}
+PASS  4 dropped attempts + 1 delivered  -> ["drop-before","drop-before","drop-before","drop-before",200]
+NOTE  gaps between attempts (s): dispatch backoff 1,2,4,8 + 1 s scan  -> [1.8,2,4,8]
+PASS  retries did not touch the Session lifecycle status or the Turn  -> before=ACTIVE during=ACTIVE/RUNNING/requested after=ACTIVE
+PASS  attempt_count records the 4 failures  -> row=["COMPLETED","HARNESS_CONFIRMED","CONFIRMED","4","5","","decision_15a00d6f0de1a33252674b59739290c9e331c36db8a6cc8376312adfa8da3317"]
+PASS  Turn completes, write ran once  -> turn=COMPLETED executions=1
+## c. the Harness answers 503 twice (respond 503 x2)
+PASS  503 is retried; operation completes decided  -> 4634 ms attempts=2 {"id":"op_520b236905ee485e8f3d7c854dd1bdc5","session_id":"d674cbf3-7eba-442f-96af-bc58f6c805e5","type":"action_response","status":"completed","admission_stage":"harness_confirmed","delivery_state":"confirmed","receipt_id":"rcpt_72d783ec27414a64a540fdc4192b72db","replayed":false,"action_resolution":{"action_id":"tool_approval_c829abbb9948bb247a2b2b3d894435fe","outcome":"decided","receipt_id":"rcpt_72d783ec27414a64a540fdc4192b72db","decision_receipt_id":"decision_141916eb118f9063c3aa448acaee90bc9bc8cda2bad1b500af165200ab371abd"}}
+PASS  Turn completes  -> turn=COMPLETED
+## d. the Harness answers 400 invalid_action_response (respond 400 x1)
+PASS  400 ends the operation failed with invalid_action_response, no retry  -> 172 ms {"id":"op_ba0a876f7d9e4709922915a53c991233","session_id":"e56815f9-e163-4ec8-9cd9-3b4194f2539b","type":"action_response","status":"failed","admission_stage":"harness_confirmed","delivery_state":"confirmed","receipt_id":"rcpt_d7ee5ac5ad784bd9b9d1bce85cefaea6","replayed":false,"failure_code":"invalid_action_response"}
+PASS  the Action is still requested and listed  -> state=requested
+PASS  a new key answers it and the Turn completes  -> op=completed turn=COMPLETED
+== s5-faults: 15 passed, 0 failed

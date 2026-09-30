@@ -1,0 +1,24 @@
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+@@ -118,7 +118,7 @@
+                         ? load(session, false)
+                         : create(session));
+         if (session.workspace() != null
+-                && !actions.approvalMode(tenantId, sessionId).equals(attached.getApprovalMode())) {
++                && !confirmed(actions.approvalMode(tenantId, sessionId), attached.getApprovalMode())) {
+             attachments.remove(key);
+             throw new IllegalStateException(
+                     "Hosted Harness did not confirm the Session approval mode");
+@@ -283,6 +283,12 @@
+         ManagedSessionStoreConnection store = managedSessionStore(session);
+         return client().loadSession(new LoadHarnessSession(session.sessionId(), store,
+                 passiveManagedRuntimeRecovery, toolProfile(session)));
++    }
++
++    // A Harness from before approvals reports no mode and runs every call
++    // unasked, which is exactly what a Session pinned to yolo expects.
++    private static boolean confirmed(String pinned, String reported) {
++        return pinned.equals(reported) || ("yolo".equals(pinned) && reported == null);
+     }
+ 
+     private static String toolProfile(SessionRecord session) {

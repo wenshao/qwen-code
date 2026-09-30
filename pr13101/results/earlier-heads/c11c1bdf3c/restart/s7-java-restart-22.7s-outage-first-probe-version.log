@@ -1,0 +1,20 @@
+# s7-restart-graceful-default  db=d6f  2026-09-30T12:51:35.050Z
+PASS  pending approval before the restart  -> action=tool_approval_895886cf10d165d72a9654f9ff349f04 mode=default
+stopped spring pid=75328 sig=TERM
+spring up after 12s
+NOTE  Java server was down for  -> 22713 ms (graceful); restarted with approval mode default
+PASS  the approval is still pending after the restart (public + WebShell)  -> pending=["tool_approval_895886cf10d165d72a9654f9ff349f04"]
+PASS  the Session keeps its pinned mode and Actions capability  -> mode=default actions=true turn=running
+PASS  the owner can answer after the restart  -> HTTP 202 {"id":"op_404d7670666940b5936db17139159f38","session_id":"d08a2085-86b6-4b6d-9bcf-84f53407d489","type":"action_response","status":"pending","admission_stage":"java_durable","delivery_state":"pending","replayed":false}
+FAIL  the answer is delivered: operation completed/decided  -> 15019 ms {"id":"op_404d7670666940b5936db17139159f38","session_id":"d08a2085-86b6-4b6d-9bcf-84f53407d489","type":"action_response","status":"running","admission_stage":"java_durable","delivery_state":"pending","replayed":false} attempts=4
+NOTE  Harness answers to the resolve call  -> []
+NOTE  15 s after the answer  -> action=requested op=["RUNNING","JAVA_DURABLE","PENDING","4"] turn=RUNNING file=null
+NOTE  Java -> Harness calls for this Session since the restart  -> {"/load 409":4}
+PASS  control: a Session created after the restart (other Workspace) is asked, answered and completes on the same Harness  -> op=completed turn=COMPLETED (another Workspace; the stranded Turn keeps its own Workspace held)
+.. waiting 19 s for the stranded approval's expiry, then for the operation's next attempt
+NOTE  operation settled  -> 90 s after the expiry (it is only re-examined at its next retry)
+FAIL  at the expiry the operation fails with action_expired and the allowed call never ran  -> op=running/undefined attempts=8 action=requested file=null executions=0
+NOTE  Java -> Harness calls for this Session since the restart  -> {"/load 409":15}
+NOTE  Turn as the client sees it after the expiry  -> active_turn=running db=["RUNNING","","7"]
+NOTE  writer lease  -> before=2026-09-30 12:52:35.382821 after=2026-09-30 12:55:05.551487 now=1790772846964
+== s7-restart-graceful-default: 5 passed, 2 failed
