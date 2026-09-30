@@ -20,8 +20,9 @@ export default ({ page, table, P, F, A, N }) => {
       ['S6 cancel vs Workspace authorization refusal / lost POST', '—', F('cancel lost · F1'), '—', F('same')],
       ['S5/S8 Runtime worker gone (crash, restarts)', '—', F('Session stuck · F2'), '—', F('same')],
       ['WebShell sessions/query cost', 'static capability', A('+2 point queries / bound row'), '—', '—'],
-      ['Mutation: 17 mutants on the PR lines', '—', A('14 / 17 killed; J11 equivalent'), '—', '—'],
-      ['… plus candidate-tests.patch (+21 lines)', '—', P('16 / 17 (J2, J6 now killed)'), '—', '—'],
+      ['Mutation: 18 mutants on the PR lines (J14 = review bot R1-12 #1)', '—', A('14 / 18 killed; J11 equivalent'), '—', '—'],
+      ['… plus candidate-tests.patch (+31 lines)', '—', P('17 / 18 (J2, J6, J14 now killed)'), '—', '—'],
+      ['Review bot round 1: behaviour claims replayed on the stack', '—', A('R1-2, R1-3, R1-15, R1-12 #1 confirmed; #2 refuted'), '—', '—'],
     ]),
   );
   figs['04-f1-cancel-lost'] = page(
