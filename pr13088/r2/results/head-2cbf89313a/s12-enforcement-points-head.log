@@ -1,0 +1,44 @@
+17:21:02.578 machine_id=<vm-machine-id> boot_id=ecff1133-97db-45e1-aea7-8237792c49ae uptime=1414s kernel=6.8.0-117-generic
+17:21:02.592 active=active health=200 DB=w1u_s12 JAR=head-server.jar DIST=dist-head VERIFIED=true DURABLE=true TRUSTED=false HARNESS=false STORAGES="a b c d" ROOTBASE=/srv/w1a EXTRA= DBPORT=3306 DBPASS=rootpw DBCONT=w0e3-db LOADER_EXTRA= PUB=0 MCP=0
+17:21:03.826   maint s12-register-a: exit=0 613 ms -> Workspace storage maintenance operation verified.
+17:21:04.452   maint s12-register-b: exit=0 625 ms -> Workspace storage maintenance operation verified.
+17:21:07.688    health=200
+17:21:08.620 == (a) two Shell calls in one batch: the first moves the marker away, the second writes a file
+17:21:11.285    Turn: turn_complete; broker: runtimes:warm→200  tool-sessions:acquire→200  tool-sessions/:id:publisher→200  executions:prepare→200  executions:prepare→200  executions/:id:start→200  executions/:id→200  executions/:id→200  executions/:id→200  executions/:id→200  executions/:id→200  executions/:id→200  executions/:id→200  executions/:id→200  executions/:id:acknowledge→200  executions/:id:start→200  tool-sessions/:id:release→200
+17:21:11.285       result run_shell_command: {"output":"Command: mv ../.qwen-managed-storage.json ../marker.keep && echo first-done ⏎ Directory: (root) ⏎ Output: first-done ⏎ Error: (none) ⏎ Exit Code: 0 ⏎ Signal: (none) ⏎ Process Group PGID: (none)",
+17:21:11.286       result run_shell_command: {"error":"Workspace execution was refused before dispatch.","executionStatus":"not_started","runtimeError":{"message":"Workspace execution was refused before dispatch.","type":"workspace_unavailable"}
+17:21:11.332    second.txt: not written; marker: absent; row a: row state=READY rev=1 op=- completed=366e905f dev=64769 ino=788592 birth=2026-09-30T17:20:54.269034665Z reg=8a19ec62 holder=-; S status: {"sessionId":"1d5c9a02-4068-4988-b7f8-c76e00b8da67","hasActivePrompt":false,"recoveryBlocked":false}
+17:21:12.457    marker put back; next Shell Turn: turn_complete; broker: runtimes:warm→200  tool-sessions:acquire→200  tool-sessions/:id:publisher→200  executions:prepare→200  executions/:id:start→200  executions/:id→200  executions/:id→200  executions/:id→200  executions/:id→200  executions/:id→200  executions/:id:acknowledge→200  tool-sessions/:id:release→200
+17:21:12.491 == (b) whole storage root renamed and the deployment mapping updated (no W1c relocation exists yet)
+17:21:13.772    before: turn_complete; dev=64769 ino=788594
+17:21:14.218    moved to /srv/w1a-moved: b is now dev=64769 ino=788594 (same device and inode), marker still says root=/srv/w1a/b
+17:21:19.453    health=200
+17:21:20.465    inspect at the new path: state=ready revision=1 operation=null completed=f7e6a50a-f956-4a55-b66c-713f36631382 holder=false identity=mismatch marker=match registration=valid
+17:21:21.804    cold load 200; next tool Turn: turn_error; broker: runtimes:warm→409(workspace_unavailable); written: false
+17:21:26.406    health=200
+17:21:27.836    moved back: cold load 200; next tool Turn: turn_complete; broker: runtimes:warm→200  tool-sessions:acquire→200  executions:prepare→200  executions/:id:start→200  executions/:id→200  tool-sessions/:id:release→200
+17:21:27.861 == (c) the same storage and database inspected with a different machine-id (private mount namespace, nothing else changes)
+17:21:28.647    real machine-id : state=ready revision=1 operation=null completed=f7e6a50a-f956-4a55-b66c-713f36631382 holder=false identity=match marker=match registration=valid
+17:21:29.711    other machine-id: state=ready revision=1 operation=null completed=f7e6a50a-f956-4a55-b66c-713f36631382 holder=false identity=mismatch marker=match registration=valid
+17:21:29.712    machine-id on the host afterwards: <vm-machine-id> (unchanged)
+17:21:29.712 == (d) restore-original on a fenced storage whose root was replaced (marker copied) while fenced
+17:21:30.749   maint s12-fence-a: exit=0 634 ms -> Workspace storage maintenance operation verified.
+17:21:31.373    root replaced: ino=788592 -> ino=796071; inspect: state=fenced revision=1 operation=0682c6f2-4469-4570-b85e-eea790856088 completed=null holder=false identity=unavailable marker=match registration=valid
+17:21:31.968   maint s12-restore-on-replaced-root: exit=1 595 ms -> REFUSED: Workspace execution authority is unavailable.
+17:21:32.009    row a: row state=FENCED rev=1 op=0682c6f2 completed=- dev=64769 ino=788592 birth=2026-09-30T17:20:54.269034665Z reg=8a19ec62 holder=-
+17:21:32.752   maint s12-restore-on-original-root: exit=0 740 ms -> Workspace storage maintenance operation verified.
+17:21:32.788    row a: row state=READY rev=2 op=- completed=0682c6f2 dev=64769 ino=788592 birth=2026-09-30T17:20:54.269034665Z reg=8a19ec62 holder=-
+17:21:32.788 == (f) register when the root already carries a marker of another registration
+17:21:33.631   maint s12-register-d-foreign-marker: exit=1 744 ms -> REFUSED: Workspace execution authority is unavailable.
+17:21:34.654    marker in d still names storage: st-a; row d: row state=UNVERIFIED rev=0 op=d6be8b79 completed=- dev=64769 ino=789151 birth=2026-09-30T17:20:54.274034665Z reg=2a7a2d27 holder=-; inspect: state=unverified revision=0 operation=d6be8b79-bb45-40a7-bacc-af381c7ba69c completed=null holder=false identity=match marker=mismatch registration=valid
+17:21:35.643   maint s12-register-d-same-op-after-removing-it: exit=0 986 ms -> Workspace storage maintenance operation verified.
+17:21:35.677    row d: row state=READY rev=1 op=- completed=d6be8b79 dev=64769 ino=789151 birth=2026-09-30T17:20:54.274034665Z reg=2a7a2d27 holder=-
+17:21:35.678 == (e) register while a Turn holds the storage (the operator did not stop the service; option still off)
+17:21:40.029    health=200
+17:21:40.982    storage c holder present: true
+17:21:41.551   maint s12-register-c-while-held: exit=1 568 ms -> REFUSED: Workspace execution authority is unavailable.
+17:21:41.586    row c: row state=UNVERIFIED rev=0 op=- completed=- dev=- ino=- birth=- reg=- holder=bbab8af7c2…; marker: absent
+17:21:50.299    the Turn finished: turn_complete
+17:21:50.915   maint s12-register-c-after-release: exit=0 616 ms -> Workspace storage maintenance operation verified.
+17:21:50.953    row c: row state=READY rev=1 op=- completed=f7429625 dev=64769 ino=788596 birth=2026-09-30T17:20:54.273034665Z reg=065251c5 holder=-
+17:21:51.077 S12-DONE

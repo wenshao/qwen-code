@@ -3,14 +3,15 @@ import fs from 'node:fs';
 const dir = new URL('./cards-r2/', import.meta.url).pathname;
 fs.mkdirSync(dir, { recursive: true });
 const ENV = 'Ubuntu 24.04 VM (kernel 6.8, ext4), MySQL 8.4.11, PR-head fat jar as a systemd service with durable local workers, packaged Hosted Harness and workers';
+const SAME = ' Measured at c21efbdfa1; re-run at 2cbf89313a with the same outcome.';
 const card = (name, c) => fs.writeFileSync(`${dir}${name}.json`, JSON.stringify(c, null, 1));
 
 card('r2-01-restore-from-backup-refused', {
-  title: 'F1: delete + restore from a backup at the same pathname — accepted at 7c54aa78, refused at c21efbdf',
-  subtitle: `${ENV}. Same script in both rounds: register, three tool Turns, stop, rm -rf the root, tar -x a backup taken after Turn 1 (the marker is inside the backup), start.`,
+  title: 'F1: delete + restore from a backup at the same pathname — accepted at 7c54aa78, refused now',
+  subtitle: `${ENV}. Same script in both rounds: register, three tool Turns, stop, rm -rf the root, tar -x a backup taken after Turn 1 (the marker is inside the backup), start. Same refusal on MariaDB 10.11.18.`,
   blocks: [
     { label: 'storage a: restored immediately, ext4 hands the freed inode number out again', table: [
-      ['', '7c54aa78 (round 1)', 'c21efbdf (this round)'],
+      ['', '7c54aa78 (round 1)', 'c21efbdfa1 and 2cbf89313a (this round)'],
       ['root before -> after the restore', 'dev=64769 ino=788592 -> dev=64769 ino=788592', 'dev=64769 ino=788592 -> dev=64769 ino=788592'],
       ['birth time of the root', 'changed (not part of the identity)', 'changed; stored as mount_birth_time and in marker v2'],
       ['inspect', '-- identity=match marker=match', '++ identity=mismatch marker=match'],
@@ -26,8 +27,8 @@ card('r2-01-restore-from-backup-refused', {
 });
 
 card('r2-02-birth-time-identity', {
-  title: 'The birth-time identity on real file systems (c21efbdf)',
-  subtitle: `${ENV}. Maintenance entry run from the shipped fat jar; OpenJDK 21.0.9.`,
+  title: 'The birth-time identity on real file systems',
+  subtitle: `${ENV}. Maintenance entry run from the shipped fat jar; OpenJDK 21.0.9.${SAME}`,
   blocks: [
     { label: 'an unchanged registered root across ordinary mtime changes (one tool Turn after each)', table: [
       ['change made to the root directory', 'birth time (UTC)', 'mtime', 'inspect', 'next tool Turn'],
@@ -61,8 +62,8 @@ card('r2-02-birth-time-identity', {
 });
 
 card('r2-03-storage-layout-and-marker', {
-  title: 'F2: the marker and the agent\'s own tools under the layout the README now requires (c21efbdf)',
-  subtitle: `${ENV}; option on. Storage root /srv/w1a/c is not a Git repository; the Session cwd is the child project/ directory, which is one.`,
+  title: 'F2: the marker and the agent\'s own tools under the layout the README now requires',
+  subtitle: `${ENV}; option on. Storage root /srv/w1a/c is not a Git repository; the Session cwd is the child project/ directory, which is one.${SAME}`,
   blocks: [
     { label: 'Shell Session, cwd_relative "project"', table: [
       ['what the agent does', 'result', 'marker', 'inspect'],

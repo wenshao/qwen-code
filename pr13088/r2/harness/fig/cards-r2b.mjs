@@ -7,11 +7,11 @@ const card = (name, c) => fs.writeFileSync(`${dir}${name}.json`, JSON.stringify(
 const R = '++ REFUSED 409 hosted_turn_recovery_required'; const L = '-- LOADED, next Shell Turn completes';
 
 card('r2-04-o2-publication-cold-load', {
-  title: 'Cold load of Sessions that use O2 remote Shell publication: c21efbdf against main 3a8fd11711',
-  subtitle: `${ENV}; tool publication on, object storage = a local OSS double behind the real aliyun-sdk-oss. Each row: one Shell Turn (3,000,001 bytes of stdout in 3 segments, empty stderr), detach, one stored artifact damaged, cold load without a profile.`,
+  title: 'Cold load of Sessions that use O2 remote Shell publication: PR head against main',
+  subtitle: `${ENV}; tool publication on, object storage = a local OSS double behind the real aliyun-sdk-oss. Each row: one Shell Turn (3,000,001 bytes of stdout in 3 segments, empty stderr), detach, one stored artifact damaged, cold load without a profile. Values from c21efbdfa1 against main 3a8fd11711; 2cbf89313a against main 78143fe335 gave the same outcome in every row.`,
   blocks: [
     { label: 'what was damaged between detach and load', table: [
-      ['damage', 'c21efbdf (PR head)', 'main 3a8fd11711'],
+      ['damage', 'PR head', 'main'],
       ['nothing (control)', '++ loaded in 1.6 s, next Shell Turn completes', 'loaded, next Shell Turn completes'],
       ['one bit in an OSS segment', R, L],
       ['an OSS segment object deleted', R, L],
@@ -25,14 +25,14 @@ card('r2-04-o2-publication-cold-load', {
       ['publication row: REFERENCED -> FINISHED', R, L],
       ['valid but incomplete capture (1 MiB limit, 3 MB output)', '++ REFUSED 409 after one blocked acknowledge', '== REFUSED 409 after one blocked acknowledge'],
     ] },
-    { label: 'at c21efbdf', pre: '++ every refusal: 0 model calls and no Broker prepare / start / execute; the first command ran exactly once in all 12 rows' },
+    { label: 'PR head', pre: '++ every refusal: 0 model calls and no Broker prepare / start / execute; the first command ran exactly once in all 12 rows' },
     { label: 'original-receipt recovery: the Harness is killed (SIGKILL) when its acknowledge of a finished Shell call arrives; a new Harness loads after the 60 s writer lease', table: [
-      ['', 'c21efbdf', 'main 3a8fd11711'],
+      ['', 'PR head', 'main'],
       ['nothing damaged', '++ load 200; original Turn turn_complete; 1 model call;\n++ acknowledge 200; the command did not run again', 'same'],
       ['one bit flipped in a stored segment', '++ load 409; 0 model calls; no Broker call', '-- load 200; the original Turn continues with 1 model call'],
     ] },
     { label: 'cost: every cold load re-reads the retained output from object storage (local OSS double, so the times are a lower bound)', table: [
-      ['stdout retained', 'c21efbdf: cold load', 'c21efbdf: object reads', 'main 3a8fd11711'],
+      ['stdout retained', 'c21efbdfa1: cold load', 'c21efbdfa1: object reads', 'main 3a8fd11711'],
       ['1 MiB', '433 ms', '6 GETs, 1.3 MiB', '243 ms, 1 GET, 0.1 MiB'],
       ['16 MiB', '466 ms', '21 GETs, 16.3 MiB', '164 ms, 1 GET'],
       ['64 MiB', '669 ms', '69 GETs, 64.3 MiB', '167 ms, 1 GET'],
@@ -42,8 +42,8 @@ card('r2-04-o2-publication-cold-load', {
 });
 
 card('r2-05-hosted-mcp-and-the-mount-guard', {
-  title: 'Hosted MCP (H1) with the W1a mount guard on: cleanup by the saved holder, refusal of new work (c21efbdf)',
-  subtitle: `${ENV}; verified-workspace-recovery-enabled=true. A real stdio MCP server is started by the runtime worker in the Session directory; every tool call appends a line to a file, so effects are countable.`,
+  title: 'Hosted MCP (H1) with the W1a mount guard on: cleanup by the saved holder, refusal of new work',
+  subtitle: `${ENV}; verified-workspace-recovery-enabled=true. A real stdio MCP server is started by the runtime worker in the Session directory; every tool call appends a line to a file, so effects are countable. Measured at c21efbdfa1; re-run at 2cbf89313a with the same outcome.`,
   blocks: [
     { label: 'cold load keeps the profile and the server pins explicit', pre: [
       '++ load without a profile / with the file profile -> 409 hosted_tool_profile_conflict',
@@ -71,37 +71,40 @@ card('r2-05-hosted-mcp-and-the-mount-guard', {
 });
 
 card('r2-07-gates-and-mutation', {
-  title: 'Gates, negative controls and mutation at c21efbdf',
-  subtitle: 'Mutants are applied to isolated copies; the PR branch is untouched. A mutant counts as killed only if the stage fails twice.',
+  title: 'Gates, negative controls and mutation',
+  subtitle: 'Mutants and the candidate test fix are applied to isolated copies; the PR branch is untouched. A mutant counts as killed only if the stage fails twice.',
   blocks: [
-    { label: 'exact-head Linux/MySQL job on GitHub (job 109918078098, MySQL 8.4.6, Java 21)', pre: [
-      '++ 262 unit tests, 7 Hosted*IT classes / 15 tests, 44 Runtime Broker fault gates, Checkstyle 0 violations',
-      '++ W1_TWO_BROKER_A4_OK physical=true staleLost=true;  W1_PHYSICAL_GUARD=true on the Workspace tool Turn;  HOSTED_PROCESS_CRASH_OK x6'].join('\n') },
-    { label: 'the two W1a integration gates replayed on my VM (MySQL 8.4.11, Java 21.0.9, Node 22.23.2)', table: [
+    { label: 'exact-head Linux/MySQL job on GitHub for 2cbf89313a (job 110001199469, MySQL 8.4.6, x86)', pre: [
+      '++ 277 unit tests, 7 Hosted*IT classes / 16 tests, 44 Runtime Broker fault gates',
+      '++ W1_TWO_BROKER_A4_OK physical=true staleLost=true;  W1_PHYSICAL_GUARD=true on the Workspace tool Turn'].join('\n') },
+    { label: 'the two W1a integration gates on my VM (aarch64, kernel 6.8, CONFIG_HZ=1000, MySQL 8.4.11, Java 21.0.9)', table: [
       ['tree', 'HostedWorkspaceConcurrencyIT (two Broker processes)', 'HostedWorkspaceStorageGuardMySqlIT'],
-      ['unmodified c21efbdf', '++ 1/1, W1_TWO_BROKER_A4_OK physical=true staleLost=true', '++ 1/1'],
-      ['claim(): `storageGuard.verifyLocked(binding)` removed', '++ fails twice at :121, full-row assertion:\n   expected holder_key=null binding_id=null\n   but was  holder_key=5f2a8f18… binding_id=c847cceb-…', '== 1/1'],
-      ['fence allowed while a holder is present', '++ fails twice (expected: false but was: true)', '== 1/1'],
-      ['host id = raw machine-id instead of the HMAC', '== 1/1', '++ fails twice at :65'],
-      ['marker written and expected as version 1', '!! 1/1', '!! 1/1'],
+      ['2cbf89313a unmodified', '++ 1/1, W1_TWO_BROKER_A4_OK physical=true staleLost=true', '-- fails at :93 in 4 of 4 runs: inspect says\n   identity=unavailable, the test expects mismatch'],
+      ['2cbf89313a + one test line\n(replacement root gets a distinct mtime)', '++ 1/1, A4_OK physical=true staleLost=true', '++ 1/1'],
+      ['2cbf89313a, claim(): verifyLocked removed', '++ fails twice at :122 (full-row assertion:\n   holder_key / binding_id set, null expected)', '== (fails at :93 as above)'],
+      ['c21efbdfa1 unmodified', '++ 1/1, A4_OK physical=true staleLost=true', '++ 1/1'],
+      ['c21efbdfa1, fence allowed while held', '++ fails twice', '== 1/1'],
+      ['c21efbdfa1, host id = raw machine-id', '== 1/1', '++ fails twice at :65'],
+      ['c21efbdfa1, marker written and read as version 1', '!! 1/1', '!! 1/1'],
     ] },
-    { label: 'mutation (the IT stage was run for the four mutants in the table above)', table: [
+    { label: 'mutation', table: [
       ['', 'mutants', 'killed by unit tests', 'killed only by the two W1a ITs', 'survive'],
-      ['Java: guard, store, connector, provisioner, transport, receipt verifier', '45', '21', '3', '21'],
-      ['   of which new at this head (birth time, marker v2, HMAC, MCP recovery, receipts/verify)', '15', '9', '1', '5'],
-      ['TypeScript: cold-load validation, O2 verification, projection cut', '37', '17', '-', '20'],
+      ['Java at c21efbdfa1: guard, store, connector, provisioner, transport, receipt verifier', '45', '21', '3 (IT stage run for 4)', '21'],
+      ['Java at 2cbf89313a: its three new checks', '3', '2 (resolveAction admission, inspect)', '0', '1 (FIFO)'],
+      ['TypeScript at 2cbf89313a: cold-load validation, O2 verification, projection cut', '37', '17', '-', '20 (same set as at c21efbdfa1)'],
     ] },
     { label: 'new-code mutants that no test notices', pre: [
       '!! marker version 2 -> 1 (writer and reader agree, so nothing pins the version)',
       '!! receipts/verify: manifest reference, outcome envelope, outcome reference (length, digest) and REFERENCED phase not compared',
       '!! Harness: verifier reply not compared with the journal receipt; manifest without a verified receipt accepted; incomplete capture flag dropped',
-      '== on the real stack the unmodified head refuses the matching damage (outcome bit flip, phase changed to FINISHED, partial capture)'].join('\n') },
+      '!! the FIFO regular-file check removed (277 unit tests and both W1a ITs stay green)',
+      '== on the real stack the unmodified head refuses the matching damage (outcome bit flip, phase changed to FINISHED, partial capture, FIFO)'].join('\n') },
     { label: 'where the TypeScript tests were run', pre: [
-      '== idle Linux host (12 cores, Node 24): hosted-harness-session.test.ts 78/78 twice in 50 s; all 37 mutants gave the same result on the rerun',
+      '== idle Linux host (12 cores, Node 24): hosted-harness-session.test.ts 78/78 twice on each head, about 50 s; every mutant gave the same result on the rerun',
       '!! loaded macOS host (load 40-70): the unmodified file failed 3, 6 and 9 of 78 tests in three runs, different tests each time'].join('\n') },
-    { label: 'the one red GitHub check: Serve A/B', pre: [
-      '== GitHub: `POST /session` 504 init_timeout after the ACP child exited with SIGKILL during initialize (plain daemon path, not the Hosted Harness)',
-      '++ the same driver, head arm, on the idle Linux host: exit 0 and 12 captures in 3 of 3 runs'].join('\n') },
+    { label: 'Serve A/B', pre: [
+      '== c21efbdfa1 on GitHub: POST /session 504 init_timeout after the ACP child exited with SIGKILL during initialize (plain daemon path)',
+      '++ the same driver, head arm, on the idle Linux host: exit 0 and 12 captures in 3 of 3 runs;  2cbf89313a on GitHub: pass'].join('\n') },
   ],
 });
 console.log('cards-r2b written');

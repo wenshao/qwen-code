@@ -5,43 +5,64 @@ fs.mkdirSync(dir, { recursive: true });
 const card = (name, c) => fs.writeFileSync(`${dir}${name}.json`, JSON.stringify(c, null, 1));
 
 card('r2-06-main-moved-trial-merge', {
-  title: 'Main moved during this round: what c21efbdf collides with, and a local trial merge',
-  subtitle: 'PR head c21efbdfa1 against main 78143fe335 (#13101, durable permission Actions, merged 2026-09-30 15:38 UTC). Linux VM, MySQL 8.4.11, Java 21.',
+  title: 'The merge with main 78143fe335: what c21efbdf collided with, and how 2cbf89313a resolves it',
+  subtitle: '#13101 (durable permission Actions) landed on main at 2026-09-30 15:38 UTC, during this round. Linux VM, MySQL 8.4.11, Java 21. Measured before the author pushed 2cbf89313a.',
   blocks: [
-    { label: 'the PR head as pushed, against current main', table: [
-      ['where', 'what collides', 'measured'],
-      ['QwenHostedHarnessConnector.createOrLoad', 'main: Action-store precondition\nPR: passive / new-work authorization', '-- git merge: CONFLICT (content); GitHub: CONFLICTING'],
-      ['QwenHostedHarnessConnector.resolveAction\n(new on main)', 'calls attachment(tenantId, sessionId);\nthe PR made it attachment(…, boolean newWork)', '-- javac after resolving the conflict:\n   "method attachment … cannot be applied to given types"'],
-      ['db/migration', 'main V24__managed_actions.sql\nPR   V24__verified_workspace_mount.sql', '-- PR jar + main\'s file on the class path:\n   "Found more than one migration with version 24", no start'],
-      ['a database migrated by main 78143fe335', 'PR jar as it is', '-- "Migration checksum mismatch for migration version 24", no start'],
-      ['QwenHostedHarnessConnectorTest (PR test)', 'builds the connector without main\'s Action store', '-- 1 of 274 unit tests errors until the test passes the store'],
+    { label: 'c21efbdfa1 against main 78143fe335', table: [
+      ['where', 'what collided', 'measured on c21efbdfa1', '2cbf89313a'],
+      ['QwenHostedHarnessConnector.createOrLoad', 'main: Action-store precondition\nPR: passive / new-work authorization', '-- git merge: CONFLICT (content);\n   GitHub: CONFLICTING', '++ both kept'],
+      ['QwenHostedHarnessConnector.resolveAction\n(new on main)', 'calls attachment(tenantId, sessionId);\nthe PR made it attachment(…, boolean newWork)', '-- does not compile after the\n   conflict is resolved', '++ attachment(…, true) and a\n++ new-work admission check first'],
+      ['db/migration', 'main V24__managed_actions.sql\nPR   V24__verified_workspace_mount.sql', '-- both on the class path:\n   "Found more than one migration\n   with version 24", no start', '++ V25__verified_workspace_mount.sql'],
+      ['a database migrated by main', 'PR jar', '-- "Migration checksum mismatch\n   for migration version 24", no start', '++ V25 applied in place, starts'],
+      ['QwenHostedHarnessConnectorTest', 'no Action store in the PR test', '-- 1 of 274 unit tests errors', '++ 277 tests, 0 failed'],
     ] },
-    { label: 'local trial merge (my rig only, nothing pushed)', pre: [
-      '== createOrLoad keeps both sides; resolveAction calls attachment(tenantId, sessionId, true); migration renamed to V25__verified_workspace_mount.sql',
-      '== the PR\'s connector test is given the Action store and an approval mode (3 lines)',
-      '== CLI bundle unchanged: main touched no CLI / core source between 3a8fd11711 and 78143fe335 (one test file)'].join('\n') },
-    { label: 'on the trial merge', table: [
+    { label: 'an independent check', pre: [
+      '== before 2cbf89313a was pushed I made the same three resolutions in a local trial merge (V25, both sides, attachment(…, true))',
+      '++ on that build: 274 unit tests, both W1a ITs, the merged Harness test file 78/78, and every scenario in the next table passed',
+      '== 2cbf89313a adds three things on top: the admission check in resolveAction, a regular-file check on the marker, inspect "unavailable"'].join('\n') },
+    { label: 'on 2cbf89313a (base arm = main 78143fe335)', table: [
       ['check', 'result'],
-      ['database migrated by main 78143fe335, then the trial merge', '++ Migrating schema to version "25 - verified workspace mount", server starts\n++ history: … V24 managed actions | V25 verified workspace mount'],
-      ['server unit tests', '++ 274, 0 failed'],
-      ['HostedWorkspaceConcurrencyIT, HostedWorkspaceStorageGuardMySqlIT', '++ 1/1 and 1/1; W1_TWO_BROKER_A4_OK physical=true staleLost=true'],
-      ['hosted-harness-session.test.ts (merged with main\'s test changes), idle host', '++ 78/78'],
-      ['rollout, cold load without a profile, Spring SIGKILL, Harness SIGKILL', '++ as on the PR head; first Shell effect not repeated'],
-      ['delete + restore from backup (inode number reused)', '++ refused: identity=mismatch, warm 409 workspace_unavailable'],
-      ['13-case identity matrix', '++ 13/13'],
-      ['upgrade from main, fence, old binary, restore-original', '++ as on the PR head'],
+      ['database migrated by main 78143fe335, then 2cbf89313a', '++ Migrating schema to version "25 - verified workspace mount"; fence, old binary, restore-original as before'],
+      ['rollout, cold load without a profile, Spring SIGKILL, Harness SIGKILL', '++ as before; first Shell effect not repeated'],
+      ['delete + restore from backup (inode number reused), MySQL and MariaDB', '++ refused: identity=mismatch, warm 409 workspace_unavailable'],
+      ['13-case identity matrix, MySQL and MariaDB', '++ 13/13 and 13/13'],
       ['public G0 route through the real connector (with main\'s Actions)', '++ registered storage completes; unregistered / fenced / replaced: workspace_unavailable, 0 model calls'],
-      ['approvals: allow, deny, cold load, unanswered Action', '++ as on the PR head'],
-      ['O2 damage matrix', '++ 11/11 refused, control loads'],
-      ['Hosted MCP: pins, cleanup with the mount unavailable, replaced holder', '++ as on the PR head'],
+      ['approvals, cold-load strictness (17/17 vs main 1/17), birth-time probes, layout', '++ as before'],
+      ['O2 damage matrix; original-receipt recovery after a Harness kill', '++ 11/11 refused (main loads 9); recovery continues once, damaged copy refused'],
+      ['Hosted MCP: pins, cleanup with the mount unavailable, replaced holder', '++ as before'],
+      ['reboot and power cut', '++ as before'],
     ] },
-    { note: 'The resolution above is mine and only shows that these changes are sufficient. Whether resolving an Action counts as new work (mount verified when the attachment is rebuilt) or as a passive operation is the author\'s decision. The README and the design document say "V24" in several places.' },
+  ],
+});
+
+card('r2-09-what-2cbf89313a-changed', {
+  title: 'What 2cbf89313a changed on its own, on the real stack',
+  subtitle: 'Linux VM, MySQL 8.4.11, fat jar as a systemd service. Public routes go through the real Java connector (approval mode "default"). The c21efbdfa1 column uses that head\'s jar on its own database.',
+  blocks: [
+    { label: 'the marker path is a FIFO (the bot\'s R1-1)', table: [
+      ['', 'c21efbdfa1', '2cbf89313a'],
+      ['maintenance inspect', '-- no answer within 20 s (killed)', '++ marker=unavailable in 0.5 s'],
+      ['next tool Turn', '-- runtimes:warm gets no reply for 40 s; thread\n   runtime-broker-http blocked in FileChannel.open\n   <- WorkspaceStorageGuard.readMarker:386;\n   released only when a writer opens the FIFO', '++ public create: turn FAILED / workspace_unavailable\n++ in 430 ms, no Broker call, server healthy'],
+    ] },
+    { label: 'inspect (R1-14)', table: [
+      ['root directory', 'c21efbdfa1', '2cbf89313a'],
+      ['path missing', 'identity=mismatch', '++ identity=unavailable'],
+      ['another directory at the path', '', 'identity=mismatch'],
+      ['original back', '', 'identity=match marker=match'],
+    ] },
+    { label: 'resolving a permission Action through the public route (main\'s D6b) while the mount is unavailable', table: [
+      ['case', 'response', 'while the marker is away', 'after the marker is back'],
+      ['control, mount intact', '202', '', '++ Turn COMPLETED, file written'],
+      ['cached attachment, marker moved away', '202 (durable operation)', '++ operation retries (3 attempts), tool not run,\n++ Turn keeps waiting, model +1 (the original request)', '++ a new response completes the Turn;\n   the first operation then confirms as well'],
+      ['cold: Spring restarted, marker moved away', '202 (durable operation)', '++ operation retries (4 attempts), tool not run', ''],
+    ] },
+    { note: 'All three behave as the author describes. The FIFO check has no committed test: removing only the regular-file check leaves all 277 unit tests green (the author\'s own probe for it is not in the PR).' },
   ],
 });
 
 card('r2-08-reboot-and-power-cut', {
-  title: 'Whole-host restart with the option on: device, inode and birth time after a real reboot and a real power cut (c21efbdf)',
-  subtitle: 'Ubuntu 24.04 VM, MySQL 8.4.11, trusted reboot recovery (W0e-3) on, durable workers. Four registered storages on four file systems, one completed tool Turn each.',
+  title: 'Whole-host restart with the option on: device, inode and birth time after a real reboot and a real power cut',
+  subtitle: 'Ubuntu 24.04 VM, MySQL 8.4.11, trusted reboot recovery (W0e-3) on, durable workers. Four registered storages on four file systems, one completed tool Turn each. Values from c21efbdfa1; 2cbf89313a gave the same outcome for every storage.',
   blocks: [
     { label: 'systemctl reboot (boot id efc434b8 -> 19837d59, back in 12 s, no worker survives)', table: [
       ['storage root', 'registered', 'after the reboot', 'cold load / next tool Turn', 'inspect'],
