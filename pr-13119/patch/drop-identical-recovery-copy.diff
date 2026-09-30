@@ -1,0 +1,92 @@
+--- a/packages/cli/src/utils/write-with-backup.ts
++++ b/packages/cli/src/utils/write-with-backup.ts
+@@ -88,8 +88,12 @@
+ 
+     fs.renameSync(tempPath, targetPath);
+   } catch (error) {
++    // A copy identical to the untouched target recovers nothing; keeping it
++    // would leave one directory per failed save when publication keeps failing.
++    const recoveryRetained =
++      backupCreated && !sameContents(backupPath, targetPath);
+     try {
+-      if (backupCreated) {
++      if (recoveryRetained) {
+         fs.unlinkSync(tempPath);
+       } else {
+         fs.rmSync(workingDirectory, { recursive: true, force: true });
+@@ -97,7 +101,7 @@
+     } catch {
+       // Cleanup must not obscure the write failure or remove a recovery copy.
+     }
+-    if (backupCreated) {
++    if (recoveryRetained) {
+       throw new Error(
+         `Failed to write file: ${error instanceof Error ? error.message : String(error)}. ` +
+           `Recovery copy retained at '${backupPath}'; inspect the current target before restoring it.`,
+@@ -112,3 +116,11 @@
+     // Publication already succeeded; leftover artifacts do not invalidate it.
+   }
+ }
++
++function sameContents(first: string, second: string): boolean {
++  try {
++    return fs.readFileSync(first).equals(fs.readFileSync(second));
++  } catch {
++    return false;
++  }
++}
+--- a/packages/cli/src/utils/write-with-backup.test.ts
++++ b/packages/cli/src/utils/write-with-backup.test.ts
+@@ -154,35 +154,33 @@
+   });
+ 
+   it.each(['EPERM', 'EACCES'])(
+-    'preserves the target and reports a complete recovery copy on %s',
++    'preserves the target and drops a recovery copy identical to it on %s',
+     (code) => {
+       fs.writeFileSync(targetPath, 'old');
+       vi.mocked(fs.renameSync).mockImplementation(() => {
+         throw Object.assign(new Error(code), { code });
+       });
+ 
+-      let error: unknown;
+-      try {
+-        writeWithBackupSync(targetPath, 'new', { backupSuffix: '.bak' });
+-      } catch (caught) {
+-        error = caught;
+-      }
+-
+-      expect(error).toBeInstanceOf(Error);
+-      expect(String(error)).toContain(code);
++      expect(() =>
++        writeWithBackupSync(targetPath, 'new', { backupSuffix: '.bak' }),
++      ).toThrow(code);
+       expect(fs.readFileSync(targetPath, 'utf8')).toBe('old');
+-      const directories = fs
+-        .readdirSync(tempDir)
+-        .filter((name) => name.startsWith('settings.json.write-'));
+-      expect(directories).toHaveLength(1);
+-      const directory = path.join(tempDir, directories[0]);
+-      const recoveryPath = path.join(directory, 'settings.json.bak');
+-      expect(String(error)).toContain(recoveryPath);
+-      expect(fs.readFileSync(recoveryPath, 'utf8')).toBe('old');
+-      expect(fs.readdirSync(directory)).toEqual(['settings.json.bak']);
++      expect(fs.readdirSync(tempDir)).toEqual(['settings.json']);
+     },
+   );
+ 
++  it('does not accumulate recovery directories while publication keeps failing', () => {
++    fs.writeFileSync(targetPath, 'old');
++    vi.mocked(fs.renameSync).mockImplementation(() => {
++      throw Object.assign(new Error('EBUSY'), { code: 'EBUSY' });
++    });
++
++    for (let attempt = 0; attempt < 3; attempt++) {
++      expect(() => writeWithBackupSync(targetPath, 'new')).toThrow('EBUSY');
++    }
++    expect(fs.readdirSync(tempDir)).toEqual(['settings.json']);
++  });
++
+   it('cleans up a failed first publication without claiming a recovery copy', () => {
+     vi.mocked(fs.renameSync).mockImplementation(() => {
+       throw new Error('rename failed');

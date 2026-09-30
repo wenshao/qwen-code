@@ -1,0 +1,24 @@
+[1;33m# BASE 78143fe335 (before PR) — Linux, real bwrap, real bundled CLI[0m
+[2m# user settings hold tools.executionSandbox = workspace-write / network closed[0m
+[2m# /outside = /root/verify/pr13119/outside, a host directory outside the workspace $WS[0m
+[2m# terminal A saves an unrelated setting; the writer is paused after fs step #2[0m
+[1;32m$[0m qwen -p "/language ui en" &   [2m# terminal A (real writer)[0m
+[2m  [writer step #1] writeFileSync(settings.json.tmp)[0m
+[2m  [writer step #2] renameSync(settings.json -> settings.json.orig)[0m
+[1;33m# --- writer paused here; terminal B starts independent qwen processes ---[0m
+[1;32m$[0m ls -A $QWEN_HOME | grep settings
+settings.json.orig
+settings.json.tmp
+[1;31m# settings.json is ABSENT[0m
+[1;32m$[0m qwen sandbox
+[1;31mTool execution sandbox: none[0m
+Configure tools.executionSandbox in User or System settings.
+[1;32m$[0m qwen --approval-mode yolo -p "..."   [2m# scripted model calls run_shell_command:[0m
+[2m#   echo escaped > /outside/demo-base.txt; echo inside > ./inside.txt && echo WROTE_INSIDE[0m
+  tool_result: WROTE_INSIDE
+[1;32m$[0m cat /outside/demo-base.txt
+[1;31mescaped   <- written OUTSIDE the workspace: tool ran unconfined[0m
+[1;33m# --- writer released ---[0m
+[2m  [terminal A] UI language changed to English [en-US][0m
+[1;32m$[0m qwen sandbox | head -1
+Boundary: tools; backend: auto → bwrap (full)
