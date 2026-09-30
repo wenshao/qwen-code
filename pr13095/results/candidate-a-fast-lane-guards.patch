@@ -1,0 +1,71 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java
+index 4687134cab..8149d14bc8 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java
+@@ -545,7 +545,11 @@ class ManagedWorkspaceAdmissionTest {
+         register(tenant, "ws-tenant", "storage-shared",
+                 WorkspaceExecutionProfile.CONFIG_REF,
+                 WorkspaceExecutionProfile.POLICY_REF);
+-        for (String workspace : List.of("ws-valid", "ws-policy", "ws-tenant")) {
++        register(tenant, "ws-config", "storage-config",
++                "managed-runtime-tools/2",
++                WorkspaceExecutionProfile.POLICY_REF);
++        for (String workspace : List.of("ws-valid", "ws-policy", "ws-tenant",
++                "ws-config")) {
+             grant(tenant, workspace, "actor-a", true);
+         }
+         ManagedAgentProperties enabled = new ManagedAgentProperties();
+@@ -555,11 +559,21 @@ class ManagedWorkspaceAdmissionTest {
+                         tenant, "storage-valid", "/unused/valid"),
+                 new ManagedAgentProperties.RuntimeBroker.WorkspaceMount(
+                         tenant, "storage-policy", "/unused/policy"),
++                new ManagedAgentProperties.RuntimeBroker.WorkspaceMount(
++                        tenant, "storage-config", "/unused/config"),
+                 new ManagedAgentProperties.RuntimeBroker.WorkspaceMount(
+                         otherTenant, "storage-shared", "/unused/shared")));
+         ManagedAgentStore gated = new ManagedAgentStore(jdbc, mapper,
+                 Clock.systemUTC(), ignored -> {
+                 }, registry, enabled);
++        // Same mounts with the files opt-in off: only the opt-in guard can
++        // refuse the otherwise admissible Workspace.
++        ManagedAgentProperties optedOut = new ManagedAgentProperties();
++        optedOut.getRuntimeBroker().setWorkspaceMounts(
++                enabled.getRuntimeBroker().getWorkspaceMounts());
++        ManagedAgentStore disabled = new ManagedAgentStore(jdbc, mapper,
++                Clock.systemUTC(), ignored -> {
++                }, registry, optedOut);
+         // An unproxied store has no @Transactional; creation resolves the
+         // Workspace only inside a transaction, as the Spring bean provides.
+         TransactionTemplate transaction = new TransactionTemplate(
+@@ -568,13 +582,25 @@ class ManagedWorkspaceAdmissionTest {
+                 Map.of("type", "text", "text", "go"));
+         String digest = "sha256:" + "a".repeat(64);
+ 
+-        for (String workspace : List.of("ws-policy", "ws-tenant")) {
++        record Refusal(String name, ManagedAgentStore store,
++                String workspace, String agent) {
++        }
++        for (Refusal refusal : List.of(
++                new Refusal("ws-policy", gated, "ws-policy", "qwen-code"),
++                new Refusal("ws-tenant", gated, "ws-tenant", "qwen-code"),
++                new Refusal("ws-config", gated, "ws-config", "qwen-code"),
++                new Refusal("another-agent", gated, "ws-valid",
++                        "another-agent"),
++                new Refusal("files-disabled", disabled, "ws-valid",
++                        "qwen-code"))) {
+             // Captured first so the label survives when nothing is thrown.
+-            Throwable thrown = catchThrowable(() -> transaction.execute(status ->
+-                    gated.insertWorkspaceSessionCommand(tenant, "actor-a",
+-                            workspace, digest, "qwen-code", null, null, input,
+-                            digest, new WorkspaceSelection(workspace, "."))));
+-            assertThat(thrown).as(workspace)
++            Throwable thrown = catchThrowable(() -> transaction.execute(
++                    status -> refusal.store().insertWorkspaceSessionCommand(
++                            tenant, "actor-a", refusal.name(), digest,
++                            refusal.agent(), null, null, input, digest,
++                            new WorkspaceSelection(refusal.workspace(),
++                                    "."))));
++            assertThat(thrown).as(refusal.name())
+                     .isInstanceOfSatisfying(ApiException.class, error -> {
+                         // The store's message, not the registry's "Workspace is
+                         // unavailable.", ties the refusal to the store guard.
