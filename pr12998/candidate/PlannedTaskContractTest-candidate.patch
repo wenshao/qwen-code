@@ -1,0 +1,48 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java
+index 9c5970d575..c48b7ed1e8 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/PlannedTaskContractTest.java
+@@ -65,11 +65,14 @@ class PlannedTaskContractTest {
+         reject("pending with started_at", task("pending", 2L, null));
+         reject("duplicate capability",
+                 task("running", 2L, null, "cancel", "cancel"));
+-        ObjectNode overBound = task("running", 2L, null);
+-        ArrayNode refs = overBound.putArray("artifact_refs");
+-        for (int i = 0; i < 101; i++) {
+-            refs.add("artifact-" + i);
++        ObjectNode atBound = task("running", 2L, null);
++        ArrayNode full = atBound.putArray("artifact_refs");
++        for (int i = 0; i < 100; i++) {
++            full.add("artifact-" + i);
+         }
++        accept("artifact_refs at the bound", atBound);
++        ObjectNode overBound = atBound.deepCopy();
++        ((ArrayNode) overBound.get("artifact_refs")).add("artifact-100");
+         reject("artifact_refs over the bound", overBound);
+         ObjectNode duplicated = task("running", 2L, null);
+         ArrayNode dupes = duplicated.putArray("artifact_refs");
+@@ -92,6 +95,9 @@ class PlannedTaskContractTest {
+     void taskEventsKeepOneShapePerType() {
+         check("PublicTaskEvent", "state_changed",
+                 event("state_changed").put("state", "running"), true);
++        check("PublicTaskEvent", "state_changed with runtime_state",
++                event("state_changed").put("state", "running")
++                        .put("runtime_state", "ready"), true);
+         check("PublicTaskEvent", "output",
+                 event("output").put("text", "hello\n").put("truncated", false),
+                 true);
+@@ -328,9 +334,12 @@ class PlannedTaskContractTest {
+                 JsonNode then = conditional.path("then");
+                 then.path("required")
+                         .forEach(field -> covered.add(field.asText()));
++                // Only a single-name branch forbids its field on its own; a
++                // conjunction still allows each name alone.
+                 for (JsonNode entry : then.path("not").path("anyOf")) {
+-                    entry.path("required")
+-                            .forEach(field -> covered.add(field.asText()));
++                    if (entry.path("required").size() == 1) {
++                        covered.add(entry.path("required").get(0).asText());
++                    }
+                 }
+                 Set<String> allowed = new HashSet<>();
+                 companions.get(type).forEach(field -> allowed
