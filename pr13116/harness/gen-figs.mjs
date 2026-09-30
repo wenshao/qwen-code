@@ -38,6 +38,7 @@ const resultLines = (file, labels) => {
 {
   const t1 = resultLines('results/targeted.txt', ['t-head', 't-merge', 't-main']);
   const t2 = resultLines('results/targeted2.txt', ['t-head2', 't-merge2', 't-k3a', 't-k3']);
+  const t3 = resultLines('results/targeted3.txt', ['t-head3']);
   const fmt = (l, what) => {
     const m = l.match(/exit=(\d+) Tests run: (\d+), Failures: (\d+), Errors: (\d+)/);
     const ok = m[1] === '0';
@@ -45,19 +46,21 @@ const resultLines = (file, labels) => {
   };
   const full = (arm) => tsv(`matrix-full-${arm}.tsv`).M0?.totals ?? 'n/a';
   render('01-merge-with-main', {
-    title: 'PR 13116: CI was green on a main without #13101; after merging today\'s main, both new tests fail',
-    subtitle: `Local, JDK 21.0.12 + Maven, managed-agent-server surefire. main = ${short(refs.MAIN_SHA)} (sdk-java identical to current 6e343482)`,
+    title: 'PR 13116: green CI predated #13101; a554a8fb failed on today\'s main; e9cb3bd2 fixes it',
+    subtitle: `Local, JDK 21.0.12 + Maven 3.9.16, managed-agent-server surefire. main = ${short(refs.MAIN_SHA)} (packages/sdk-java identical to current 6e343482)`,
     blocks: [
       {
-        heading: 'Timeline (from the CI log and git)',
+        heading: 'Timeline (commit times from git, CI times from the job logs)',
         lines: [
-          '== 15:37:58Z  f7a71db4 pushed',
+          '== 15:37:58Z  f7a71db4 committed',
           '== 15:38:54Z  CI checkout: "Merge f7a71db4... into da428be61a"  (main before #13101)',
           '!! 15:38:56Z  #13101 (78143fe3) merged: message "preapproved"->"supported", approval-mode',
           '!!            confirmation in createOrLoad, 4-arg connector constructor (3-arg passes actions=null)',
-          '== 18:48:55Z  a554a8fb pushed',
+          '== 18:48:55Z  a554a8fb committed',
           '-- 18:57:24Z  a554a8fb CI ("Merge a554a8fb into 51b80dad"), MariaDB job: Tests run: 256, Failures: 2',
           '--            at ManagedAgentPropertiesTest:31 and QwenHostedHarnessConnectorTest:89 (same as local below)',
+          '== 19:33:36Z  e9cb3bd2 committed: merge of main (f6467ca8) + the three edits below',
+          '++ 19:37:53Z  e9cb3bd2 CI ("Merge e9cb3bd2 into 6e343482"), MariaDB job: Tests run: 256, Failures: 0; IT 18/0',
         ],
       },
       {
@@ -69,22 +72,22 @@ const resultLines = (file, labels) => {
           fmt(t2[1], `a554a8fb merged with main ${short(refs.MAIN_SHA)}`),
           '--   ManagedAgentPropertiesTest:31  root cause "...require a supported Harness..." (expected "preapproved")',
           '--   QwenHostedHarnessConnectorTest:89  authorize(session): Wanted 2 times, But was 4 times',
-          fmt(t2[2], 'merge + message fix + times(4), cold keeps 3-arg constructor'),
+          fmt(t2[2], 'merge + message + count fixed, cold keeps 3-arg constructor'),
           '--   :95  IllegalStateException: Hosted Workspace Sessions require the Managed Action store',
-          fmt(t2[3], 'merge + all three edits (candidate K3)'),
+          fmt(t3[0], 'e9cb3bd2 (main merged + all three edits)'),
         ],
       },
       {
-        heading: 'Whole module suite (surefire)',
+        heading: 'Whole module suite (surefire) and checkstyle',
         lines: [
-          `-- a554a8fb merged with main          ${full('merge2')}`,
+          `-- a554a8fb merged with main   ${full('merge2')}`,
           '     = the two tests above + ToolPublicationStoreTest.renewsTheOriginalClaim... (load flake, 26/26 on rerun)',
-          `++ candidate K3 (merge + 3 edits)     ${full('k3')}`,
-          '++ checkstyle:check on a554a8fb and on K3: 0 violations',
+          `++ e9cb3bd2                    ${full('head3')}`,
+          '++ checkstyle:check on e9cb3bd2: 0 violations',
         ],
       },
     ],
-    note: 'GitHub shows MERGEABLE because the merge has no textual conflict. Squash-merging a554a8fb as it is would turn main\'s Java jobs red; merging main into the branch and changing three lines fixes it.',
+    note: 'GitHub showed MERGEABLE for a554a8fb because the merge had no textual conflict. e9cb3bd2 merges main (tree identical to my trial merge b48e61c5) and makes the three edits; it changes no production code relative to main.',
   });
 }
 
@@ -96,7 +99,7 @@ const resultLines = (file, labels) => {
     ['head2', 'a554a8fb tests', 'matrix-targeted-head2.tsv'],
     ['main', 'main tests (today)', 'matrix-targeted-main.tsv'],
     ['mainFull', 'main: whole suite', null],
-    ['k3', 'K3 tests (on main)', 'matrix-targeted-k3.tsv'],
+    ['head3', 'e9cb3bd2 tests', 'matrix-targeted-head3.tsv'],
   ];
   const data = Object.fromEntries(arms.map(([k, , f]) => [k, f ? tsv(f) : { ...tsv('matrix-full-mainA.tsv'), ...tsv('matrix-full-mainB.tsv') }]));
   const mut = execFileSync('node', [`${RIG}/scripts/mutate.mjs`, '-', 'list']).toString().trim().split('\n').map((l) => l.split('\t'));
@@ -105,7 +108,7 @@ const resultLines = (file, labels) => {
     return v === 'killed' ? 'killed' : v === 'survived' ? 'SURVIVED' : v ? v : '-';
   };
   const W = 12;
-  const h1 = ['PR base', 'f7a71db4', 'a554a8fb', 'main', 'main', 'K3'];
+  const h1 = ['PR base', 'f7a71db4', 'a554a8fb', 'main', 'main', 'e9cb3bd2'];
   const h2 = ['tests', 'tests', 'tests', 'tests', 'whole suite', 'tests'];
   const h3 = ['(base code)', '(base code)', '(base code)', '(main code)', '(main code)', '(main code)'];
   const hdr = (xs, first) => `## ${first.padEnd(7)}${xs.map((t) => t.padEnd(W)).join('')}`;
@@ -119,16 +122,16 @@ const resultLines = (file, labels) => {
   const count = (k) => Object.entries(data[k]).filter(([m, x]) => m !== 'M0' && x.v === 'killed').length;
   render('02-mutation-matrix', {
     title: 'Mutation matrix: 11 single-site mutants of unmodified production code',
-    subtitle: 'Columns 1-3 run the two changed test classes on the PR base production code; columns 4-6 on main 51b80dad production code. Each cell is a real mvn run; the tree is restored and checked clean after every mutant.',
+    subtitle: 'Columns 1-3 run the two changed test classes on the PR base production code; columns 4-6 on main 51b80dad production code (e9cb3bd2 has the same production code). Each cell is a real mvn run; the tree is restored and checked clean after every mutant.',
     blocks: [
       { heading: 'Result per test version (targeted = the two changed classes; "whole suite" = all 255 unit tests of the module on main)', lines: [header, header2, header3, ...rows] },
       { heading: 'Kills', lines: [
-        `== PR base tests ${count('base')}/11 · f7a71db4 ${count('head')}/11 · a554a8fb ${count('head2')}/11 · main tests ${count('main')}/11 · main whole suite ${count('mainFull')}/11 · K3 ${count('k3')}/11`,
+        `== PR base tests ${count('base')}/11 · f7a71db4 ${count('head')}/11 · a554a8fb ${count('head2')}/11 · main tests ${count('main')}/11 · main whole suite ${count('mainFull')}/11 · e9cb3bd2 ${count('head3')}/11`,
         '!! C3 regressed in round 1: killed by the PR-base test (hasMessage("grant revoked")), survived f7a71db4; a554a8fb kills it again',
       ] },
       { heading: 'Mutants', lines: legend },
     ],
-    note: 'Both issues\' third acceptance criterion holds when run: P1 (#13047) and C1 (#13048) survive every test on main, including the whole 255-test suite, and are killed by this PR. a554a8fb also closes the bot R1-1/R1-2 cells (C3, C4, C5). K3 keeps all 11 kills on today\'s main.',
+    note: 'Both issues\' third acceptance criterion holds when run: P1 (#13047) and C1 (#13048) survive every test on main, including the whole 255-test suite, and are killed by this PR. a554a8fb also closes the bot R1-1/R1-2 cells (C3, C4, C5), and e9cb3bd2 keeps all 11 kills on today\'s main.',
   });
 }
 
@@ -188,6 +191,6 @@ const resultLines = (file, labels) => {
         '     (C3 = any RuntimeException from the recheck remapped to WorkspaceExecutionStore.unavailable())',
       ] },
     ],
-    note: 'What goes red in a554a8fb\'s connector test when each mutant is applied: C1 - nothing is thrown; C3 and C4 - isSameAs(refusal) (both rethrow a different instance); C5 - never() loadSession on the cold connector. The mutants were built into the packaged jar, one per run.',
+    note: 'What goes red in the connector test at e9cb3bd2 (same as a554a8fb) when each mutant is applied: C1 - nothing is thrown; C3 and C4 - isSameAs(refusal) (both rethrow a different instance); C5 - never() loadSession on the cold connector. The mutants were built into the packaged jar, one per run.',
   });
 }
