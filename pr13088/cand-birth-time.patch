@@ -1,0 +1,15 @@
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceStorageGuard.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceStorageGuard.java
+@@ -342,7 +342,11 @@
+                 "unix:dev", LinkOption.NOFOLLOW_LINKS)).longValue());
+         String inode = Long.toUnsignedString(((Number) Files.getAttribute(root,
+                 "unix:ino", LinkOption.NOFOLLOW_LINKS)).longValue());
+-        return new Identity(root.toString(), host, device, inode);
++        // Candidate: an inode number alone can be handed out again after the directory is deleted and
++        // recreated (restore from a backup). The directory's birth time (statx btime) is not restored by
++        // tar, cp -a or rsync, so a recreated directory differs even when it gets the same inode number.
++        String born = Long.toString(attributes.creationTime().toMillis(), 36);
++        return new Identity(root.toString(), host, device, inode + ":" + born);
+     }
+ 
+     private static void requireMatching(Registration row, Identity identity,
