@@ -56,7 +56,21 @@ const m = MUTANTS[id];
 if (!m) { console.error(`unknown mutant ${id}`); process.exit(2); }
 const file = path.join(tree, m.file);
 let src = readFileSync(file, 'utf8');
-for (const [from, to] of m.edits) {
+let edits = m.edits;
+// main after #13088 (afb911a3): createOrLoad authorizes in an else-branch next to the passive
+// path, and requireReadyForNewWork has a second authorize(session). Anchor on createOrLoad's.
+if (m.file === CONN && src.includes('workspaceExecution.authorizePassiveAttachment(session);')) {
+  const TAIL = '\n            }\n        }\n        AttachmentKey key';
+  if (id === 'C5') {
+    edits = [['            } else {\n                ' + AUTH + '\n            }\n', '            }\n'],
+      [`        ${PUT}\n`, `        ${PUT}\n        if (session.workspace() != null && !passiveManagedRuntimeRecovery) { ${AUTH} }\n`]];
+  } else if (id === 'C9') {
+    edits = [['            } else {\n                ' + AUTH + '\n            }\n', '            }\n']];
+  } else {
+    edits = m.edits.map(([from, to]) => [from + TAIL, to + TAIL]);
+  }
+}
+for (const [from, to] of edits) {
   const n = src.split(from).length - 1;
   if (n !== 1) { console.error(`${id}: anchor ${JSON.stringify(from)} matched ${n} times, expected 1`); process.exit(3); }
   src = src.replace(from, to);

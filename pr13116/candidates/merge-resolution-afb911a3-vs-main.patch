@@ -1,0 +1,108 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+index 8fb9e1731a..d92e7706a9 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+@@ -1,12 +1,43 @@
+ package com.alibaba.qwen.code.managedagent.config;
+ 
++import static org.assertj.core.api.Assertions.assertThat;
+ import static org.assertj.core.api.Assertions.assertThatCode;
+ import static org.assertj.core.api.Assertions.assertThatThrownBy;
+ import java.util.List;
+ import java.util.function.Consumer;
+ import org.junit.jupiter.api.Test;
++import org.springframework.boot.context.properties.EnableConfigurationProperties;
++import org.springframework.boot.test.context.runner.ApplicationContextRunner;
++import org.springframework.context.annotation.Configuration;
+ 
+ class ManagedAgentPropertiesTest {
++    @Test
++    void validatesWorkspaceFilesWhenSpringInitializesTheProperties() {
++        ApplicationContextRunner context = new ApplicationContextRunner()
++                .withUserConfiguration(PropertiesConfiguration.class);
++        context.run(started -> assertThat(started).hasNotFailed());
++        ApplicationContextRunner enabled = context.withPropertyValues(
++                "qwen.managed-agent.harness.enabled=true",
++                "qwen.managed-agent.harness.workspace-files-enabled=true",
++                "qwen.managed-agent.session-store.enabled=true",
++                "qwen.managed-agent.runtime-broker.enabled=true",
++                "qwen.managed-agent.runtime-broker.workspace-mounts[0].tenant-id=tenant",
++                "qwen.managed-agent.runtime-broker.workspace-mounts[0].storage-id=storage",
++                "qwen.managed-agent.runtime-broker.workspace-mounts[0].root=/workspace");
++        enabled.run(started -> assertThat(started).hasNotFailed());
++        enabled.withPropertyValues("qwen.managed-agent.runtime-broker.isolation-class=workspace")
++                .run(started -> assertThat(started).hasFailed()
++                        .getFailure().hasRootCauseInstanceOf(IllegalStateException.class)
++                        .hasRootCauseMessage("Hosted Workspace files require"
++                                + " a supported Harness, Session Store and Session-isolated"
++                                + " local-process Broker with Workspace mounts"));
++    }
++
++    @Configuration(proxyBeanMethods = false)
++    @EnableConfigurationProperties(ManagedAgentProperties.class)
++    static class PropertiesConfiguration {
++    }
++
+     @Test
+     void fileAdmissionRequiresTheCompleteTrustedLocalDeployment() {
+         assertThatCode(() -> new ManagedAgentProperties().validateWorkspaceFiles()).doesNotThrowAnyException();
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+index b69f384883..6b4e2aa0ab 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
+ import static org.assertj.core.api.Assertions.assertThatThrownBy;
+ import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.ArgumentMatchers.anyLong;
++import static org.mockito.Mockito.clearInvocations;
+ import static org.mockito.Mockito.mock;
+ import static org.mockito.Mockito.doThrow;
+ import static org.mockito.Mockito.never;
+@@ -23,11 +24,13 @@ import com.alibaba.qwen.code.managedagent.store.StoreModels.SessionRecord;
+ import com.alibaba.qwen.code.managedagent.store.WorkspaceExecutionStore;
+ import com.alibaba.qwen.code.runtimebroker.managedworkspace.ContextBinding;
+ import com.alibaba.qwen.code.runtimebroker.WorkspaceExecutionProfile;
++import com.alibaba.qwen.code.runtimebroker.RuntimeBrokerException;
+ import com.fasterxml.jackson.databind.ObjectMapper;
+ import java.time.Duration;
+ import java.util.Map;
+ import org.mockito.ArgumentCaptor;
+ import org.junit.jupiter.api.Test;
++import org.springframework.dao.DataAccessResourceFailureException;
+ import org.springframework.test.util.ReflectionTestUtils;
+ 
+ class QwenHostedHarnessConnectorTest {
+@@ -81,9 +84,31 @@ class QwenHostedHarnessConnectorTest {
+         assertThat(ReflectionTestUtils.<Map<String, Object>>invokeMethod(create.getValue(), "toJson"))
+                 .containsEntry("approvalMode", "default")
+                 .containsEntry("approvalTimeoutMs", properties.getHarness().getApprovalTimeout().toMillis());
+-        doThrow(new IllegalStateException("grant revoked")).when(execution).authorize(session);
++        clearInvocations(execution);
++        RuntimeBrokerException refusal = WorkspaceExecutionStore.unavailable();
++        doThrow(refusal).when(execution).authorize(session);
+         assertThatThrownBy(() -> connector.createOrLoad("tenant-a", SESSION_ID, true))
+-                .hasMessage("grant revoked");
++                .isInstanceOfSatisfying(RuntimeBrokerException.class, error -> {
++                    assertThat(error).isSameAs(refusal);
++                    assertThat(error.getStatusCode()).isEqualTo(409);
++                    assertThat(error.getCode()).isEqualTo("workspace_unavailable");
++                    assertThat(error.isRetryable()).isFalse();
++                });
++        verify(execution).authorize(session);
++
++        QwenHostedHarnessConnector cold = new QwenHostedHarnessConnector(properties, sessions, execution, actions);
++        ReflectionTestUtils.setField(cold, "client", client);
++        clearInvocations(client);
++        assertThatThrownBy(() -> cold.createOrLoad("tenant-a", SESSION_ID, true))
++                .isSameAs(refusal);
++        verify(client, never()).createSession(any());
++        verify(client, never()).loadSession(any());
++
++        DataAccessResourceFailureException transientFailure =
++                new DataAccessResourceFailureException("db unavailable");
++        doThrow(transientFailure).when(execution).authorize(session);
++        assertThatThrownBy(() -> connector.createOrLoad("tenant-a", SESSION_ID, true))
++                .isSameAs(transientFailure);
+         properties.getHarness().setWorkspaceFilesEnabled(false);
+         assertThatThrownBy(() -> connector.createOrLoad("tenant-a", SESSION_ID, true))
+                 .hasMessage("Hosted Workspace files are disabled");

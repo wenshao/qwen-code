@@ -194,3 +194,39 @@ const resultLines = (file, labels) => {
     note: 'What goes red in the connector test at e9cb3bd2 (same as a554a8fb) when each mutant is applied: C1 - nothing is thrown; C3 and C4 - isSameAs(refusal) (both rethrow a different instance); C5 - never() loadSession on the cold connector. The mutants were built into the packaged jar, one per run.',
   });
 }
+
+// ---------- 05: conflict with #13088 and a verified resolution ----------
+{
+  const res = tsv('matrix-targeted-res4.tsv');
+  const mt = tsv('matrix-targeted-main4.tsv');
+  const mf = { ...tsv('matrix-full-main4b.tsv'), ...tsv('matrix-full-main4c.tsv') };
+  const full = tsv('matrix-full-res4.tsv').M0?.totals ?? 'n/a';
+  const cs = existsSync(`${RIG}/out/checkstyle-res4.log`) && read('out/checkstyle-res4.log').includes('You have 0 Checkstyle violations') ? '0 violations' : 'n/a';
+  const ids = ['P1', 'P2', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'];
+  const v = (t, m) => (t[m]?.v === 'killed' ? 'killed' : t[m]?.v === 'survived' ? 'SURVIVED' : t[m]?.v ?? '-');
+  const W = 13;
+  const rows = ids.map((m) => {
+    const c = [v(mt, m), v(mf, m), v(res, m)];
+    const tag = c[2] === 'killed' && c[1] === 'SURVIVED' ? '++ ' : c[2] !== 'killed' ? '-- ' : '.. ';
+    return `${tag}${m.padEnd(7)}${c.map((x) => x.padEnd(W)).join('')}`;
+  });
+  const kills = (t) => ids.filter((m) => t[m]?.v === 'killed').length;
+  render('05-conflict-with-13088', {
+    title: 'main moved again: #13088 (19:47:31Z) conflicts with e9cb3bd2; a resolution keeps every kill',
+    subtitle: `main = ${short(refs.MAIN4_SHA)}. Conflict only in QwenHostedHarnessConnectorTest.java (imports + the cached-refusal stub). Resolution: keep both sides\' imports, keep #13088\'s approvalMode/approvalTimeoutMs assertion, use the PR\'s real refusal instead of main\'s IllegalStateException("grant revoked") stub.`,
+    blocks: [
+      { heading: 'e9cb3bd2 merged with main afb911a3 (conflict resolved as above)', lines: [
+        `${res.M0?.v === 'survived' ? '++' : '--'} targeted (the two classes):  ${res.M0?.totals ?? 'n/a'}`,
+        `${/Failures: 0, Errors: 0/.test(full) ? '++' : '--'} whole module (surefire):     ${full}`,
+        `${cs === '0 violations' ? '++' : '--'} checkstyle:check:            ${cs}`,
+      ] },
+      { heading: 'Mutants on afb911a3 production code (C-mutants anchor on createOrLoad\'s non-passive authorize)', lines: [
+        `## ${'mutant'.padEnd(7)}${['main tests', 'main whole', 'resolved'].map((x) => x.padEnd(W)).join('')}`,
+        `## ${''.padEnd(7)}${['(targeted)', 'suite', '(targeted)'].map((x) => x.padEnd(W)).join('')}`,
+        ...rows,
+        `== kills: main targeted ${kills(mt)}/11 · main whole suite ${kills(mf)}/11 · resolved ${kills(res)}/11`,
+      ] },
+    ],
+    note: '#13088 added its own cached-refusal test (rechecksWorkspaceAuthorityOnCachedAttachmentAndKeepsPassiveRecoveryAuthorized), which now catches C1 and C4 on main by message. What only this PR catches on today\'s main: P1 (#13047), C5 (recheck order on a cold connector) and C6-C8 (type, retryable flag, status of the refusal).',
+  });
+}
