@@ -1,0 +1,19 @@
+Notes on the round 13b result files
+
+ro-g1-console.log (1 GiB, stopped by the 120 s Shell timeout)
+  The "[bytes stdout] ... MISMATCH" line compares the captured 341,966,848 B with the
+  oracle for the whole 1 GiB stream, which the command never finished writing.
+  Prefix check, regenerated from the same deterministic generator (tag rog1):
+    node gen.mjs rog1 341966848 0 0 | shasum -a 256
+    3341ea68e15c5a02bf0ef6abf567e3700b2dd42ff14007802d188bf2d10f39a0
+  The 327 segments read back from the bucket hash to 3341ea68e15c5a02..., the same value.
+  Ranges past 341,966,848 B return 400 as expected for a shorter stream.
+
+s19-rov.log (versioning)
+  An earlier attempt enabled bucket versioning, then stopped because the s1 writer lease
+  was still held. This file is the rerun after the lease expired, so both range reads ran
+  with versioning already Enabled; the label "bucket unversioned" on the first read is wrong.
+
+ro-42e2e8b1.log
+  The "2 O2 Sessions x 64 MiB" section there used a tag the fake model did not match
+  (no tool call, stdout=n/a). s7-romx.log is the valid rerun.
