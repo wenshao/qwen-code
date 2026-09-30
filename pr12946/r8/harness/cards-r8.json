@@ -1,0 +1,66 @@
+[
+ {
+  "file": "r8-01-fixes-ab-06c1df7f.png",
+  "title": "Round 8 — 06c1df7f: A/B of the three fixes on the real stack",
+  "subtitle": "Old arm = round-7 build d472033c (bundle + Broker jar kept aside); new arm = 06c1df7f; MySQL 8.4.11; Hosted Harness -> Java Broker/SQL -> Runtime worker -> real MCP servers.",
+  "lines": [
+   "## R3-10 (my round-7 item): a raw resource_read that never answers",
+   "-- d472033c: op status 409, op cancel 409; three parallel status calls -> 409, 409, 409",
+   "++ 06c1df7f: op status 200 running, cancel 202 running; parallel status calls serialize -> 200, 409, 409",
+   "== prompt, detach and new raw ops stay 409 while the read runs (by design)",
+   "== default timeoutMs: the read ends at 602 s as outcome_unknown/managed_mcp_timeout; then blocked, detach 503, lease held",
+   "",
+   "## R4-3: lone surrogate in a raw prompt_get argument (value \"a\\uD800b\" or key \"top\\uDC00ic\")",
+   "-- d472033c: forwarded after '?' substitution - the MCP server saw topic \"a?b\"; settled; Session fine, detach 204",
+   "!! 06c1df7f: Broker 400 before forwarding (server saw nothing) -> Harness records outcome_unknown -> Session blocked",
+   "!!    op cancel 202 outcome_unknown; detach 503; load in a new Harness 200 but still blocked, detach 503; lease held",
+   "++ candidate, 15 lines (route check before the record exists): 400 invalid_mcp_operation, 0 Broker requests,",
+   "++    next read settled, detach 204, lease 0; emoji control unchanged; 6 cli test files 163/163",
+   "",
+   "## R4-1: a schema-invalid reply to a raw read",
+   "== quota not reachable from Hosted here: every Hosted Session has its own worker (8 Sessions -> 8 endpoints)",
+   "!! on both heads: one invalid reply -> outcome_unknown -> Session blocked, detach 503, lease held (not new)",
+   "",
+   "## Mutants on this head's changes: 12/12 killed (cli baseline 163/163, broker 525 with 1 skipped)",
+   "++ V1-V6 status/cancel/close fences   V7-V9 in-flight quota   J11 Unicode guard   J12-J13 observe() merge"
+  ],
+  "notes": [
+   {
+    "tone": "red",
+    "text": "R3-10 is fixed. The R4-3 guard is correct in the Broker, but the Harness turns its 400 into an unknown outcome, so one malformed string from a client permanently blocks the Session and its Workspace. On d472033c the same request only had its content changed."
+   }
+  ]
+ },
+ {
+  "file": "r8-02-p1-flyway-regression.png",
+  "title": "Round 8 — first-prompt cancellation, Flyway and regression",
+  "subtitle": "Same rig. P1 = doudouOUC's inline finding on 06c1df7f. The first mcp-configure is held at the Broker proxy for 8 s.",
+  "lines": [
+   "## P1 reproduced end to end: the first prompt waits for MCP initialization without the turn's abort",
+   "!! cancel 204 at 1.0 s; at 1.3 s the prompt POST is still pending, hasActivePrompt true, new prompt 409, detach 409",
+   "!! the first configure is dispatched 0.3 s after the cancel; after release the second server is configured too",
+   "!! the cancelled prompt is then accepted (202 at 8.6 s) and ends cancelled with 0 model requests; Session usable after",
+   "!! deadlineMs 200: same; both configures are dispatched after the deadline has expired",
+   "",
+   "## Flyway: main gained V19 today (#12977); #12894 renumbered to V20/V21",
+   "++ this PR + main V19: starts, applies ..18, 19, 21",
+   "!! + #12894 V20/V21: \"Found more than one migration with version 21\" - the application does not start",
+   "",
+   "## Regression on 06c1df7f: everything from rounds 1-7 still holds",
+   "++ S1 3 transports; tools/resources list_changed; R1-2; R1-5; quota 17 -> 400, 16 -> 409; F5, F6; SSE restart",
+   "++ lost configure + invoke replies -> 1 effect; revoked-access close 204; offline replay 0 Broker requests",
+   "++ busy owner: B detach 204, holder unchanged; orphaned Session: load 200 -> prompt 202 -> detach 204 -> lease 0",
+   "++ raw-op cancel during a slow read 202 running (round 7: 409); late settle 33.5 s",
+   "== N1 633 s; worker SIGKILL blocked after 4.9 s (unchanged by main's #13060); F1",
+   "",
+   "## Pre-existing on main 568d9887, not this PR",
+   "== model tool call with a lone surrogate in its arguments: the execution sits in PREPARED and never reaches the server;",
+   "==    the turn ends with no terminal event (files ~2 min, MCP 630 s), then blocked; files: detach 204 but lease held"
+  ],
+  "notes": [
+   {
+    "text": "Before merge: fix the R4-3 trap (candidate attached) and the P1; coordinate V21 with #12894. The rest is unchanged from round 7."
+   }
+  ]
+ }
+]

@@ -1,0 +1,33 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index f55dda0..177e692 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -70,6 +70,19 @@ interface HostedSession {
+   mcpRecovering?: boolean;
+ }
+ 
++// Broker rejects malformed Unicode before forwarding; reject it here too,
++// before an operation record exists, so the refusal cannot become an
++// unknown outcome.
++const MALFORMED_UNICODE = /\p{Cs}/u;
++function wellFormed(value: unknown): boolean {
++  if (typeof value === "string") return !MALFORMED_UNICODE.test(value);
++  if (value && typeof value === "object")
++    return Object.entries(value).every(
++      ([key, item]) => !MALFORMED_UNICODE.test(key) && wellFormed(item),
++    );
++  return true;
++}
++
+ function object(value: unknown): Record<string, unknown> | null {
+   return value !== null && typeof value === 'object' && !Array.isArray(value)
+     ? (value as Record<string, unknown>)
+@@ -784,6 +797,8 @@ export function registerHostedHarnessSessionRoutes(
+         arguments: request['arguments'] as Record<string, string>,
+       };
+     } else return error(res, 400, 'invalid_mcp_operation');
++    if (!wellFormed(invocation))
++      return error(res, 400, 'invalid_mcp_operation');
+     if (
+       (session.blocked || session.mcp.hasPendingOperations()) &&
+       !session.managed.authority.extensionRecord('mcp_operation', operationId)
