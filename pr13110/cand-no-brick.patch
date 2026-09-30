@@ -1,0 +1,262 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 9b6523f223..8633fdfceb 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -39,6 +39,7 @@ import { writeStderrLineSafe } from '../utils/stdioHelpers.js';
+ import { runHostedHarnessTextTurn } from './hosted-harness-model.js';
+ import {
+   HostedWorkspaceBroker,
++  HostedWorkspaceBrokerRejection,
+   type HostedWorkspaceBrokerOptions,
+ } from './hosted-workspace-broker.js';
+ import {
+@@ -1486,13 +1487,30 @@ export function registerHostedHarnessSessionRoutes(
+         session.managed.authority.sessionHeader.sessionKey,
+         requestId,
+       );
+-      await broker.warm();
+-      await broker.acquire();
+-      await broker.fileHistory({
+-        kind: 'raw-file-history',
+-        action: 'bind',
+-        state: saved.state,
+-      });
++      let acquired = false;
++      try {
++        await broker.warm();
++        await broker.acquire();
++        acquired = true;
++        await broker.fileHistory({
++          kind: 'raw-file-history',
++          action: 'bind',
++          state: saved.state,
++        });
++      } catch (cause) {
++        if (!(cause instanceof HostedWorkspaceBrokerRejection)) throw cause;
++        // Nothing is pending and no file was touched: give the Workspace back.
++        if (acquired) await broker.release();
++        return error(
++          res,
++          409,
++          acquired
++            ? 'hosted_file_history_refused'
++            : typeof cause.code === 'string'
++              ? cause.code
++              : 'workspace_unavailable',
++        );
++      }
+       const pending = { ...saved, pendingUndo: { requestId, promptId } };
+       await commitHostedFileHistory(session.managed, pending);
+       const result = await broker.fileHistory({
+diff --git a/packages/cli/src/serve/hosted-workspace-broker.ts b/packages/cli/src/serve/hosted-workspace-broker.ts
+index 02f9c9a474..7976c4e06b 100644
+--- a/packages/cli/src/serve/hosted-workspace-broker.ts
++++ b/packages/cli/src/serve/hosted-workspace-broker.ts
+@@ -41,6 +41,7 @@ export class HostedWorkspaceBrokerRejection extends Error {
+     readonly status: number,
+     readonly code: unknown,
+     readonly details?: Record<string, unknown>,
++    readonly reason?: string,
+   ) {
+     super(`Runtime Broker returned HTTP ${status} (${String(code)}).`);
+   }
+@@ -546,6 +547,7 @@ export class HostedWorkspaceBroker {
+         details && typeof details === 'object' && !Array.isArray(details)
+           ? (details as Record<string, unknown>)
+           : undefined,
++        typeof parsed['error'] === 'string' ? parsed['error'] : undefined,
+       );
+     }
+     if (
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index 27dec42910..0c41e97261 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -2749,3 +2749,58 @@ it('keeps a durable pending history when post-execution settlement fails', async
+   );
+   expect(broker.release).not.toHaveBeenCalled();
+ });
++
++it('answers Write/Edit with an error and keeps the Session usable when the worker refuses the backup', async () => {
++  broker.fileHistory.mockImplementation(async (operation) => {
++    if (operation.action === 'prepare')
++      throw new HostedWorkspaceBrokerRejection(
++        409,
++        'managed_runtime_provider_operation_failed',
++        undefined,
++        'Hosted file changed outside tracked mutations.',
++      );
++    return {
++      ownerSessionId: session.authority.sessionHeader.sessionKey.sessionId,
++      snapshots: [],
++      files: {},
++    };
++  });
++  broker.execute.mockResolvedValue({
++    executionStatus: 'success',
++    responseParts: [{ text: 'read' }],
++  });
++  const responses = await turn.execute(
++    calls,
++    parts,
++    'model',
++    new AbortController().signal,
++  );
++  // read_file ran; the edit was answered without being dispatched.
++  expect(broker.execute).toHaveBeenCalledTimes(1);
++  expect(JSON.stringify(responses)).toContain(
++    'Hosted file changed outside tracked mutations.',
++  );
++  expect(await readHostedFileHistory(session)).toBeUndefined();
++  await turn.consumeResults();
++  await turn.finish();
++  expect(broker.release).toHaveBeenCalledOnce();
++});
++
++it('gives the Workspace back and fails only the turn when the saved history cannot be bound', async () => {
++  broker.fileHistory.mockRejectedValue(
++    new HostedWorkspaceBrokerRejection(
++      409,
++      'managed_runtime_provider_operation_failed',
++      undefined,
++      'Hosted file history backup is unavailable.',
++    ),
++  );
++  const failure = await turn
++    .execute(calls, parts, 'model', new AbortController().signal)
++    .catch((cause: unknown) => cause);
++  expect(failure).toBeInstanceOf(Error);
++  expect(failure).not.toBeInstanceOf(HostedToolRecoveryRequiredError);
++  expect(broker.execute).not.toHaveBeenCalled();
++  expect(broker.release).toHaveBeenCalledOnce();
++  await expect(turn.finish()).resolves.toBeUndefined();
++});
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index f74bfe23dc..ad0f5d7c42 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -31,6 +31,7 @@ import {
+ } from '@qwen-code/qwen-code-core/managed-runtime/managed-tool-result.js';
+ import {
+   assertManagedSessionDurableRef,
++  ManagedSessionRecordError,
+   type ManagedSessionDurableRef,
+ } from '@qwen-code/qwen-code-core/managed-runtime/managed-session-records.js';
+ import type { ManagedHarnessHandle } from '@qwen-code/qwen-code-core/managed-runtime/managed-harness-factory.js';
+@@ -180,6 +181,20 @@ export const HOSTED_WORKSPACE_SHELL_TOOLS: FunctionDeclaration[] = [
+   },
+ ];
+ 
++/** The worker refused a history operation before any file effect started. */
++function refusedByHistory(
++  cause: unknown,
++): cause is HostedWorkspaceBrokerRejection {
++  return (
++    cause instanceof HostedWorkspaceBrokerRejection &&
++    cause.status === 409 &&
++    cause.code === 'managed_runtime_provider_operation_failed'
++  );
++}
++
++/** History is unavailable for this turn; nothing ran and nothing needs recovery. */
++class HostedFileHistoryUnavailableError extends Error {}
++
+ export class HostedToolRecoveryRequiredError extends Error {
+   constructor(cause: unknown) {
+     super(
+@@ -276,14 +291,26 @@ export class HostedWorkspaceToolTurn {
+         const saved = await readHostedFileHistory(this.session);
+         if (saved?.pendingTurn || saved?.pendingUndo)
+           throw new Error('Hosted file history requires recovery.');
+-        await this.broker.fileHistory({
+-          kind: 'raw-file-history',
+-          action: 'bind',
+-          state: saved?.state ?? null,
+-        });
++        try {
++          await this.broker.fileHistory({
++            kind: 'raw-file-history',
++            action: 'bind',
++            state: saved?.state ?? null,
++          });
++        } catch (cause) {
++          if (!refusedByHistory(cause)) throw cause;
++          await this.broker.release();
++          this.acquired = false;
++          throw new HostedFileHistoryUnavailableError(
++            cause.reason ?? 'Hosted file history is unavailable.',
++          );
++        }
+       }
+     } catch (cause) {
+-      if (isRetryableWorkspaceAcquisition(cause)) {
++      if (
++        isRetryableWorkspaceAcquisition(cause) ||
++        cause instanceof HostedFileHistoryUnavailableError
++      ) {
+         this.uncertain = false;
+         throw cause;
+       }
+@@ -481,21 +508,6 @@ export class HostedWorkspaceToolTurn {
+             reason,
+           );
+     };
+-    if (refusals.every((reason) => reason !== undefined)) {
+-      const responses = requests.flatMap((_, index) => refusal(index)!);
+-      try {
+-        if (!this.messageFitsInline('tool_result', responses, model))
+-          throw new Error(
+-            'Hosted tool refusal exceeds the inline Session Store limit.',
+-          );
+-        await this.commit('tool_result', responses, model);
+-      } catch (cause) {
+-        throw new HostedToolRecoveryRequiredError(cause);
+-      }
+-      this.uncertain = false;
+-      signal.throwIfAborted();
+-      return responses;
+-    }
+     const paths = requests.flatMap((request, index) =>
+       !this.mcp &&
+       refusals[index] === undefined &&
+@@ -517,9 +529,40 @@ export class HostedWorkspaceToolTurn {
+           pendingTurn: this.promptId,
+           pendingUndo: null,
+         });
++      } catch (cause) {
++        // Both answers are definite and precede every file effect of this
++        // batch: the worker refused the backup, or the record is too large
++        // to store (checked locally, before any Store request).
++        const refused = refusedByHistory(cause);
++        if (!refused && !(cause instanceof ManagedSessionRecordError))
++          throw new HostedToolRecoveryRequiredError(cause);
++        const reason = refused
++          ? (cause.reason ?? 'The backup could not be prepared.')
++          : 'The file history of this Session has reached its size limit.';
++        for (const [index, request] of requests.entries())
++          if (
++            refusals[index] === undefined &&
++            ['write_file', 'edit'].includes(request.call.name)
++          )
++            refusals[index] =
++              `This change was not started because its undo backup could not be prepared. ${reason} Do not repeat the same call unchanged.`;
++        paths.length = 0;
++      }
++    }
++    if (refusals.every((reason) => reason !== undefined)) {
++      const responses = requests.flatMap((_, index) => refusal(index)!);
++      try {
++        if (!this.messageFitsInline('tool_result', responses, model))
++          throw new Error(
++            'Hosted tool refusal exceeds the inline Session Store limit.',
++          );
++        await this.commit('tool_result', responses, model);
+       } catch (cause) {
+         throw new HostedToolRecoveryRequiredError(cause);
+       }
++      this.uncertain = false;
++      signal.throwIfAborted();
++      return responses;
+     }
+     const reserved = new Map<number, string>();
+     try {

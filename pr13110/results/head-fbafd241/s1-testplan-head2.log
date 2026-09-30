@@ -1,0 +1,48 @@
+# s1-testplan-head2  db=fh2 arm=head2  2026-09-30T15:03:02.286Z
+harness arm=head2 boot=6f255a34-7958-4a02-b3c4-33cf39029a07 db=8.4.7
+PASS  [x2] create files-profile Session  -> status=200
+PASS  [y2] create files-profile Session  -> status=200
+PASS  [x2] P1 two batches complete  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3051ms
+PASS  [x2] files on disk after P1  -> notes="final" new="created"
+      wire: /tool-sessions:acquire -> 200 | /tool-sessions/<id>/control [raw-file-history:bind] -> 200 | /tool-sessions/<id>/control [raw-file-history:prepare] -> 200 | /executions/<id>:start -> 200 | /executions/<id>:start -> 200 | /executions/<id>:start -> 200 | /tool-sessions/<id>/control [raw-file-history:snapshot] -> 200 | /tool-sessions/<id>/control [raw-file-history:prepare] -> 200 | /executions/<id>:start -> 200 | /tool-sessions/<id>/control [raw-file-history:snapshot] -> 200 | /tool-sessions/<id>:release -> 200
+PASS  [x2] exactly one snapshot for the prompt, pendingTurn null  -> snapshots=1 tracked=notes.txt,new.txt,blob.bin pendingTurn=null
+PASS  [x2] repeated edit keeps the FIRST preimage (notes.txt version 1)  -> notes={"backupFileName":"a2beecc5b1cd7c45@v1","version":1,"backupTime":"2026-09-30T15:03:05.401Z"} new={"backupFileName":null,"version":1,"backupTime":"2026-09-30T15:03:05.402Z"}
+PASS  [x2] backup bytes on the worker volume are this Workspace's originals  -> notes backup="original-x2\n" blob backup sha=ac77a5b18ff9 expected=ac77a5b18ff9
+PASS  [x2] expected file states recorded (digest+mode)  -> {"notes.txt":{"digest":"sha256:2443630b4620165c8b173e7265e17526fe2787ae594364dd6d839ad58f2fc007","mode":416},"new.txt":{"digest":"sha256:406effb1e9c59672c66a598c2b21e331b23b16c54024e96d6df3e7c173549791","mode":420},"blob.bin":{"digest":"sha256:83d544ccc223c057
+PASS  [y2] P1 two batches complete  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2819ms
+PASS  [y2] files on disk after P1  -> notes="final" new="created"
+      wire: /tool-sessions:acquire -> 200 | /tool-sessions/<id>/control [raw-file-history:bind] -> 200 | /tool-sessions/<id>/control [raw-file-history:prepare] -> 200 | /executions/<id>:start -> 200 | /executions/<id>:start -> 200 | /executions/<id>:start -> 200 | /tool-sessions/<id>/control [raw-file-history:snapshot] -> 200 | /tool-sessions/<id>/control [raw-file-history:prepare] -> 200 | /executions/<id>:start -> 200 | /tool-sessions/<id>/control [raw-file-history:snapshot] -> 200 | /tool-sessions/<id>:release -> 200
+PASS  [y2] exactly one snapshot for the prompt, pendingTurn null  -> snapshots=1 tracked=notes.txt,new.txt,blob.bin pendingTurn=null
+PASS  [y2] repeated edit keeps the FIRST preimage (notes.txt version 1)  -> notes={"backupFileName":"716586a52ab4c057@v1","version":1,"backupTime":"2026-09-30T15:03:08.283Z"} new={"backupFileName":null,"version":1,"backupTime":"2026-09-30T15:03:08.284Z"}
+PASS  [y2] backup bytes on the worker volume are this Workspace's originals  -> notes backup="original-y2\n" blob backup sha=ac77a5b18ff9 expected=ac77a5b18ff9
+PASS  [y2] expected file states recorded (digest+mode)  -> {"notes.txt":{"digest":"sha256:2443630b4620165c8b173e7265e17526fe2787ae594364dd6d839ad58f2fc007","mode":416},"new.txt":{"digest":"sha256:406effb1e9c59672c66a598c2b21e331b23b16c54024e96d6df3e7c173549791","mode":420},"blob.bin":{"digest":"sha256:83d544ccc223c057
+PASS  Harness launch-directory decoy unchanged  -> proof.txt="decoy"
+PASS  [x2] detach/load keeps history  -> detach=204 load=200
+PASS  [x2] external edit -> 409 conflict, no restoration  -> status=409 body={"requestId":"7ea2066d-ec27-4869-82f2-b1f1eac39022","promptId":"3e98fb3f-1711-4823-a086-fbd94cee06cb","filesChanged":[],"conflict":true} notes="external" new="created"
+PASS  [x2] conflict leaves the Session usable  -> recoveryBlocked=false
+PASS  [x2] undo restores original bytes, removes the created file  -> status=200 filesChanged=["notes.txt","new.txt","blob.bin"] notes="original-x2\n" new.txt exists=false blob sha=ac77a5b18ff9 mode=640
+PASS  [x2] original mode 0640 restored  -> mode=640
+PASS  [y2] detach/load keeps history  -> detach=204 load=200
+PASS  [y2] external edit -> 409 conflict, no restoration  -> status=409 body={"requestId":"4b784ef7-7344-46f9-a194-f8faadf03191","promptId":"17394123-71d1-4d91-9588-952f011cf640","filesChanged":[],"conflict":true} notes="external" new="created"
+PASS  [y2] conflict leaves the Session usable  -> recoveryBlocked=false
+PASS  [y2] undo restores original bytes, removes the created file  -> status=200 filesChanged=["notes.txt","new.txt","blob.bin"] notes="original-y2\n" new.txt exists=false blob sha=ac77a5b18ff9 mode=640
+PASS  [y2] original mode 0640 restored  -> mode=640
+PASS  the other Workspace kept its own original
+PASS  [x2] same requestId replays the original receipts (200 and 409)  -> undo=200 conflict=409
+PASS  [x2] replay runs no restoration  -> rewind control calls before=4 after=4
+PASS  [x2] a new undo of the same prompt changes nothing  -> status=200 filesChanged=[]
+NOTE  [x2] old requestId with a different promptId  -> status=404 code=hosted_file_snapshot_not_found
+PASS  [x2] P2 (another write) completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1549ms
+PASS  [x2] old undo after another write + reload: original receipt, no restoration, no acquire  -> status=200 notes="second prompt"
+PASS  [x2] Session not blocked at the end
+      final record: snapshots=2 undoReceipts=3 pendingTurn=null pendingUndo=null
+PASS  [y2] same requestId replays the original receipts (200 and 409)  -> undo=200 conflict=409
+PASS  [y2] replay runs no restoration  -> rewind control calls before=5 after=5
+PASS  [y2] a new undo of the same prompt changes nothing  -> status=200 filesChanged=[]
+NOTE  [y2] old requestId with a different promptId  -> status=404 code=hosted_file_snapshot_not_found
+PASS  [y2] P2 (another write) completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1279ms
+PASS  [y2] old undo after another write + reload: original receipt, no restoration, no acquire  -> status=200 notes="second prompt"
+PASS  [y2] Session not blocked at the end
+      final record: snapshots=2 undoReceipts=3 pendingTurn=null pendingUndo=null
+NOTE  commitFileHistory transactions in MySQL (qwen_managed_session_journal_tx)  -> x2=15 y2=15
+== RESULT s1-testplan-head2: 38 passed, 0 failed

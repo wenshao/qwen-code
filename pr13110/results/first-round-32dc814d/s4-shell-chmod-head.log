@@ -1,0 +1,16 @@
+# s4-shell-chmod-head  db=fh arm=head  2026-09-30T13:33:05.766Z
+  wire: POST /tool-sessions:acquire -> 200 | POST /tool-sessions/<id>/control [raw-file-history:bind] -> 200 | POST /tool-sessions/<id>/control [raw-file-history:prepare] -> 200 | POST /executions/<id>:start -> 200 | POST /tool-sessions/<id>/control [raw-file-history:snapshot] -> 200 | POST /executions/<id>:start -> 200 | POST /tool-sessions/<id>/control [raw-file-history:prepare] -> 409 managed_runtime_provider_operation_failed
+  write_file run.sh -> shell chmod +x && run -> edit run.sh: admit=202 terminal=<none> recoveryBlocked=true 3262ms
+      call write_file({"file_path":"run.sh","content":"#!/bin/sh\necho helo\n"})
+      result write_file: "Successfully created and wrote to new file: /rig/run/fh/ws/j/child/run.sh."
+      call run_shell_command({"command":"chmod +x run.sh && ./run.sh","description":"run it"})
+      result run_shell_command: "Command: chmod +x run.sh && ./run.sh\nDirectory: (root)\nOutput: helo\nError: (none)\nExit Code: 0\nSignal: (none)\nProcess Group PGID: (none)"
+      call edit({"file_path":"run.sh","old_string":"helo","new_string":"hello"})
+  Session recoveryBlocked=true; Workspace execution lease holder=THIS PROMPT (still held)
+  next prompt in the same Session: admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms
+  another Session in the same Workspace (read_file): admit=202 terminal=turn_error[{"sessionId":"ccbf01b9-5daa-4451-b467-a0afe392eab5","promptId":"5597beeb-bc66-4f4a-9405-222a5d702eb3","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 938ms
+  detach -> 204, load -> 409 hosted_turn_recovery_required
+  harness stderr: qwen serve: Hosted Harness turn 794e67ac-5e3c-4d5d-8789-2517c9a46c1f is recovery blocked: Error: Runtime Broker returned HTTP 409 (managed_runtime_provider_operation_failed).
+  run.sh on disk: "#!/bin/sh\necho helo\n" mode=755
+== RESULT shell-chmod/head: {"blocked":true,"held":true,"next":409,"sibling":"turn_error","load":409}
+== RESULT s4-shell-chmod-head: 0 passed, 0 failed

@@ -1,0 +1,16 @@
+# s4-two-sessions-head  db=fh arm=head  2026-09-30T13:32:46.954Z
+  Session A writes shared.txt: admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1935ms
+  Session B writes shared.txt: admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1607ms
+  Session A reads then edits shared.txt again: admit=202 terminal=<none> recoveryBlocked=true 534ms
+      call read_file({"file_path":"shared.txt"})
+      result read_file: "v2 by Session B"
+      call edit({"file_path":"shared.txt","old_string":"v2 by Session B","new_string":"v3 by Session A"})
+  Session recoveryBlocked=true; Workspace execution lease holder=THIS PROMPT (still held)
+  next prompt in the same Session: admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 6ms
+  another Session in the same Workspace (read_file): admit=202 terminal=turn_error[{"sessionId":"9b375cdd-1deb-4e80-80e6-2289db2dca35","promptId":"ec279de1-14d6-4733-9e95-65f3afb6385a","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 1386ms
+  detach -> 204, load -> 409 hosted_turn_recovery_required
+  harness stderr: qwen serve: Hosted Harness turn 544cddd9-1096-4585-9474-6eb14daaa095 is recovery blocked: Error: Runtime Broker returned HTTP 409 (managed_runtime_provider_operation_failed).
+  Session B afterwards (read_file): admit=202 terminal=turn_error[{"sessionId":"edbe36de-7cd8-4cfb-9941-3136bd314c96","promptId":"1b7bd613-ed91-40ea-a35b-1ba101fcf290","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 239ms
+  shared.txt on disk: "v2 by Session B"
+== RESULT two-sessions/head: {"blocked":true,"held":true,"next":409,"sibling":"turn_error","load":409}
+== RESULT s4-two-sessions-head: 0 passed, 0 failed
