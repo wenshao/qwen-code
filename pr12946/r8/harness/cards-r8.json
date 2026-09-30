@@ -1,8 +1,8 @@
 [
  {
   "file": "r8-01-fixes-ab-06c1df7f.png",
-  "title": "Round 8 — 06c1df7f: A/B of the three fixes on the real stack",
-  "subtitle": "Old arm = round-7 build d472033c (bundle + Broker jar kept aside); new arm = 06c1df7f; MySQL 8.4.11; Hosted Harness -> Java Broker/SQL -> Runtime worker -> real MCP servers.",
+  "title": "Round 8 — 06c1df7f and 67c908ea: A/B of the fixes on the real stack",
+  "subtitle": "Old arm = round-7 build d472033c (bundle + Broker jar kept aside); new arms = 06c1df7f and 67c908ea (CLI-only follow-up); MySQL 8.4.11; Hosted Harness -> Java Broker/SQL -> Runtime worker -> real MCP servers.",
   "lines": [
    "## R3-10 (my round-7 item): a raw resource_read that never answers",
    "-- d472033c: op status 409, op cancel 409; three parallel status calls -> 409, 409, 409",
@@ -16,6 +16,7 @@
    "!!    op cancel 202 outcome_unknown; detach 503; load in a new Harness 200 but still blocked, detach 503; lease held",
    "++ candidate, 15 lines (route check before the record exists): 400 invalid_mcp_operation, 0 Broker requests,",
    "++    next read settled, detach 204, lease 0; emoji control unchanged; 6 cli test files 163/163",
+   "!! 67c908ea: the same trap (Broker 400 -> outcome_unknown -> blocked, detach 503, lease held); the candidate still fixes it",
    "",
    "## R4-1: a schema-invalid reply to a raw read",
    "== quota not reachable from Hosted here: every Hosted Session has its own worker (8 Sessions -> 8 endpoints)",
@@ -27,26 +28,29 @@
   "notes": [
    {
     "tone": "red",
-    "text": "R3-10 is fixed. The R4-9 guard is correct in the Broker, but the Harness turns its 400 into an unknown outcome, so one malformed string from a client permanently blocks the Session and its Workspace. On d472033c the same request only had its content changed."
+    "text": "R3-10 is fixed. The R4-9 guard is correct in the Broker, but the Harness turns its 400 into an unknown outcome, so one malformed string from a client permanently blocks the Session and its Workspace. On d472033c the same request only had its content changed. Still present on 67c908ea."
    }
   ]
  },
  {
   "file": "r8-02-p1-flyway-regression.png",
-  "title": "Round 8 — first-prompt cancellation, Flyway and regression",
-  "subtitle": "Same rig. P1 = doudouOUC's inline finding on 06c1df7f. The first mcp-configure is held at the Broker proxy for 8 s.",
+  "title": "Round 8 — first-prompt cancellation (fixed in 67c908ea), Flyway and regression",
+  "subtitle": "P1 = doudouOUC's inline finding on 06c1df7f. The first mcp-configure is held at the Broker proxy for 8 s on a Session pinned to two servers.",
   "lines": [
-   "## P1 reproduced end to end: the first prompt waits for MCP initialization without the turn's abort",
-   "!! cancel 204 at 1.0 s; at 1.3 s the prompt POST is still pending, hasActivePrompt true, new prompt 409, detach 409",
-   "!! the first configure is dispatched 0.3 s after the cancel; after release the second server is configured too",
-   "!! the cancelled prompt is then accepted (202 at 8.6 s) and ends cancelled with 0 model requests; Session usable after",
-   "!! deadlineMs 200: same; both configures are dispatched after the deadline has expired",
+   "## P1: the first prompt waited for MCP initialization without the turn's abort",
+   "-- 06c1df7f: cancel 204 at 1.0 s, but the prompt POST hangs until 8.6 s; new prompt and detach 409 meanwhile",
+   "-- 06c1df7f: first configure sent 0.3 s after the cancel, second server configured after release, prompt then accepted 202",
+   "-- 06c1df7f, deadlineMs 200: same; both configures sent after the deadline",
+   "++ 67c908ea: the prompt POST answers 503 at the cancel (1.0 s) or the deadline (0.2 s); 0 model requests",
+   "++ 67c908ea: cancelled before dispatch -> no configure sent; already in flight -> it completes, no second server",
+   "++ 67c908ea, while that configure is in flight: detach 503 with the lease held (no early release); a second prompt gets 503 at once",
+   "++ 67c908ea after release: next prompt end_turn, detach 204, lease 0; mutants P1, P4, P5, P6 killed (P2, P3 equivalent)",
    "",
    "## Flyway: main gained V19 today (#12977); #12894 renumbered to V20/V21",
    "++ this PR + main V19: starts, applies ..18, 19, 21",
    "!! + #12894 V20/V21: \"Found more than one migration with version 21\" - the application does not start",
    "",
-   "## Regression on 06c1df7f: everything from rounds 1-7 still holds",
+   "## Regression: everything from rounds 1-7 holds on 06c1df7f (full set) and 67c908ea (core subset)",
    "++ S1 3 transports; tools/resources list_changed; R1-2; R1-5; quota 17 -> 400, 16 -> 409; F5, F6; SSE restart",
    "++ lost configure + invoke replies -> 1 effect; revoked-access close 204; offline replay 0 Broker requests",
    "++ busy owner: B detach 204, holder unchanged; orphaned Session: load 200 -> prompt 202 -> detach 204 -> lease 0",
@@ -59,7 +63,7 @@
   ],
   "notes": [
    {
-    "text": "Before merge: fix the R4-9 trap (candidate attached) and the P1; coordinate V21 with #12894. The rest is unchanged from round 7."
+    "text": "Before merge: fix the R4-9 trap (candidate attached, verified on both heads) and coordinate V21 with #12894. The P1 is fixed in 67c908ea. The rest is unchanged from round 7."
    }
   ]
  }
