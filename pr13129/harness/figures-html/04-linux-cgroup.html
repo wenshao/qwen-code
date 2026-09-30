@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><style>
+  body{margin:0;background:#fcfcfb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#0b0b0b}
+  #card{width:1000px;padding:22px 26px 24px;background:#fcfcfb;border:1px solid #d9d8d4;border-radius:10px}
+  h1{font-size:19px;margin:0 0 4px;font-weight:650}
+  .sub{font-size:13px;color:#52514e;margin:0 0 14px;line-height:1.45}
+  h2{font-size:14px;margin:16px 0 6px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;margin:4px 0 10px}
+  th,td{border:1px solid #d9d8d4;padding:5px 8px;text-align:left;vertical-align:top;line-height:1.4}
+  th{background:#f0efec;color:#52514e;font-weight:600}
+  td.num{text-align:right;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  td.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+  table.kv td:first-child{width:30%}
+  .ok{color:#0a7a0a;font-weight:600}.bad{color:#b42727;font-weight:600}.warn{color:#8a5a00;font-weight:600}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;background:#f0efec;padding:1px 4px;border-radius:4px}
+  .note{font-size:12.5px;border-left:3px solid #8a5a00;background:#f6f5f2;padding:7px 10px;margin:8px 0;line-height:1.5}
+  .note.nbad{border-left-color:#b42727}.note.nok{border-left-color:#0a7a0a}
+  .charts{display:flex;gap:18px}
+  .chart{flex:1}
+  .chart .t{font-size:13px;font-weight:600;margin:0 0 4px}
+  svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+</style><div id="card"><h1>Linux delegated cgroup v2: the path the PR could not run</h1><p class="sub">colima arm64 VM, privileged container with a private cgroup namespace, <code>QWEN_MANAGED_HOOK_CGROUP_ROOT=/sys/fs/cgroup/hooks</code> (type <code>domain</code>, <code>cgroup.kill</code> present). Conditional unit tests plus the full Hosted stack.</p><table class=""><tr><th>Check</th><th>result</th></tr><tr><td>core <code>hook-runner-managed-process.test.ts</code> (5 Linux-only cases)</td><td class="ok">✔ 9 passed (9)</td></tr><tr><td>cli <code>managed-hook-runtime.test.ts</code> (4 Linux-only cases)</td><td class="ok">✔ 19 passed (19)</td></tr><tr><td>stack: PreToolUse command runs in <code>/hooks/qwen-hook-&lt;uuid&gt;</code>, context reaches the model</td><td class="ok">✔ cgroup=0::/hooks/qwen-hook-c959c1c2-7c3d-44a2-8d15-58af676c4e2c</td></tr><tr><td>stack: <code>setsid … sleep 300 &amp;</code> left by a UserPromptSubmit hook</td><td class="ok">✔ descendant killed with the unit; no unit left behind</td></tr><tr><td>… its receipt</td><td class="warn">▲ settled: outcome timeout after ~4.9 s, success=false — the hook printed valid JSON and exited at once; legacy runner would return success</td></tr><tr><td>stack: cancel a command whose child ignores SIGTERM</td><td class="ok">✔ settled=cancelled/"settled" 2268ms</td></tr><tr><td>stack: command PreToolUse deny</td><td class="ok">✔ write prevented (model sees “No reason provided”, F5)</td></tr><tr><td>bot claim 1 at <code>afe83cd828</code>: recipe <code>env</code> on the launcher argv</td><td class="bad">✘ uid 65534 reads ,"RIG_SECRET":"RIG-ARGV-SECRET-4411"} from /proc/1270/cmdline (owner root); /proc/…/environ: permission denied</td></tr><tr><td>at <code>99db6e527e</code> (argv fix): same stack probe</td><td class="ok">✔ 7/7 — launcher pid=5607 readAsNobody=[] environAsNobody=denied hookSawSecret=true</td></tr><tr><td>at <code>99db6e527e</code>: core cgroup + launcher tests on Linux</td><td class="ok">✔ 11 passed (11)</td></tr></table></div>

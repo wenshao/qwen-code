@@ -1,0 +1,95 @@
+=== s2b-lease.mjs ws-t1 a yes SIGTERM 22:47:04
+NOTE  lease before  -> <no row>
+PASS  A (hooks=yes) turn 1 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3426ms
+NOTE  lease holder while A is attached and idle  -> hooks-e4c6a8a6-3ea4-4180-9f49-22f22e4f6254
+FAIL  B (no hooks, same Workspace) completes a tool turn while A is attached+idle  -> admit=202 terminal=turn_error[{"sessionId":"c2dbe8a3-b867-415f-8cad-d1a371ce0527","promptId":"132ee094-5830-42b3-8fbf-93a6cd6aa5df","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 1163ms
+NOTE  lease after B  -> hooks-e4c6a8a6-3ea4-4180-9f49-22f22e4f6254
+PASS  A turn 2 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2108ms
+NOTE  Harness stopped with SIGTERM  -> lease=hooks-e4c6a8a6-3ea4-4180-9f49-22f22e4f6254
+NOTE  load retried until writer lease lapsed  -> 52s
+PASS  new Harness loads A  -> status=200  lease=hooks-e4c6a8a6-3ea4-4180-9f49-22f22e4f6254
+FAIL  A turn after cold load completes  -> admit=202 terminal=turn_error[{"sessionId":"3a166699-ebf8-4531-82d0-222d3bda7e6f","promptId":"fa767bcd-070a-42da-a02d-c066db9c1688","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 1076ms lease=hooks-e4c6a8a6-3ea4-4180-9f49-22f22e4f6254
+NOTE  A detached on the new Harness  -> status=204  lease=hooks-e4c6a8a6-3ea4-4180-9f49-22f22e4f6254
+FAIL  a fresh no-hook Session in the Workspace completes a tool turn after A was detached  -> admit=202 terminal=turn_error[{"sessionId":"4fb4aeb2-363c-4208-9d8b-5215bd0eb006","promptId":"7142dbac-c4ec-45da-b5dd-ba739bda35a8","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 979ms lease=hooks-e4c6a8a6-3ea4-4180-9f49-
+NOTE  final lease  -> hooks-e4c6a8a6-3ea4-4180-9f49-22f22e4f6254
+== RESULT s2b-lease-head-ws-t1-yes-SIGTERM: 3 passed, 3 failed
+=== s2b-lease.mjs ws-base2 m no SIGTERM 22:48:13
+NOTE  lease before  -> <no row>
+PASS  A (hooks=no) turn 1 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1314ms
+NOTE  lease holder while A is attached and idle  -> <free>
+PASS  B (no hooks, same Workspace) completes a tool turn while A is attached+idle  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1155ms
+NOTE  lease after B  -> <free>
+PASS  A turn 2 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 544ms
+NOTE  Harness stopped with SIGTERM  -> lease=<free>
+NOTE  load retried until writer lease lapsed  -> 55s
+PASS  new Harness loads A  -> status=200  lease=<free>
+PASS  A turn after cold load completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1773ms lease=<free>
+NOTE  A detached on the new Harness  -> status=204  lease=<free>
+PASS  a fresh no-hook Session in the Workspace completes a tool turn after A was detached  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1272ms lease=<free>
+NOTE  final lease  -> <free>
+== RESULT s2b-lease-head-ws-base2-no-SIGTERM: 6 passed, 0 failed
+=== s2c-after.mjs ws-t1:a ws-base2:m 22:49:21
+FAIL  ws-t1: fresh no-hook Session tool turn  -> admit=202 terminal=turn_error[{"sessionId":"b5387229-316d-4219-a3fd-38357ede3ee6","promptId":"6a60af54-2fb1-4534-bb44-1bde89ca08ce","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 1204ms lease=hooks-e4c6a8a6-3ea4-4180-9f49-22f22e4f6254
+PASS  ws-base2: fresh no-hook Session tool turn  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1384ms lease=<free>
+== RESULT s2c-after-lx: 1 passed, 1 failed
+=== s1-permission.mjs 22:49:27
+NOTE  rig repair of an earlier F1 leak  -> hooks-e4c6a8a6-3ea4-4180-9f49-22f22e4f6254 owner=3a166699-ebf8-4531-82d0-222d3bda7e6f -> 200
+PASS  create default-approval Session with catalog  -> status=200 approvalMode=default
+PASS  1a turn completes, no human Action (PermissionRequest Hook allowed)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 984ms asked=[] file=P1
+PASS  1a PermissionRequest Hook ran before PreToolUse  -> start > ups > perm(plain.txt) > pre(plain.txt) > post(plain.txt) > batch > stop > display
+PASS  1a before-Hook context reaches the model only after the tool result  -> requests=[tools=0 ] [tools=1 PRE-CTX:plain.txt,POST-CTX:plain.txt,BATCH-CTX]
+FAIL  1b PreToolUse deny: file not written, refusal reaches model, no PostToolUse for the refused call  -> ups > perm(blocked.txt) > pre(blocked.txt) > batch > stop > display | result write_file: "No reason provided"
+PASS  1c rewritten args need a fresh approval; only the approved replacement is written  -> asked=["allow->200"] rewrite-a=null rewritten-a=REWRITTEN-BY-HOOK order=ups > perm(rewrite-a.txt) > pre(rewrite-a.txt) > post(rewritten-a.txt) > batch > stop > display
+PASS  1c' denying the fresh approval writes neither path  -> asked=["deny->200"] result write_file: "The Session owner denied this tool call, so it was not run."
+PASS  1d PermissionRequest Hook deny: not written, PreToolUse not run  -> ups > perm(permdeny.txt) > batch > stop > display | result write_file: "PermissionRequest Hook denied the call."
+NOTE  detach default Session before the yolo Session  -> 204
+PASS  1e yolo + PreToolUse ask -> Action requested; allow -> written; no PermissionRequest Hook in yolo  -> asked=["allow->200"] order=start > ups > pre(ask-y.txt) > post(ask-y.txt) > batch > stop > display
+PASS  1e' yolo + ask, deny -> not written  -> asked=["deny->200"]
+PASS  load again on the same Harness  -> {"load":200}
+PASS  after reload: PRE-CTX/POST-CTX of 1a appear exactly once in history  -> pre=1 post=1 batch=5
+NOTE  cold load waited for the old writer lease  -> 64s
+PASS  cold load on a new Harness (catalog pin omitted -> restored)  -> status=200 {"sessionId":"b30bcc5e-0afd-446d-a6a2-169d544b15fd","clientId":"baa8e39c-f1c0-4c49-a30c-cbcf69538879","workspaceCwd":"/var/rig-run/lx/harness-s1b","lastEventId"
+NOTE  first prompt after cold load  -> admit=202 terminal=turn_error[{"sessionId":"b30bcc5e-0afd-446d-a6a2-169d544b15fd","promptId":"5433a4d8-e5c3-416d-afe9-4ff83ed82f90","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 29ms
+NOTE  F1 hit: rig repair, detach+load, retry  -> hooks-02bf2d6d-3356-4492-8771-4c1ae20d0d32 owner=b30bcc5e-0afd-446d-a6a2-169d544b15fd -> 200
+PASS  after cold load: contexts still exactly once; SessionStart not re-run  -> pre=1 post=1 hooks-after=ups > stop > display admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 19ms catalog=undefined@undefined
+PASS  load with a different catalog pin is refused  -> status=409 hosted_tool_profile_conflict
+== RESULT s1-permission: 14 passed, 1 failed
+=== s3-catalog.mjs 22:51:39
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  P1 on rev1: h-a (rev1) runs, once Hook attempted and fails, turn still completes (fail-open)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1952ms hooks=once,rev1
+PASS  register rev2 with expectedRevision=1  -> 200 {"operationId":"5cb57809-0b38-48f1-baed-40c58e67f3a9","registered":true}
+PASS  retrying the same registration operation is idempotent  -> 200 {"operationId":"5cb57809-0b38-48f1-baed-40c58e67f3a9","registered":true}
+PASS  registering the older revision under a new operation is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  expectedRevision mismatch is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  a catalog revision the Runtime does not have is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  GET hooks reports rev2 without h-a  -> rev=2 hooks=h-b,h-once
+PASS  public hook-catalog reports rev2  -> 200 {"object":"agent.hook_catalog","session_id":"dafdaf42-4fc2-4dd7-b645-a48fc6384920","catalogs":[{"catalog_id":"cat-t2","catalog_revision":2,"hooks":[{"hook_id":"h-b","event_name":"PreToolUse","type":"function","sequential":false,"async":false,"fail_closed":false,"once":false,"matcher":"write_file"},{
+PASS  P2 on rev2: h-b runs, h-a does not, failed once Hook is not retried  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 967ms hooks=rev2
+PASS  earlier executions stay bound to rev1, later ones to rev2  -> registrations=1@seq2,2@seq51
+PASS  status/cancel/status of the failed once execution dispatch no new effect  -> status=200 settled/"settled" cancel=200 settled after=settled newLedger=0
+PASS  after detach + new Harness: rev2 still effective, once still consumed  -> load=200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1993ms hooks=rev2
+PASS  fresh Session: successful once Hook runs exactly once over three turns  -> once=1
+== RESULT s3-catalog-head: 13 passed, 0 failed
+=== s4-prompt.mjs 22:51:59
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  Notification operation outside a turn: 200 with aggregated prompt + function context  -> 200 {"operationId":"81840463-9f3c-48f3-9781-877f23e77650","output":{"continue":true,"decision":"allow","hookSpecificOutput":{"hookEventName":"Notification","additionalContext":"PROMPT-NOTIFY-CTX\nNOTIFY-CTX"}}}
+PASS  exactly one model request, flagged as the prompt Hook  -> requests=1 promptHook=true
+PASS  no user turn / prompt events were created by the operation  -> new events=managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_
+NOTE  status after operation  -> {"sessionId":"5b10003c-bf2f-4908-ab58-bb0ec2c86c57","hasActivePrompt":false,"recoveryBlocked":false}
+PASS  same operationId + same input replays the saved result, no new model request  -> 200 newModel=0
+PASS  same operationId + different input is refused  -> 503 {"error":"hosted_hook_operation_failed","code":"hosted_hook_operation_failed"}
+PASS  a user prompt is refused while a prompt Hook operation owns the model  -> prompt during op -> 409 hosted_mcp_operation_active; op -> 200
+PASS  a Hook operation is refused while a user turn is active  -> turn=202 op during turn -> 409 hosted_turn_active
+PASS  in-turn prompt Hook (UserPromptSubmit) adds its context to the main model request  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 431ms hookReqs=1
+NOTE  Store resource kinds for the Session  -> managed-activation-boundary=8 managed-activation-install=9 managed-admission=2 managed-checkpoint=3 managed-definition=1 managed-hook-catalog=1 managed-hook-input=15 managed-hook-messages=2 managed-hook-model-route=4 managed-hook-model-usage=4 managed-hook-plan=9 managed-hook-result=15 managed-hook_execution=45 
+PASS  detach emits neither SessionEnd nor SessionDelete  -> detach=204 lifecycle=<none>
+PASS  DELETE runs SessionEnd then SessionDelete, once each  -> delete=204 lifecycle:SessionEnd,lifecycle:SessionDelete
+== RESULT s4-prompt-head: 10 passed, 0 failed
+=== s5b-lost.mjs ws-t4b ws-t9b 22:52:12
+PASS  (c) partial response body: received once, stays unknown, blocks new work  -> op=503 child=recovery_blocked/"outcome_unknown" status=recovery_blocked physical=1
+NOTE  (d) operation with the dispatch acknowledgement dropped  -> 200 {"operationId":"fff81793-1bd6-4b43-972e-58a8fbd76dd8","output":{"continue":true}} dropped=1
+PASS  (d) cold reload reconciles: settled, ONE physical call, ONE success callback  -> load=200 state=settled calls=1 callbacks=1 lease=hooks-d77e4e08-803d-4b0c-aa4b-bae2a953d1e3
+FAIL  (d) the reconciled Session then runs a normal tool turn  -> admit=202 terminal=turn_error[{"sessionId":"d39a181d-65fc-408d-8143-9ff7997754d6","promptId":"6e2e392c-d56f-4b6e-acf7-12d1353b4efd","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 1216ms lease=hooks-d77e4e08-803d-4b0c-aa4b-bae2a953d1e3
+NOTE  (d) workaround: detach + load on the same Harness, then a tool turn  -> detach=204 load=200 admit=202 terminal=turn_error[{"sessionId":"d39a181d-65fc-408d-8143-9ff7997754d6","promptId":"b5e91656-e865-4512-a6bb-57dfcaa4bd57","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 96ms lease=hooks-d77e4e08-803d-4b0c-aa
+== RESULT s5b-lost-head-ws-t9b: 2 passed, 1 failed
+=== ALL-DONE 22:53:24

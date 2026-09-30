@@ -1,0 +1,82 @@
+{
+  "name": "s5-lost-head",
+  "pass": 7,
+  "fail": 2,
+  "rows": [
+    {
+      "label": "rig repair",
+      "note": true,
+      "detail": "null"
+    },
+    {
+      "label": "(a) HTTP 500 is a received failure: operation settles, Session stays usable",
+      "ok": true,
+      "detail": "op=200 {\"operationId\":\"e4eb3b79-76a5-40cb-a55c-1f67148e244d\",\"output\":{\"continue\":true}} requests=1"
+    },
+    {
+      "label": "(b) dropped HTTP reply: operation does not report success",
+      "ok": true,
+      "detail": "op=503 {\"error\":\"hosted_hook_operation_failed\",\"code\":\"hosted_hook_operation_failed\"} child=recovery_blocked/\"outcome_unknown\""
+    },
+    {
+      "label": "(b) repeated status queries keep it unknown with ONE physical request",
+      "ok": true,
+      "detail": "polls=200:recovery_blocked/\"outcome_unknown\" 200:recovery_blocked/\"outcome_unknown\" 200:recovery_blocked/\"outcome_unknown\" physical=1"
+    },
+    {
+      "label": "(b) new work is blocked",
+      "ok": true,
+      "detail": "prompt -> 409 hosted_turn_recovery_required"
+    },
+    {
+      "label": "(b) cancel of the unknown execution",
+      "note": true,
+      "detail": "200 recovery_blocked"
+    },
+    {
+      "label": "(b) detach with an unknown Hook outcome",
+      "note": true,
+      "detail": "503 managed_session_close_failed; lease=hooks-b4354128-1a3f-47c7-aead-75528671abc3"
+    },
+    {
+      "label": "(b) another no-hook Session in the same Workspace can still run a tool turn",
+      "ok": false,
+      "detail": "admit=202 terminal=turn_error[{\"sessionId\":\"842dcf3f-ed27-47e2-8920-f3328431b721\",\"promptId\":\"4f7f7a0d-1e9d-46f6-b821-f48387075110\",\"code\":\"hosted_turn_failed\",\"message\":\"Hosted Harness turn failed.\"}] recoveryBlocked=false 440ms lease=hooks-b4354128-1a3f-47c7-aead-75528671abc3"
+    },
+    {
+      "label": "(b) after a cold reload: still unknown, still blocked, still ONE physical request",
+      "ok": true,
+      "detail": "load=200 status=200:recovery_blocked prompt=409 hosted_turn_recovery_required physical=1"
+    },
+    {
+      "label": "(c) partial response body stays unknown (not settled)",
+      "ok": true,
+      "detail": "op=503 {\"error\":\"hosted_hook_operation_failed\",\"code\":\"hosted_hook_operation_failed\"} child=undefined/undefined physical=0"
+    },
+    {
+      "label": "rig repair",
+      "note": true,
+      "detail": "null"
+    },
+    {
+      "label": "(d) operation with the dispatch acknowledgement dropped",
+      "note": true,
+      "detail": "200 {\"operationId\":\"6ad9d4b1-918f-4636-862f-93975f906b7e\",\"output\":{\"continue\":true}} droppedReplies=1"
+    },
+    {
+      "label": "(d) cold reload reconciles with the original owner: settled, ONE physical call, ONE success callback",
+      "ok": true,
+      "detail": "load=200 status=200:settled/\"settled\" replay=200 calls=1 callbacks=1"
+    },
+    {
+      "label": "(d) the Session then runs a normal tool turn",
+      "ok": false,
+      "detail": "admit=202 terminal=turn_error[{\"sessionId\":\"cb52ec41-55d5-41f6-8d6b-38966bfb1585\",\"promptId\":\"91f2a843-c76b-4ca4-9c6e-6357272edc48\",\"code\":\"hosted_turn_failed\",\"message\":\"Hosted Harness turn failed.\"}] recoveryBlocked=false 386ms"
+    },
+    {
+      "label": "(d) Broker ledger",
+      "note": true,
+      "detail": "hook-catalog->200 hook-execute->200 hook-status->200 hook-execute->200 hook-status->200 hook-status->200 hook-status->200 hook-status->200 hook-cancel->200 hook-cancel->200 hook-cancel->200 hook-cancel->200 hook-cancel->200 hook-catalog->200 hook-execute->200-reply-dropped hook-status->200"
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+diff --git a/packages/cli/src/serve/hosted-hook-session.test.ts b/packages/cli/src/serve/hosted-hook-session.test.ts
+index e20009f5e7..690321a143 100644
+--- a/packages/cli/src/serve/hosted-hook-session.test.ts
++++ b/packages/cli/src/serve/hosted-hook-session.test.ts
+@@ -1049,6 +1049,52 @@ it('releases its broker when a tool turn acquired it after catalog restoration',
+   expect(release.mock.instances[0]).toBe(replacement.broker);
+ });
+ 
++it('releases a settled earlier hook Runtime Session when a replacement becomes ready', async () => {
++  await hooks.fire(HookEventName.PreToolUse, 'call-1', {}, signal());
++  const owner = hooks.broker.runtimeSessionId;
++  // A replaced Harness never closed `hooks`; its Runtime Session still holds the Workspace lease.
++  const replacement = new HostedHookSession(options, session, pin);
++  expect(replacement.broker.runtimeSessionId).not.toBe(owner);
++  const release = vi.spyOn(HostedWorkspaceBroker.prototype, 'release');
++  release.mockClear();
++  await replacement.ensureReady();
++  expect(release).toHaveBeenCalledOnce();
++  expect(release.mock.instances[0]).toMatchObject({ runtimeSessionId: owner });
++  await replacement.fire(HookEventName.PreToolUse, 'call-2', {}, signal());
++  expect(
++    requests.filter((request) => request.kind === 'hook-execute'),
++  ).toHaveLength(2);
++});
++
++it('keeps an earlier hook Runtime Session with unresolved work for original-owner recovery', async () => {
++  const originalCommit = session.authority.commitExtensionRecord.bind(
++    session.authority,
++  );
++  const commit = vi
++    .spyOn(session.authority, 'commitExtensionRecord')
++    .mockImplementation(async (command, request, actor) => {
++      const record = request.record as {
++        hookId?: string;
++        run: { execution: string };
++      };
++      if (
++        record.hookId === 'before' &&
++        record.run.execution === 'dispatch_started'
++      )
++        throw new Error('crash before dispatch');
++      return originalCommit(command, request, actor);
++    });
++  await expect(
++    hooks.fire(HookEventName.PreToolUse, 'call-1', {}, signal()),
++  ).rejects.toThrow('crash before dispatch');
++  commit.mockRestore();
++  const replacement = new HostedHookSession(options, session, pin);
++  const release = vi.spyOn(HostedWorkspaceBroker.prototype, 'release');
++  release.mockClear();
++  await replacement.ensureReady();
++  expect(release).not.toHaveBeenCalled();
++});
++
+ it('leaves a shared MCP broker for its owner to release', async () => {
+   const shared = new HostedWorkspaceBroker(
+     options,
+diff --git a/packages/cli/src/serve/hosted-hook-session.ts b/packages/cli/src/serve/hosted-hook-session.ts
+index fd291f53a3..ef77697071 100644
+--- a/packages/cli/src/serve/hosted-hook-session.ts
++++ b/packages/cli/src/serve/hosted-hook-session.ts
+@@ -243,6 +243,7 @@ export class HostedHookSession {
+ 
+   async ensureReady(signal?: AbortSignal): Promise<void> {
+     if (this.catalog) return;
++    await this.releaseEarlierOwners();
+     const registrations =
+       this.session.authority.extensionRecordsInDomain('hook_registration');
+     const latest = registrations.at(-1);
+@@ -1140,6 +1141,33 @@ export class HostedHookSession {
+       .map((entry) => parseHookExecution(entry.record));
+   }
+ 
++  // A replaced Harness never released the hook Runtime Session it acquired,
++  // and that Session still holds the Workspace execution lease. Release each
++  // earlier owner whose executions are all settled; an owner with unresolved
++  // work stays held for original-owner recovery. Release is idempotent.
++  private async releaseEarlierOwners(): Promise<void> {
++    if (!this.ownsBroker) return;
++    const settled = new Map<string, boolean>();
++    for (const record of this.executions()) {
++      if (record.runtimeSessionId === this.broker.runtimeSessionId) continue;
++      const done =
++        record.resultRef !== null ||
++        record.run.execution === 'not_started_proven';
++      settled.set(
++        record.runtimeSessionId,
++        (settled.get(record.runtimeSessionId) ?? true) && done,
++      );
++    }
++    for (const [runtimeSessionId, done] of settled) {
++      if (!done || this.recoveredBrokers.has(runtimeSessionId)) continue;
++      await new HostedWorkspaceBroker(
++        this.options,
++        this.key,
++        runtimeSessionId,
++      ).release();
++    }
++  }
++
+   async status(id: string, cancel = false): Promise<HookExecution> {
+     const direct = this.session.authority.extensionRecord('hook_execution', id);
+     const matches = direct
