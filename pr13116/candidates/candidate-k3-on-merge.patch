@@ -1,0 +1,29 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+index 165b791f5b..d92e7706a9 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+@@ -29,7 +29,7 @@ class ManagedAgentPropertiesTest {
+                 .run(started -> assertThat(started).hasFailed()
+                         .getFailure().hasRootCauseInstanceOf(IllegalStateException.class)
+                         .hasRootCauseMessage("Hosted Workspace files require"
+-                                + " a preapproved Harness, Session Store and Session-isolated"
++                                + " a supported Harness, Session Store and Session-isolated"
+                                 + " local-process Broker with Workspace mounts"));
+     }
+ 
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+index 387fbfa7a1..9c0a3ec1bf 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+@@ -86,9 +86,9 @@ class QwenHostedHarnessConnectorTest {
+                     assertThat(error.getCode()).isEqualTo("workspace_unavailable");
+                     assertThat(error.isRetryable()).isFalse();
+                 });
+-        verify(execution, times(2)).authorize(session);
++        verify(execution, times(4)).authorize(session);
+ 
+-        QwenHostedHarnessConnector cold = new QwenHostedHarnessConnector(properties, sessions, execution);
++        QwenHostedHarnessConnector cold = new QwenHostedHarnessConnector(properties, sessions, execution, actions);
+         ReflectionTestUtils.setField(cold, "client", client);
+         clearInvocations(client);
+         assertThatThrownBy(() -> cold.createOrLoad("tenant-a", SESSION_ID, true))
