@@ -1,0 +1,43 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedPublicWorkspaceIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedPublicWorkspaceIT.java
+index 1598358a6c..f201d1e129 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedPublicWorkspaceIT.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedPublicWorkspaceIT.java
+@@ -229,6 +229,17 @@ class HostedPublicWorkspaceIT {
+                     "reader", 409).path("error").path("code").asText()).isEqualTo("workspace_unavailable");
+             assertThat(request("PATCH", "/v1/agents/sessions/" + session, rename, "rename-" + workspace,
+                     "actor", 200).path("metadata").path("title").asText()).isEqualTo("Renamed " + workspace);
++
++            // The creator rule does not replace the read grant: a creator who lost it gets 404 like
++            // any other caller without access.
++            jdbc.update("UPDATE managed_workspace_access SET can_read = FALSE WHERE tenant_id = ?"
++                    + " AND workspace_id = ? AND actor_id = ?", tenant, workspace,
++                    "actor".getBytes(StandardCharsets.UTF_8));
++            request("POST", "/v1/agents/sessions/" + session + "/events", later, "unread-" + workspace,
++                    "actor", 404);
++            jdbc.update("UPDATE managed_workspace_access SET can_read = TRUE WHERE tenant_id = ?"
++                    + " AND workspace_id = ? AND actor_id = ?", tenant, workspace,
++                    "actor".getBytes(StandardCharsets.UTF_8));
+         }
+         assertThat(modelRequests).hasSize(approvals ? 8 : 18);
+         assertThat(modelFailure.get()).isNull();
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java
+index 82b463b4df..5705378e59 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedWorkspaceAdmissionTest.java
+@@ -566,6 +566,16 @@ class ManagedWorkspaceAdmissionTest {
+                         + " managed_agent_turn WHERE tenant_id = ?"
+                         + " AND session_id = ?",
+                 Integer.class, tenant, sessionId)).isEqualTo(1);
++
++        // Under the opt-in the store admits RENAME of a bound Session only;
++        // UNARCHIVE keeps the Workspace refusal.
++        assertThatThrownBy(() -> transaction.execute(status ->
++                gated.beginSessionMutation(tenant, "UNARCHIVE_SESSION",
++                        "unarchive", digest, sessionId,
++                        SessionMutationKind.UNARCHIVE)))
++                .isInstanceOfSatisfying(ApiException.class, error ->
++                        assertThat(error.getCode())
++                                .isEqualTo("workspace_unavailable"));
+     }
+ 
+     @Test
