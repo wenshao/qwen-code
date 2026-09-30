@@ -1,6 +1,6 @@
 // S25b (round 8): MCP operations the Broker refuses before forwarding.
-//   value  prompt_get arguments.topic = "a\uD800b"      (R4-3 guard)
-//   key    prompt_get arguments key  "top\uDC00ic"      (R4-3 guard)
+//   value  prompt_get arguments.topic = "a\uD800b"      (R4-9 guard)
+//   key    prompt_get arguments key  "top\uDC00ic"      (R4-9 guard)
 //   big    prompt_get arguments.topic of 300 KiB        (R4-8, 256 KiB limit)
 //   S25_CASE=value|key|big ; control first: a well-formed astral character.
 // Then: can the Session be recovered (cancel, detach, reload in a new Harness)?
