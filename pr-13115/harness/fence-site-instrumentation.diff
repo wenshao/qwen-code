@@ -1,0 +1,44 @@
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -3347,9 +3347,41 @@
+ 
+     private static RuntimeBrokerException unavailable(String code,
+             String message) {
++        if ("runtime_provision_fenced".equals(code)) {
++            censusFence();
++        }
+         return new RuntimeBrokerException(503, code, message, true);
+     }
+ 
++    /** Verification-only: records where a fence was raised. */
++    private static void censusFence() {
++        String file = System.getenv("CENSUS_FENCE_LOG");
++        if (file == null) {
++            return;
++        }
++        StringBuilder line = new StringBuilder();
++        line.append(System.currentTimeMillis()).append('\t')
++                .append(ProcessHandle.current().pid()).append('\t')
++                .append(Thread.currentThread().getName());
++        for (StackTraceElement frame : new Throwable().getStackTrace()) {
++            if (frame.getClassName().startsWith("com.alibaba")
++                    && !frame.getMethodName().startsWith("censusFence")
++                    && !frame.getMethodName().equals("unavailable")) {
++                line.append('\t').append(frame.getMethodName()).append(':')
++                        .append(frame.getLineNumber());
++            }
++        }
++        line.append('\n');
++        try {
++            java.nio.file.Files.writeString(java.nio.file.Path.of(file),
++                    line.toString(), java.nio.charset.StandardCharsets.UTF_8,
++                    java.nio.file.StandardOpenOption.CREATE,
++                    java.nio.file.StandardOpenOption.APPEND);
++        } catch (java.io.IOException ignored) {
++            // best effort
++        }
++    }
++
+     private static RuntimeBrokerException unavailable(String code,
+             String message, Throwable cause) {
+         return new RuntimeBrokerException(503, code, message, true, cause);

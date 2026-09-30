@@ -1,0 +1,15 @@
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -2032,8 +2032,11 @@
+ 
+     private CompletionStage<RuntimeBindingRecord> cleanupLost(RuntimeBindingRecord claimed) {
+         return safeStage(() -> {
++            // The claim may be inherited from the reconcile loop's handoff
++            // (claimOperation does not extend a live same-owner claim), so
++            // renew before the first transaction of the cleanup.
+             RuntimeBindingRecord recovered = bindingRepository.recoverLost(
+-                    sessionRepository, executionRepository, claimed);
++                    sessionRepository, executionRepository, renewRecoveryClaim(claimed));
+             if (recovered == null) {
+                 return failed(unavailable("runtime_provision_fenced", "Runtime recovery claim expired"));
+             }

@@ -1,0 +1,88 @@
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java
+@@ -184,6 +184,10 @@
+     BrokerProcess broker(String name, FaultProxy proxy,
+             Provisioner provisioner, TcpRelay relay, Duration requestTimeout)
+             throws Exception {
++        if (relay == null && Long.getLong("census.jdbcDelayMs", 0) > 0) {
++            // verification-only: every Broker's JDBC goes through a delaying relay
++            relay = databaseRelay();
++        }
+         Map<String, Object> scopeConfig = new LinkedHashMap<>();
+         scopeConfig.put("tenantId", scope.getTenantId());
+         scopeConfig.put("workspaceId", scope.getWorkspaceId());
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/FaultGateRig.java
+@@ -374,11 +374,31 @@
+         return new RuntimeSession(HARNESS, SESSION, "bootstrap", scope);
+     }
+ 
++    /** Verification census: appends every value await() sees. */
++    static void census(String what, String verdict, Object value) {
++        String file = System.getProperty("census.file");
++        if (file == null) {
++            return;
++        }
++        String line = System.currentTimeMillis() + "\t"
++                + System.getProperty("census.iter", "?") + "\t" + what + "\t"
++                + verdict + "\t" + String.valueOf(value).replace('\n', ' ') + "\n";
++        try {
++            java.nio.file.Files.writeString(Path.of(file), line,
++                    StandardCharsets.UTF_8,
++                    java.nio.file.StandardOpenOption.CREATE,
++                    java.nio.file.StandardOpenOption.APPEND);
++        } catch (java.io.IOException ignored) {
++            // census is best-effort
++        }
++    }
++
+     static <T> T await(Supplier<T> probe, Predicate<T> done, String what)
+             throws InterruptedException {
+         long deadline = System.nanoTime() + WAIT.toNanos();
+         T value = probe.get();
+         while (!done.test(value)) {
++            census(what, "REJECT", value);
+             if (System.nanoTime() > deadline) {
+                 throw new AssertionError("timed out waiting for " + what
+                         + "; last value: " + value);
+@@ -386,6 +406,7 @@
+             Thread.sleep(50);
+             value = probe.get();
+         }
++        census(what, "ACCEPT", value);
+         return value;
+     }
+ 
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/TcpRelay.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/TcpRelay.java
+@@ -88,12 +88,12 @@
+             open.add(client);
+             open.add(upstream);
+             AtomicInteger directions = new AtomicInteger(2);
+-            pump(client, upstream, directions);
+-            pump(upstream, client, directions);
++            pump(client, upstream, directions, 0);
++            pump(upstream, client, directions, Long.getLong("census.jdbcDelayMs", 0));
+         }
+     }
+ 
+-    private void pump(Socket from, Socket to, AtomicInteger directions) {
++    private void pump(Socket from, Socket to, AtomicInteger directions, long delayMs) {
+         Thread thread = new Thread(() -> {
+             byte[] buffer = new byte[16 * 1024];
+             try {
+@@ -101,6 +101,14 @@
+                 OutputStream output = to.getOutputStream();
+                 int read;
+                 while ((read = input.read(buffer)) >= 0) {
++                    if (delayMs > 0) {
++                        try {
++                            Thread.sleep(delayMs);
++                        } catch (InterruptedException interrupted) {
++                            Thread.currentThread().interrupt();
++                            throw new IOException(interrupted);
++                        }
++                    }
+                     output.write(buffer, 0, read);
+                     output.flush();
+                 }

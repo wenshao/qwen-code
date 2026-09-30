@@ -1,0 +1,254 @@
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+@@ -4810,6 +4810,251 @@
+         }
+     }
+ 
++    // ---- verification probes (not part of the PR) ----
++
++    /** Test-supervisor provisioner whose reconcile/recoverResources are pluggable. */
++    private static RuntimeProvisioner probeProvisioner(
++            java.util.function.Supplier<CompletionStage<RuntimeObservation>> reconcile,
++            java.util.function.Function<RuntimeBindingRecord, CompletionStage<Void>> recover) {
++        return new RuntimeProvisioner() {
++            @Override
++            public String kind() {
++                return "test-supervisor";
++            }
++
++            @Override
++            public CompletionStage<RuntimeLease> provision(
++                    RuntimeProvisionRequest request) {
++                throw new AssertionError("must not reprovision");
++            }
++
++            @Override
++            public CompletionStage<RuntimeObservation> reconcile(
++                    RuntimeProvisionRequest request,
++                    RuntimeProvisionSeed seed, RuntimeResourceHandle handle,
++                    RuntimeLease lease) {
++                return reconcile == null
++                        ? RuntimeProvisioner.super.reconcile(request, seed, handle, lease)
++                        : reconcile.get();
++            }
++
++            @Override
++            public CompletionStage<Void> recoverResources(
++                    RuntimeBindingRecord binding) {
++                return recover == null
++                        ? CompletableFuture.completedFuture(null)
++                        : recover.apply(binding);
++            }
++
++            @Override
++            public boolean supportsStartupRecovery(
++                    RuntimeResourceHandle handle) {
++                return true;
++            }
++        };
++    }
++
++    /** Managed-context LOST binding with writers stopped; the only path that reaches recoverResources. */
++    private static RuntimeBindingRecord probeManagedLost(
++            RuntimeBindingRepository bindings,
++            RuntimeSessionRepository sessions, Clock clock, RuntimeScope scope) {
++        RuntimeProvisionRequest request = new RuntimeProvisionRequest(scope,
++                "harness-1", "test-supervisor", "storage-a");
++        RuntimeBindingRecord created = bindings.findOrCreate(request);
++        RuntimeBindingRecord claimed = bindings.claimOperation(
++                created.getBindingId(), "recovery", Duration.ofMinutes(5));
++        RuntimeProvisionSeed seed = claimed.getProvisionSeed();
++        RuntimeBindingRecord ready = bindings.compareAndSet(claimed,
++                claimed.withAttestation(
++                        new RuntimeLease(seed.getProvisionalRuntimeId(),
++                                URI.create("http://127.0.0.1:4190"),
++                                seed.getToken(), seed.getLeaseId(),
++                                seed.getEpoch()),
++                        new RuntimeResourceHandle("test-supervisor", 1,
++                                Map.of("resource", "m")),
++                        clock.instant(), clock.instant()));
++        RuntimeSessionRecord acquiring = bindings.admitSession(sessions,
++                new RuntimeSessionRecord(
++                        new RuntimeSession("harness-1", "runtime-1",
++                                "bootstrap", scope),
++                        ready.getBindingId(), ready.getGeneration(),
++                        RuntimeSessionRecord.State.ACQUIRING, 0,
++                        clock.instant()));
++        sessions.compareAndSet(acquiring, acquiring.withState(
++                RuntimeSessionRecord.State.READY, clock.instant()));
++        RuntimeBindingRecord lost = bindings.compareAndSet(ready,
++                ready.withRecoveryEvidence(
++                        RuntimeRecoveryContract.evidence(ready,
++                                RuntimeRecoveryEvidence.Fact.JOURNAL_LOST),
++                        RuntimeRecoveryContract.evidence(ready,
++                                RuntimeRecoveryEvidence.Fact.WRITERS_STOPPED),
++                        clock.instant()));
++        bindings.releaseOperation(lost.getBindingId(), "recovery",
++                lost.getOperationGeneration());
++        return lost;
++    }
++
++    private static RuntimeScope probeScope(String id) {
++        return new RuntimeScope("tenant-" + id, "workspace-" + id, "1",
++                "/workspace", WorkspaceExecutionProfile.CAPABILITY_DIGEST,
++                "session");
++    }
++
++    /**
++     * m15: recoverBinding must renew (not re-read) after a slow observation.
++     * The reconcile burns 1.2s of the 2s claim, then the first recoverLost
++     * of the cleanup burns another 1.2s.
++     */
++    @Test
++    void probeRecoverBindingRenewsAfterASlowObservation() {
++        MutableClock clock = new MutableClock(START);
++        SlowRecoveryBindingRepository bindings =
++                new SlowRecoveryBindingRepository(clock, Duration.ofMillis(1200));
++        var sessions = new InMemoryRuntimeSessionRepository();
++        var executions = new InMemoryToolExecutionRepository(clock);
++        var fixture = new RuntimeRecoveryContract.Fixture(bindings, sessions,
++                executions, "probe-m15");
++        RuntimeBindingRecord ready = fixture.binding;
++        bindings.releaseOperation(ready.getBindingId(), "recovery",
++                ready.getOperationGeneration());
++        RuntimeProvisioner provisioner = probeProvisioner(() -> {
++            clock.advance(Duration.ofMillis(1200));
++            return CompletableFuture.completedFuture(RuntimeObservation.notFound(
++                    RuntimeRecoveryContract.evidence(ready,
++                            RuntimeRecoveryEvidence.Fact.JOURNAL_LOST),
++                    RuntimeRecoveryContract.evidence(ready,
++                            RuntimeRecoveryEvidence.Fact.WRITERS_STOPPED)));
++        }, null);
++        try (RuntimeBrokerService service = new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(
++                        ready.getRequest().getScope()),
++                provisioner, new FakeTransport(), bindings, sessions,
++                executions, "restarted", Duration.ofSeconds(2),
++                Duration.ofSeconds(2), clock, () -> "execution")) {
++            RuntimeBindingRecord recovered = join(service.recoverBinding(
++                    ready.getBindingId(), ready.getGeneration()));
++            assertEquals(RuntimeBindingRecord.State.RELEASED, recovered.getState());
++        }
++    }
++
++    /** Clock advances inside finishLostRecovery, like a slow final JDBC transaction. */
++    private static final class ProbeSlowFinishRepository
++            extends StaleBindingRepository {
++        private final MutableClock clock;
++
++        ProbeSlowFinishRepository(MutableClock clock) {
++            super(clock);
++            this.clock = clock;
++        }
++
++        @Override
++        public RuntimeBindingRecord finishLostRecovery(
++                RuntimeSessionRepository sessions,
++                ToolExecutionRepository executions,
++                RuntimeBindingRecord expected) {
++            clock.advance(Duration.ofMillis(1200));
++            return super.finishLostRecovery(sessions, executions, expected);
++        }
++    }
++
++    /**
++     * m08: the renew handed to finishLostRecovery. recoverResources burns
++     * 0.9s and the final transaction another 1.2s of the 2s claim.
++     */
++    @Test
++    void probeFinishLostRecoveryGetsARenewedClaim() {
++        MutableClock clock = new MutableClock(START);
++        ProbeSlowFinishRepository bindings = new ProbeSlowFinishRepository(clock);
++        var sessions = new InMemoryRuntimeSessionRepository();
++        var executions = new InMemoryToolExecutionRepository(clock);
++        RuntimeScope scope = probeScope("m08");
++        RuntimeBindingRecord lost = probeManagedLost(bindings, sessions, clock, scope);
++        AtomicInteger recovers = new AtomicInteger();
++        RuntimeProvisioner provisioner = probeProvisioner(null, binding -> {
++            recovers.incrementAndGet();
++            clock.advance(Duration.ofMillis(900));
++            return CompletableFuture.completedFuture(null);
++        });
++        try (RuntimeBrokerService service = new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(scope),
++                provisioner, new FakeTransport(), bindings, sessions,
++                executions, "restarted", Duration.ofSeconds(2),
++                Duration.ofSeconds(2), clock, () -> "execution")) {
++            RuntimeBindingRecord recovered = join(service.recoverBinding(
++                    lost.getBindingId(), lost.getGeneration()));
++            assertEquals(RuntimeBindingRecord.State.RELEASED, recovered.getState());
++            assertEquals(1, recovers.get());
++        }
++    }
++
++    /**
++     * m14: a healthy recoverBinding chain (two in-band observations of 1.6s
++     * each on a 3s lease) spans more than one lease of wall-clock time.
++     */
++    @Test
++    void probeRecoverBindingChainMaySpanMoreThanOneLease() throws Exception {
++        var bindings = new InMemoryRuntimeBindingRepository();
++        var sessions = new InMemoryRuntimeSessionRepository();
++        var executions = new InMemoryToolExecutionRepository();
++        var fixture = new RuntimeRecoveryContract.Fixture(bindings, sessions,
++                executions, "probe-m14");
++        RuntimeBindingRecord ready = fixture.binding;
++        bindings.releaseOperation(ready.getBindingId(), "recovery",
++                ready.getOperationGeneration());
++        AtomicInteger calls = new AtomicInteger();
++        RuntimeProvisioner provisioner = probeProvisioner(() -> {
++            boolean first = calls.incrementAndGet() == 1;
++            return CompletableFuture.supplyAsync(
++                    () -> RuntimeObservation.notFound(
++                            RuntimeRecoveryContract.evidence(ready,
++                                    RuntimeRecoveryEvidence.Fact.JOURNAL_LOST),
++                            first ? null : RuntimeRecoveryContract.evidence(ready,
++                                    RuntimeRecoveryEvidence.Fact.WRITERS_STOPPED)),
++                    CompletableFuture.delayedExecutor(1600, TimeUnit.MILLISECONDS));
++        }, null);
++        try (RuntimeBrokerService service = new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(
++                        ready.getRequest().getScope()),
++                provisioner, new FakeTransport(), bindings, sessions,
++                executions, "restarted", Duration.ofSeconds(3),
++                Duration.ofSeconds(3), Clock.systemUTC(), () -> "execution")) {
++            long start = System.nanoTime();
++            RuntimeBindingRecord recovered = service.recoverBinding(
++                    ready.getBindingId(), ready.getGeneration())
++                    .toCompletableFuture().get(15, TimeUnit.SECONDS);
++            long millis = (System.nanoTime() - start) / 1_000_000;
++            assertEquals(RuntimeBindingRecord.State.RELEASED, recovered.getState());
++            assertEquals(2, calls.get());
++            assertTrue(millis > 3000, "chain should outlast one lease: " + millis);
++        }
++    }
++
++    /** m18: a stalled recoverResources is cut by the step bound and named. */
++    @Test
++    void probeStalledResourceRecoveryIsNamed() {
++        var bindings = new InMemoryRuntimeBindingRepository();
++        var sessions = new InMemoryRuntimeSessionRepository();
++        var executions = new InMemoryToolExecutionRepository();
++        RuntimeScope scope = probeScope("m18");
++        RuntimeBindingRecord lost = probeManagedLost(bindings, sessions,
++                Clock.systemUTC(), scope);
++        RuntimeProvisioner provisioner = probeProvisioner(null,
++                binding -> new CompletableFuture<>());
++        try (RuntimeBrokerService service = new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(scope),
++                provisioner, new FakeTransport(), bindings, sessions,
++                executions, "restarted", Duration.ofMillis(1500),
++                Duration.ofMillis(1500), Clock.systemUTC(), () -> "execution")) {
++            RuntimeBrokerException timeout = assertTimeoutPreemptively(
++                    Duration.ofMillis(3000),
++                    () -> failure(service.recoverBinding(
++                            lost.getBindingId(), lost.getGeneration())));
++            assertEquals("runtime_broker_reconcile_timeout", timeout.getCode());
++            assertEquals(RuntimeBindingRecord.State.LOST,
++                    bindings.findById(lost.getBindingId()).getState());
++        }
++    }
++
+     private static class StaleBindingRepository
+             implements RuntimeBindingRepository {
+         private final InMemoryRuntimeBindingRepository delegate;
