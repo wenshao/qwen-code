@@ -1,0 +1,66 @@
+[
+ {
+  "file": "r9-01-fixes-ab-40b05a74.png",
+  "title": "Round 9 — 40b05a74: A/B of this head's fixes on the real stack",
+  "subtitle": "Old arm = 67c908ea build (bundle + Broker jar kept aside); new arm = 40b05a74; MySQL 8.4.11; Hosted Harness -> Java Broker/SQL -> Runtime worker -> real stdio / Streamable HTTP / SSE MCP servers.",
+  "lines": [
+   "## R4-9 (my round-8 trap): lone surrogate in a resource URI, prompt name, argument key or argument value",
+   "-- 67c908ea (value and key, round 8): Broker 400 -> outcome_unknown -> Session blocked, detach 503, lease held",
+   "++ 40b05a74: all four -> 400 invalid_mcp_operation, 0 Broker requests; next read settles, detach 204, lease 0",
+   "",
+   "## Refresh replacement cancelled (doudouOUC P1): the tool list really changes; the replacement's acquire is held",
+   "-- 67c908ea: turn cancelled at 2.0 s, but the replacement mcp-configure is still sent at 4.9 s",
+   "-- 67c908ea: a detach during the hold answers 204 (released before the acquisition finished)",
+   "++ 40b05a74: no configure after the cancel; detach during the hold 503 (not released); next turn OK",
+   "++ held after dispatch_started instead: the configure is sent once and not resent (both heads)",
+   "",
+   "## R5-1 + R5-4: explicit replacement admitted during a turn; the old stdio connection takes > 5 s to retire",
+   "-- 67c908ea: turn ends with no terminal event and stays blocked; replacement 503 (outcome_unknown); next prompt 409",
+   "++ 40b05a74: turn_error, not latched; replacement settles at 6.4 s; the next turn runs on the new server",
+   "",
+   "## R5-3: raw notifications named toString, __proto__, constructor, hasOwnProperty, valueOf",
+   "-- 67c908ea (toString, __proto__, hasOwnProperty): each triggers a replacement (config revision 1 -> 2 -> 3 -> 4)",
+   "++ 40b05a74: ignored; no configuration, catalog unchanged",
+   "",
+   "## Approval path from main: allow at 310 s, after the 300 s MCP grant lease",
+   "++ the tool runs once with the original arguments, end_turn, no Broker errors, detach 204 (2 s control: same)",
+   "",
+   "## Mutants on this head's changes: 9 of 10 killed; K2 survives (the same check repeats after dispatch)"
+  ],
+  "notes": [
+   {
+    "tone": "green",
+    "text": "The R4-9 trap, the refresh-cancellation P1, R5-1, R5-3 and the R5-4 configuration path are fixed on the real stack, each against the previous head."
+   }
+  ]
+ },
+ {
+  "file": "r9-02-release-flyway-regression.png",
+  "title": "Round 9 — release paths that still never finish, Flyway and regression",
+  "subtitle": "Same rig and arms. A stuck release keeps the Session undetachable and the Workspace lease held.",
+  "lines": [
+   "## R5-2, Session with one pinned server: the first mcp-release never reaches the Runtime (Broker proxy 503)",
+   "!! detach 1: 503. detach 2: Broker tool-session release 409 \"still owns unfinished work\"",
+   "!!    then status and acquire 409 runtime_session_not_ready; the release is never re-sent; lease held (both heads)",
+   "++ two pinned servers: detach 2 re-sends the releases -> 204, lease 0 (67c908ea: stuck)",
+   "== close() calls broker.release() first when every configuration is releasing; after its 409 the runtime Session is not ready",
+   "",
+   "## A release that timed out: a stdio server whose stdout outlives it (a grandchild keeps the pipe for ~45 s)",
+   "++ one pinned server: detach 503 while the pipe is open, 204 at 52 s (both heads)",
+   "!! two pinned servers (both heads), or a server replaced on 40b05a74: detach 503 for 98 s / 134 s, lease held",
+   "!!    40b05a74 re-sends mcp-release with the same id and gets the stored outcome_unknown/managed_mcp_drain_unknown",
+   "",
+   "## Flyway V23",
+   "++ this PR alone: ..19, 23; with #12894 V20-V22 on an empty database: ..19, 20, 21, 22, 23",
+   "!! this PR applied first, then #12894: \"Detected resolved migration not applied to database: 20\"",
+   "",
+   "## Regression on 40b05a74: the rounds 1-8 set still holds (worker SIGKILL not rerun)",
+   "== N1 638 s; F1; R3-11 is an accepted limitation per the maintainer approval"
+  ],
+  "notes": [
+   {
+    "text": "Before merge: fix R5-2 for the one-server Session (the common shape) or accept it alongside R3-11, and land #12894 first (or renumber it above 23). The timed-out release is not new but is not covered by the R5-2 retry."
+   }
+  ]
+ }
+]
