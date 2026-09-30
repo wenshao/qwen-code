@@ -1,0 +1,59 @@
+[
+ {
+  "name": "r14-01-status",
+  "title": "Round 14 @ af962df7: R13-1 fixed; real OSS and a second host hold on the O2 path",
+  "subtitle": "af962df7 changes only the O2 unstarted branch of hosted-workspace-tool-turn.ts (7 lines). Real OSS and second-host runs used 42e2e8b1, the head before it",
+  "lines": [
+   "## R13-1 fix (af962df7)",
+   "++ O2 unstarted Shell: the model now gets the worker reason (\"Blocked: sleep 3 followed by: ...\", 291 chars), same text as the local path",
+   "++ stored in the Session; after detach + load on a new Harness process the replayed history holds the same text",
+   "++ R5-1 refusal in the install window: O2 now shows \"Workspace execution was refused before dispatch.\"",
+   "++ real qwen3.8-max, \"wait 3 s then print the date\": 3/3 in 3 calls, 23-28 s (42e2e8b1: 11 blind calls, 105-114 s)",
+   "!! R14-1 (low): reasons over 4096 units are cut at unit 2048 from each end, which can split an emoji into lone surrogates",
+   "!!   (seen: U+D83D at 2047, U+DE00 at 2075). Session, Store and DashScope all accepted it; no test reaches this branch",
+   "",
+   "## Real Aliyun OSS (temporary private bucket, deleted afterwards)",
+   "++ 100 MiB + 5 MiB, faults, crash after receipt, 2 x 64 MiB concurrent, preview matrix, real model: exact, every object read back",
+   "++ objects private (anonymous GET 403); one flipped bit in a segment -> reads refused, publication fenced + quarantined",
+   "== 1 GiB on a 13 Mbps uplink: the 120 s Shell timeout stops it at 326 MiB; the captured prefix is byte-exact",
+   "-- R13-2: versioning switched on while running -> each Shell turn retries ~9 times a second for 4 minutes, then blocks the Session",
+   "",
+   "## Second host (Harness on linux-arm64, Spring + workers on this Mac)",
+   "++ O2: crash after receipt recovered in both directions, clean hand-off Mac -> Pi -> Mac, command ran once, bytes exact",
+   "!! local capture path (#12848, main): needs Harness and worker on one host; otherwise the first Shell call blocks the Session",
+   "",
+   "## Regression on af962df7 (fake OSS)",
+   "++ echo, 100 MiB, faults, crashes, reload, ACK loss, mixed 4 x 64 MiB, earlier fixes, gates, real model 4/4: same as round 13",
+   "== one local-path preview case (F3 band) showed the truncation marker once instead of twice, as in round 7; local path unchanged"
+  ],
+  "note": "Nothing here blocks the merge while the profile stays disabled. R13-2 is worth fixing before running against a real bucket; R14-1 is a small follow-up.",
+  "noteColor": "#3fb950"
+ },
+ {
+  "name": "r14-02-unstarted",
+  "title": "R13-1 before and after, and where the new head/tail cut splits a surrogate pair",
+  "subtitle": "Fake model unless marked. \"Blocked: sleep 3 followed by: <rest of the command>. ...\" comes from the core Shell tool inside the worker",
+  "lines": [
+   "## What the model sees for an unstarted Shell call",
+   "== case                                local path              O2 @ 42e2e8b1                  O2 @ af962df7",
+   "++ sleep 3; echo slept                 Blocked: ... (291)      Runtime Shell did not start.   Blocked: ... (291)",
+   "++ install-window ownership refusal    Workspace ... refused   Runtime Shell did not start.   Workspace ... refused",
+   "++ real qwen3.8-max, wait 3 s + date   2/2, 3 calls            2/2, 11 calls, 105-114 s       3/3, 3 calls, 23-28 s",
+   "",
+   "## Reasons over 4096 UTF-16 units (O2 @ af962df7): slice(0, 2048) + marker + slice(-2048)",
+   "++ ~4.9K ASCII                                 -> 4123 units, marker present, 0 lone surrogates",
+   "!! emoji high surrogate at index 2047          -> lone U+D83D at 2047",
+   "++ emoji at index 2046                         -> pair kept, 0 lone surrogates",
+   "!! all emoji                                   -> lone U+D83D at 2047 and lone U+DE00 at 2075 (start of the tail)",
+   "== each case: turn completes, Session not blocked, replay on a new Harness process identical",
+   "== real qwen3.8-max after reload: request body carried 1-2 escaped lone surrogates, HTTP 200, correct answer",
+   "== a 200 KB command is refused earlier on both paths: \"Hosted tool input exceeds the inline Session Store limit.\"",
+   "",
+   "## Suggestion",
+   "== cut on code point boundaries, as cutProviderFitSlot in managed-runtime-provider-protocol.ts:572 already does,",
+   "== and add a test with a reason over 4096 units (the marker text appears only in the source today)"
+  ],
+  "note": "Lone surrogates in tool arguments already block O2 Sessions (#13010). Here the Harness creates them itself; the providers and stores tested accept them, but a stricter consumer may not.",
+  "noteColor": "#d29922"
+ }
+]

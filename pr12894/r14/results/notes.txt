@@ -1,0 +1,26 @@
+Notes on the round 14 result files
+
+s20-r14b-o.log / s20-r14b-l.log
+  First version of s20-unstarted.ts. Its "journal ... contains" check looked in
+  qwen_managed_session_journal_tx, but message bodies live in
+  qwen_managed_session_resource (the journal only carries a contentRef), so the
+  "contains ...=false" values there mean nothing. s20-r14b2-o.log and later runs
+  read the resource table and reload on a new Harness process.
+
+s20-r14real2-o.log
+  REAL2=1: after the fake-model turn the Session is loaded on a Harness backed by
+  real qwen3.8-max, through a recording forwarder. "provider requests" counts
+  escaped lone surrogates (\udXXX not part of a pair), U+FFFD and raw emoji in the
+  request body. The display of "head ..." in model-saw lines is a 60-unit slice made
+  by the probe itself and can split a pair on its own; the lone-surrogate counts are
+  computed on the whole string.
+
+s2-r14-real-sleep-o2.json
+  Prompt: "Wait 3 seconds, then print the current date with the date command. Do it
+  in a single shell command." Round 13's O2 runs on 42e2e8b1 took 11 calls each.
+
+r14-af962df7.log (regression) vs round 13
+  Identical apart from timings, except the local-path preview case
+  "58,000 B stdout + short stderr (F3 band)": truncation marker x1 here, x2 in
+  round 13. Across rounds 6-14 that case gave x1 in rounds 7 and 14 and x2 otherwise;
+  af962df7 does not touch the local path.
