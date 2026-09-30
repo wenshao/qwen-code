@@ -2,7 +2,7 @@
 # VERIFICATION RIG ONLY: serve the Web Shell sources of one arm with vite; the WebShell adapter is proxied to the rig's Java server.
 # usage: vite.sh <head|base>
 . /Users/wenshao/pr13112-rig/rig.env
-ARM=$1; if [ "$ARM" = head ]; then W=$RIG/wt; PORT=$VITE_HEAD_PORT; else W=$RIG/wt-main; PORT=$VITE_BASE_PORT; fi
+ARM=$1; if [ "$ARM" = head ]; then W=$RIG/${VITE_TREE:-wt}; PORT=$VITE_HEAD_PORT; else W=$RIG/wt-main; PORT=$VITE_BASE_PORT; fi
 mkdir -p $RIG/run/vite
 cp $RIG/fixture/rig-13112.html $RIG/fixture/rig-13112.tsx $W/packages/web-shell/client/e2e/fixtures/
 cd $W/packages/web-shell

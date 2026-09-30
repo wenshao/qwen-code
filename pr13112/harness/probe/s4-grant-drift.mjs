@@ -54,6 +54,7 @@ access('alice', 'can_read', 'TRUE');
 const d = await laterTurn('restored');
 r.check('D. restored grants: later Turn COMPLETED', d.admit === 202 && d.turn === 'COMPLETED', j(d));
 
+if (process.env.SKIP_E) { r.done({ session: S, a, b, c, d, capA, capB, stateTried }); process.exit(r.fail ? 1 : 0); }
 // E. can_create revoked while a later Turn runs, then the creator cancels it
 const hold = await api('POST', `/v1/agents/sessions/${S}/events`, msg('G_HOLD tag=drift-hold'), { actor: 'alice', key: k('hold') });
 for (let i = 0; i < 200 && !modelEntries().some((e) => e.kind === 'HOLD' && e.tag === 'drift-hold'); i++) await sleep(150);

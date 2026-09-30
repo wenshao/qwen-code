@@ -58,6 +58,25 @@ figs['02-cancel'] = page(
   shotBlock('running later Turn — Cancel turn shown to the creator', 'head', [strip('head-03-creator-running-cancel-h1', 640, 860)]) +
     shotBlock('2.5 s after the click', 'head', [strip('head-04-creator-cancelled-h1', 640, 860)], 'The database had the Turn <code>CANCELLED</code> after 452 ms; the panel still showed “Cancelling” at 2.5 s (panel refresh lag).'),
 );
+figs['06-r2'] = page(
+  'Round 2 — re-verified at 61ee97e0 (merge of main 57e720bc)',
+  'The new head equals my round-1 trial merge (head ⊕ afb911a3) plus #13081’s web-shell trajectory files. Server classes are byte-identical to that build (0 differing .class files); the author’s conflict resolution is the one I tested. Everything was rebuilt from 61ee97e0 and re-run.',
+  table(['Check on 61ee97e0', 'Result', 'vs round 1'], [
+    ['managed-agent-server unit suite / HostedPublicWorkspaceIT on MySQL 8.4.7', P('281 / 281 · 2 / 2'), 'same'],
+    ['web-shell eslint + prettier (6 PR files), tsc, managed vitest, generated types', P('clean · 77 / 77 · no diff'), 'same'],
+    ['S1 later Turn / cancel / rename / lifecycle (REST + WebShell adapter)', P('51 / 51 (cancel → CANCELLED 236 ms)'), 'same'],
+    ['S7 real Managed panel (Playwright)', P('7 / 7'), 'same (F3 banner still shown)'],
+    ['S2 opt-in off · S3 approval mode default · S9 real model qwen3.8-max', P('6 / 6 · 15 / 15 · 5 / 5'), 'same'],
+    ['F1 cancel vs authorization refusal (revoke / DRAINING)', F('202, COMPLETED, file written'), 'same'],
+    ['F2 worker crash · Harness+Spring restart', F('3 / 3 fail 0.46 s · 30.9 / 30.5 s'), A('same; this time 8 workers survived as orphans, still failed')],
+    ['F4 can_create revoked / DRAINING', A('workspaceTurns=true, 202 → FAILED in 23–26 ms'), 'same'],
+    ['Bot R1-3 rename under revocation · R1-15 empty-Session rename', A('503 + PENDING block · Harness session created'), 'same'],
+    ['Mutation, 18 mutants', A('14 / 18 (J2, J6, J14 survive; J11 equivalent)'), 'same'],
+    ['candidate-tests.patch (+31, applies cleanly)', P('unit 19 / 19 · IT 2 / 2 · kills J2, J6, J14'), 'same'],
+  ]) +
+    shotBlock('new head — creator view (zh): composer enabled under the “暂未开放消息执行” banner', 'head', [strip('head-05-creator-zh-n1', 40, 175), strip('head-05-creator-zh-n1', 730, 860)]) +
+    shotBlock('new head — running later Turn, Cancel turn shown to the creator', 'head', [strip('head-03-creator-running-cancel-n1', 640, 860)]),
+);
 fs.writeFileSync(`${OUT}/cards.json`, JSON.stringify(Object.keys(figs)));
 export { figs, page, table, P, F, A, N, OUT };
 
