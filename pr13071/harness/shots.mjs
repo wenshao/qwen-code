@@ -73,3 +73,7 @@ shot('01-validate', 'PR #13071 real-stack — Phase A: mode pinning & validation
   '# Phase E: read_file (default) / write_file+edit (auto-edit) / everything (yolo) run without asking',
   ...read('e-preapproved.log').map((l) => trimJson(l, 170)),
 ]);
+
+// 06: review-fix races.
+shot('06-review-races', 'PR #13071 real-stack — Phase H: concurrent answers race on one Action (head 706d402aeb review fixes)',
+  read('h-race.log').map((l) => trimJson(l, 170)));
