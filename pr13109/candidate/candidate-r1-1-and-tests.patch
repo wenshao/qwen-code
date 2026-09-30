@@ -1,0 +1,115 @@
+--- a/packages/cli/src/serve/hosted-mcp-session.ts
++++ b/packages/cli/src/serve/hosted-mcp-session.ts
+@@ -868,7 +868,19 @@
+         releaseState: 'drained',
+       });
+     }
+-    await this.broker.release();
++    try {
++      await this.broker.release();
++    } catch (cause) {
++      // A replaced Broker no longer holds this Session in memory; acquiring adopts it.
++      if (
++        !(cause instanceof HostedWorkspaceBrokerRejection) ||
++        cause.status !== 503 ||
++        cause.code !== 'runtime_reconciliation_required'
++      )
++        throw cause;
++      await this.acquireOwner();
++      await this.broker.release();
++    }
+     await this.markReleased(configurations);
+   }
+ 
+--- a/packages/cli/src/serve/hosted-mcp-session.test.ts
++++ b/packages/cli/src/serve/hosted-mcp-session.test.ts
+@@ -760,6 +760,89 @@
+   );
+ });
+ 
++it('re-acquires the original owner when a replaced Broker no longer holds a drained Session', async () => {
++  await mcp.ensureReady();
++  const release = vi.mocked(HostedWorkspaceBroker.prototype.release);
++  release.mockRejectedValueOnce(new Error('owner release not delivered'));
++  await expect(mcp.close()).rejects.toThrow('owner release not delivered');
++  const owner = mcp.broker.runtimeSessionId;
++  mcp = new HostedMcpSession(
++    { baseUrl: 'http://127.0.0.1:1', token: 'test' },
++    session,
++    [pin],
++  );
++  const acquire = vi
++    .mocked(HostedWorkspaceBroker.prototype.acquire)
++    .mockClear();
++  vi.mocked(HostedWorkspaceBroker.prototype.control).mockClear();
++  release
++    .mockClear()
++    .mockRejectedValueOnce(
++      new HostedWorkspaceBrokerRejection(
++        503,
++        'runtime_reconciliation_required',
++      ),
++    );
++  await mcp.close();
++  expect(mcp.broker.runtimeSessionId).toBe(owner);
++  expect(acquire).toHaveBeenCalledOnce();
++  expect(release).toHaveBeenCalledTimes(2);
++  expect(HostedWorkspaceBroker.prototype.control).not.toHaveBeenCalled();
++  expect(
++    parseMcpConfiguration(
++      session.authority.extensionRecordsInDomain('mcp_configuration')[0].record,
++    ).releaseState,
++  ).toBe('released');
++});
++
++it('keeps ownership when a legacy releasing record has an active sibling and the owner refuses acquisition', async () => {
++  const pins = [pin, { ...pin, serverId: 'second' }];
++  mcp = new HostedMcpSession(
++    { baseUrl: 'http://127.0.0.1:1', token: 'test' },
++    session,
++    pins,
++  );
++  await mcp.ensureReady();
++  const saved = session.authority
++    .extensionRecordsInDomain('mcp_configuration')
++    .find(
++      (entry) => parseMcpConfiguration(entry.record).serverId === pin.serverId,
++    )!;
++  await session.authority.commitExtensionRecord(
++    {
++      operation: 'legacy-release',
++      commandId: randomUUID(),
++      sessionKey: session.authority.sessionHeader.sessionKey,
++      contentDigest: 'a'.repeat(64),
++    },
++    {
++      domain: 'mcp_configuration',
++      record: {
++        ...parseMcpConfiguration(saved.record),
++        releaseState: 'releasing',
++      },
++    },
++    { class: 'trusted_entry' },
++  );
++  mcp = new HostedMcpSession(
++    { baseUrl: 'http://127.0.0.1:1', token: 'test' },
++    session,
++    pins,
++  );
++  vi.mocked(HostedWorkspaceBroker.prototype.acquire).mockRejectedValue(
++    new HostedWorkspaceBrokerRejection(409, 'runtime_session_not_ready'),
++  );
++  await expect(mcp.close()).rejects.toThrow('runtime_session_not_ready');
++  expect(HostedWorkspaceBroker.prototype.release).not.toHaveBeenCalled();
++  expect(
++    session.authority
++      .extensionRecordsInDomain('mcp_configuration')
++      .map((entry) => parseMcpConfiguration(entry.record))
++      .map((record) => `${record.serverId}=${record.releaseState}`)
++      .sort(),
++  ).toEqual([`${pin.serverId}=releasing`, 'second=active']);
++});
++
+ it('does not release the owner until the physical drain receipt is durably committed', async () => {
+   await mcp.ensureReady();
+   const commit = session.authority.commitExtensionRecord.bind(
