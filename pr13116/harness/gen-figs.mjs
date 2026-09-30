@@ -188,6 +188,6 @@ const resultLines = (file, labels) => {
         '     (C3 = any RuntimeException from the recheck remapped to WorkspaceExecutionStore.unavailable())',
       ] },
     ],
-    note: 'The connector assertions map onto these rows: the refusal\'s type, fields and identity (C1, C3, C4), never() create/load on a cold connector (C5), and the unchanged DataAccessException (C3). The mutants were built into the packaged jar, one per run.',
+    note: 'What goes red in a554a8fb\'s connector test when each mutant is applied: C1 - nothing is thrown; C3 and C4 - isSameAs(refusal) (both rethrow a different instance); C5 - never() loadSession on the cold connector. The mutants were built into the packaged jar, one per run.',
   });
 }
