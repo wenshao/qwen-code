@@ -97,7 +97,7 @@ card('r2-07-gates-and-mutation', {
       '!! marker version 2 -> 1 (writer and reader agree, so nothing pins the version)',
       '!! receipts/verify: manifest reference, outcome envelope, outcome reference (length, digest) and REFERENCED phase not compared',
       '!! Harness: verifier reply not compared with the journal receipt; manifest without a verified receipt accepted; incomplete capture flag dropped',
-      '!! the FIFO regular-file check removed (277 unit tests and both W1a ITs stay green)',
+      '!! the FIFO regular-file check removed (all 277 unit tests stay green; no test in the PR creates a FIFO)',
       '== on the real stack the unmodified head refuses the matching damage (outcome bit flip, phase changed to FINISHED, partial capture, FIFO)'].join('\n') },
     { label: 'where the TypeScript tests were run', pre: [
       '== idle Linux host (12 cores, Node 24): hosted-harness-session.test.ts 78/78 twice on each head, about 50 s; every mutant gave the same result on the rerun',
