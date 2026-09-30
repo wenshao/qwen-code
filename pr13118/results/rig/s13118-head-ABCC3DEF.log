@@ -1,0 +1,59 @@
+[RUN] label=head worker=wt-pr/dist jar=pr 2026-09-30T19:20:28.320Z
+[A1] caller status(afterSeq=3) via Broker -> state=executing lastSeq=0 progress=[]; worker requests it caused: 1 with afterSequence=0; worker answered seqs=[1,2,3,4,5,6]
+[PASS] A1.1 Broker path: the caller cursor is not forwarded (worker is asked with afterSequence 0) and the answer carries no progress :: afterSequence=0 progress=0
+[A2] rig-sent status to worker :59268: afterSequence=0 -> 200 lastSeq=6 seqs=[1,2,3,4,5,6]; afterSequence=3 -> 200 lastSeq=6 seqs=[4,5,6]
+[PASS] A2.1 worker: status with a nonzero cursor answers only the events after it :: after=[4,5,6]
+[PASS] A2.2 worker: lastSeq is the same with or without the cursor
+[PASS] A2.3 worker: cursor 0 answers every event from the first :: [1,2,3,4,5,6]
+[PASS] A.4 the call settles successfully once released :: success
+[PASS] A.5 the Session releases :: ok true
+[B] nonexistent: refused status=400 code=managed_runtime_tool_invalid BrokerResponseError: Managed Runtime Broker returned HTTP 400. Directory '/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/1123ef1a-b81b-4bc6-9042-45df0824fe93/scratchpad/rig/roots/plain/missing-directory-7e552d8e' is not within any of the registered workspace directories.
+[B] outside:     refused status=400 code=managed_runtime_tool_invalid BrokerResponseError: Managed Runtime Broker returned HTTP 400. Directory '/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/1123ef1a-b81b-4bc6-9042-45df0824fe93/scratchpad/rig/roots/a' is not within any of the registered workspace directories.
+[B] wire: prepare -> 400 managed_runtime_tool_invalid | prepare -> 400 managed_runtime_tool_invalid
+[PASS] B.1 a Shell prepare naming an absolute directory that does not exist is refused 400 managed_runtime_tool_invalid :: refused status=400 code=managed_runtime_tool_invalid BrokerResponseError: Managed Runtime Broker returned HTTP 400. Directory '/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/1123ef1a-b81b-4bc6-9042-45df0824fe93/scratchpad/rig/roots/plain/missing-directory-7e552d8e' is not within any of the registered workspace directories.
+[PASS] B.2 the refusal comes from the worker (400 on the wire), like a directory outside the workspace
+[PASS] B.3 nothing is journaled for the refused call
+[PASS] B.4 the same call prepares and runs there once the directory exists :: success
+[PASS] B.5 the Session releases :: ok true
+[C1] release via Broker while a call runs: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation; worker release requests: 0
+[PASS] C1.1 Broker refuses the release itself (runtime_session_busy), the worker is not asked :: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[C2] rig-sent release to worker :59968: 409 {"code":"managed_runtime_provider_operation_failed","error":"Managed Runtime Session still owns unfinished work."}
+[PASS] C2.1 worker answers 409 managed_runtime_provider_operation_failed "still owns unfinished work"
+[C2] prepared call after the refused release: worker status 200 state=prepared
+[PASS] C2.2 the prepared call is still prepared on the worker
+[PASS] C2.3 the Broker journal still holds the prepared call as PREPARED :: state=PREPARED
+[PASS] C2.4 the running call settles successfully :: success
+[C2] start of the preserved call: ok {"executionStatus":"success","result":{"llmContent":"Successfully created and wrote to new file: /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/1123ef1; file written
+[PASS] C2.5 the preserved call still runs and writes its file :: ok {"executionStatus":"success","result":{"llmContent":"Successfully created and wrote to new file: /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/1123ef1
+[PASS] C2.6 the Session then releases through the Broker :: ok true
+[C3] release by the same client while a call runs: refused status=409 code=runtime_session_busy BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime Session has an active operation
+[C3] after the refusal: running call success; start prepared -> refused status=- code=managed_runtime_unavailable ManagedRuntimeProviderError: Managed Runtime Broker Session is being released or is closed.; cancel prepared -> ok {"state":"settled","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":0,"progressGap":false,"progress":[],"result":{"executionStatus":"cancelled"}}; release again -> ok true; journal c3-prepared=SETTLED/cancelled,c3-running=SETTLED/success; Session RELEASED
+[PASS] C3.1 observed: the same client refuses to start the preserved call after its own refused release (client state, not the worker) :: refused status=- code=managed_runtime_unavailable ManagedRuntimeProviderError: Managed Runtime Broker Session is being released or is closed.
+[PASS] C3.2 observed: cancelling the preserved call and releasing again completes (no wedge) :: ok {"state":"settled","cancelRequested":true,"lastSeq":0,"firstAvailableSeq":0,"progressGap":false,"progress":[],"result":{"executionStatus":"cancelled"}} / ok true
+[D] manifest with the worker answer replaced by 413 too_large: refused status=413 code=managed_runtime_provider_too_large BrokerResponseError: Managed Runtime Broker returned HTTP 413. Managed Runtime provider response exceeds its body size limit. retryable=-; wire=/provider/v1/control[manifest] -> 200 (rewrite)
+[PASS] D.1 the caller receives 413 managed_runtime_provider_too_large :: refused status=413 code=managed_runtime_provider_too_large BrokerResponseError: Managed Runtime Broker returned HTTP 413. Managed Runtime provider response exceeds its body size limit.
+[PASS] D.2 the next manifest (no rewrite) is answered normally :: ok {"tools":[{"name":"read_file","displayName":"ReadFile","description":"Reads and returns the content of a specified file. The file_path argument MUST be an absol
+[PASS] D.3 the Session releases :: ok true
+[E] raw :start answered 200 state=executing
+[E] journal: UNKNOWN
+[E] plain GET -> 200 state=executing; worker status requests: 1
+[PASS] E.0 a GET of the running call is answered from a worker status read
+[E] E.1 lastSeq=9007199254740992 firstAvailableSeq=0: GET -> 409 runtime_broker_execution_unknown state=- Runtime execution outcome is unknown. (worker reads 1, rewritten 1)
+[PASS] E.1 worker lastSeq 2^53 is refused by the Broker :: 409 runtime_broker_execution_unknown
+[E] E.2 lastSeq=9007199254740991 firstAvailableSeq=9007199254740992: GET -> 409 runtime_broker_execution_unknown state=- Runtime execution outcome is unknown. (worker reads 1, rewritten 1)
+[PASS] E.2 worker firstAvailableSeq 2^53 (lastSeq 2^53 - 1) is refused by the Broker :: 409 runtime_broker_execution_unknown
+[E] E.3 lastSeq=9007199254740991 firstAvailableSeq=0: GET -> 200  state=executing  (worker reads 1, rewritten 1)
+[PASS] E.3 worker lastSeq 2^53 - 1 is accepted by the Broker :: 200 
+[E] client status() under the lastSeq 2^53 rewrite: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime execution outcome is unknown.
+[E] journal after the rewritten answers: UNKNOWN/-
+[PASS] E.4 the call still settles successfully afterwards :: "success"
+[PASS] E.5 the Session releases :: ok true
+[PASS] F.1 acquire + manifest accept an uppercase Runtime Session UUID :: ok {"tools":[{"name":"read_file","displayName":"ReadFile","description":"Reads and returns the content of a specified file. The file_path argument MUST be an absol
+[F] in-repo client, uppercase Session: bind refused status=- code=managed_tool_invalid_request ManagedToolProtocolError: Managed Tool invocation data is invalid. | begin-turn refused status=409 code=managed_runtime_identity_conflict ManagedRuntimeProviderProtocolError: Managed Runtime provider Session identity conflicts.
+[PASS] F.2 in-repo client: bind-history and begin-turn are refused before any Broker request (core lower-cases identities)
+[F] raw Broker begin-turn, Session and identity uppercase: 409 managed_runtime_identity_conflict "Managed Runtime provider Session identity conflicts."; worker saw: ["409 managed_runtime_identity_conflict"]
+[PASS] F.3 Broker admits the uppercase identity (I6) and forwards it; the worker refuses it 409 identity_conflict :: 409 managed_runtime_identity_conflict worker=409 managed_runtime_identity_conflict
+[F] raw Broker begin-turn, Session uppercase, identity lowercase: 400 runtime_control_operation_invalid "Runtime provider operation or identity is invalid."; worker saw: []
+[PASS] F.4 a lowercase identity in the uppercase Session is refused by the Broker itself (strict equals), worker not asked :: 400 runtime_control_operation_invalid
+[PASS] F.5 the uppercase Session releases :: ok true
+[SUMMARY] 34/34 checks passed

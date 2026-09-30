@@ -1,0 +1,16 @@
+[RUN] label=mut-X8 worker=wt-pr/dist jar=mut-X8 2026-09-30T19:26:31.431Z
+[E] raw :start answered 200 state=executing
+[E] journal: UNKNOWN
+[E] plain GET -> 200 state=executing; worker status requests: 1
+[PASS] E.0 a GET of the running call is answered from a worker status read
+[E] E.1 lastSeq=9007199254740992 firstAvailableSeq=0: GET -> 409 runtime_broker_execution_unknown state=- Runtime execution outcome is unknown. (worker reads 1, rewritten 1)
+[PASS] E.1 worker lastSeq 2^53 is refused by the Broker :: 409 runtime_broker_execution_unknown
+[E] E.2 lastSeq=9007199254740991 firstAvailableSeq=9007199254740992: GET -> 200  state=executing  (worker reads 1, rewritten 1)
+[FAIL] E.2 worker firstAvailableSeq 2^53 (lastSeq 2^53 - 1) is refused by the Broker :: 200 
+[E] E.3 lastSeq=9007199254740991 firstAvailableSeq=0: GET -> 200  state=executing  (worker reads 1, rewritten 1)
+[PASS] E.3 worker lastSeq 2^53 - 1 is accepted by the Broker :: 200 
+[E] client status() under the lastSeq 2^53 rewrite: refused status=409 code=runtime_broker_execution_unknown BrokerResponseError: Managed Runtime Broker returned HTTP 409. Runtime execution outcome is unknown.
+[E] journal after the rewritten answers: UNKNOWN/-
+[PASS] E.4 the call still settles successfully afterwards :: "success"
+[PASS] E.5 the Session releases :: ok true
+[SUMMARY] 5/6 checks passed — failed: E.2

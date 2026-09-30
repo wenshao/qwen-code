@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+:root { color-scheme: dark; }
+body { margin: 0; background: #0d1117; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: #e6edf3; }
+#card { display: inline-block; padding: 28px 32px 30px; background: #0d1117; min-width: 1100px; max-width: 1560px; }
+h1 { font-size: 26px; margin: 0 0 4px; font-weight: 650; }
+.sub { color: #8b949e; font-size: 15px; margin: 0 0 18px; }
+table { border-collapse: collapse; font-size: 14.5px; width: 100%; }
+th { text-align: left; color: #8b949e; font-weight: 600; border-bottom: 1px solid #30363d; padding: 7px 10px; white-space: nowrap; }
+td { border-bottom: 1px solid #21262d; padding: 7px 10px; vertical-align: top; }
+td.mono, span.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13.5px; }
+.k { color: #3fb950; font-weight: 650; } .s { color: #f85149; font-weight: 650; } .n { color: #8b949e; }
+.a { color: #d29922; font-weight: 650; }
+.group td { color: #79c0ff; font-weight: 650; background: #161b22; }
+.note { margin-top: 16px; border-left: 3px solid #388bfd; padding: 6px 12px; color: #c9d1d9; font-size: 14.5px; line-height: 1.5; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; line-height: 1.45; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px 14px; white-space: pre; overflow: hidden; margin: 0 0 12px; }
+</style></head><body><div id="card"><h1>PR #13118 — the shipped artifacts do not change</h1><p class="sub">Both arms built from scratch: pnpm install, npm run build, npm run bundle, mvn install / package (JDK 21).</p><pre>bundle dist/: files pr=1349 base=1349 normalized digest pr=48517b9c34e76cf1 base=48517b9c34e76cf1 IDENTICAL
+packages/cli/dist (non-test): files pr=2819 base=2819 normalized digest pr=5709411a539c2001 base=5709411a539c2001 IDENTICAL
+packages/core/dist (non-test): files pr=1989 base=1989 normalized digest pr=6c0969a7ac1d346e base=6c0969a7ac1d346e IDENTICAL
+packages/cli/dist compiled tests: 1110 files, differing: src/serve/managed-runtime-provider-worker.test.js
+  nested: qwen-managed-runtime-broker-0.1.0-alpha.jar: 105 entries, 0 differing by CRC ; qwencode-sdk-0.1.0-alpha.jar: 187 entries, 0 differing by CRC
+managed-agent-server jar: entries pr=485 base=485 differing=0 IDENTICAL CRCs
+runtime-broker jar: entries pr=105 base=105 differing=0 IDENTICAL CRCs
+runtime-broker tests jar: entries pr=136 base=136 differing=1 :: com/alibaba/qwen/code/runtimebroker/ProviderRuntimeTransportTest.class	3bb3ea46	34820</pre><pre>Trial merge with main 6e34348281 (git merge-tree --write-tree): clean, tree b8a01d3382
+  packages/sdk-java/runtime-broker: merged f0b6ca75dce0 / head f0b6ca75dce0 same
+  packages/cli: merged b121f9633b03 / head b121f9633b03 same
+  packages/core: merged 6ec0a6eeaa6e / head 6ec0a6eeaa6e same
+  package.json: merged 253492747e49 / head 253492747e49 same
+  pnpm-lock.yaml: merged 99a8d256c78a / head 99a8d256c78a same
+  main's 5 new commits touch only managed-agent-server, qwencode SDK, web-shell and docs</pre><div class="note">Chunk file names are content hashes and the build stamps the short commit id, so each file is compared after replacing both. Jars are compared entry by entry by CRC-32; nested jars are unpacked and compared the same way.</div></div></body></html>
