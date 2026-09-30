@@ -1,0 +1,70 @@
+commit 3dc725e275 rig: trial merge of main 78143fe335 into PR head c21efbdfa1, W1 migration renumbered to V25 (local only, not for pushing)
+
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+index a32c210ea0..296b69d21a 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+@@ -105,19 +105,15 @@ public class QwenHostedHarnessConnector implements HarnessConnector {
+             if (!isWorkspaceFilesAvailable()) {
+                 throw new IllegalStateException("Hosted Workspace files are disabled");
+             }
+-<<<<<<< c21efbdfa1 (codex: address PR review feedback (#13088))
++            if (actions == null) {
++                throw new IllegalStateException("Hosted Workspace Sessions"
++                        + " require the Managed Action store");
++            }
+             if (passiveManagedRuntimeRecovery) {
+                 workspaceExecution.authorizePassiveAttachment(session);
+             } else {
+                 workspaceExecution.authorize(session);
+             }
+-=======
+-            if (actions == null) {
+-                throw new IllegalStateException("Hosted Workspace Sessions"
+-                        + " require the Managed Action store");
+-            }
+-            workspaceExecution.authorize(session);
+->>>>>>> 78143fe335 (feat(managed-agent): Serve durable permission Actions (D6b) (#13101))
+         }
+         AttachmentKey key = new AttachmentKey(tenantId, sessionId);
+         HarnessSessionRef attached = passiveManagedRuntimeRecovery
+
+=== follow-up edits on top of the merge commit ===
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+index 296b69d21a..decf6293b1 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+@@ -209,7 +209,7 @@ public class QwenHostedHarnessConnector implements HarnessConnector {
+             String actionId,
+             JsonNode response) {
+         client().resolveAction(
+-                        attachment(tenantId, sessionId),
++                        attachment(tenantId, sessionId, true),
+                         actionId,
+                         response.path("optionId").asText(),
+                         response.path("inputRevision").asLong(),
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+index e161099290..7eed6f8c4e 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+@@ -148,7 +148,10 @@ class QwenHostedHarnessConnectorTest {
+         when(attached.getHarnessBootId()).thenReturn(BOOT_ID);
+         ManagedAgentProperties properties = properties();
+         properties.getHarness().setWorkspaceFilesEnabled(true);
+-        QwenHostedHarnessConnector connector = new QwenHostedHarnessConnector(properties, sessions, execution);
++        var actions = mock(com.alibaba.qwen.code.managedagent.store.ManagedActionStore.class);
++        when(actions.approvalMode("tenant-a", SESSION_ID)).thenReturn("default");
++        when(attached.getApprovalMode()).thenReturn("default");
++        QwenHostedHarnessConnector connector = new QwenHostedHarnessConnector(properties, sessions, execution, actions);
+         ReflectionTestUtils.setField(connector, "client", client);
+         connector.createOrLoad("tenant-a", SESSION_ID, true);
+         verify(execution).authorize(session);
+
+=== migration rename in the merge commit ===
+ .../resources/db/migration/V24__managed_actions.sql    | 18 ++++++++++++++++++
+ ...ace_mount.sql => V25__verified_workspace_mount.sql} |  0
+ 2 files changed, 18 insertions(+)
+ .../resources/db/migration/V24__managed_actions.sql    | 18 ++++++++++++++++++
+ ...ace_mount.sql => V25__verified_workspace_mount.sql} |  0
+ 2 files changed, 18 insertions(+)

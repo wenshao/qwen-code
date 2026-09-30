@@ -1,0 +1,94 @@
+// S15: Hosted MCP (H1, main) together with the W1a mount guard (option on).
+// Claim under test (author's note for c21efbdf): saved-owner MCP status / cancel / release keep working when the physical
+// mount is unavailable, but only for the exact current holder; new MCP work and a replaced holder are refused.
+//   storage a: a real stdio MCP server (o2/mcp-server.mjs) started by the runtime worker in the Session directory.
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import * as L from './lib.mjs';
+L.openLog('s15-mcp');
+const { say, sleep } = L; const R = '/srv/w1a'; const MARK = '.qwen-managed-storage.json';
+say(L.hostFacts()); say(L.svc('status').replace(/\n/g, ' '));
+for (const s of ['a', 'b']) L.seedWs(`ws-${s}`, s);
+L.svc('stop');
+for (const s of ['a', 'b']) L.sayMaint(`s15-register-${s}`, L.maint(['register', L.TENANT, `st-${s}`, `${R}/${s}`, randomUUID(), '--offline-confirmed']));
+say('  ', L.svc('start').split(' ===')[0]);
+const rig = await L.startRig('s15');
+let mark = 0; const since = () => { const s = L.ledgerStr(rig.proxy.ledger, mark); mark = rig.proxy.ledger.length; return s; };
+const term = (r) => r.terminal?.map((t) => `${t.type}${t.type === 'turn_error' ? ` ${JSON.stringify(t.data).slice(0, 140)}` : ''}`).join(',') || `<admit ${r.status} ${JSON.stringify(r.json ?? {}).slice(0, 120)}>`;
+const out = (r) => { for (const t of L.toolTrace(r.events)) if (t.startsWith('result')) return t.replace(/\\n/g, ' ').replace(/\\"/g, '"').slice(0, 260); return '<no tool result>'; };
+const insp = (s) => L.inspect(s).out.replace(/operation=\S+ completed=\S+ /, '');
+const calls = (s) => { try { return fs.readFileSync(`${R}/${s}/project/mcp-calls.log`, 'utf8').split('\n').filter(Boolean).length; } catch { return 0; } };
+const holder = (s) => { const m = L.mountRow(s); return m.holder === '-' ? 'none' : `${m.holder.slice(0, 10)}…`; };
+const opts = (S) => ({ clientId: S.clientId });
+const J = (x) => JSON.stringify(x ?? null).slice(0, 220);
+const op = (S, id) => rig.h.json(`/session/${S.sessionId}/mcp/operations/${id}`, undefined, opts(S));
+const cancel = (S, id) => rig.h.json(`/session/${S.sessionId}/mcp/operations/${id}/cancel`, {}, opts(S));
+const start = (S, id, ms) => rig.h.json(`/session/${S.sessionId}/mcp/operations`, { operationId: id, serverId: 'demo', request: { kind: 'resource_read', uri: `rig://slow/${ms}` } }, opts(S));
+const hide = (s) => fs.renameSync(`${R}/${s}/${MARK}`, `${R}/${s}/${MARK}.moved`);
+const unhide = (s) => fs.renameSync(`${R}/${s}/${MARK}.moved`, `${R}/${s}/${MARK}`);
+
+say('== 1. an MCP Session on a verified mount');
+const M = new L.HSession(rig.h, await L.createSession('ws-a'), 'ws-a');
+say(`create (profile ${L.MCPP}, pinned server "demo"): ${(await M.create(L.MCPP, { mcpServers: L.MCP_PINS })).status}`);
+let r = await M.prompt('MCP hello');
+say(`   Turn "MCP hello": ${term(r)} | ${out(r)}`); say(`      broker: ${since()}`);
+say(`   tool effects on disk: ${calls('a')}; storage holder after the Turn: ${holder('a')} (an MCP Session keeps the lease between Turns); inspect: ${insp('a')}`);
+
+say('== 1b. cold load keeps the MCP profile and server pins explicit');
+let x = await M.detach(); say(`   detach: ${x.status}; holder ${holder('a')}`);
+x = await M.load(); say(`   load without a profile: ${x.status} ${J(x.json)}`);
+x = await M.load(L.FILES); say(`   load with the file profile: ${x.status} ${J(x.json)}`);
+x = await M.load(L.MCPP); say(`   load with the MCP profile but no pins: ${x.status} ${J(x.json)}`);
+x = await M.load(L.MCPP, undefined, { mcpServers: [{ ...L.MCP_PINS[0], serverRevision: 2 }] }); say(`   load with another server revision: ${x.status} ${J(x.json)}`);
+x = await M.load(L.MCPP, undefined, { mcpServers: [{ ...L.MCP_PINS[0], definitionDigest: 'd'.repeat(64) }] }); say(`   load with another definition digest: ${x.status} ${J(x.json)}`);
+x = await M.load(L.MCPP, undefined, { mcpServers: L.MCP_PINS }); say(`   load with the saved profile and pins: ${x.status}`);
+r = await M.prompt('MCP reloaded'); say(`   Turn: ${term(r)} | ${out(r)} | holder ${holder('a')}`); since();
+say('== 2. the mount becomes unavailable while the Session holds the storage and an MCP operation is running');
+const o1 = randomUUID(); const p1 = start(M, o1, 20000); await sleep(2500);
+say(`   slow resource read started (20 s); first status: ${J((await op(M, o1)).json)} | ${since()}`);
+hide('a'); say(`   marker moved away -> inspect: ${insp('a')}`);
+x = await op(M, o1); say(`   a. status of the original operation: ${x.status} ${J(x.json)} | ${since()}`);
+x = await cancel(M, o1); say(`   b. cancel of the original operation: ${x.status} ${J(x.json)} | ${since()}`);
+x = await p1; say(`      the pending request returned: ${x.status} ${J(x.json)}`);
+x = await op(M, o1); say(`      status afterwards: ${x.status} ${J(x.json)}`);
+const o2 = randomUUID(); x = await start(M, o2, 100); say(`   c. a NEW MCP operation: ${x.status} ${J(x.json)} | ${since()}`);
+const c0 = calls('a'); const m0 = rig.model.state.calls;
+r = await M.prompt('MCP again'); say(`   d. a NEW Turn that would call the MCP tool: ${term(r)} | model calls ${rig.model.state.calls - m0}; tool effects ${calls('a') - c0} | ${since()}`);
+x = await M.detach(); say(`   e. detach (mcp-release + storage release): ${x.status} ${J(x.json)} | ${since()}`);
+say(`      storage holder now: ${holder('a')}; inspect: ${insp('a')}`);
+unhide('a'); say(`   marker back -> inspect: ${insp('a')}`);
+x = await M.load(L.MCPP, undefined, { mcpServers: L.MCP_PINS }); say(`   load again: ${x.status} ${x.status === 200 ? '' : J(x.json)}`);
+r = await M.prompt('MCP back'); say(`   Turn "MCP back": ${term(r)} | ${out(r)} | tool effects ${calls('a')} | ${since()}`);
+
+say('== 3. a replaced holder (mount fine): the lease row is handed to another holder while an operation is running');
+r = await M.prompt('MCP warm'); say(`   Turn: ${term(r)} | holder ${holder('a')}`);
+const o4 = randomUUID(); const p4 = start(M, o4, 20000); await sleep(2500);
+const real = L.mountRow('a').holder;
+L.sql(`UPDATE managed_workspace_execution_lease SET holder_key=REPEAT('f',64) WHERE storage_key=${L.storageKey('a')}`); mark = rig.proxy.ledger.length;
+say(`   holder_key ${real.slice(0, 10)}… -> ffffffffff… ; inspect: ${insp('a')}`);
+x = await op(M, o4); say(`   a. status: ${x.status} ${J(x.json)} | ${since()}`);
+x = await cancel(M, o4); say(`   b. cancel: ${x.status} ${J(x.json)} | ${since()}`);
+x = await p4; say(`      the pending request returned: ${x.status} ${J(x.json)}`);
+x = await M.detach(); say(`   c. detach: ${x.status} ${J(x.json)} | ${since()}`);
+say(`      lease row holder: ${holder('a')} (the other holder is untouched)`);
+L.sql(`UPDATE managed_workspace_execution_lease SET holder_key='${real}' WHERE storage_key=${L.storageKey('a')}`);
+x = await M.detach(); say(`   holder restored; detach: ${x.status} ${J(x.json)} | ${since()} | holder ${holder('a')}`);
+say('== 4. the same cleanup from a NEW Harness process (the old one is killed while it holds the storage)');
+const N = new L.HSession(rig.h, await L.createSession('ws-b'), 'ws-b');
+say(`create on storage b: ${(await N.create(L.MCPP, { mcpServers: L.MCP_PINS })).status}`);
+r = await N.prompt('MCP one'); say(`   Turn: ${term(r)} | ${out(r)} | holder ${holder('b')}`);
+const o3 = randomUUID(); const p3 = start(N, o3, 20000); p3.catch(() => {}); await sleep(2500);
+say(`   slow resource read running: ${J((await op(N, o3)).json)}`);
+hide('b'); await rig.h.stop('SIGKILL'); say(`   marker moved away and the Harness killed (SIGKILL) -> inspect: ${insp('b')}; holder ${holder('b')}`);
+const h2 = await rig.restartHarness('s15-h2'); N.bind(h2); mark = rig.proxy.ledger.length;
+const tl = Date.now(); let tries = 0;
+do { tries++; x = await N.load(L.MCPP, undefined, { mcpServers: L.MCP_PINS }); if (x.status !== 200) await sleep(2000); } while (x.status === 503 && Date.now() - tl < 110000);
+say(`   new Harness, load with the mount still unavailable: ${x.status} ${x.status === 200 ? '' : J(x.json)} after ${Math.round((Date.now() - tl) / 1000)} s, ${tries} attempts (the dead writer's 60 s lease must lapse) | ${since()}`);
+x = await rig.h.json(`/session/${N.sessionId}/mcp/operations/${o3}`, undefined, opts(N)); say(`   a. status of the original operation: ${x.status} ${J(x.json)} | ${since()}`);
+x = await rig.h.json(`/session/${N.sessionId}/mcp/operations/${o3}/cancel`, {}, opts(N)); say(`   b. cancel: ${x.status} ${J(x.json)} | ${since()}`);
+x = await rig.h.json(`/session/${N.sessionId}/mcp/operations`, { operationId: randomUUID(), serverId: 'demo', request: { kind: 'resource_read', uri: 'rig://slow/100' } }, opts(N)); say(`   c. a NEW operation: ${x.status} ${J(x.json)} | ${since()}`);
+x = await N.detach(); say(`   d. detach: ${x.status} ${J(x.json)} | ${since()}`);
+say(`      storage holder now: ${holder('b')}; inspect: ${insp('b')}`);
+unhide('b');
+
+await rig.stop(); say('S15-DONE');
