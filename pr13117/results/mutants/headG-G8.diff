@@ -1,0 +1,16 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/api/TenantContextFilter.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/api/TenantContextFilter.java
+index 9716ffa507..8566dedeb8 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/api/TenantContextFilter.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/api/TenantContextFilter.java
+@@ -65,8 +65,9 @@ public class TenantContextFilter extends OncePerRequestFilter {
+         String actorId = null;
+         if (principal instanceof AuthenticatedTenantActor actor) {
+             String claimedActorId = actor.actorId();
+-            if (!tenantId.equals(actor.tenantId())
+-                    || !validActorId(tenantId, claimedActorId)) {
++            if ((!tenantId.equals(actor.tenantId())
++                    || !validActorId(tenantId, claimedActorId))
++                    && !request.getRequestURI().endsWith("/events")) {
+                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                 objectMapper.writeValue(response.getOutputStream(),
