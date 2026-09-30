@@ -1,0 +1,51 @@
+diff --git a/packages/cli/src/serve/remote-shell-result-publication.test.ts b/packages/cli/src/serve/remote-shell-result-publication.test.ts
+index e3882abccf..6c4f779422 100644
+--- a/packages/cli/src/serve/remote-shell-result-publication.test.ts
++++ b/packages/cli/src/serve/remote-shell-result-publication.test.ts
+@@ -800,6 +800,46 @@ describe('remote Shell result publication', () => {
+     },
+   );
+ 
++  it.each(['EXPIRED', 'RETRYABLE'])(
++    'does not resume a deterministic 409 managed_tool_result_conflict with %s status',
++    async (state) => {
++      let posts = 0;
++      let observations = 0;
++      vi.stubGlobal(
++        'fetch',
++        vi.fn(async (input: URL) => {
++          expect(input.pathname.endsWith('/recover')).toBe(false);
++          if (input.pathname.includes('/operations/')) {
++            observations++;
++            return new Response(JSON.stringify({ state }));
++          }
++          posts++;
++          return new Response(
++            JSON.stringify({ error: { code: 'managed_tool_result_conflict' } }),
++            { status: 409 },
++          );
++        }),
++      );
++      const publisher = new RemoteShellResultPublisher();
++      publisher.install(installation, boot);
++      const { sink } = await publisher.prepare(request);
++      const store = Reflect.get(sink, 'store') as ToolResultSegmentStore;
++      expect(
++        await store.publish({
++          captureId: 'capture-a',
++          streamId: 'stdout',
++          ordinal: 0,
++          bytes: Buffer.from('original'),
++        }),
++      ).toMatchObject({
++        status: 'refused',
++        code: 'managed_tool_result_conflict',
++      });
++      expect(posts).toBe(1);
++      expect(observations).toBe(1);
++    },
++  );
++
+   it.each([409, 429])(
+     'waits through HTTP %s recovery contention without consuming recovery attempts',
+     async (status) => {
