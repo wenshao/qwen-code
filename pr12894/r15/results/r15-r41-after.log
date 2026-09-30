@@ -1,0 +1,91 @@
+spring up arm=pr15 worker=/Users/wenshao/git/qwen-code-pr12894: {"status":"UP"}
+## arm=after jar=pr15 harness+worker=0027f7a7f4 db=o5a operation-timeout=6s claim-timeout=3s
+=== F1 baseline, no faults (17:32:33)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3096ms
+[oss] PUT 10 created 10 exists 0 GET 33 faults 0
+[side-effects] generator ran 1 time(s); model calls 2, continuation calls 1
+[catalog] ["aff84c25 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":6291866,\"producer\":137286,\"admission\":146195} used={\"capture\":6291866,\"producer\":137286,\"admission\":146195}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[ops-recovered] none
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":6,"message.committed":4,"tool.intent":1,"tool.receipt":1,"turn.settled":1}
+[history] function responses in transcript: 1 (1 unique uuids)
+[assistant] "done r15bf1"
+[status] {"sessionId":"ce525af7-851c-4d48-81c0-97c22aa48e79","hasActivePrompt":false,"recoveryBlocked":false}
+=== F2 segment stdout/2: its object PUT takes 9 s (> 6 s deadline) once (17:32:39)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 10755ms
+[oss] PUT 4 created 4 exists 0 GET 4 faults 1
+[side-effects] generator ran 1 time(s); model calls 1, continuation calls 0
+[proxy] POST /publications/dd21c442/segments/stdout/2 -> 400 [arm-oss {"op":"put","mode":"delay","ms":9000,"count":1}] {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"2016cfec-fc11-4cdc-a4ab-dd2655d91a82"}}
+[proxy] GET /publications/dd21c442/operations/seg-stdout-2 -> 200 
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"3ca6569c-77c3-4ac2-a44a-bdb4fb0b98b3"}}
+[catalog] ["dd21c442 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":4194304,\"producer\":1726,\"admission\":2443} used={\"capture\":4194304,\"producer\":1726,\"admission\":2443}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"segment/VERIFIED":3,"segment/CANDIDATE":1,"terminal/VERIFIED":1}
+[ops-not-succeeded] [["seg-stdout-2","PENDING","1"]]
+[ops-recovered] none
+[bytes stdout] 3 seg 3145728 B differs from oracle (partial?)
+[bytes stderr] 1 seg 1048576 B differs from oracle (partial?)
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":2,"message.committed":3,"tool.intent":1,"tool.receipt":1}
+[history] function responses in transcript: 1 (1 unique uuids)
+[assistant] ""
+[status] {"sessionId":"cf169c78-7e06-4c48-b60a-6601cdd67177","hasActivePrompt":false,"recoveryBlocked":true}
+[harness s3-r15bf2] ["qwen serve: Tool publication close was not confirmed: ManagedSessionStoreHttpError: The request body is invalid.","qwen serve: Hosted Harness turn 37f4c114-4cd2-4355-8ef1-f36e9aed01dc is recovery blocked: Error: Incomplete Shell capture blocked the Hosted tool turn."]
+=== F3 finish: the first object GET of its read-back takes 9 s once (17:32:51)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 10726ms
+[oss] PUT 8 created 8 exists 0 GET 17 faults 1
+[side-effects] generator ran 1 time(s); model calls 1, continuation calls 0
+[proxy] POST /publications/d649ba1b/finish -> 400 [arm-oss {"op":"get","mode":"delay","ms":9000,"count":1}] {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"9495991e-4a0f-4fc3-bd4c-e0f85a11fa3a"}}
+[proxy] GET /publications/d649ba1b/operations/finish -> 200 
+[proxy] GET /publications/d649ba1b/finished -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"3107f0d1-84bb-4461-8ec1-8cd35eb7572f"}}
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"69e24c74-ba93-4dcc-aeab-50fad87a9299"}}
+[catalog] ["d649ba1b state=OPEN phase=FINISHING receiptSeq=- quarantined=0 held={\"capture\":268435456,\"producer\":2686976,\"admission\":2097152} used={\"capture\":6291866,\"producer\":3759,\"admission\":0}"]
+[objects] {"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/CANDIDATE":1}
+[ops-not-succeeded] [["finish","PENDING","1"]]
+[ops-recovered] none
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":2,"message.committed":2,"tool.intent":1}
+[history] function responses in transcript: 0 (0 unique uuids)
+[assistant] ""
+[status] {"sessionId":"8672cdd8-3144-4784-bccc-69fbb849afc0","hasActivePrompt":false,"recoveryBlocked":true}
+[harness s3-r15bf3] ["qwen serve: Tool publication close was not confirmed: ManagedSessionStoreHttpError: The request body is invalid.","qwen serve: Hosted Harness turn 40b37af2-a6a4-4f3b-a08a-bd711053868c is recovery blocked: ManagedSessionStoreHttpError: The request body is invalid."]
+=== F4 segment stdout/2: 8 slow PUTs in a row (recoveries exhausted) (17:33:04)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 10356ms
+[oss] PUT 4 created 4 exists 0 GET 4 faults 1
+[side-effects] generator ran 1 time(s); model calls 1, continuation calls 0
+[proxy] POST /publications/b3f9e659/segments/stdout/2 -> 400 [arm-oss {"op":"put","mode":"delay","ms":9000,"count":8}] {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"6169866a-4305-4b8c-8783-9eee428f595d"}}
+[proxy] GET /publications/b3f9e659/operations/seg-stdout-2 -> 200 
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"69a38d7b-3d5c-4bcd-86ee-8a10f28528f7"}}
+[catalog] ["b3f9e659 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":4194304,\"producer\":1726,\"admission\":2443} used={\"capture\":4194304,\"producer\":1726,\"admission\":2443}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"segment/VERIFIED":3,"segment/CANDIDATE":1,"terminal/VERIFIED":1}
+[ops-not-succeeded] [["seg-stdout-2","PENDING","1"]]
+[ops-recovered] none
+[bytes stdout] 3 seg 3145728 B differs from oracle (partial?)
+[bytes stderr] 1 seg 1048576 B differs from oracle (partial?)
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":2,"message.committed":3,"tool.intent":1,"tool.receipt":1}
+[history] function responses in transcript: 1 (1 unique uuids)
+[assistant] ""
+[status] {"sessionId":"a9b57fb0-e7bf-4c45-8a94-d2f82e852a0c","hasActivePrompt":false,"recoveryBlocked":true}
+[harness s3-r15bf4] ["qwen serve: Tool publication close was not confirmed: ManagedSessionStoreHttpError: The request body is invalid.","qwen serve: Hosted Harness turn 0c0572c6-f558-4cd7-9a85-f92cc9580baf is recovery blocked: Error: Incomplete Shell capture blocked the Hosted tool turn."]
+=== F5 finish: 8 slow GETs in a row (recoveries exhausted) (17:33:16)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 10829ms
+[oss] PUT 8 created 8 exists 0 GET 17 faults 1
+[side-effects] generator ran 1 time(s); model calls 1, continuation calls 0
+[proxy] POST /publications/1c90aad8/finish -> 400 [arm-oss {"op":"get","mode":"delay","ms":9000,"count":8}] {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"1e5d8e7e-ddee-4091-9a22-095cac467a4c"}}
+[proxy] GET /publications/1c90aad8/operations/finish -> 200 
+[proxy] GET /publications/1c90aad8/finished -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"213ae67c-3ad9-4eeb-a674-fffc29e4024c"}}
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"a392edfa-f26a-4c64-b56e-f8fd399f7f5b"}}
+[catalog] ["1c90aad8 state=OPEN phase=FINISHING receiptSeq=- quarantined=0 held={\"capture\":268435456,\"producer\":2686976,\"admission\":2097152} used={\"capture\":6291866,\"producer\":3759,\"admission\":0}"]
+[objects] {"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/CANDIDATE":1}
+[ops-not-succeeded] [["finish","PENDING","1"]]
+[ops-recovered] none
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[journal] {"activation.changed":1,"input.accepted":1,"wake.requested":1,"checkpoint.committed":2,"message.committed":2,"tool.intent":1}
+[history] function responses in transcript: 0 (0 unique uuids)
+[assistant] ""
+[status] {"sessionId":"be3b320c-ed73-4074-8e0f-784bfeb72e45","hasActivePrompt":false,"recoveryBlocked":true}
+[harness s3-r15bf5] ["qwen serve: Tool publication close was not confirmed: ManagedSessionStoreHttpError: The request body is invalid.","qwen serve: Hosted Harness turn cb153402-da68-4a54-a376-8d249e1c44b4 is recovery blocked: ManagedSessionStoreHttpError: The request body is invalid."]
+EmptyResult: 0  Deadlock/LockWait: 0
+## done

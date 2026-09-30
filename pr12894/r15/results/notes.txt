@@ -1,0 +1,45 @@
+Round 15 result files (PR #12894 head 0027f7a7)
+
+Arms
+  before    = jar pr14 (42e2e8b1 Java; af962df7 changed no Java) + bundle of af962df7
+  after     = jar pr15 (0027f7a7) + bundle of 0027f7a7
+  candidate = jar pr15 + bundle of 0027f7a7 with candidate-client-change.diff (one condition)
+
+R4-1 (fake OSS, operation-timeout 6 s, claim-timeout 3 s)
+  r15-r41-{before,after}.log    F1-F5    r15-r41b-{before,after}.log   F6-F8
+  r15-r41b-cand.log             F6-F8 candidate
+  r15-r41c-cand.log             F2-F6 candidate, on unused storages s31-s36
+  r15-r41-cand-first-attempt.log  F2-F5 candidate on s12-s15: every turn failed at once with
+      409 workspace_busy (s3-r15nf2.log) because the after-arm Sessions blocked on those
+      storages about 80 minutes earlier still held the Workspace execution lease.
+  Faults are armed by fault-proxy.mjs when the named publication request passes
+  (action arm-oss / arm-oss-drop-reply) and applied by fake-oss.mjs.
+  jdi-claim-expired-excerpt.txt  where the 400 comes from
+
+Real Aliyun OSS (temporary private bucket, name redacted, deleted: ro15-bucket-inventory.txt)
+  ro15-0027f7a7.log   RF1-RF8 at 6 s / 3 s, then RT1 at 120 s / 30 s
+  ro15b-0027f7a7.log  RT2 (after) and RT3 (candidate) at 10 s / 5 s, no injected fault
+  The JVM resolves the OSS host names to 127.0.0.1 (-Djdk.net.hosts.file) and tcp-forward.mjs
+  relays the TLS bytes unchanged to the real OSS address, holding one chunk when armed.
+  The OSS SDK ignores -Dhttps.proxyHost, so a CONNECT proxy did not work.
+  In the ro15b "finish" lines, "finish 200 3 ms" rows are GET .../operations/finish status reads.
+
+R2-4 and Broker restarts
+  r15-r24.log    busy lease / lost acquire reply at resume, both arms (loads start after the
+                 dead Harness's writer grant lapses at ~65 s)
+  r15-r24b.log   A's runtime session released by hand first: the resume's ACK then gets 404
+                 runtime_session_not_found. Not an R2-4 trigger; kept for the record.
+  r15-r24c.log   Spring (Broker) restarted after the crash, O2, both arms, with and without
+                 another Session in the Workspace
+  r15-r24d.log   the same restart on the local capture path (after)
+
+Approvals (D6a merged into O2)
+  s22-ap.log  O2: allow, deny, pair, expire, crash. In the pair case the probe missed the second
+              request, which then expired after 120 s; s22-aq.log reruns pair with an explicit deny.
+  s22-al.log  local path: pair, crash
+
+Second host
+  xh-0027f7a7.log  Harness on the Orange Pi (0027f7a7 build), everything else on the Mac
+
+Migrations
+  flyway-checks-r15.txt

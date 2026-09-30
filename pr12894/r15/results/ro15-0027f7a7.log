@@ -1,0 +1,79 @@
+spring up arm=pr15 worker=/Users/wenshao/git/qwen-code-pr12894: {"status":"UP"}
+## real OSS bucket qwen-pr12894-verify-xxxxxx, operation-timeout=6s claim-timeout=3s; OSS connections via the TCP forwarder: 4
+=== RF1 baseline (6 s / 3 s) (18:41:48)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 7705ms
+[side-effects] generator ran 1 time(s); model calls 2, continuation calls 1
+[catalog] ["0558ab2e state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":6291866,\"producer\":3759,\"admission\":2430} used={\"capture\":6291866,\"producer\":3759,\"admission\":2430}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[ops-recovered] none
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[status] {"sessionId":"1b5adcf5-c924-4ec3-9425-1d49c953c137","hasActivePrompt":false,"recoveryBlocked":false}
+=== RF2 segment stdout/2: its PUT body held 9 s in the tunnel (18:42:01)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 11925ms
+[side-effects] generator ran 1 time(s); model calls 1, continuation calls 0
+[proxy] POST /publications/2d576698/segments/stdout/2 -> 400 [arm-oss {"ms":9000,"dir":"up","minBytes":65536}] {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"e2163526-4120-4b2b-84b1-b7d403813a55"}}
+[proxy] GET /publications/2d576698/operations/seg-stdout-2 -> 200 
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"261efce2-1984-4b26-8725-f2c1b0abbaf3"}}
+[catalog] ["2d576698 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":4194304,\"producer\":1726,\"admission\":2443} used={\"capture\":4194304,\"producer\":1726,\"admission\":2443}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"segment/VERIFIED":3,"segment/CANDIDATE":1,"terminal/VERIFIED":1}
+[ops-not-succeeded] [["seg-stdout-2","PENDING","1"]]
+[ops-recovered] none
+[bytes stdout] 3 seg 3145728 B differs from oracle (partial?)
+[bytes stderr] 1 seg 1048576 B differs from oracle (partial?)
+[status] {"sessionId":"757df260-7995-449c-bcf0-de5c8aadccf6","hasActivePrompt":false,"recoveryBlocked":true}
+[harness s3-ro15f2] ["qwen serve: Tool publication close was not confirmed: ManagedSessionStoreHttpError: The request body is invalid.","qwen serve: Hosted Harness turn baef5060-cb95-4417-879c-0a470eea8204 is recovery blocked: Error: Incomplete Shell capture blocked the Hosted tool turn."]
+=== RF7 same, and the reply to the producer is lost (18:42:17)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 15623ms
+[side-effects] generator ran 1 time(s); model calls 2, continuation calls 1
+[proxy] POST /publications/ec139471/segments/stdout/2 -> 400-reply-dropped [arm-oss {"ms":9000,"dir":"up","minBytes":65536}] {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"7312be29-f6f6-4a57-a045-706e82596277"}}
+[proxy] GET /publications/ec139471/operations/seg-stdout-2 -> 200 
+[proxy] POST /publications/ec139471/operations/seg-stdout-2/recover -> 200 
+[catalog] ["ec139471 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":6291866,\"producer\":3759,\"admission\":2430} used={\"capture\":6291866,\"producer\":3759,\"admission\":2430}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[ops-recovered] [["seg-stdout-2","segment:stdout:2","SUCCEEDED","epoch=3","recovery_deadline-deadline=9286ms"]]
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[status] {"sessionId":"320d765a-b877-4668-a3db-e5651133bbea","hasActivePrompt":false,"recoveryBlocked":false}
+=== RF3 finish: a read-back GET body held 9 s in the tunnel (18:42:37)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 13744ms
+[side-effects] generator ran 1 time(s); model calls 1, continuation calls 0
+[proxy] POST /publications/f1ce55c5/finish -> 400 [arm-oss {"ms":9000,"dir":"down","minBytes":65536}] {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"6133114d-6ea8-4346-ac5f-e7a0691bb683"}}
+[proxy] GET /publications/f1ce55c5/operations/finish -> 200 
+[proxy] GET /publications/f1ce55c5/finished -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"e81e199a-087a-44ec-874b-491737146fef"}}
+[proxy] POST /grants -> 400 {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"713b7703-60e9-4dfb-8fbb-bb1b5b6ce9c9"}}
+[catalog] ["f1ce55c5 state=OPEN phase=FINISHING receiptSeq=- quarantined=0 held={\"capture\":268435456,\"producer\":2686976,\"admission\":2097152} used={\"capture\":6291866,\"producer\":3759,\"admission\":0}"]
+[objects] {"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/CANDIDATE":1}
+[ops-not-succeeded] [["finish","PENDING","1"]]
+[ops-recovered] none
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[status] {"sessionId":"ffd353f1-f719-4662-9fd4-e0beecfedf34","hasActivePrompt":false,"recoveryBlocked":true}
+[harness s3-ro15f3] ["qwen serve: Tool publication close was not confirmed: ManagedSessionStoreHttpError: The request body is invalid.","qwen serve: Hosted Harness turn 651f2fa9-fc1b-49cd-939b-ea8c3019ecec is recovery blocked: ManagedSessionStoreHttpError: The request body is invalid."]
+=== RF8 same, and the reply to the producer is lost (18:42:56)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 15419ms
+[side-effects] generator ran 1 time(s); model calls 2, continuation calls 1
+[proxy] POST /publications/5235b455/finish -> 400-reply-dropped [arm-oss {"ms":9000,"dir":"down","minBytes":65536}] {"error":{"code":"invalid_request","message":"The request body is invalid.","request_id":"f04778be-81ee-4286-b086-0c44ec3fdaad"}}
+[proxy] GET /publications/5235b455/operations/finish -> 200 
+[proxy] POST /publications/5235b455/operations/finish/recover -> 200 
+[catalog] ["5235b455 state=OPEN phase=REFERENCED receiptSeq=9 quarantined=0 held={\"capture\":6291866,\"producer\":3759,\"admission\":2430} used={\"capture\":6291866,\"producer\":3759,\"admission\":2430}"]
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[ops-recovered] [["finish","terminal","SUCCEEDED","epoch=3","recovery_deadline-deadline=9198ms"]]
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+[status] {"sessionId":"7b877b49-44af-49a3-a844-2e73644d4e71","hasActivePrompt":false,"recoveryBlocked":false}
+connect proxy holds: [{"t":1790764924407,"hold":"up","conn":4,"bytes":65536,"ms":9000},{"t":1790764940972,"hold":"up","conn":4,"bytes":65536,"ms":9000},{"t":1790764964619,"hold":"down","conn":5,"bytes":65536,"ms":9000},{"t":1790764983160,"hold":"down","conn":6,"bytes":65536,"ms":9000}]
+spring up arm=pr15 worker=/Users/wenshao/git/qwen-code-pr12894: {"status":"UP"}
+## real OSS bucket qwen-pr12894-verify-xxxxxx, operation-timeout=120s claim-timeout=30s; OSS connections via the TCP forwarder: 7
+=== RT1 100 MiB + 5 MiB, default-like 120 s / 30 s: how long the finish read-back takes (18:43:23)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 64985ms
+[side-effects] generator ran 1 time(s)
+[model-saw-bytes] 917 B; fake model received tool message 660 chars
+[catalog] [{"id":"bd311c06-f4d7-4a8b-b2f4-273368d5c8e0","state":"OPEN","phase":"REFERENCED","captureBytes":268435456,"held":{"capture":110100480,"producer":14068,"admission":3130},"used":{"capture":110100480,"producer":14068,"admission":3130},"receiptSequence":"12","quarantined":"0"}]
+[objects] {"admission/VERIFIED/inline":1,"manifest/VERIFIED/inline":1,"page/VERIFIED/inline":2,"segment/VERIFIED/oss":105,"terminal/VERIFIED/inline":1}
+[bytes stdout] 100 segments, 104857600 B, sha256 330374ae560a4d7a… oracle 330374ae560a4d7a… EXACT
+[bytes stderr] 5 segments, 5242880 B, sha256 802f31e98146d098… oracle 802f31e98146d098… EXACT
+[status] {"sessionId":"4a9314d6-10a4-4c7f-99ba-32bb34320a02","hasActivePrompt":false,"recoveryBlocked":false}
+    finish 200 15365 ms
+    segment requests 105, max 5182 ms, median 255 ms
+## done
