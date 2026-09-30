@@ -1,0 +1,54 @@
+19:27:22.574 machine_id=<vm-machine-id> boot_id=59ffe4d3-15af-4636-ad9e-cb99c9a67ccd uptime=2278s kernel=6.8.0-117-generic
+19:27:22.614 active=active health=200 DB=w1v_s15 JAR=head-server.jar DIST=dist-head VERIFIED=true DURABLE=true TRUSTED=false HARNESS=false STORAGES="a b c d" ROOTBASE=/srv/w1a EXTRA= DBPORT=3306 DBPASS=rootpw DBCONT=w0e3-db LOADER_EXTRA= PUB=0 MCP=1
+19:27:24.690   maint s15-register-a: exit=0 1467 ms -> Workspace storage maintenance operation verified.
+19:27:25.704   maint s15-register-b: exit=0 1008 ms -> Workspace storage maintenance operation verified.
+19:27:34.162    health=200
+19:27:35.194 == 1. an MCP Session on a verified mount
+19:27:35.766 create (profile hosted-workspace-mcp/1, pinned server "demo"): 200
+19:27:40.497    Turn "MCP hello": turn_complete | result mcp_941dcf583a1d4479530d6eeaa7190d0e: {"output":"{"content":[{"type":"text","text":"echo:hello calls=1"}]}","executionStatus":"success"}
+19:27:40.502       broker: tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-configure]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-discover]→200  tool-sessions:acquire→200  executions:prepare→200  executions/:id:start→200  executions/:id→200  tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-discover]→200
+19:27:42.376    tool effects on disk: 1; storage holder after the Turn: 80ab41a8c2… (an MCP Session keeps the lease between Turns); inspect: state=ready revision=1 holder=true identity=match marker=match registration=valid
+19:27:42.383 == 1b. cold load keeps the MCP profile and server pins explicit
+19:27:43.123    detach: 204; holder none
+19:27:44.211    load without a profile: 409 {"error":"hosted_tool_profile_conflict","code":"hosted_tool_profile_conflict"}
+19:27:44.624    load with the file profile: 409 {"error":"hosted_tool_profile_conflict","code":"hosted_tool_profile_conflict"}
+19:27:44.636    load with the MCP profile but no pins: 400 {"error":"invalid_hosted_mcp_servers","code":"invalid_hosted_mcp_servers"}
+19:27:45.009    load with another server revision: 409 {"error":"hosted_tool_profile_conflict","code":"hosted_tool_profile_conflict"}
+19:27:45.575    load with another definition digest: 409 {"error":"hosted_tool_profile_conflict","code":"hosted_tool_profile_conflict"}
+19:27:45.906    load with the saved profile and pins: 200
+19:27:47.500    Turn: turn_complete | result mcp_6a1a862aacf247932c9ca31ced11d067: {"output":"{"content":[{"type":"text","text":"echo:reloaded calls=2"}]}","executionStatus":"success"} | holder fc1ad6152b…
+19:27:47.501 == 2. the mount becomes unavailable while the Session holds the storage and an MCP operation is running
+19:27:50.032    slow resource read started (20 s); first status: {"operationId":"1b058869-9152-4e1c-afda-761f5786885b","state":"running"} | tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-discover]→200  tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-invoke]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200
+19:27:50.960    marker moved away -> inspect: state=ready revision=1 holder=true identity=match marker=unavailable registration=valid
+19:27:51.046    a. status of the original operation: 200 {"operationId":"1b058869-9152-4e1c-afda-761f5786885b","state":"running"} | tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200
+19:27:51.209    b. cancel of the original operation: 202 {"operationId":"1b058869-9152-4e1c-afda-761f5786885b","state":"running"} | tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-cancel]→200
+19:28:08.635       the pending request returned: 202 {"operationId":"1b058869-9152-4e1c-afda-761f5786885b","state":"settled","response":{"contents":[{"uri":"rig://slow/20000","mimeType":"text/plain","text":"slow resource after 20000 ms"}]}}
+19:28:08.661       status afterwards: 200 {"operationId":"1b058869-9152-4e1c-afda-761f5786885b","state":"settled","response":{"contents":[{"uri":"rig://slow/20000","mimeType":"text/plain","text":"slow resource after 20000 ms"}]}}
+19:28:08.820    c. a NEW MCP operation: 503 {"error":"hosted_mcp_operation_failed","code":"hosted_mcp_operation_failed"} | tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-discover]→409(workspace_unavailable)  tool-sessions/:mcp/control[mcp-status]→200
+19:28:09.799    d. a NEW Turn that would call the MCP tool: turn_error {"sessionId":"38878e57-5893-4326-a1fc-cac380e633d2","promptId":"c6d1631d-5301-4a5a-9c9d-545315d3f3e3","code":"hosted_turn_failed","message": | model calls 0; tool effects 0 | tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-discover]→409(workspace_unavailable)  tool-sessions/:mcp/control[mcp-status]→200
+19:28:10.397    e. detach (mcp-release + storage release): 204 null | tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-release]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp:release→200
+19:28:11.517       storage holder now: none; inspect: state=ready revision=1 holder=false identity=match marker=unavailable registration=valid
+19:28:12.892    marker back -> inspect: state=ready revision=1 holder=false identity=match marker=match registration=valid
+19:28:13.730    load again: 200 
+19:28:16.527    Turn "MCP back": turn_complete | result mcp_d47434cf9457375b99dbabe5f3f1b312: {"output":"{"content":[{"type":"text","text":"echo:back calls=3"}]}","executionStatus":"success"} | tool effects 3 | tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-configure]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-discover]→200  tool-sessions:acquire→200  executions:prepare→200  executions/:id:start→200  executions/:id→200  tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-discover]→200
+19:28:16.529 == 3. a replaced holder (mount fine): the lease row is handed to another holder while an operation is running
+19:28:18.718    Turn: turn_complete | holder eaa6802945…
+19:28:22.689    holder_key eaa6802945… -> ffffffffff… ; inspect: state=ready revision=1 holder=true identity=match marker=match registration=valid
+19:28:22.957    a. status: 200 {"operationId":"3e5e0c18-a521-4d51-9ed6-f0a48a813dc4","state":"outcome_unknown"} | tool-sessions/:mcp/control[mcp-status]→409(workspace_busy)  tool-sessions/:mcp/control[mcp-status]→409(workspace_busy)  tool-sessions:acquire→200  tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-status]→409(workspace_busy)  tool-sessions/:mcp/control[mcp-status]→409(workspace_busy)
+19:28:23.163    b. cancel: 503 {"error":"hosted_mcp_cancel_failed","code":"hosted_mcp_cancel_failed"} | tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-cancel]→409(workspace_busy)
+19:28:23.184       the pending request returned: 202 {"operationId":"3e5e0c18-a521-4d51-9ed6-f0a48a813dc4","state":"outcome_unknown"}
+19:28:23.361    c. detach: 503 {"error":"managed_session_close_failed","code":"managed_session_close_failed"} | tool-sessions/:mcp/control[mcp-status]→409(workspace_busy)  tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-status]→409(workspace_busy)
+19:28:23.426       lease row holder: ffffffffff… (the other holder is untouched)
+19:28:23.624    holder restored; detach: 503 {"error":"managed_session_close_failed","code":"managed_session_close_failed"} | tool-sessions/:mcp/control[mcp-status]→200 | holder eaa6802945…
+19:28:23.626 == 4. the same cleanup from a NEW Harness process (the old one is killed while it holds the storage)
+19:28:23.815 create on storage b: 200
+19:28:26.646    Turn: turn_complete | result mcp_941dcf583a1d4479530d6eeaa7190d0e: {"output":"{"content":[{"type":"text","text":"echo:one calls=1"}]}","executionStatus":"success"} | holder 1ec3530aa4…
+19:28:29.182    slow resource read running: {"operationId":"bb5021a4-a0bb-4c2d-86fb-1140e95acfb4","state":"running"}
+19:28:38.467    marker moved away and the Harness killed (SIGKILL) -> inspect: state=ready revision=1 holder=true identity=match marker=unavailable registration=valid; holder 1ec3530aa4…
+19:29:24.656    new Harness, load with the mount still unavailable: 200  after 37 s, 19 attempts (the dead writer's 60 s lease must lapse) | <no Broker calls>
+19:29:24.798    a. status of the original operation: 200 {"operationId":"bb5021a4-a0bb-4c2d-86fb-1140e95acfb4","state":"settled","response":{"contents":[{"uri":"rig://slow/20000","mimeType":"text/plain","text":"slow resource after 20000 ms"}]}} | tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-status]→200
+19:29:24.833    b. cancel: 202 {"operationId":"bb5021a4-a0bb-4c2d-86fb-1140e95acfb4","state":"settled","response":{"contents":[{"uri":"rig://slow/20000","mimeType":"text/plain","text":"slow resource after 20000 ms"}]}} | <no Broker calls>
+19:29:25.071    c. a NEW operation: 503 {"error":"hosted_mcp_operation_failed","code":"hosted_mcp_operation_failed"} | tool-sessions/:mcp/control[mcp-status]→200  tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-discover]→409(workspace_unavailable)  tool-sessions/:mcp/control[mcp-status]→200
+19:29:25.612    d. detach: 204 null | tool-sessions:acquire→200  tool-sessions/:mcp/control[mcp-release]→200  tool-sessions/:mcp/control[mcp-status]→200  tool-sessions/:mcp:release→200
+19:29:28.107       storage holder now: none; inspect: state=ready revision=1 holder=false identity=match marker=unavailable registration=valid
+19:29:28.225 S15-DONE
