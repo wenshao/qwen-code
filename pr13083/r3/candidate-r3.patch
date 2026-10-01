@@ -1,0 +1,253 @@
+diff --git a/packages/cli/src/serve/hosted-runtime-recovery.test.ts b/packages/cli/src/serve/hosted-runtime-recovery.test.ts
+index 406b6d7ff1..d3af342450 100644
+--- a/packages/cli/src/serve/hosted-runtime-recovery.test.ts
++++ b/packages/cli/src/serve/hosted-runtime-recovery.test.ts
+@@ -21,6 +21,10 @@ import {
+   recoverHostedRuntimeTurn,
+ } from './hosted-runtime-recovery.js';
+ import { HostedWorkspaceBroker } from './hosted-workspace-broker.js';
++import {
++  commitHostedFileHistory,
++  readHostedFileHistory,
++} from './hosted-file-history.js';
+ 
+ const SESSION_ID = '22222222-2222-4222-8222-222222222222';
+ const PROMPT_ID = '33333333-3333-4333-8333-333333333333';
+@@ -308,6 +312,84 @@ describe('recoverHostedRuntimeTurn', () => {
+     expect(acquire).toHaveBeenCalled();
+   });
+ 
++  it('clears the pending file history of the parked batch it drove', async () => {
++    await parkAtAwaitRuntime();
++    const backupTime = '2026-10-01T00:00:00.000Z';
++    const before = {
++      ownerSessionId: SESSION_ID,
++      snapshots: [
++        {
++          promptId: PROMPT_ID,
++          timestamp: backupTime,
++          trackedFileBackups: {
++            '0.txt': { backupFileName: null, version: 1, backupTime },
++          },
++        },
++      ],
++      files: { '0.txt': null },
++    };
++    // The dead owner prepared the batch's history before dispatching it.
++    const owner = await open('boot-1b', false);
++    await owner.sink.write({
++      uuid: 'message-1',
++      parentUuid: null,
++      sessionId: SESSION_ID,
++      timestamp: backupTime,
++      type: 'assistant',
++      cwd: root,
++      version: 'hosted-harness/1',
++      daemonPromptId: PROMPT_ID,
++      message: {
++        role: 'model',
++        parts: [
++          { functionCall: { id: 'call-1', name: 'write_file', args: {} } },
++        ],
++      },
++    });
++    await commitHostedFileHistory(owner, {
++      schemaVersion: 1,
++      state: before,
++      pendingTurn: PROMPT_ID,
++      pendingMessageId: 'message-1',
++      pendingUndo: null,
++    });
++    await owner.close();
++    resetManagedRuntimeDispatchGatesForTest();
++    vi.spyOn(HostedWorkspaceBroker.prototype, 'acquire').mockResolvedValue();
++    vi.spyOn(HostedWorkspaceBroker.prototype, 'execute').mockResolvedValue({
++      executionStatus: 'success',
++      responseParts: [{ text: 'done' }],
++    } as never);
++    const after = {
++      ...before,
++      files: { '0.txt': { digest: `sha256:${'b'.repeat(64)}`, mode: 0o644 } },
++    };
++    const fileHistory = vi
++      .spyOn(HostedWorkspaceBroker.prototype, 'fileHistory')
++      .mockResolvedValue(after as never);
++    const replacement = await open('boot-2', false);
++    try {
++      const recovered = await recoverHostedRuntimeTurn({
++        session: replacement,
++        sessionId: SESSION_ID,
++        cwd: root,
++        promptId: PROMPT_ID,
++        brokerOptions,
++        passive: false,
++      });
++      expect(recovered?.report.phase).toBe('results_ready');
++      expect(fileHistory).toHaveBeenCalledWith({
++        kind: 'raw-file-history',
++        action: 'snapshot',
++      });
++      const saved = await readHostedFileHistory(replacement);
++      expect(saved?.pendingTurn).toBeNull();
++      expect(saved?.state.files['0.txt']).toEqual(after.files['0.txt']);
++    } finally {
++      await replacement.close();
++    }
++  });
++
+   it('drives each parked execution under its own id and arguments', async () => {
+     const EXECUTION_2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+     await parkAtAwaitRuntime('write_file', false, false, true, EXECUTION_2);
+diff --git a/packages/cli/src/serve/hosted-runtime-recovery.ts b/packages/cli/src/serve/hosted-runtime-recovery.ts
+index 0841324f6b..6d4f1ec920 100644
+--- a/packages/cli/src/serve/hosted-runtime-recovery.ts
++++ b/packages/cli/src/serve/hosted-runtime-recovery.ts
+@@ -18,6 +18,10 @@ import {
+ import { HTTP_MANAGED_SESSION_STORE_CONTRACT } from '@qwen-code/qwen-code-core/managed-runtime/http-managed-session-store.js';
+ import type { ManagedToolResultPayload } from './managed-runtime-tool-executor.js';
+ import { writeStderrLineSafe } from '../utils/stdioHelpers.js';
++import {
++  commitHostedFileHistory,
++  readHostedFileHistory,
++} from './hosted-file-history.js';
+ import {
+   HostedWorkspaceBroker,
+   type HostedWorkspaceBrokerOptions,
+@@ -355,6 +359,26 @@ export async function recoverHostedRuntimeTurn(input: {
+           await harness.resolveAwaitRuntime(item.executionCallId, outcomeRef);
+           states.set(item.executionCallId, { state: 'settled' });
+         }
++        // The dead owner prepared this batch's file history before dispatch;
++        // a normal batch records the post-effect state and clears the marker
++        // once its Write/Edit settle. Do the same here, or the marker outlives
++        // the Turn: undo of this prompt and every later load are refused.
++        const savedHistory = await readHostedFileHistory(session);
++        if (
++          savedHistory?.pendingTurn === promptId &&
++          !savedHistory.pendingUndo
++        ) {
++          const state = await broker.fileHistory({
++            kind: 'raw-file-history',
++            action: 'snapshot',
++          });
++          await commitHostedFileHistory(session, {
++            schemaVersion: 1,
++            state,
++            pendingTurn: null,
++            pendingUndo: null,
++          });
++        }
+       } catch (cause) {
+         // The caller only learns about the lease from a returned report, so
+         // every failure exit here must give it back first.
+diff --git a/packages/core/src/managed-runtime/managed-harness-factory.test.ts b/packages/core/src/managed-runtime/managed-harness-factory.test.ts
+index d3834848f4..0bca955a97 100644
+--- a/packages/core/src/managed-runtime/managed-harness-factory.test.ts
++++ b/packages/core/src/managed-runtime/managed-harness-factory.test.ts
+@@ -1195,6 +1195,48 @@ describe('managed harness factory', () => {
+     await session.close();
+   });
+ 
++  it('lets the activation that consumed a taken-over batch commit the next one', async () => {
++    const session = await open(await createWorkspace());
++    const previous = createManagedHarnessHandle(session);
++    await previous.ensureRunnable();
++    const turn = { turnId: 'turn-1', promptId: 'turn-1' };
++    await previous.commitAwaitRuntimeBatch(
++      [await runtimeCommit(session)],
++      turn,
++    );
++    await previous.detach();
++    await session.replaceActivation();
++    const next = createManagedHarnessHandle(session);
++    await next.resolveAwaitRuntime(
++      'ex-1',
++      await session.resources.publish(
++        'managed-tool-outcome',
++        Buffer.from('{}', 'utf8'),
++      ),
++    );
++    const consumed = await next.consumeRuntimeResults();
++    expect(consumed?.identity.activationId).toBe(
++      session.activation.activationId,
++    );
++
++    await expect(
++      next.commitAwaitRuntimeBatch(
++        [
++          {
++            ...(await runtimeCommit(session)),
++            functionCallId: 'fc-2',
++            executionCallId: 'ex-2',
++            invocationBindingId: 'bind-2',
++            modelMessageId: 'msg-2',
++            attemptId: 'att-fc-2',
++          },
++        ],
++        turn,
++      ),
++    ).resolves.toMatchObject({ kind: 'durable_wait' });
++    await session.close();
++  });
++
+   it('refuses an approval in an unfinished turn from another activation', async () => {
+     const session = await open(await createWorkspace());
+     const previous = createManagedHarnessHandle(session);
+diff --git a/packages/core/src/managed-runtime/managed-harness-factory.ts b/packages/core/src/managed-runtime/managed-harness-factory.ts
+index dad0657dd3..1fffc44acf 100644
+--- a/packages/core/src/managed-runtime/managed-harness-factory.ts
++++ b/packages/core/src/managed-runtime/managed-harness-factory.ts
+@@ -66,8 +66,7 @@ export interface HarnessDurableWaitBoundary {
+ }
+ 
+ export type HarnessSafetyBoundary =
+-  | HarnessTurnCompleteBoundary
+-  | HarnessDurableWaitBoundary;
++  HarnessTurnCompleteBoundary | HarnessDurableWaitBoundary;
+ 
+ export interface ManagedDurableWaitCommit {
+   readonly requestId: string;
+@@ -731,15 +730,31 @@ class LocalManagedHarnessHandle implements ManagedHarnessHandle {
+         return null;
+       }
+       const items = previous.tools?.items ?? [];
++      // A replacement owner that took the Turn over and now feeds the settled
++      // batch to the model adopts the Turn. Without this its next tool batch
++      // is refused as Runtime work of a prior activation.
++      const adopt =
++        previous.identity.activationId !== this.activation.activationId &&
++        items.length > 0 &&
++        items.every((item) => item.state === 'settled');
+       if (
+         items.length === 0 ||
+-        items.every((item) => item.state !== 'settled' || item.consumed)
++        (!adopt &&
++          items.every((item) => item.state !== 'settled' || item.consumed))
+       ) {
+         return previous;
+       }
+       const identity = this.nextCheckpointIdentity();
+       const checkpoint = createConsumedRuntimeResultsHarnessCheckpoint({
+-        previous,
++        previous: adopt
++          ? {
++              ...previous,
++              identity: {
++                ...previous.identity,
++                activationId: this.activation.activationId,
++              },
++            }
++          : previous,
+         ...identity,
+       });
+       await this.commitHarnessCheckpoint(
+@@ -930,8 +945,7 @@ class LocalManagedHarnessHandle implements ManagedHarnessHandle {
+ function isHarnessSafetyBoundary(
+   boundary: string | null | undefined,
+ ): boundary is
+-  | typeof HARNESS_TURN_COMPLETE_BOUNDARY
+-  | typeof HARNESS_DURABLE_WAIT_BOUNDARY {
++  typeof HARNESS_TURN_COMPLETE_BOUNDARY | typeof HARNESS_DURABLE_WAIT_BOUNDARY {
+   return (
+     boundary === HARNESS_TURN_COMPLETE_BOUNDARY ||
+     boundary === HARNESS_DURABLE_WAIT_BOUNDARY
