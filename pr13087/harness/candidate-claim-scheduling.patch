@@ -1,0 +1,111 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
+index 3ab3d2c4b1..2f15a46b63 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
+@@ -3,6 +3,7 @@ package com.alibaba.qwen.code.managedagent.store;
+ import com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties;
+ import java.time.Duration;
+ import java.util.List;
++import java.util.Map;
+ import java.util.UUID;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+@@ -15,6 +16,7 @@ import org.springframework.transaction.support.TransactionTemplate;
+ public final class ToolPublicationCollector {
+     private static final Logger LOG = LoggerFactory.getLogger(ToolPublicationCollector.class);
+     private static final long CLAIM_MILLIS = 60_000;
++    private static final int CANDIDATES_PER_TICK = 32;
+     private final JdbcTemplate jdbc;
+     private final TransactionTemplate transactions;
+     private final ToolPublicationRetentionStore retention;
+@@ -99,43 +101,57 @@ public final class ToolPublicationCollector {
+         var candidates = jdbc.queryForList("SELECT scope_key, publication_id, tenant_id, session_id FROM"
+                         + " qwen_tool_publication WHERE (retention_state = 'RETIRING' AND gc_next_at <= ?)"
+                         + " OR (retention_state = 'DELETING' AND gc_next_at <= ? AND (gc_owner = ? OR gc_claim_until <= ?))"
+-                        + " ORDER BY gc_next_at, scope_key, publication_id LIMIT 1", time, time, owner, time);
+-        if (candidates.isEmpty()) {
+-            return null;
++                        + " ORDER BY gc_next_at, scope_key, publication_id LIMIT " + CANDIDATES_PER_TICK,
++                time, time, owner, time);
++        // A blocked candidate is rescheduled without using up the tick.
++        for (var candidate : candidates) {
++            Claim claim = transactions.execute(status -> claim(candidate));
++            if (claim != null) {
++                return claim;
++            }
+         }
+-        var candidate = candidates.getFirst();
+-        return transactions.execute(status -> {
+-            String tenant = (String) candidate.get("tenant_id");
+-            String session = (String) candidate.get("session_id");
+-            ToolPublicationRetentionStore.lockSession(jdbc, tenant, session);
+-            var row = jdbc.queryForMap("SELECT * FROM qwen_tool_publication WHERE scope_key = ?"
+-                    + " AND publication_id = ? FOR UPDATE", candidate.get("scope_key"), candidate.get("publication_id"));
+-            long now = ToolPublicationRetentionStore.now(jdbc);
+-            if ("RETIRING".equals(row.get("retention_state"))) {
+-                if (ToolPublicationRetentionStore.number(row, "gc_next_at") > now) {
+-                    return null;
+-                }
+-                Duration grace = properties.getToolPublication().getDeletionGrace();
+-                var observed = retention.candidate(row, grace);
+-                if (observed.blocker() != null) {
+-                    jdbc.update("UPDATE qwen_tool_publication SET gc_blocker = ?, gc_next_at = ?"
+-                                    + " WHERE scope_key = ? AND publication_id = ?",
+-                            observed.blocker(), now + CLAIM_MILLIS, observed.scope(), observed.publication());
+-                    return null;
++        return null;
++    }
++
++    private Claim claim(Map<String, Object> candidate) {
++        String tenant = (String) candidate.get("tenant_id");
++        String session = (String) candidate.get("session_id");
++        ToolPublicationRetentionStore.lockSession(jdbc, tenant, session);
++        var row = jdbc.queryForMap("SELECT * FROM qwen_tool_publication WHERE scope_key = ?"
++                + " AND publication_id = ? FOR UPDATE", candidate.get("scope_key"), candidate.get("publication_id"));
++        long now = ToolPublicationRetentionStore.now(jdbc);
++        if ("RETIRING".equals(row.get("retention_state"))) {
++            if (ToolPublicationRetentionStore.number(row, "gc_next_at") > now) {
++                return null;
++            }
++            Duration grace = properties.getToolPublication().getDeletionGrace();
++            var observed = retention.candidate(row, grace);
++            if (observed.blocker() != null) {
++                long next = now + CLAIM_MILLIS;
++                if ("grace_period".equals(observed.blocker())) {
++                    // Grace has a known end; polling it every minute only consumes ticks.
++                    next = jdbc.queryForObject("SELECT retired_at FROM qwen_output_session_retirement"
++                            + " WHERE tenant_key = ? AND session_key = ?", Long.class,
++                            ToolPublicationRetentionStore.hash(tenant), ToolPublicationRetentionStore.hash(session))
++                            + grace.toMillis();
+                 }
+-            } else if (ToolPublicationRetentionStore.number(row, "gc_next_at") > now
+-                    || !"DELETING".equals(row.get("retention_state"))
+-                    || !owner.equals(row.get("gc_owner"))
+-                    && ToolPublicationRetentionStore.number(row, "gc_claim_until") > now) {
++                jdbc.update("UPDATE qwen_tool_publication SET gc_blocker = ?, gc_next_at = ?"
++                                + " WHERE scope_key = ? AND publication_id = ?",
++                        observed.blocker(), next, observed.scope(), observed.publication());
+                 return null;
+             }
+-            long generation = ToolPublicationRetentionStore.number(row, "gc_generation") + 1;
+-            jdbc.update("UPDATE qwen_tool_publication SET retention_state = 'DELETING', gc_generation = ?,"
+-                            + " gc_owner = ?, gc_claim_until = ?, gc_blocker = NULL WHERE scope_key = ? AND publication_id = ?",
+-                    generation, owner, now + CLAIM_MILLIS, row.get("scope_key"), row.get("publication_id"));
+-            return new Claim((String) row.get("scope_key"), (String) row.get("publication_id"), tenant, session,
+-                    generation, (String) row.get("gc_cursor"));
+-        });
++        } else if (ToolPublicationRetentionStore.number(row, "gc_next_at") > now
++                || !"DELETING".equals(row.get("retention_state"))
++                || !owner.equals(row.get("gc_owner"))
++                && ToolPublicationRetentionStore.number(row, "gc_claim_until") > now) {
++            return null;
++        }
++        long generation = ToolPublicationRetentionStore.number(row, "gc_generation") + 1;
++        jdbc.update("UPDATE qwen_tool_publication SET retention_state = 'DELETING', gc_generation = ?,"
++                        + " gc_owner = ?, gc_claim_until = ?, gc_blocker = NULL WHERE scope_key = ? AND publication_id = ?",
++                generation, owner, now + CLAIM_MILLIS, row.get("scope_key"), row.get("publication_id"));
++        return new Claim((String) row.get("scope_key"), (String) row.get("publication_id"), tenant, session,
++                generation, (String) row.get("gc_cursor"));
+     }
+ 
+     private boolean confirm(Claim claim, List<ObjectKey> page) {

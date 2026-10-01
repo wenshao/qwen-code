@@ -1,0 +1,138 @@
+[
+  {
+    "name": "01-collection-pages",
+    "title": "Retired Shell output collected in bounded pages (real Shell + Broker worker + MySQL 8.4.7 + fake OSS)",
+    "subtitle": "PR #13087 head 6ff843bc (production code byte-identical to abad13c7, where the stack ran) · deletion-grace 0 s · gc-enabled=true",
+    "noteColor": "#3fb950",
+    "lines": [
+      "## Session A: two real Shell calls (200 MiB stdout + 47 MiB stderr, then 3 MiB) -> 2 publications; Session B (not retired): 4 MiB",
+      "== decoys planted by the rig: <A pub prefix>/zz-decoy-outside-catalog  and  <A pub prefix>-sibling/x",
+      "",
+      "## 5c284e22 (252 catalog rows, 249 OSS objects) after retirement",
+      "== t       state      claim  cursor after confirm     held bytes      OSS objects under the prefix",
+      "== +0.0s   PINNED     g0     -                        259,312,090     250 (249 + decoy)",
+      ">> +1.2s   DELETING   g1     segment:stdout:141       259,312,090     153   page 1 = 100 rows",
+      ">> +2.5s   DELETING   g2     segment:stdout:52        259,312,090      53   page 2 = 100 rows",
+      "++ +3.5s   COLLECTED  g3     terminal                           0       1   page 3 = 52 rows; only the decoy is left",
+      "",
+      "## Fake-OSS ledger and SQL after both publications of A are COLLECTED",
+      "++ catalog OSS keys 255 · DELETE requests 255 · distinct 255 · keys outside the catalog 0 · all 204-removed",
+      "++ same-prefix decoy and sibling-prefix decoy survive; Session B stays PINNED with its 5 objects",
+      "++ released_held_bytes = collected_bytes = 262,761,401 · tenant held 266,965,521 -> 4,204,120 (exactly Session B)",
+      "++ inline cleared: the 2 tool-result manifest copies only; 33 other inline resources (messages, checkpoints, turn results) kept",
+      "== GetBucketVersioning during collection: 259 = 255 per object + 4 per page"
+    ],
+    "note": "Pagination is 100/100/52, held quota stays at its full value until the final page confirms, and nothing outside the SQL catalog is deleted. Retirement itself had to be driven through a rig seam: the public DELETE refuses Workspace Sessions (409 workspace_unavailable), see the report."
+  },
+  {
+    "name": "02-faults-and-takeover",
+    "title": "Faults on the real stack: lost reply, SIGKILL mid-page, SQL confirmation failure, competing JVMs",
+    "subtitle": "Same rig · each row is one retired real publication · times are relative to retirement",
+    "noteColor": "#3fb950",
+    "lines": [
+      "## Lost DELETE reply (3rd key deleted, reply dropped)",
+      "   +1.9s DELETING collection_retry, held kept · WARN with com.aliyun.oss.ClientException stack",
+      "++ +62.2s retry g2 repeats the same exact keys: 3 x 204-missing + 6 x 204-removed -> COLLECTED",
+      "## SIGKILL of the JVM while its 50th DELETE is in flight (116 objects)",
+      "   old owner removed 49; replacement JVM up at ~+8.5s, waits for the 60 s claim",
+      "++ +61.8s g2 replays the page (49 x 204-missing + 67 x 204-removed) -> +63.2s COLLECTED g3 · released 121,651,334 once",
+      "== the dead JVM's DELETE landed at +435.7s -> 204-missing; 0 keys outside the catalog",
+      "## SQL confirmation failure (journal head row locked by another session, lock wait 3 s)",
+      "   CannotAcquireLockException -> rollback; during the failure 5 inline objects + manifest copy and held quota are kept",
+      "++ +70.5s retry repeats the 9 keys (204-missing) -> COLLECTED; inline copies cleared only then",
+      "## Two JVMs on one database",
+      "!! hung DELETE: the OSS SDK socket timeout (50 s) fires before the 60 s claim, so A defers itself; B claims at +112 s",
+      "++ A frozen with SIGSTOP for ~63 s: first SQL after SIGCONT is the renew -> affected=0 -> A stops",
+      "++ A's confirm held 75 s in a SQL relay while B collects (g2): A's FOR UPDATE sees COLLECTED -> COMMIT with no writes,",
+      "++   its deferral UPDATE affected=0, row and released_held_bytes unchanged"
+    ],
+    "note": "Retries repeat the same exact keys, quota stays held until a confirmation under a live claim, and a stale JVM can neither renew nor confirm. Every delete count above is from the OSS ledger; every SQL outcome is from MySQL itself."
+  },
+  {
+    "name": "03-fail-closed-and-gating",
+    "title": "Fail closed, fairness, disabled GC, legacy rows and upgrades",
+    "subtitle": "Same rig · O4-1 base arm = jar from 3ee43046 · main arm = jar from 93efe355 (merge-base)",
+    "noteColor": "#d29922",
+    "lines": [
+      "## Persistent 403 on publication P1, healthy P2 retired right after it",
+      "++ P2 COLLECTED at +2.5s while P1 fails",
+      "!! P1 retried at +1s, +62s, +122s: DELETING collection_retry, 8,406,850 held bytes kept, WARN AccessDenied each time",
+      "== after the fault was cleared P1 was collected (g6): nothing releases it while the key stays denied",
+      "## Bucket versioning switched on after the server started",
+      "++ Enabled and then Suspended: 0 DELETE requests, IllegalStateException 'cannot enforce immutable objects'",
+      "## gc-enabled=false",
+      "++ 75 s after retirement still RETIRING, 0 DELETEs; observer logs sample=1 eligible_bytes=6309500",
+      "## Before: O4-1 base jar with gc-enabled=true",
+      "-- retired publication stays RETIRING; its 7 objects (6,303,801 B) and quota stay; no gc_* columns",
+      "++ same database restarted on the PR jar: V28 applied in 0.37 s, the publication COLLECTED on the first tick",
+      "## Legacy row written by the main jar, then V27+V28 applied by the PR jar",
+      "++ write_evidence=0 -> blocker legacy_write_evidence_missing, kept; a publication written after the upgrade in the same DB collected"
+    ],
+    "note": "All gates behave as described. The amber lines are the acknowledged R1-12 policy gap: a key that stays denied holds its publication and full quota forever, retried every 60 s."
+  },
+  {
+    "name": "04-blocked-candidates",
+    "title": "Blocked candidates use up the one-per-second claim slot (head vs candidate patch)",
+    "subtitle": "151 real publications · deletion-grace 120 s · E (1 publication) retired at t0, B (3 Sessions x 50 Shell calls) at t0+60 s",
+    "noteColor": "#d29922",
+    "lines": [
+      "## head 6ff843bc (claim(): LIMIT 1, a blocked candidate is pushed 60 s and the tick ends)",
+      "   E eligible at +120.9s",
+      "-- E collected at +216.1s  ->  95.2 s after it became eligible",
+      "-- blocked re-evaluations per minute: 57, 59 (one per tick, each takes the tenant row FOR UPDATE)",
+      "!! smoke run, grace 5 s: collected at +62 s, because the first evaluation inside grace pushed gc_next_at by 60 s",
+      "",
+      "## candidate (+49/-33): grace blocker -> gc_next_at = retired_at + grace; up to 32 candidates per tick",
+      "   E eligible at +120.3s",
+      "++ E collected at +121.2s  ->  0.96 s after it became eligible",
+      "++ blocked evaluations: 151 in total, exactly one per publication",
+      "++ 42 collector/retention/scheduling/adapter tests pass, Checkstyle 0",
+      "",
+      "## Projection with the default 24 h grace (head)",
+      "!! every retired publication is re-evaluated ~1440 times while in grace",
+      "!! more than ~60 publications in grace per instance saturates the collector; eligible ones then wait ~N seconds"
+    ],
+    "note": "Not a safety problem and GC is off by default, but it is a throughput ceiling the O4-3 capacity gate should know about before GC is enabled."
+  },
+  {
+    "name": "05-real-oss",
+    "title": "Real Aliyun OSS: temporary private bucket in cn-hangzhou (created for this run, deleted afterwards)",
+    "subtitle": "Same rig with the production AliyunToolPublicationObjectStore pointed at the real endpoint · bucket name redacted",
+    "noteColor": "#3fb950",
+    "lines": [
+      "## 101 MiB Shell publication: 107 catalog rows, 102 real OSS objects",
+      "++ page 1 (100 rows) took 5.5 s (~55 ms per object: renew + GetBucketVersioning + DeleteObject); COLLECTED at +7.8 s",
+      "++ ListObjects on its prefix afterwards: 0 objects; the live Session's 3 objects kept",
+      "## 8 MiB publication with two decoys planted next to it",
+      "++ 11 catalog objects deleted; same-prefix decoy and sibling-prefix decoy kept (bucket 16 -> 5 objects)",
+      "## Idempotent replay on real OSS",
+      "++ DeleteObject on a key that never existed -> HTTP 204 (405 ms), so repeating keys after a lost reply is safe",
+      "## Versioning enabled on the real bucket after the server started",
+      "++ collection_retry, 0 objects deleted, IllegalStateException",
+      "== cleanup: 9 object versions and the bucket deleted; a later request answered NoSuchBucket"
+    ],
+    "note": "The real adapter deletes only catalog keys and fails closed on versioning. Throughput on this link: about 15 objects per second including the 1 s tick delay."
+  },
+  {
+    "name": "06-mutation",
+    "title": "Mutation matrix on ToolPublicationCollector / AliyunToolPublicationObjectStore",
+    "subtitle": "41 unit tests (collector 24 incl. inherited, retention 13, adapter 4) · control green · one mutant at a time in a separate worktree",
+    "noteColor": "#d29922",
+    "lines": [
+      "## killed 12/23",
+      "++ M1 eligibility recheck skipped · M5 quota released after page 1 · M6 probe never completes · M7 page ignores cursor",
+      "++ M8 no deferral · M9 deferral without delay · M11 resource cleanup skipped · M14 held not zeroed · M15 object inline kept",
+      "++ M20 tick lets the exception escape · M23 gc-enabled ignored · M24 adapter delete without its versioning check",
+      "## survived",
+      "-- M12 Session resource cleanup widened to the whole Session (would clear messages, checkpoints, turn results)",
+      "!! M13 used bytes not zeroed (held still zeroed, so capacity is unaffected)",
+      "== M2/M3/M4, M2+M3+M4 confirm owner/generation/cursor fences · M17/M18, M17+M18 renew owner/generation fences",
+      "==   (the state and expiry conjuncts carry the existing tests; a stale confirm can only follow a fully deleted page)",
+      "== M16/M21 in-transaction rechecks that only matter in a race · M19 page-level versioning check · M22 lease cleanup",
+      "",
+      "## candidate test +29 lines (collectionClearsOnlyThePublicationsSessionResources)",
+      "++ passes on head (42/42), kills M12 and M13, Checkstyle 0"
+    ],
+    "note": "M12 is the one worth pinning: on the real stack the collector cleared only the 2 manifest copies and kept 33 other inline resources, but no test would notice if that WHERE clause widened."
+  }
+]

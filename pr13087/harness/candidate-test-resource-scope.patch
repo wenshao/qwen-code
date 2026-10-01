@@ -1,0 +1,40 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
+index 7dcee90b2f..ea215383dd 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
+@@ -128,6 +128,35 @@ public class ToolPublicationCollectorTest extends ToolPublicationRetentionStoreT
+         assertThat(held()).isZero();
+     }
+ 
++    @Test
++    void collectionClearsOnlyThePublicationsSessionResources() {
++        var objects = new DeletingObjects();
++        addObject("segment-0000", "exact/segment-0000", null);
++        objects.bytes.put("exact/segment-0000", new byte[] {1});
++        addObject("z-inline", null, new byte[] {2});
++        for (String resource : List.of("z-inline", "message-1")) {
++            jdbc.update("INSERT INTO qwen_managed_session_resource (session_scope_key, tenant_id, workspace_id, session_id,"
++                            + " resource_id, kind, schema_version, byte_length, sha256, storage_kind, inline_bytes,"
++                            + " publish_command_id, state, created_at) VALUES (?, ?, 'workspace-1', ?, ?,"
++                            + " 'managed-message', 1, 1, ?, 'MYSQL_INLINE', ?, 'publish', 'REFERENCED', CURRENT_TIMESTAMP(6))",
++                    ManagedSessionStore.sessionScopeKey(tenant, session), tenant, session, resource, scope, new byte[] {2});
++        }
++        long used = jdbc.queryForObject("SELECT capture_used_bytes + producer_used_bytes + admission_used_bytes FROM"
++                + " qwen_tool_publication WHERE scope_key = ?", Long.class, scope);
++        retire();
++        assertThat(collector(objects).runOnce()).isTrue();
++        assertThat(state()).isEqualTo("COLLECTED");
++        assertThat(jdbc.queryForObject("SELECT inline_bytes FROM qwen_managed_session_resource WHERE resource_id = 'z-inline'",
++                byte[].class)).isNull();
++        assertThat(jdbc.queryForObject("SELECT inline_bytes FROM qwen_managed_session_resource WHERE resource_id = 'message-1'",
++                byte[].class)).containsExactly(2);
++        assertThat(used).isPositive();
++        assertThat(jdbc.queryForObject("SELECT capture_used_bytes + producer_used_bytes + admission_used_bytes FROM"
++                + " qwen_tool_publication WHERE scope_key = ?", Long.class, scope)).isZero();
++        assertThat(jdbc.queryForObject("SELECT collected_bytes FROM qwen_tool_publication WHERE scope_key = ?",
++                Long.class, scope)).isEqualTo(used);
++    }
++
+     @Test
+     void lostDeleteResponseRetriesSameKeyWithoutReleasingQuota() {
+         var objects = new DeletingObjects() {
