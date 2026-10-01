@@ -1,0 +1,56 @@
+# s1-later-turns-ws-a-head  db=r3  2026-10-01T11:47:22.666Z
+PASS  alice creates a bound Session with an initial Turn -> 202  -> 202 session=16a15610-d763-490d-98ef-0a6bde4edb82
+PASS  initial Turn COMPLETED  -> {"status":"COMPLETED","error":"","ms":1336}
+PASS  initial Turn wrote child/proof.txt = after-t1  -> after-t1
+PASS  initial Turn: 3 tool executions  -> 3
+PASS  WebShell sessions/get as alice: 200, capabilities.workspaceTurns=true  -> 200 caps={"tasks":true,"artifacts":false,"actions":false,"workspaceTurns":true}
+PASS  WebShell sessions/get as carol: 200, capabilities.workspaceTurns=false  -> 200 caps={"tasks":true,"artifacts":false,"actions":false,"workspaceTurns":false}
+PASS  WebShell sessions/get as bob: 200, capabilities.workspaceTurns=false  -> 200 caps={"tasks":true,"artifacts":false,"actions":false,"workspaceTurns":false}
+PASS  WebShell sessions/get as mallory (no grant) -> 404  -> 404 session_not_found
+PASS  WebShell sessions/query row carries the same capability for alice  -> {"tasks":true,"artifacts":false,"actions":false,"workspaceTurns":true}
+PASS  later Turn from carol -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  later Turn from bob -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  later Turn from mallory -> 404  -> 404 session_not_found
+PASS  refused callers added no Turn  -> 1 vs 1
+PASS  creator's later Turn -> 202  -> 202 {"session_id":"16a15610-d763-490d-98ef-0a6bde4edb82","turn_id":"turn_8c0a062afa7b4c5bb1e3f79d2fa00f83","status":"accepted","replayed":false}
+PASS  later Turn COMPLETED  -> {"status":"COMPLETED","error":"","ms":1332}
+PASS  later Turn rewrote child/proof.txt = after-t2 in the same bound cwd  -> after-t2
+PASS  tool executions doubled (3 -> 6)  -> 6
+PASS  Harness decoy cwd untouched
+PASS  later Turn: the model saw the earlier conversation (history kept)  -> requests=4 userTurns=2 msgs=10
+PASS  replaying the later Turn key returns the same Turn  -> 202 turn_8c0a062afa7b4c5bb1e3f79d2fa00f83
+PASS  same key, different body -> 409 idempotency_conflict  -> 409 idempotency_conflict
+PASS  another caller replaying the creator's key is still refused  -> 409 workspace_unavailable
+PASS  creator submits a Turn that the model holds -> 202  -> 202
+PASS  the held Turn reached the model
+PASS  a second Turn while one runs -> 409 turn_active  -> 409 turn_active
+PASS  cancel from carol -> 409  -> 409 workspace_unavailable
+PASS  cancel from bob -> 409  -> 409 workspace_unavailable
+PASS  cancel from mallory -> 404  -> 404 session_not_found
+PASS  cancel from the creator -> 202  -> 202 {"session_id":"16a15610-d763-490d-98ef-0a6bde4edb82","turn_id":"turn_bd64ed39d2cd42f5b02285b1f4a39956","status":"accepted","replayed":false}
+PASS  held Turn ends CANCELLED  -> {"status":"CANCELLED","error":"","ms":235} after 244 ms
+PASS  the Hosted Harness aborted the model request  -> aborted after 69 ms held
+PASS  no tool ran in the cancelled Turn  -> 6
+NOTE  Workspace execution lease rows after cancel  -> [["1feb5a8ebfbefe88750b440d905d8ab5a8abd81c930c2f4472977eb281baa258","<null>"]]
+NOTE  runtime sessions for this Session  -> [["RELEASED","2"]]
+PASS  a Turn after the cancel COMPLETES (Workspace and Runtime free)  -> 202 {"status":"COMPLETED","error":"","ms":1561}
+PASS  file = after-t3; executions 9  -> after-t3 9
+PASS  WebShell turns/submit as creator -> 202 and COMPLETED  -> 202 {"status":"COMPLETED","error":"","ms":1553} after-t4
+PASS  WebShell turns/submit as bob -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  WebShell turns/cancel as carol -> 409  -> 409 workspace_unavailable
+PASS  WebShell turns/cancel as creator -> 202, Turn CANCELLED, model aborted  -> 202 {"status":"CANCELLED","error":"","ms":231}
+PASS  rename from carol -> 409  -> 409 workspace_unavailable
+PASS  rename from bob -> 409  -> 409 workspace_unavailable
+PASS  rename from mallory -> 404  -> 404 session_not_found
+PASS  rename from the creator -> 200 with the new title  -> 200 {"title":"Renamed by creator"}
+PASS  a reader sees the new title  -> Renamed by creator
+PASS  creator close (public) -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  creator archive (public) -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  creator unarchive (public) -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  creator delete (public) -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  creator close (WebShell) -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  creator archive (WebShell) -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  creator delete (WebShell) -> 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  Session still ACTIVE
+NOTE  Turn history  -> [["turn_e4aa23c5894149a6b936d2b56f8ef5bd","COMPLETED","","0"],["turn_8c0a062afa7b4c5bb1e3f79d2fa00f83","COMPLETED","","0"],["turn_bd64ed39d2cd42f5b02285b1f4a39956","CANCELLED","","0"],["turn_a22ed23575c247e3a0a5f4c022f19657","COMPLETED","","0"],["turn_6a00df6348964a1c81ed14a1f187f310","COMPLETED","","0"],["turn_ff1793f23f3c4308aa1ed392b231fc2b","CANCELLED","","0"]]
+== s1-later-turns-ws-a-head: 51 passed, 0 failed

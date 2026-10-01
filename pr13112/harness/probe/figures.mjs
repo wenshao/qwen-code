@@ -96,6 +96,25 @@ figs['07-r3'] = page(
     shotBlock('creator (zh) on 5d4499cf — the “暂未开放消息执行” line is gone, composer enabled', 'head', [strip('head-05-creator-zh-p1', 40, 150), strip('head-05-creator-zh-p1', 730, 860)]) +
     shotBlock('reader (bob) on 5d4499cf — read-only; the line stays', 'info', [strip('head-06-reader-bound-p1', 40, 175)], 'For a reader the line now contradicts the transcript right below it (the creator’s Turns did run); wording such as “only the Session creator can send” would fit. Nit.'),
 );
+figs['08-r4'] = page(
+  'Round 4 — re-verified at 485c92bc (26de98cd, 66646a6c, three main merges) and on head ⊕ main 0a5f518b',
+  'Rebuilt from 485c92bc and from the trial merge (adds #13115); native MySQL 8.4.7, packaged Harness with #13131 (M2) and #13110 in. CI 19 / 19 green.',
+  table(['Item', 'On the real stack'], [
+    ['R1-1 contract text', P('fixed: createSession / webShellCreateSession describe the creator admission; only lifecycle/cwd still “remain gated”; contract 1.28.0')],
+    ['F4 / R1-2 admission vs execution', P('fixed: can_create revoked or DRAINING → workspaceTurns=false, 409 in 5–6 ms, model never called')],
+    ['R1-3 rename under revocation', P('fixed for grant/state refusals: 409, no PENDING command, no public event; rename after restore 200')],
+    ['… residual: authorization fails after admission (Workspace generation moved)', A('submit 202 → FAILED 262 ms; rename 409 but PENDING stays → fresh keys get 409 session_operation_active until the original key is replayed')],
+    ['F1 cancel while authorization is refused', A('now an honest 409 (was 202 then lost); the Turn still completes and writes once the grant returns; a lost POST /cancel is still never re-sent')],
+    ['F2 Runtime worker gone', F('unchanged on head and head ⊕ main: crash → LOST, 3 / 3 fail 0.45 s; restart → 33.8 s, then 31.1 / 30.3 s')],
+    ['R1-15 rename of an empty Session', A('unchanged (declined): Harness session created')],
+    ['merge dc22300d (#13037 artifacts + workspaceTurns)', P('capability has both fields; contract 1.28.0 with v1.28 entry; tests green')],
+    ['unit · Hosted IT', P('head 349 / 349 · 2 / 2;  head ⊕ 0a5f518b 350 / 350 · 2 / 2')],
+    ['web-shell eslint/prettier/tsc · managed vitest · generated types', P('clean · 159 / 159 · no diff')],
+    ['S1 core · panel · approvals · opt-in off · real model', P('51 / 51 (also head ⊕ main) · 7 / 7 · 15 / 15 · 6 / 6 · 5 / 5')],
+    ['Mutation, 25 mutants on the new code', A('20 killed; K2, K6, J11 equivalent; K3 (opt-in clause) and K7 (rename refusal mapping) survive')],
+    ['K3 on the stack (opt-in turned off after creation)', A('creator capability workspaceTurns=true while submit/cancel/rename all answer 409')],
+  ]),
+);
 fs.writeFileSync(`${OUT}/cards.json`, JSON.stringify(Object.keys(figs)));
 export { figs, page, table, P, F, A, N, OUT };
 
