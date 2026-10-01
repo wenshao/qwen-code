@@ -1,0 +1,370 @@
+[
+  {
+    "name": "full 200 headers",
+    "ok": true,
+    "got": {
+      "status": 200,
+      "content-type": "application/octet-stream",
+      "content-length": "41943040",
+      "etag": "\"9f28634ce543c18f53dfd9b78f35338d83ed6b6a8674f67e929c02746240ed20\"",
+      "accept-ranges": "bytes",
+      "cache-control": "private, no-store, no-transform",
+      "content-disposition": "attachment; filename=\"stdout.bin\"",
+      "repr-digest": "sha-256=:nyhjTOVDwY9T39m3jzUzjYPta2qGdPZ+kpwCdGJA7SA=:",
+      "x-content-type-options": "nosniff",
+      "sha": true
+    }
+  },
+  {
+    "name": "range across segment 0/1 boundary",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 16,
+      "range": "bytes 1048570-1048585/41943040",
+      "etag": "strong-sha",
+      "bytesEqual": true
+    }
+  },
+  {
+    "name": "range spanning 3 segments (exactly 1 MiB, unaligned)",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 1048576,
+      "range": "bytes 5242780-6291355/41943040",
+      "etag": "strong-sha",
+      "bytesEqual": true
+    }
+  },
+  {
+    "name": "first byte",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 1,
+      "range": "bytes 0-0/41943040",
+      "etag": "strong-sha",
+      "bytesEqual": true
+    }
+  },
+  {
+    "name": "last byte",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 1,
+      "range": "bytes 41943039-41943039/41943040",
+      "etag": "strong-sha",
+      "bytesEqual": true
+    }
+  },
+  {
+    "name": "suffix 10",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 10,
+      "range": "bytes 41943030-41943039/41943040",
+      "etag": "strong-sha",
+      "bytesEqual": true
+    }
+  },
+  {
+    "name": "open-ended near EOF",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 40,
+      "range": "bytes 41943000-41943039/41943040",
+      "etag": "strong-sha",
+      "bytesEqual": true
+    }
+  },
+  {
+    "name": "end past EOF is capped",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 10,
+      "range": "bytes 41943030-41943039/41943040",
+      "etag": "strong-sha",
+      "bytesEqual": true
+    }
+  },
+  {
+    "name": "start at EOF",
+    "ok": true,
+    "got": {
+      "status": 416,
+      "code": "range_not_satisfiable",
+      "len": 156,
+      "range": "bytes */41943040"
+    }
+  },
+  {
+    "name": "suffix 0",
+    "ok": true,
+    "got": {
+      "status": 416,
+      "code": "range_not_satisfiable",
+      "len": 156,
+      "range": "bytes */41943040"
+    }
+  },
+  {
+    "name": "1 MiB + 1",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "range_too_large",
+      "len": 143
+    }
+  },
+  {
+    "name": "open-ended from 0 (whole 40 MiB)",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "range_too_large",
+      "len": 143
+    }
+  },
+  {
+    "name": "multiple ranges",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "unsupported_range",
+      "len": 136
+    }
+  },
+  {
+    "name": "malformed \"bytes=abc\"",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "invalid_range",
+      "len": 118
+    }
+  },
+  {
+    "name": "malformed \"bytes=5-2\"",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "invalid_range",
+      "len": 118
+    }
+  },
+  {
+    "name": "malformed \"items=0-5\"",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "invalid_range",
+      "len": 118
+    }
+  },
+  {
+    "name": "malformed \"bytes=-\"",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "invalid_range",
+      "len": 118
+    }
+  },
+  {
+    "name": "malformed \"bytes=1.5-2\"",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "invalid_range",
+      "len": 118
+    }
+  },
+  {
+    "name": "malformed \"bytes= 0-1x\"",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "invalid_range",
+      "len": 118
+    }
+  },
+  {
+    "name": "no revision",
+    "ok": true,
+    "got": {
+      "status": 400,
+      "code": "revision_required"
+    }
+  },
+  {
+    "name": "unknown revision",
+    "ok": true,
+    "got": {
+      "status": 404,
+      "code": "artifact_not_found",
+      "len": true
+    }
+  },
+  {
+    "name": "If-Match wrong",
+    "ok": true,
+    "got": {
+      "status": 412,
+      "code": "artifact_revision_mismatch",
+      "len": 150
+    }
+  },
+  {
+    "name": "If-Match right",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 10,
+      "range": "bytes 0-9/41943040",
+      "etag": "strong-sha",
+      "bytesEqual": true
+    }
+  },
+  {
+    "name": "If-Match list with *",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 10,
+      "range": "bytes 0-9/41943040",
+      "etag": "strong-sha"
+    }
+  },
+  {
+    "name": "If-Match weak validator",
+    "ok": true,
+    "got": {
+      "status": 412,
+      "code": "artifact_revision_mismatch",
+      "len": 150
+    }
+  },
+  {
+    "name": "If-Range match keeps the range",
+    "ok": true,
+    "got": {
+      "status": 206,
+      "len": 10,
+      "range": "bytes 0-9/41943040",
+      "etag": "strong-sha"
+    }
+  },
+  {
+    "name": "If-Range mismatch selects the full representation",
+    "ok": true,
+    "got": {
+      "status": 200,
+      "len": 41943040,
+      "sha": true
+    }
+  },
+  {
+    "name": "empty stderr full",
+    "ok": true,
+    "got": {
+      "status": 200,
+      "len": 0,
+      "cl": "0",
+      "etag": "\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\""
+    }
+  },
+  {
+    "name": "empty stderr any range",
+    "ok": true,
+    "got": {
+      "status": 416,
+      "range": "bytes */0"
+    }
+  },
+  {
+    "name": "notstarted: no artifacts",
+    "ok": true,
+    "got": {
+      "status": 200,
+      "count": 0,
+      "more": false
+    }
+  },
+  {
+    "name": "partial: no artifacts",
+    "ok": true,
+    "got": {
+      "status": 200,
+      "count": 0,
+      "more": false
+    }
+  },
+  {
+    "name": "alice (granted)",
+    "ok": true,
+    "got": {
+      "metadata": "200",
+      "list": 200,
+      "content": "206",
+      "malformedRange": "400 invalid_range",
+      "noRevision": "400 revision_required",
+      "leaked": true
+    }
+  },
+  {
+    "name": "no actor, tenant header only",
+    "ok": true,
+    "got": {
+      "metadata": "401 actor_required",
+      "list": 401,
+      "content": "401 actor_required",
+      "malformedRange": "401 actor_required",
+      "noRevision": "401 actor_required",
+      "leaked": false
+    }
+  },
+  {
+    "name": "bob (no Workspace grant)",
+    "ok": true,
+    "got": {
+      "metadata": "404 session_not_found",
+      "list": 404,
+      "content": "404 session_not_found",
+      "malformedRange": "404 session_not_found",
+      "noRevision": "404 session_not_found",
+      "leaked": false
+    }
+  },
+  {
+    "name": "alice in another tenant",
+    "ok": true,
+    "got": {
+      "metadata": "404 session_not_found",
+      "list": 404,
+      "content": "404 session_not_found",
+      "malformedRange": "404 session_not_found",
+      "noRevision": "404 session_not_found",
+      "leaked": false
+    }
+  },
+  {
+    "name": "artifact id under another Session",
+    "ok": true,
+    "got": {
+      "status": 404,
+      "code": "artifact_not_found"
+    }
+  },
+  {
+    "name": "artifact metadata under another Session",
+    "ok": true,
+    "got": {
+      "status": 404
+    }
+  }
+]
