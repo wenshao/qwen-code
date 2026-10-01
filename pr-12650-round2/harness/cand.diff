@@ -1,0 +1,33 @@
+--- lint.pr.js	2026-10-01 22:42:39.158249149 +0800
++++ lint.cand.js	2026-10-01 23:13:59.488829508 +0800
+@@ -236,13 +236,29 @@
+         'scripts',
+         'file --mime-type detected no shell scripts',
+       )}
++      sc_out="$(mktemp)"
+       printf '%s\\n' "$scripts" | xargs shellcheck \\
+         --check-sourced \\
+         --enable=all \\
+         --exclude=SC2002,SC2129,SC2310 \\
+         --severity=style \\
+         --format=gcc \\
+-        --color=never | sed -e 's/note:/warning:/g' -e 's/style:/warning:/g'
++        --color=never > "$sc_out"
++      sc_status=$?
++      sed -e 's/note:/warning:/g' -e 's/style:/warning:/g' < "$sc_out"
++      grep -q ': error: ' "$sc_out"; sc_has_error=$?
++      rm -f "$sc_out"
++      # xargs 123 = findings: warnings/notes stay advisory, error-severity
++      # findings (e.g. unparseable scripts) fail; 124-127 = shellcheck crashed,
++      # was killed, or could not be run at all.
++      if [ "$sc_status" -ge 124 ]; then
++        echo "shellcheck: xargs exited $sc_status; shellcheck did not run to completion" >&2
++        exit 1
++      fi
++      if [ "$sc_has_error" -eq 0 ]; then
++        echo "shellcheck: error-severity findings above" >&2
++        exit 1
++      fi
+     `,
+       },
+       yamllint: {

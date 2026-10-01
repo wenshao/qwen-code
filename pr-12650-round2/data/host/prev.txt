@@ -1,0 +1,67 @@
+### shellcheck.run
+
+      files="$(git ls-files)" || { echo "shellcheck: git ls-files failed; refusing to lint an empty file list" >&2; exit 1; }
+      candidates="$(printf '%s\n' "$files" | grep -v '^integration-tests/terminal-bench/' | grep -E '^([^.]+|.*\.(sh|zsh|bash))')"
+      if [ -z "$candidates" ]; then
+        echo "shellcheck: git ls-files matched no shell-script candidates; refusing to pass on an empty file list" >&2
+        exit 1
+      fi
+      scripts="$(printf '%s\n' "$candidates" | xargs file --mime-type | grep 'text/x-shellscript' | awk '{ print substr($1, 1, length($1)-1) }')"
+      if [ -z "$scripts" ]; then
+        echo "shellcheck: file --mime-type detected no shell scripts; refusing to pass on an empty file list" >&2
+        exit 1
+      fi
+      printf '%s\n' "$scripts" | xargs shellcheck \
+        --check-sourced \
+        --enable=all \
+        --exclude=SC2002,SC2129,SC2310 \
+        --severity=style \
+        --format=gcc \
+        --color=never | sed -e 's/note:/warning:/g' -e 's/style:/warning:/g'
+    
+### shellcheck.check
+command -v shellcheck
+### shellcheck.installer
+
+      mkdir -p "/tmp/qwen-code-linters/local-66331d31183c7d73/shellcheck"
+      
+      set -e
+      verify_sha256() {
+        "/usr/bin/node" -e 'const {createHash}=require("node:crypto");const {readFileSync}=require("node:fs");const actual=createHash("sha256").update(readFileSync(process.argv[1])).digest("hex");if(actual!==process.argv[2]){console.error("SHA-256 mismatch for "+process.argv[1]+": expected "+process.argv[2]+", got "+actual);process.exit(1)}' "$1" "$2"
+      }
+      mkdir -p "/root/.cache/qwen-code/linters" || true
+      if ! cp "/root/.cache/qwen-code/linters/shellcheck_0.11.0_linux.x86_64.tar.xz" "/tmp/qwen-code-linters/local-66331d31183c7d73/.shellcheck.txz" 2>/dev/null         || ! verify_sha256 "/tmp/qwen-code-linters/local-66331d31183c7d73/.shellcheck.txz" "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"; then
+        rm -f "/tmp/qwen-code-linters/local-66331d31183c7d73/.shellcheck.txz"
+        curl -fsSL --retry 2 --retry-connrefused --connect-timeout 10 --max-time 90           -o "/tmp/qwen-code-linters/local-66331d31183c7d73/.shellcheck.txz" "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz"
+        verify_sha256 "/tmp/qwen-code-linters/local-66331d31183c7d73/.shellcheck.txz" "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+        tar -tf "/tmp/qwen-code-linters/local-66331d31183c7d73/.shellcheck.txz" >/dev/null
+        cache_tmp=''
+        if cache_tmp="$(mktemp "/root/.cache/qwen-code/linters/shellcheck_0.11.0_linux.x86_64.tar.xz.XXXXXX")"           && cp "/tmp/qwen-code-linters/local-66331d31183c7d73/.shellcheck.txz" "$cache_tmp"           && "/usr/bin/node" -e 'require("node:fs").renameSync(process.argv[1],process.argv[2])' "$cache_tmp" "/root/.cache/qwen-code/linters/shellcheck_0.11.0_linux.x86_64.tar.xz"; then
+          :
+        else
+          [ -z "$cache_tmp" ] || rm -f "$cache_tmp"
+          echo "Warning: could not persist linter archive to /root/.cache/qwen-code/linters/shellcheck_0.11.0_linux.x86_64.tar.xz" >&2
+        fi
+      fi
+      tar -xf "/tmp/qwen-code-linters/local-66331d31183c7d73/.shellcheck.txz" -C "/tmp/qwen-code-linters/local-66331d31183c7d73/shellcheck" --strip-components=1
+      test -x "/tmp/qwen-code-linters/local-66331d31183c7d73/shellcheck/shellcheck"
+  
+    
+### yamllint.run
+
+      files="$(git ls-files)" || { echo "yamllint: git ls-files failed; refusing to lint an empty file list" >&2; exit 1; }
+      files="$(printf '%s\n' "$files" | grep -E '\.(yaml|yml)')"
+      if [ -z "$files" ]; then
+        echo "yamllint: git ls-files matched no yaml files; refusing to lint an empty file list" >&2
+        exit 1
+      fi
+      printf '%s\n' "$files" | xargs yamllint --format github
+    
+### yamllint.check
+command -v yamllint
+### yamllint.installer
+pip3 install --user "yamllint==1.35.1"
+### actionlint.run
+
+      actionlint         -color         -pyflakes=         -shellcheck=         -ignore 'SC2002:'         -ignore 'SC2016:'         -ignore 'SC2129:'         -ignore 'unexpected key "deployment" for "environment" section'         -ignore 'label ".+" is unknown'
+    
