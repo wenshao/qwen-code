@@ -1,0 +1,159 @@
+diff --git a/packages/cli/src/serve/workspace-recovery-bundle.ts b/packages/cli/src/serve/workspace-recovery-bundle.ts
+index c369e5383c..92ce163b18 100644
+--- a/packages/cli/src/serve/workspace-recovery-bundle.ts
++++ b/packages/cli/src/serve/workspace-recovery-bundle.ts
+@@ -117,6 +117,16 @@ async function fileDigest(
+   }
+ }
+ 
++/** An entry type the provider cannot capture; `entryPath` is relative to the tree root's parent. */
++export class UnsupportedEntryError extends Error {
++  constructor(
++    code: 'unsupported_symlink' | 'unsupported_file_type',
++    readonly entryPath: string,
++  ) {
++    super(code);
++  }
++}
++
+ async function entry(
+   root: string,
+   name: string,
+@@ -131,15 +141,33 @@ async function entry(
+     mode: stat.mode & 0o7777,
+   };
+   if (stat.isDirectory()) return { ...common, entryType: 'directory' };
+-  if (stat.isFile())
+-    return { ...common, entryType: 'file', ...(await fileDigest(path)) };
++  if (stat.isFile()) {
++    try {
++      return { ...common, entryType: 'file', ...(await fileDigest(path)) };
++    } catch (error) {
++      if (error instanceof Error && error.message === 'unsupported_file_type')
++        throw new UnsupportedEntryError('unsupported_file_type', name);
++      throw error;
++    }
++  }
+   if (stat.isSymbolicLink()) {
+     const target = await readlink(path);
+-    if (isAbsolute(target) || !inside(boundary, await realpath(path)))
+-      throw new Error('unsupported_symlink');
++    let resolved: string | undefined;
++    try {
++      resolved = await realpath(path);
++    } catch (error) {
++      // A link that still exists but cannot be resolved is dangling or cyclic; a vanished link is ordinary drift.
++      if (!(await lstat(path)).isSymbolicLink()) throw error;
++    }
++    if (
++      isAbsolute(target) ||
++      resolved === undefined ||
++      !inside(boundary, resolved)
++    )
++      throw new UnsupportedEntryError('unsupported_symlink', name);
+     return { ...common, entryType: 'symlink', target };
+   }
+-  throw new Error('unsupported_file_type');
++  throw new UnsupportedEntryError('unsupported_file_type', name);
+ }
+ 
+ async function* tree(
+@@ -182,10 +210,18 @@ function sourceReadDrift(error: unknown): boolean {
+   );
+ }
+ 
+-async function* sourceTree(root: string): AsyncGenerator<BundleEntry> {
++async function* sourceTree(
++  root: string,
++  unpinned?: (error: UnsupportedEntryError) => Promise<boolean>,
++): AsyncGenerator<BundleEntry> {
+   try {
+     yield* tree(dirname(root), basename(root));
+   } catch (error) {
++    // An unsupported entry that was never pinned is a property of the stopped tree, not a change to it.
++    if (error instanceof UnsupportedEntryError && (await unpinned?.(error)))
++      throw Object.assign(new Error('unsupported_source_entry'), {
++        detail: `${error.message} at ${error.entryPath.split('/').slice(1).join('/') || '.'}`,
++      });
+     if (sourceReadDrift(error)) throw new Error('source_drift');
+     throw error;
+   }
+@@ -367,8 +403,15 @@ export class LocalRecoveryBundle {
+       } while (afterKey !== null);
+     }
+     let count = 0;
++    const unpinned = async (error: UnsupportedEntryError) =>
++      (await this.rpc('assetLookup', {
++        key: recoveryAssetKey(
++          'entry',
++          `${candidate}${error.entryPath.slice(basename(sourceRoot).length)}`,
++        ),
++      })) === null;
+     // Symlink resolution is relative to the complete tree, not to each parent.
+-    for await (const original of sourceTree(sourceRoot)) {
++    for await (const original of sourceTree(sourceRoot, unpinned)) {
+       const suffix = original.path.slice(basename(sourceRoot).length);
+       const name = `${candidate}${suffix}`;
+       const saved = await this.rpc('assetLookup', {
+diff --git a/packages/cli/src/serve/workspace-recovery-worker.test.ts b/packages/cli/src/serve/workspace-recovery-worker.test.ts
+index 27c8c84329..19e940a266 100644
+--- a/packages/cli/src/serve/workspace-recovery-worker.test.ts
++++ b/packages/cli/src/serve/workspace-recovery-worker.test.ts
+@@ -16,6 +16,7 @@ import {
+   symlink,
+   writeFile,
+ } from 'node:fs/promises';
++import { execFileSync } from 'node:child_process';
+ import { tmpdir } from 'node:os';
+ import { join } from 'node:path';
+ import { PassThrough } from 'node:stream';
+@@ -185,6 +186,33 @@ async function fixture() {
+ }
+ 
+ describe('workspace recovery private worker', () => {
++  it.each(['absolute', 'dangling', 'hardlink', 'fifo'])(
++    'refuses a %s entry that was already in the stopped tree without invalidating the cut',
++    async (kind) => {
++      const f = await fixture();
++      const source = f.context.request.sourceRoot;
++      if (kind === 'absolute')
++        await symlink(join(source, 'file'), join(source, 'venv-python'));
++      else if (kind === 'dangling')
++        await symlink('dist/index.js', join(source, 'main-link'));
++      else if (kind === 'hardlink')
++        await link(join(source, 'file'), join(source, 'file-hard'));
++      else execFileSync('mkfifo', [join(source, 'pipe')]);
++      const rpc: RecoveryRpc = async (method, params) => {
++        if (method === 'invalidate') {
++          f.calls.push(method);
++          return { state: 'INVALIDATED' };
++        }
++        return f.rpc(method, params);
++      };
++      await expect(runRecoveryWorker(rpc)).rejects.toThrow(
++        'unsupported_source_entry',
++      );
++      expect(f.calls).not.toContain('invalidate');
++      expect(f.calls).not.toContain('finish');
++    },
++  );
++
+   it.each(['file', 'nested'])(
+     'invalidates original %s removed after its entry commit in the same capture pass',
+     async (name) => {
+diff --git a/packages/cli/src/serve/workspace-recovery-worker.ts b/packages/cli/src/serve/workspace-recovery-worker.ts
+index 3b4f7437a1..8ca1e7171b 100644
+--- a/packages/cli/src/serve/workspace-recovery-worker.ts
++++ b/packages/cli/src/serve/workspace-recovery-worker.ts
+@@ -493,7 +493,10 @@ export async function runWorkspaceRecoveryWorker(): Promise<void> {
+         ? 'bundle_io_failed'
+         : 'protocol_validation_failed';
+     await rpc('failure', { code }).catch(() => undefined);
+-    process.stderr.write(`${code}: ${message}\n`);
++    const detail = (error as { detail?: unknown }).detail;
++    process.stderr.write(
++      `${code}: ${message}${typeof detail === 'string' ? ` (${detail})` : ''}\n`,
++    );
+     process.exitCode = 1;
+   } finally {
+     process.stdin.destroy();
