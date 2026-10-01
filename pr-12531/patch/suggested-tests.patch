@@ -1,0 +1,81 @@
+diff --git a/packages/core/src/permissions/mcp-server-rule-collision.test.ts b/packages/core/src/permissions/mcp-server-rule-collision.test.ts
+index 9b57b0c04d..81e6b5826c 100644
+--- a/packages/core/src/permissions/mcp-server-rule-collision.test.ts
++++ b/packages/core/src/permissions/mcp-server-rule-collision.test.ts
+@@ -1805,3 +1805,76 @@ describe('the producer-carried identity channel (R4-2)', () => {
+     ).toBe('disabled');
+   });
+ });
++
++// Production threads the identity into every enforcing gate, so the identity
++// arms must keep honouring every spelling the tool answers to — the registered
++// provider-safe name the model and the UI show, the legacy character set, and
++// the documented `mcp__*` — or a deny rule base enforced silently stops
++// matching. Each row is evaluated the way the scheduler evaluates it.
++describe('the identity channel keeps every spelling the tool answers to', () => {
++  async function evaluateWithIdentity(
++    rules: Partial<{ permissionsAllow: string[]; permissionsDeny: string[] }>,
++    serverName: string,
++    serverToolName: string,
++  ) {
++    const tool = prodTool(serverName, serverToolName);
++    const pm = new PermissionManager(makeConfig(rules));
++    pm.initialize();
++    return pm.evaluate({
++      toolName: tool.name,
++      toolAliases: tool.permissionAliases,
++      mcpIdentity: { serverName, serverToolName },
++    });
++  }
++
++  it.each([
++    ['mcp__*', 'github', 'create_issue'],
++    ['mcp__git*', 'github', 'create_issue'],
++    ['mcp__zybio_db', 'zybio.db', 'search_pubmed'],
++    ['mcp__zybio_db__*', 'zybio.db', 'search_pubmed'],
++    ['mcp__github__search_*', 'github', 'search.repos'],
++    ['mcp__foo_bar', 'foo:bar', 'a.b'],
++    [
++      'mcp__foo.bar__get_data_for_a_specific*',
++      'foo.bar',
++      'get+data_for_a_specific_location_and_date_range_extended',
++    ],
++  ])('deny %s still covers %s/%s', async (rule, serverName, toolName) => {
++    expect(
++      await evaluateWithIdentity(
++        { permissionsDeny: [rule] },
++        serverName,
++        toolName,
++      ),
++    ).toBe('deny');
++  });
++
++  it('allow mcp__* still auto-approves an MCP tool', async () => {
++    expect(
++      await evaluateWithIdentity(
++        { permissionsAllow: ['mcp__*'] },
++        'github',
++        'create_issue',
++      ),
++    ).toBe('allow');
++  });
++
++  it.each([
++    ['mcp__foo.bar', 'foo_bar', 'evil'],
++    ['mcp__foo.bar__*', 'foo_bar', 'evil'],
++    ['mcp__foo', 'foo_', 'x'],
++    ['mcp__foo__*', 'foo_', 'x'],
++    ['mcp__foo___*', 'foo', '_internal'],
++  ])(
++    'allow %s still does not reach the different server %s/%s',
++    async (rule, serverName, toolName) => {
++      expect(
++        await evaluateWithIdentity(
++          { permissionsAllow: [rule] },
++          serverName,
++          toolName,
++        ),
++      ).toBe('default');
++    },
++  );
++});

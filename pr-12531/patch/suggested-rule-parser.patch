@@ -1,0 +1,121 @@
+diff --git a/packages/core/src/permissions/rule-parser.ts b/packages/core/src/permissions/rule-parser.ts
+index c97853b8c5..14e267d49d 100644
+--- a/packages/core/src/permissions/rule-parser.ts
++++ b/packages/core/src/permissions/rule-parser.ts
+@@ -1783,21 +1783,29 @@ export function matchesMcpPattern(
+       // The boundary comes from the producer, not from a flattened spelling:
+       // `mcp__foo_` + `__*` (server `foo_`) and `mcp__foo` + `__*` (server
+       // `foo`) are the same string family under startsWith, and a tool whose
+-      // name starts with '_' reads as separator continuation there.
+-      const serverPrefix = `mcp__${mcpIdentity.serverName}__`;
+-      if (prefix === serverPrefix) {
+-        return true;
+-      }
+-      if (!prefix.startsWith(serverPrefix)) {
+-        return false;
+-      }
+-      const toolPrefix = prefix.slice(serverPrefix.length);
+-      // A prefix of pure underscores is separator continuation, not a tool
+-      // filter — otherwise a sibling server's whole-server spelling leaks in.
+-      if (!/[^_]/.test(toolPrefix)) {
+-        return false;
+-      }
+-      return mcpIdentity.serverToolName.startsWith(toolPrefix);
++      // name starts with '_' reads as separator continuation there. Every
++      // spelling the tool answers to is still consulted — raw, registered
++      // and legacy — each split at the producer's boundary.
++      return identitySpellings(
++        mcpIdentity,
++        toolName,
++        legacySpelling !== undefined,
++      ).some(({ serverPrefix, tool }) => {
++        if (prefix === serverPrefix) {
++          return true;
++        }
++        if (!prefix.startsWith(serverPrefix)) {
++          // A prefix that ends inside the server name (`mcp__*`,
++          // `mcp__git*`) is a server-name wildcard; one that reaches the
++          // separator must name the whole server.
++          return serverPrefix.slice(0, -2).startsWith(prefix);
++        }
++        const toolPrefix = prefix.slice(serverPrefix.length);
++        // A prefix of pure underscores is separator continuation, not a
++        // tool filter — otherwise a sibling server's whole-server spelling
++        // leaks in.
++        return /[^_]/.test(toolPrefix) && tool.startsWith(toolPrefix);
++      });
+     }
+     return matchesPrefixLiterally(prefix);
+   }
+@@ -1817,9 +1825,15 @@ export function matchesMcpPattern(
+   const patternParts = pattern.split('__');
+   if (patternParts.length === 2 && patternParts[0] === 'mcp') {
+     if (mcpIdentity !== undefined) {
+-      // Exact producer compare: no split of the tool side, so a rule for
+-      // server `foo` can never reach server `foo_`'s tools and vice versa.
+-      return patternParts[1] === mcpIdentity.serverName;
++      // Producer compare: no split of the tool side, so a rule for server
++      // `foo` can never reach server `foo_`'s tools and vice versa — but the
++      // server is still named by any of its spellings.
++      const serverPrefix = `mcp__${patternParts[1]}__`;
++      return identitySpellings(
++        mcpIdentity,
++        toolName,
++        legacySpelling !== undefined,
++      ).some((spelling) => spelling.serverPrefix === serverPrefix);
+     }
+     // A server name containing '__' makes this split unreliable, but that is
+     // the accepted provider-safe-name residual (see mcp-tool.ts). The tool
+@@ -1839,6 +1853,52 @@ export function matchesMcpPattern(
+   return false;
+ }
+ 
++/**
++ * The spellings an MCP tool answers to when the producer supplied its
++ * identity, each split at the producer's server boundary instead of by
++ * re-splitting a flattened name: the raw `mcp__<server>__<tool>` spelling,
++ * the registered provider-safe rendering (what the model and the UI show),
++ * and the legacy character set pre-normalization entries were persisted in.
++ * Splitting at the producer's boundary is the only change from the spelling
++ * path: the identity arm consults no spelling the spelling path would not.
++ */
++function identitySpellings(
++  identity: McpToolIdentity,
++  toolName: string,
++  includeLegacy: boolean,
++): Array<{ serverPrefix: string; tool: string }> {
++  const spellings: Array<{ serverPrefix: string; tool: string }> = [];
++  const add = (serverPrefix: string, tool: string): void => {
++    if (
++      !spellings.some(
++        (spelling) =>
++          spelling.serverPrefix === serverPrefix && spelling.tool === tool,
++      )
++    ) {
++      spellings.push({ serverPrefix, tool });
++    }
++  };
++  add(`mcp__${identity.serverName}__`, identity.serverToolName);
++  // The registered name substitutes characters one for one, so its server
++  // prefix is known; it is only usable while the 63-character budget left
++  // that prefix intact.
++  const registeredServerPrefix = `mcp__${identity.serverName.replace(/[^A-Za-z0-9_-]/g, '_')}__`;
++  if (toolName.startsWith(registeredServerPrefix)) {
++    add(registeredServerPrefix, toolName.slice(registeredServerPrefix.length));
++  }
++  // The legacy character set, only while the producer still advertises the
++  // reduction — the same provenance gate the spelling path applies (R12-1).
++  if (includeLegacy) {
++    const legacy = (segment: string): string =>
++      segment.replace(/[^A-Za-z0-9_.-]/g, '_');
++    add(
++      `mcp__${legacy(identity.serverName)}__`,
++      legacy(identity.serverToolName),
++    );
++  }
++  return spellings;
++}
++
+ /**
+  * Pick the advertised alias that serves as the tool's raw identity for
+  * matching, or `undefined` when no alias can vouch for it.
