@@ -1,0 +1,22 @@
+#!/bin/bash
+# Round 3 (5ca4314690) on macOS, DB r3. Sequential (probes share the handler control file).
+export PATH=/Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin:$PATH
+cd /Users/wenshao/pr13129-rig/probe
+run() { echo "=== $* $(date -u +%T)"; env DB=r3 "$@" 2>&1 | grep -E "PASS|FAIL|NOTE|RESULT|Error" | cut -c1-360; }
+run ARM=head5 WS=ws-hvs HOOK=hv-start node s9mac-refusal.mjs
+run ARM=head5 WS=ws-t8s HOOK=cmd-start node s9mac-refusal.mjs
+run ARM=head5 WS=ws-hvp HOOK=hv-pre TOOL=1 node s9mac-refusal.mjs
+run ARM=head5 node s12-lifecycle.mjs
+run ARM=head5 node s11-cancel.mjs
+run ARM=head4 node s14-activation-fault.mjs
+run ARM=head5 node s14-activation-fault.mjs
+run ARM=head5 node s2b-lease.mjs ws-t9d t yes SIGTERM
+run ARM=head5 node s2e-reattach.mjs ws-t6b h
+run ARM=head5 node s5b-lost.mjs ws-t4b ws-t9c
+run ARM=head5 node s1-permission.mjs
+run ARM=head5 node s3-catalog.mjs
+run ARM=head5 node s4-prompt.mjs
+run ARM=head5 node s6-limits.mjs
+run ARM=head5 node s8-secrets.mjs
+run ARM=head5 node s10-baseline.mjs
+echo "=== ALL-DONE $(date -u +%T)"
