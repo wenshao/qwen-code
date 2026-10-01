@@ -1,0 +1,13 @@
+# s16-enospc-next-prompt-head6  db=fh6 arm=head6  2026-10-01T06:57:57.738Z
+  backup directory is a 12 MB volume pre-filled to 1536 KiB free; big.txt is 3.1 MB
+PASS  P1 writes a.txt (small backup fits)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 878ms
+PASS  P2 (a.txt + big.txt): refused as a tool error, nothing changed, Session usable  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 343ms model saw ["edit: \"Hosted file history refused this batch's Write/Edit before execution: Hosted file backup failed; mutation was not started.\"","edit: \"Hosted file history refused this batch's Write/Edit before execution: Hosted file backup failed; mutation was not started.\""] lease=free
+  history after the refused P2: snapshots=["P1[a.txt]"] tracked=["a.txt"] failedBackups=none pending=null
+  filler removed (disk space freed)
+PASS  P3 edits a.txt only: succeeds  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 780ms model saw ["edit: \"The file: a.txt has been updated. Showing lines 1-1 of 1 from the edited file:\\n\\n---\\n\\na3\""]
+PASS  durable history has no trace of the refused P2 (no P2 snapshot, big.txt not tracked)  -> snapshots=["P1[a.txt]","P3[a.txt]"] tracked=["a.txt"] failedBackups=none pending=null
+PASS  after detach + load (cold binding), the next Write/Edit prompt works  -> load=200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 806ms model saw ["edit: \"The file: a.txt has been updated. Showing lines 1-1 of 1 from the edited file:\\n\\n---\\n\\na4\""]
+NOTE  undo of the refused P2  -> undo(P2): 404 hosted_file_snapshot_not_found
+NOTE  undo P4, then P1  -> undo(P4): 200 changed=["a.txt"]; a="a3"; undo(P1): 200 changed=["a.txt"]; a="a0"
+  final history: snapshots=["P1[a.txt]","P3[a.txt]","P4[a.txt]"] tracked=["a.txt"] failedBackups=none pending=null lease=free
+== RESULT s16-enospc-next-prompt-head6: 5 passed, 0 failed

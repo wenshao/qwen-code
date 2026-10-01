@@ -1,0 +1,23 @@
+>>> s15-r3.mjs settle-store-503 y3
+PASS  the history commit fails (Store 503): the Session blocks, the model is not called again  -> recoveryBlocked=true pendingTurn=425b9592… pendingMessageId=set snapshots=1 lease=held by 425b9592…
+NOTE  detach + load in the same Harness (5 tries over 10 s)  -> detach=["503 managed_session_close_failed"] load=409 hosted_session_already_attached
+PASS  after a Harness restart, cold load settles the durable batch  -> load=200  after 49 s; earlier answers: ["503 managed_session_open_failed"]
+PASS  the original prompt finishes from the saved results: tools not rerun, model called once with them  -> starts=1 notes="after P1"
+PASS  history settled durably (pending cleared, one snapshot)  -> pendingTurn=null pendingMessageId=none snapshots=1
+PASS  undo of the recovered prompt restores the original  -> undo(P1): 200 changed=["notes.txt"]
+PASS  the Session takes new Write prompts afterwards  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 664ms lease=free
+== RESULT s15-settle-store-503-head6: 6 passed, 0 failed
+>>> s15-r3.mjs settle-shell-kill z3
+PASS  cold load in a new Harness settles the durable batch  -> load=200  after 61 s; earlier answers: ["503 managed_session_open_failed"]
+PASS  the original prompt finishes from the saved results: tools not rerun, model called once with them  -> starts=2 notes="after P1" ran.log="ran\n"
+PASS  history settled durably (pending cleared, one snapshot)  -> pendingTurn=null pendingMessageId=none snapshots=1
+PASS  undo of the recovered prompt restores the original  -> undo(P1): 200 changed=["notes.txt"]
+PASS  the Session takes new Write prompts afterwards  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 669ms lease=free
+== RESULT s15-settle-shell-kill-head6: 5 passed, 0 failed
+>>> s15-r3.mjs reservation-conflict h
+PASS  a 409 runtime_execution_conflict on prepare: tool error, turn completes, nothing started, lease free  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 802ms model saw ["write_file: \"Runtime refused this execution reservation before dispatch: injected: execution identity is already in use\""] starts=0 pe
+PASS  mixed batch: the refused call is skipped, the other one runs  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 897ms model saw ["write_file: \"Runtime refused this execution reservation before dispatch: injected: execution identity is already in use\"","write_file: \"Successfully overwrote file: /home/rig
+PASS  detach + load afterwards  -> {"detach":204,"load":200}
+PASS  undo(P2) restores other.txt  -> undo(P2): 200 changed=["other.txt"]
+== RESULT s15-reservation-conflict-head6: 4 passed, 0 failed
+SET settle DONE 07:01:12

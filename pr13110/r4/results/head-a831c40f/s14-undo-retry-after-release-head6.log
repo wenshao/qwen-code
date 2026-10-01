@@ -1,0 +1,9 @@
+# s14-undo-retry-after-release-head6  db=fh6 arm=head6  2026-10-01T07:03:08.370Z
+  wire: POST /runtimes:warm -> 200 | POST /tool-sessions:acquire -> 200 | POST /tool-sessions/<id>/control [raw-file-history:bind] -> 409 managed_runtime_provider_operation_failed | POST /tool-sessions/<id>:release -> 200
+PASS  missing backup: undo refused with 409, nothing restored, lease free, Session usable  -> status=409 code=hosted_file_history_refused lease=free
+PASS  same requestId again: 409 runtime_session_not_acquirable, not blocked  -> status=409 code=runtime_session_not_acquirable
+PASS  a read-only tool turn while the backup is missing fails as a turn error and releases  -> admit=202 terminal=turn_error[{"sessionId":"1a219d38-5a65-4cb7-86af-325281ed4a1a","promptId":"592bd84c-c9bb-40ce-807c-632b77ed742d","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 230ms lease=free
+NOTE  backup repaired, the original requestId once more  -> status=409 code=runtime_session_not_acquirable
+PASS  backup repaired, a new requestId restores  -> status=200 notes="original"
+PASS  tool turns work again after the repair  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 548ms
+== RESULT s14-undo-retry-after-release-head6: 5 passed, 0 failed

@@ -1,0 +1,41 @@
+>>> s15-r3.mjs rebase-external-edit m3
+PASS  direct undo across an outside edit is still refused (nothing restored)  -> undo(P1) right after the user edit: 409 conflict changed=[]
+PASS  the next Write/Edit prompt edits the file the user changed  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 542ms model saw ["edit: \"The file: /rig/run/fh6/ws/m3/child/notes.txt has been updated. Showing lines 1-2 of 2 from the edited file:\\n\\n---\\n\\nafter P2\\n\""]
+PASS  undo(P2) restores the user's edit (P2's preimage)  -> undo(P2): 200 changed=["notes.txt"]
+PASS  undo(P1) then restores the original  -> undo(P1): 200 changed=["notes.txt"] notes="original\n"
+== RESULT s15-rebase-external-edit-head6: 4 passed, 0 failed
+>>> s15-r3.mjs rebase-untouched-drift n3
+PASS  P2 edits only a.txt and completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 549ms
+NOTE  undo(P2) (b.txt was changed by the user before P2, P2 did not touch it)  -> undo(P2): 200 changed=["a.txt"]; a="a1" b="b changed by the user"
+NOTE  undo(P1): what happens to the user's b.txt change  -> undo(P1): 200 changed=["a.txt","b.txt"]; a="a0" b="b0"
+NOTE  is the user's b.txt content still reachable?  -> snapshots after undo(P1)=2 undo(P2) again: 200 changed=["a.txt","b.txt"]; b="b changed by the user"; backup files holding it: 1
+== RESULT s15-rebase-untouched-drift-head6: 1 passed, 0 failed
+>>> s15-r3.mjs rebase-delete o3
+PASS  direct undo across an outside delete is refused  -> undo(P1) right after the user deleted b.txt: 409 conflict changed=[]
+PASS  the next Write/Edit prompt completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 552ms
+PASS  undo(P2): a.txt back to a1, b.txt stays deleted (P2 preimage)  -> undo(P2): 200 changed=["a.txt"] a="a1" b=null
+PASS  undo(P1): a.txt removed, b.txt original  -> undo(P1): 200 changed=["a.txt","b.txt"] a=null b="b0"
+== RESULT s15-rebase-delete-head6: 4 passed, 0 failed
+>>> s15-r3.mjs rebase-mode p3
+PASS  direct undo after a mode-only change is refused  -> undo(P1) right after chmod 755: 409 conflict changed=[]
+PASS  the next prompt edits both files after the mode change  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 662ms modes after P2: tool.sh 755 new.sh 755
+PASS  undo(P2) restores content and keeps mode 755 (the preimage)  -> undo(P2): 200 changed=["tool.sh","new.sh"] tool.sh 755 new.sh 755
+PASS  undo(P1) restores the original content and mode 644, removes new.sh  -> undo(P1): 200 changed=["tool.sh","new.sh"] tool.sh 644 "#!/bin/sh\necho v0\n" new.sh absent
+== RESULT s15-rebase-mode-head6: 4 passed, 0 failed
+>>> s15-r3.mjs shell-same-and-next q3
+PASS  same prompt: write, chmod +x, edit -> the edit is refused, the turn completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1710ms edit result: edit: "Hosted file history refused this batch's Write/Edit before execution: Hosted file changed outside tracked mutations."
+PASS  next prompt: the same edit succeeds  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 667ms result: edit: "The file: /rig/run/fh6/ws/q3/child/run.sh has been updated. Showing lines 1-3 of 3 from the edited file:\n\n---\n\n#!/bin/sh\necho hello\n" mode=755
+PASS  undo(P2): back to helo, still executable  -> undo(P2): 200 changed=["run.sh"] mode=755
+PASS  undo(P1): run.sh removed  -> undo(P1): 200 changed=["run.sh"] run.sh absent
+== RESULT s15-shell-same-and-next-head6: 4 passed, 0 failed
+>>> s15-r3.mjs two-sessions-undo r3
+NOTE  A undo(A1) after B's change  -> A undo(A1): 200 changed=["shared.txt","other.txt"]; shared="orig" other=null
+NOTE  B undo(B1) afterwards  -> B undo(B1): 409 conflict changed=[]; shared="orig"
+NOTE  then A undo(A2): is B's edit reachable from A's history?  -> A undo(A2): 200 changed=["shared.txt"]; shared="B1" other=null
+== RESULT s15-two-sessions-undo-head6: 0 passed, 0 failed
+>>> s15-r3.mjs busy-tracked-file x3
+NOTE  a background process appends to the tracked log.txt every 5 ms; 5 prompts each edit only x.txt  -> 2/5 edits applied; ["turn_complete: edit: \"Hosted file history refused this batch's Write/Edit before execution: Hosted file changed during backup preparati","turn_complete: edit: \"The file: /rig/run/f
+NOTE  a background process appends to the tracked log.txt every 200 ms; 5 prompts each edit only x.txt  -> 5/5 edits applied; ["turn_complete: edit: \"The file: /rig/run/fh6/ws/x3/child/x.txt has been updated. Showing lines 1-1 of 1 from the "]
+PASS  after the writer stops, the next edit succeeds  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2287ms
+== RESULT s15-busy-tracked-file-head6: 1 passed, 0 failed
+SET rebase DONE 06:58:59

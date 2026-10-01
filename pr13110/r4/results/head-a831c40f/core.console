@@ -1,0 +1,180 @@
+>>> s1-testplan.mjs b c
+PASS  [b] create files-profile Session  -> status=200
+PASS  [c] create files-profile Session  -> status=200
+PASS  [b] P1 two batches complete  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1664ms
+PASS  [b] files on disk after P1  -> notes="final" new="created"
+PASS  [b] exactly one snapshot for the prompt, pendingTurn null  -> snapshots=1 tracked=notes.txt,new.txt,blob.bin pendingTurn=null
+PASS  [b] repeated edit keeps the FIRST preimage (notes.txt version 1)  -> notes={"backupFileName":"5d34368109a529a6@v1","version":1,"backupTime":"2026-10-01T07:01:14.316Z"} new={"backupFileName":null,"version":1,"backupTime":"2026-10-01T07:01:14.316Z"}
+PASS  [b] backup bytes on the worker volume are this Workspace's originals  -> notes backup="original-b\n" blob backup sha=ac77a5b18ff9 expected=ac77a5b18ff9
+PASS  [b] expected file states recorded (digest+mode)  -> {"notes.txt":{"digest":"sha256:2443630b4620165c8b173e7265e17526fe2787ae594364dd6d839ad58f2fc007","mode":416},"new.txt":{"digest":"sha256:406effb1e9c59672c66a598c2b21e331b23b16c54024e96d6df3e7c173549791","mode":420},"blob.bin":{"digest":"sha256:83d544ccc223c057
+PASS  [c] P1 two batches complete  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1717ms
+PASS  [c] files on disk after P1  -> notes="final" new="created"
+PASS  [c] exactly one snapshot for the prompt, pendingTurn null  -> snapshots=1 tracked=notes.txt,new.txt,blob.bin pendingTurn=null
+PASS  [c] repeated edit keeps the FIRST preimage (notes.txt version 1)  -> notes={"backupFileName":"f27f9ef2a586222d@v1","version":1,"backupTime":"2026-10-01T07:01:15.968Z"} new={"backupFileName":null,"version":1,"backupTime":"2026-10-01T07:01:15.969Z"}
+PASS  [c] backup bytes on the worker volume are this Workspace's originals  -> notes backup="original-c\n" blob backup sha=ac77a5b18ff9 expected=ac77a5b18ff9
+PASS  [c] expected file states recorded (digest+mode)  -> {"notes.txt":{"digest":"sha256:2443630b4620165c8b173e7265e17526fe2787ae594364dd6d839ad58f2fc007","mode":416},"new.txt":{"digest":"sha256:406effb1e9c59672c66a598c2b21e331b23b16c54024e96d6df3e7c173549791","mode":420},"blob.bin":{"digest":"sha256:83d544ccc223c057
+PASS  Harness launch-directory decoy unchanged  -> proof.txt="decoy"
+PASS  [b] detach/load keeps history  -> detach=204 load=200
+PASS  [b] external edit -> 409 conflict, no restoration  -> status=409 body={"requestId":"f1f627ed-7296-44de-ae42-0a1372d84086","promptId":"73006422-4407-4612-96f8-56a08d75ae3c","filesChanged":[],"conflict":true} notes="external" new="created"
+PASS  [b] conflict leaves the Session usable  -> recoveryBlocked=false
+PASS  [b] undo restores original bytes, removes the created file  -> status=200 filesChanged=["notes.txt","new.txt","blob.bin"] notes="original-b\n" new.txt exists=false blob sha=ac77a5b18ff9 mode=640
+PASS  [b] original mode 0640 restored  -> mode=640
+PASS  [c] detach/load keeps history  -> detach=204 load=200
+PASS  [c] external edit -> 409 conflict, no restoration  -> status=409 body={"requestId":"f05a893f-f941-49e1-8460-f80c95549f4a","promptId":"cd78764c-c5fc-4378-916e-13c2bfd4a160","filesChanged":[],"conflict":true} notes="external" new="created"
+PASS  [c] conflict leaves the Session usable  -> recoveryBlocked=false
+PASS  [c] undo restores original bytes, removes the created file  -> status=200 filesChanged=["notes.txt","new.txt","blob.bin"] notes="original-c\n" new.txt exists=false blob sha=ac77a5b18ff9 mode=640
+PASS  [c] original mode 0640 restored  -> mode=640
+PASS  the other Workspace kept its own original
+PASS  [b] same requestId replays the original receipts (200 and 409)  -> undo=200 conflict=409
+PASS  [b] replay runs no restoration  -> rewind control calls before=4 after=4
+PASS  [b] a new undo of the same prompt changes nothing  -> status=200 filesChanged=[]
+NOTE  [b] old requestId with a different promptId  -> status=404 code=hosted_file_snapshot_not_found
+PASS  [b] P2 (another write) completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 908ms
+PASS  [b] old undo after another write + reload: original receipt, no restoration, no acquire  -> status=200 notes="second prompt"
+PASS  [b] Session not blocked at the end
+PASS  [c] same requestId replays the original receipts (200 and 409)  -> undo=200 conflict=409
+PASS  [c] replay runs no restoration  -> rewind control calls before=5 after=5
+PASS  [c] a new undo of the same prompt changes nothing  -> status=200 filesChanged=[]
+NOTE  [c] old requestId with a different promptId  -> status=404 code=hosted_file_snapshot_not_found
+PASS  [c] P2 (another write) completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 816ms
+PASS  [c] old undo after another write + reload: original receipt, no restoration, no acquire  -> status=200 notes="second prompt"
+PASS  [c] Session not blocked at the end
+NOTE  commitFileHistory transactions in MySQL (qwen_managed_session_journal_tx)  -> b=15 c=15
+== RESULT s1-testplan-head6: 38 passed, 0 failed
+>>> s4-refusals.mjs external-edit d
+== RESULT external-edit/head6: {"blocked":false,"held":false,"next":202,"sibling":"turn_complete","load":200}
+== RESULT s4-external-edit-head6: 0 passed, 0 failed
+>>> s4-refusals.mjs directory-path e
+== RESULT directory-path/head6: {"blocked":false,"held":false,"next":202,"sibling":"turn_complete","load":200}
+== RESULT s4-directory-path-head6: 0 passed, 0 failed
+>>> s4-refusals.mjs parent-is-file f
+== RESULT parent-is-file/head6: {"blocked":false,"held":false,"next":202,"sibling":"turn_complete","load":200}
+== RESULT s4-parent-is-file-head6: 0 passed, 0 failed
+>>> s4-refusals.mjs symlink g
+== RESULT symlink/head6: {"blocked":false,"held":false,"next":202,"sibling":"turn_complete","load":200}
+== RESULT s4-symlink-head6: 0 passed, 0 failed
+>>> s4-refusals.mjs two-sessions i
+== RESULT two-sessions/head6: {"blocked":false,"held":false,"next":202,"sibling":"turn_complete","load":200}
+== RESULT s4-two-sessions-head6: 0 passed, 0 failed
+>>> s4-refusals.mjs shell-chmod j
+== RESULT shell-chmod/head6: {"blocked":false,"held":false,"next":202,"sibling":"turn_complete","load":200}
+== RESULT s4-shell-chmod-head6: 0 passed, 0 failed
+>>> s4-refusals.mjs shell-format k
+== RESULT shell-format/head6: {"blocked":false,"held":false,"next":202,"sibling":"turn_complete","load":200}
+== RESULT s4-shell-format-head6: 0 passed, 0 failed
+>>> s4-refusals.mjs shell-touch a2
+== RESULT shell-touch/head6: {"blocked":false,"edited":false,"undo":200}
+== RESULT s4-shell-touch-head6: 0 passed, 0 failed
+>>> s4-refusals.mjs shell-chmod-only g2
+== RESULT shell-chmod-only/head6: {"blocked":false,"edited":false,"undo":409}
+== RESULT s4-shell-chmod-only-head6: 0 passed, 0 failed
+>>> s2-faults.mjs cold-missing-backup l
+PASS  P1 completes and leaves one backup on the worker volume  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1428ms backups=["354e3c7ca9b4dd92@v1"]
+NOTE  load after the backup file was removed  -> status=200 
+PASS  undo with a missing backup restores nothing  -> status=409 body={"error":"hosted_file_history_refused","code":"hosted_file_history_refused"} notes="after P1" new="created"
+NOTE  state after the refused undo  -> recoveryBlocked=false pendingTurn=null pendingUndo=null snapshots=1 lease holder=<none> stderr=
+PASS  a later Write starts no unbacked mutation  -> admit=202 terminal=turn_error[{"sessionId":"cad631a0-027b-426c-9515-33cbd16ac8c1","promptId":"d4792f47-bcaa-4b09-97da-72d9559055a5","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 344ms notes="after P1" starts +0
+NOTE  reload afterwards  -> detach=204 load=200 
+== RESULT s2-cold-missing-backup: 3 passed, 0 failed
+>>> s2-faults.mjs live-missing-backup m
+PASS  live Session: undo with a missing backup restores nothing  -> status=409 body={"error":"hosted_file_history_refused","code":"hosted_file_history_refused"}
+NOTE  state after the refused undo  -> recoveryBlocked=false pendingTurn=null pendingUndo=null snapshots=1 lease holder=<none>
+PASS  a later Write starts no unbacked mutation  -> admit=202 terminal=turn_error[{"sessionId":"e1473ee7-e380-480c-b872-28673151e251","promptId":"833a0cd4-2d71-4343-b7d0-eba412cfd9a8","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 248ms notes="after P1" starts +0
+== RESULT s2-live-missing-backup: 2 passed, 0 failed
+>>> s2-faults.mjs store-fail-prepare n
+PASS  history persistence failure before dispatch: no mutation started  -> admit=202 terminal=<none> recoveryBlocked=true 689ms injected=1 notes="original" starts=0
+NOTE  state  -> recoveryBlocked=true lease holder=THIS PROMPT stderr=qwen serve: Hosted Harness turn adaef0fe-078d-4743-a165-99d1c4605a83 is recovery blocked: ManagedSessionStoreHttpError: Managed Session Store returned HTTP 503.
+NOTE  reload  -> detach=503 load=409 hosted_session_already_attached
+== RESULT s2-store-fail-prepare: 1 passed, 0 failed
+>>> s2-faults.mjs tool-error o
+PASS  known tool errors: turn completes, Session usable  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1429ms
+PASS  history retains the observed state (notes.txt tracked, pendingTurn null)  -> {"notes.txt":{"digest":"sha256:d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed","mode":420},"missing/none.txt":null}
+PASS  undo after a tool error restores the original  -> status=200 changed=["notes.txt"]
+== RESULT s2-tool-error: 3 passed, 0 failed
+>>> s2-faults.mjs undo-refusal-lease p
+PASS  undo refused, nothing restored  -> status=409 code=hosted_file_history_refused
+NOTE  Workspace execution lease after the refused undo  -> <none>
+NOTE  detach/load of the Session  -> detach=204 load=200  recoveryBlocked=false
+NOTE  same Session after reload: read_file on an unrelated file  -> admit=202 terminal=turn_error[{"sessionId":"eb46254b-c99f-43f2-8101-54f6868104f1","promptId":"3bc3b6ed-a4c8-459a-81cd-e80ea51ecbc5","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 231ms
+NOTE  another Session of the Workspace: read_file  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 856ms
+NOTE  lease holder at the end  -> <none>
+== RESULT s2-undo-refusal-lease: 1 passed, 0 failed
+>>> s2-faults.mjs cancel q
+PASS  cancellation after the first batch: turn cancelled, Session usable  -> cancel=204 terminal=turn_complete(cancelled) recoveryBlocked=false
+PASS  cancelled turn keeps its observed file changes in history  -> pendingTurn=null pendingUndo=null snapshots=1 files=notes.txt,new.txt
+PASS  undo of the cancelled prompt restores  -> status=200 changed=["notes.txt","new.txt"]
+== RESULT s2-cancel: 3 passed, 0 failed
+>>> s2-faults.mjs unknown-snapshot r
+PASS  lost settlement reply: blocked, the effect ran exactly once, the model did not continue  -> admit=202 terminal=<none> recoveryBlocked=true 786ms starts=1 model calls=1
+PASS  pending marker is durable  -> pendingTurn=4d54fad0-8b7e-4988-9ce9-efa94fe0881f pendingUndo=null snapshots=1
+FAIL  reload stays blocked  -> load=200 undefined
+NOTE  Workspace lease  -> still held by the blocked prompt
+PASS  no replay after reload
+== RESULT s2-unknown-snapshot: 3 passed, 1 failed
+>>> s2-faults.mjs undo-rewind-reply-lost t2
+PASS  incomplete undo (rewind reply lost): refused as unfinished, Session blocked  -> status=503 code=hosted_file_history_recovery_required recoveryBlocked=true
+NOTE  files on disk  -> notes="original" new.txt exists=false
+PASS  pending undo is durable  -> pendingTurn=null pendingUndo={"requestId":"86ca9060-d57f-4e88-9ef3-704b6f15d8b6","promptId":"d92ea31d-4ac3-4d92-8e8a-8f5a4a0ec72c"} snapshots=1
+NOTE  same requestId retried in the live Session  -> status=409 code=hosted_turn_recovery_required
+PASS  reload stays blocked with the file-history code  -> load=409 hosted_file_history_recovery_required
+NOTE  Workspace lease  -> holder=86ca9060-d57f-4e88-9ef3-704b6f15d8b6 (undo runtime session = requestId 86ca9060-d57f-4e88-9ef3-704b6f15d8b6)
+== RESULT s2-undo-rewind-reply-lost: 3 passed, 0 failed
+>>> s2-faults.mjs undo-release-reply-lost w2
+PASS  incomplete undo (release reply lost): refused as unfinished, Session blocked  -> status=503 code=hosted_file_history_recovery_required recoveryBlocked=true
+NOTE  files on disk  -> notes="original" new.txt exists=false
+PASS  pending undo is durable  -> pendingTurn=null pendingUndo={"requestId":"1fd50bc7-829b-493e-b2d8-0d611ed5b5d6","promptId":"f0b8e389-ea11-4a64-b976-f5243240b464"} snapshots=1
+NOTE  same requestId retried in the live Session  -> status=409 code=hosted_turn_recovery_required
+PASS  reload stays blocked with the file-history code  -> load=409 hosted_file_history_recovery_required
+NOTE  Workspace lease  -> holder=<none> (undo runtime session = requestId 1fd50bc7-829b-493e-b2d8-0d611ed5b5d6)
+== RESULT s2-undo-release-reply-lost: 3 passed, 0 failed
+>>> s2-faults.mjs undo-busy x2
+PASS  undo while the Workspace is busy is refused without touching files  -> status=409 code=workspace_busy
+NOTE  Session B after the busy refusal  -> recoveryBlocked=false pendingTurn=null pendingUndo=null snapshots=1 stderr=
+NOTE  retry after the other Session finished  -> status=200 code=undefined notes="original"
+NOTE  next prompt in Session B  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 248ms
+NOTE  after detach/load  -> load=200  undo=200 notes="original"
+== RESULT s2-undo-busy: 1 passed, 0 failed
+>>> s2-faults.mjs admission w
+PASS  undo refused: requestId not a UUID  -> status=400 code=invalid_file_rewind
+PASS  undo refused: promptId missing  -> status=400 code=invalid_file_rewind
+PASS  undo refused: unknown promptId  -> status=404 code=hosted_file_snapshot_not_found
+PASS  undo refused: no client id  -> status=404 code=hosted_session_not_found
+PASS  undo refused: another client id  -> status=404 code=hosted_session_not_found
+PASS  history without the client id is refused  -> status=404
+PASS  refusals left the file and the Session alone
+PASS  undo during an active turn -> 409 hosted_turn_active, not blocked  -> status=409 code=hosted_turn_active
+PASS  two concurrent undo requests: one runs, one is refused as active  -> statuses=409,200 codes=hosted_turn_active,
+PASS  Session usable afterwards  -> pendingTurn=null pendingUndo=null snapshots=1
+== RESULT s2-admission: 10 passed, 0 failed
+>>> s7-semantics.mjs multi-prompt i2
+PASS  undo(P2) returns the Workspace to the state before P2 (P3 is undone too)  -> changed=["a.txt","b.txt","c.txt"] -> a.txt="a1" b.txt="b1" c.txt=<absent>
+PASS  undo(P1) then returns to the state before P1  -> changed=["a.txt","b.txt"] -> a.txt="a0" b.txt=<absent> c.txt=<absent>
+NOTE  undo(P3) after undo(P1) moves FORWARD to the state before P3  -> status=200 changed=["a.txt","b.txt","c.txt"] -> a.txt="a2" b.txt="b1" c.txt="c2"
+NOTE  record after three undos  -> snapshots=3 undoReceipts=3
+PASS  a new Write after the undos works and appends a snapshot  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1048ms -> a.txt="a4" b.txt="b1" c.txt="c2"
+PASS  undo(P4) restores the state P4 started from  -> -> a.txt="a2" b.txt="b1" c.txt="c2"
+== RESULT s7-multi-prompt: 4 passed, 0 failed
+>>> s7-semantics.mjs bytes j2
+PASS  P1 overwrites five kinds of files  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 13142ms backups=4 backup bytes=33554457
+PASS  undo restores every file byte for byte (binary, BOM+CRLF, empty, 32 MiB)  -> status=200 undo 531 ms; bin.dat:7c9207cf=7c9207cf crlf.txt:4840e67f=4840e67f empty.txt:e3b0c442=e3b0c442 big.bin:4f0496a3=4f0496a3
+PASS  mode 0600 restored  -> 600
+NOTE  directories created for a new file stay after undo  -> deep/new/dir exists=true file exists=false
+== RESULT s7-bytes: 3 passed, 0 failed
+>>> s7-semantics.mjs shell-profile k2
+PASS  Shell-profile turn with Write then Shell completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1320ms
+PASS  only the Write path is tracked  -> ["tracked.txt"]
+PASS  undo restores the Write, leaves Shell mutations  -> changed=["tracked.txt"] shell-only="s1\n"
+== RESULT s7-shell-profile: 3 passed, 0 failed
+>>> s3-profiles.mjs m2
+PASS  default no-tool profile: text turn completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 341ms tools advertised=[]
+PASS  no-tool profile refuses the file-history API (409), stays usable  -> history=409 hosted_file_history_unavailable undo=409 hosted_file_history_unavailable
+NOTE  MCP profile  -> not exercised by this rig: the profile needs 1–32 catalogued MCP server pins (create with none -> 400 invalid_hosted_mcp_servers); covered by the PR unit tests only
+== RESULT s3-profiles-head6: 2 passed, 0 failed
+>>> s6-durability.mjs volume-lost c2
+PASS  P1 completes (overwrite + create)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 881ms
+NOTE  where the backups live  -> <server account QWEN_HOME>/../worker-home/.qwen/file-history/f891c323-1ebf-4668-8505-97ac6f5a14fe -> ["f81666fdc9066051@v1"]
+NOTE  load + history after the volume was lost  -> load=200 history=200 snapshots=1
+PASS  no file was touched
+NOTE  after the backups were put back: read-only prompt in the same Session  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 476ms
+== RESULT s6-volume-lost-head6: 2 passed, 0 failed
+SET core DONE 07:03:01

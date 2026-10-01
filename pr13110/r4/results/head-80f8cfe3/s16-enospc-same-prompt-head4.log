@@ -1,0 +1,12 @@
+# s16-enospc-same-prompt-head4  db=fh4b arm=head4  2026-10-01T06:57:18.162Z
+  backup directory is a 12 MB volume pre-filled to 1536 KiB free; big.txt is 3.1 MB
+PASS  P1 writes a.txt (small backup fits)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1078ms
+  between batch 1 and batch 2: filler removed (disk space freed)
+NOTE  P2 batch 1 (create new.txt + edit big.txt; big.txt cannot be backed up)  -> ["write_file: \"Hosted file history refused this batch's Write/Edit before execution: Hosted file backup failed; mutation was not started.\"","edit: \"Hosted file history refused this batch's Write/Edit before execution: Hosted file backup failed; mutation was not started.\""] new.txt exists=false
+FAIL  P2 batch 2, same prompt, a.txt only: the narrower retry succeeds  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 356ms retry result: edit: "Hosted file history refused this batch's Write/Edit before execution: Hosted file history files conflict."
+  history after P2: snapshots=["P1[a.txt]"] tracked=["a.txt"] failedBackups=none pending=null
+FAIL  after detach + load, the next Write/Edit prompt works  -> load=200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1021ms model saw ["edit: \"Failed to edit, 0 occurrences found for old_string in a.txt. No edits made. The exact text in old_string was not found. Ensure you're not escap"]
+  history after P3: snapshots=["P1[a.txt]","P3[a.txt]"] tracked=["a.txt"] failedBackups=none pending=null
+  the user creates new.txt (P2 never wrote it)
+NOTE  undo P3, P2, P1  -> undo(P3): 200 changed=[]; a="a1"; undo(P2): 404 hosted_file_snapshot_not_found; a="a1" new.txt="created by the user after P2"; undo(P1): 200 changed=["a.txt"]; a="a0" new.txt="created by the user after P2"
+== RESULT s16-enospc-same-prompt-head4: 1 passed, 2 failed

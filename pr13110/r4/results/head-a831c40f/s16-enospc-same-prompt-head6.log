@@ -1,0 +1,12 @@
+# s16-enospc-same-prompt-head6  db=fh6 arm=head6  2026-10-01T06:57:46.742Z
+  backup directory is a 12 MB volume pre-filled to 1536 KiB free; big.txt is 3.1 MB
+PASS  P1 writes a.txt (small backup fits)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1238ms
+  between batch 1 and batch 2: filler removed (disk space freed)
+NOTE  P2 batch 1 (create new.txt + edit big.txt; big.txt cannot be backed up)  -> ["write_file: \"Hosted file history refused this batch's Write/Edit before execution: Hosted file backup failed; mutation was not started.\"","edit: \"Hosted file history refused this batch's Write/Edit before execution: Hosted file backup failed; mutation was not started.\""] new.txt exists=false
+PASS  P2 batch 2, same prompt, a.txt only: the narrower retry succeeds  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 759ms retry result: edit: "The file: a.txt has been updated. Showing lines 1-1 of 1 from the edited file:\n\n---\n\na2"
+  history after P2: snapshots=["P1[a.txt]","P2[a.txt]"] tracked=["a.txt"] failedBackups=none pending=null
+PASS  after detach + load, the next Write/Edit prompt works  -> load=200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 797ms model saw ["edit: \"The file: a.txt has been updated. Showing lines 1-1 of 1 from the edited file:\\n\\n---\\n\\na3\""]
+  history after P3: snapshots=["P1[a.txt]","P2[a.txt]","P3[a.txt]"] tracked=["a.txt"] failedBackups=none pending=null
+  the user creates new.txt (P2 never wrote it)
+NOTE  undo P3, P2, P1  -> undo(P3): 200 changed=["a.txt"]; a="a2"; undo(P2): 200 changed=["a.txt"]; a="a1" new.txt="created by the user after P2"; undo(P1): 200 changed=["a.txt"]; a="a0" new.txt="created by the user after P2"
+== RESULT s16-enospc-same-prompt-head6: 3 passed, 0 failed

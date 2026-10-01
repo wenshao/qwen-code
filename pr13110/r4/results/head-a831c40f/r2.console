@@ -1,0 +1,32 @@
+>>> s14-r2.mjs special-names s3
+PASS  P1 writes eight prototype-named files  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1973ms model saw ["[{\"type\":\"text\",\"text\":\"Successfully overwrote file: /rig/run/fh6/ws/s3/child/constructor.\"}]","[{\"type\":\"text\",\"text\":\"Successfully overwrote file: /home/rig
+PASS  all eight are tracked with a backup  -> tracked=["constructor","__proto__","toString","hasOwnProperty","valueOf","isPrototypeOf","propertyIsEnumerable","toLocaleString"] backups=8
+PASS  after detach/load (cold binding) P2 edits them again  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2017ms files=["P2 constructor","P2 __proto__","P2 toString","P2 hasOwnProperty","P2 valueOf","P2 isPrototypeOf","P2 propertyIsEnumerable","P2 toLocaleString"]
+PASS  undo(P1) restores all eight originals  -> status=200 changed=["constructor","__proto__","toString","hasOwnProperty","valueOf","isPrototypeOf","propertyIsEnumerable","toLocaleString"]
+== RESULT s14-special-names-head6: 4 passed, 0 failed
+>>> s14-r2.mjs undo-retry-after-release t3
+PASS  missing backup: undo refused with 409, nothing restored, lease free, Session usable  -> status=409 code=hosted_file_history_refused lease=free
+PASS  same requestId again: 409 runtime_session_not_acquirable, not blocked  -> status=409 code=runtime_session_not_acquirable
+PASS  a read-only tool turn while the backup is missing fails as a turn error and releases  -> admit=202 terminal=turn_error[{"sessionId":"1a219d38-5a65-4cb7-86af-325281ed4a1a","promptId":"592bd84c-c9bb-40ce-807c-632b77ed742d","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 230ms lease
+NOTE  backup repaired, the original requestId once more  -> status=409 code=runtime_session_not_acquirable
+PASS  backup repaired, a new requestId restores  -> status=200 notes="original"
+PASS  tool turns work again after the repair  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 548ms
+== RESULT s14-undo-retry-after-release-head6: 5 passed, 0 failed
+>>> s14-r2.mjs transient-backup-access u3
+NOTE  while the backup directory is unreadable  -> P2: admit=202 terminal=turn_error[{"sessionId":"a5ceb26d-aa75-447d-9692-1f7ca0e87b40","promptId":"c9ec6ec2-592f-4e93-97e6-0fa914406795","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 238ms notes="after P1"; undo: 409 hosted_file_histo
+PASS  no mutation started while unreadable
+PASS  after access is back, the next Write works in the same Session  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 663ms model saw ["[{\"type\":\"text\",\"text\":\"Successfully overwrote file: /rig/run/fh6/ws/u3/child/notes.txt.\"}]","[{\"type\":\"text\",\"text\":\"Successfully overwr
+PASS  and undo(P1) restores the original  -> status=200 
+== RESULT s14-transient-backup-access-head6: 3 passed, 0 failed
+>>> s14-r2.mjs readonly-drift v3
+PASS  mode changed to 0444 outside: undo answers conflict, restores nothing  -> status=409 body={"requestId":"68883e1b-915f-427b-ac97-cdef827b0ee9","promptId":"7172ce4e-13f1-4993-9a4b-cbcf0cc2c56c","filesChanged":[],"conflict":true} a="a1"
+PASS  file unreadable (0000): undo answers conflict, restores nothing, Session usable  -> status=409 code= conflict=true lease=free
+PASS  mode back: undo restores both  -> status=200
+== RESULT s14-readonly-drift-head6: 3 passed, 0 failed
+>>> s14-r2.mjs w1a-cold-load w3
+PASS  cold load in a new Harness WITHOUT a tool profile adopts the saved files profile  -> load=200 
+PASS  history is readable after the profile-less cold load  -> status=200 snapshots=2
+PASS  undo(P1) works after it  -> status=200 
+NOTE  cold load after damaging the OLDEST of 7 file-history records  -> load=409 hosted_turn_recovery_required
+== RESULT s14-w1a-cold-load-head6: 3 passed, 0 failed
+SET r2 DONE 07:03:22
