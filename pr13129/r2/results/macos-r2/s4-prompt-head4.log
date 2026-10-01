@@ -1,0 +1,15 @@
+# s4-prompt-head4  db=r2 arm=head4  2026-10-01T04:33:43.910Z
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  Notification operation outside a turn: 200 with aggregated prompt + function context  -> 200 {"operationId":"844c4be8-9ca3-4a0c-a595-98fa7c975c16","output":{"continue":true,"decision":"allow","hookSpecificOutput":{"hookEventName":"Notification","additionalContext":"PROMPT-NOTIFY-CTX\nNOTIFY-CTX"}}}
+PASS  exactly one model request, flagged as the prompt Hook  -> requests=1 promptHook=true
+PASS  no user turn / prompt events were created by the operation  -> new events=managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event
+NOTE  status after operation  -> {"sessionId":"ebfa2388-9fab-45c5-b9f7-39142e4698d1","hasActivePrompt":false,"recoveryBlocked":false}
+PASS  same operationId + same input replays the saved result, no new model request  -> 200 newModel=0
+PASS  same operationId + different input is refused  -> 503 {"error":"hosted_hook_operation_failed","code":"hosted_hook_operation_failed"}
+PASS  a user prompt is refused while a prompt Hook operation owns the model  -> prompt during op -> 409 hosted_mcp_operation_active; op -> 200
+PASS  a Hook operation is refused while a user turn is active  -> turn=202 op during turn -> 409 hosted_turn_active
+PASS  in-turn prompt Hook (UserPromptSubmit) adds its context to the main model request  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 759ms hookReqs=1
+NOTE  Store resource kinds for the Session  -> managed-activation-boundary=8 managed-activation-install=9 managed-admission=2 managed-checkpoint=3 managed-definition=1 managed-hook-catalog=1 managed-hook-input=15 managed-hook-messages=2 managed-hook-model-route=4 managed-hook-model-usage=4 managed-hook-plan=9 managed-hook-result=15 managed-hook_execution=45 managed-hook_registration=3 managed-hosted-model-route=2 managed-hosted-model-usage=2 managed-input=2 managed-message=4 managed-root=1 managed-turn-result=2
+PASS  detach emits neither SessionEnd nor SessionDelete  -> detach=204 lifecycle=<none>
+PASS  DELETE runs SessionEnd then SessionDelete, once each  -> delete=204 lifecycle:SessionEnd,lifecycle:SessionDelete
+== RESULT s4-prompt-head4: 10 passed, 0 failed

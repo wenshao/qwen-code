@@ -1,0 +1,17 @@
+# s5-lost-head4  db=r2 arm=head4  2026-10-01T04:09:44.153Z
+NOTE  rig repair  -> null
+PASS  (a) HTTP 500 is a received failure: operation settles, Session stays usable  -> op=200 {"operationId":"60c98ab9-d7dd-4114-906c-10da24a0a041","output":{"continue":true}} requests=1
+PASS  (b) dropped HTTP reply: operation does not report success  -> op=503 {"error":"hosted_hook_operation_failed","code":"hosted_hook_operation_failed"} child=recovery_blocked/"outcome_unknown"
+PASS  (b) repeated status queries keep it unknown with ONE physical request  -> polls=200:recovery_blocked/"outcome_unknown" 200:recovery_blocked/"outcome_unknown" 200:recovery_blocked/"outcome_unknown" physical=1
+PASS  (b) new work is blocked  -> prompt -> 409 hosted_turn_recovery_required
+NOTE  (b) cancel of the unknown execution  -> 200 recovery_blocked
+NOTE  (b) detach with an unknown Hook outcome  -> 503 managed_session_close_failed; lease=hooks-activation-ebd7d94914f6f022277dc1095414d95334c8a843d36a7f6b840bebe9ce1a8238
+FAIL  (b) another no-hook Session in the same Workspace can still run a tool turn  -> admit=202 terminal=turn_error[{"sessionId":"017bdb06-6e2b-449d-a479-ea1b439b3b84","promptId":"f5464cb5-9e25-47ca-a837-8a0871118d96","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 1339ms lease=hooks-activation-ebd7d94914f6f022277dc1095414d95334c8a843d36a7f6b840bebe9ce1a8238
+PASS  (b) after a cold reload: still unknown, still blocked, still ONE physical request  -> load=200 status=200:recovery_blocked prompt=409 hosted_turn_recovery_required physical=1
+PASS  (c) partial response body stays unknown (not settled)  -> op=503 {"error":"hosted_hook_operation_failed","code":"hosted_hook_operation_failed"} child=undefined/undefined physical=0
+NOTE  rig repair  -> null
+NOTE  (d) operation with the dispatch acknowledgement dropped  -> 200 {"operationId":"60929312-3e85-4d8e-8933-2cb473258f43","output":{"continue":true}} droppedReplies=1
+FAIL  (d) cold reload reconciles with the original owner: settled, ONE physical call, ONE success callback  -> load=200 status=200:settled/"settled" replay=200 calls=153 callbacks=153
+PASS  (d) the Session then runs a normal tool turn  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2237ms
+NOTE  (d) Broker ledger  -> hook-catalog->200 hook-execute->200 hook-status->200 hook-execute->200 hook-status->200 hook-status->200 hook-status->200 hook-status->200 hook-status->200 hook-status->200 hook-status->200 hook-cancel->200 hook-cancel->200 hook-cancel->200 hook-cancel->200 hook-cancel->200 hook-cancel->200 hook-cancel->200 hook-catalog->200 hook-execute->200-reply-dropped hook-status->200 hook-execute->200 hook-status->200
+== RESULT s5-lost-head4: 7 passed, 2 failed

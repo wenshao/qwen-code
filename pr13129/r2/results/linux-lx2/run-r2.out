@@ -1,0 +1,52 @@
+=== unit core 04:05:31
+ FAIL  src/hooks/hook-runner-managed-process.test.ts > managed command process receipt > kills a detached descendant that ignores SIGTERM before cancellation settles
+ FAIL  src/hooks/hook-runner-managed-process.test.ts > managed command process receipt > keeps display hooks owned and captures their final result
+ Test Files  1 failed | 1 passed (2)
+      Tests  5 failed | 6 passed (11)
+=== unit cli managed-hook-runtime 04:05:38
+ FAIL  src/serve/managed-hook-runtime.test.ts > ManagedHookRuntime > settles cancellation only after the execution cgroup has drained
+ FAIL  src/serve/managed-hook-runtime.test.ts > ManagedHookRuntime > passes only the Session environment view and explicitly scoped variables to commands
+ Test Files  1 failed (1)
+      Tests  4 failed | 16 passed (20)
+=== ARGV_FIXED=1 node s9-linux.mjs 04:05:45
+FAIL  A: PreToolUse command ran inside a fresh qwen-hook-* cgroup unit and its context reached the model  -> admit=202 terminal=<none> recoveryBlocked=true 2626ms cgroup=undefined HOME=undefined
+FAIL  A: detached (setsid) descendant was killed by the unit, not left running  -> detached pid=null alive=null cgroup=undefined record=recovery_blocked/"not_started_proven" turnMs=4398
+NOTE  A: UserPromptSubmit with a detached child — receipt  -> {"state":"recovery_blocked","execution":"not_started_proven"}
+== RESULT s9-linux-99db: 0 passed, 2 failed
+Error: ENOENT: no such file or directory, scandir '/sys/fs/cgroup/hooks'
+=== node s2b-lease.mjs ws-t1 a yes SIGKILL 04:05:56
+NOTE  lease before  -> <no row>
+PASS  A (hooks=yes) turn 1 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 7442ms
+NOTE  lease holder while A is attached and idle  -> hooks-activation-c915e7db8043616fe3b28ebabe119fc87eb6a596798733bbe9fe4524a4f6ff10
+FAIL  B (no hooks, same Workspace) completes a tool turn while A is attached+idle  -> admit=202 terminal=turn_error[{"sessionId":"fb84b2ac-2940-4ce6-94fd-10343399b9e2","promptId":"e9a364f0-702c-49bc-96d2-f1fd5abe254d","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBloc
+NOTE  lease after B  -> hooks-activation-c915e7db8043616fe3b28ebabe119fc87eb6a596798733bbe9fe4524a4f6ff10
+PASS  A turn 2 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 4693ms
+NOTE  Harness stopped with SIGKILL  -> lease=hooks-activation-c915e7db8043616fe3b28ebabe119fc87eb6a596798733bbe9fe4524a4f6ff10
+NOTE  load retried until writer lease lapsed  -> 47s
+PASS  new Harness loads A  -> status=200  lease=hooks-activation-c915e7db8043616fe3b28ebabe119fc87eb6a596798733bbe9fe4524a4f6ff10
+PASS  A turn after cold load completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 6349ms lease=hooks-activation-58e89ddb45b346d6a587b932445d416eaede7625ce578278638bcd4fd5ec3843
+NOTE  A detached on the new Harness  -> status=204  lease=<free>
+PASS  a fresh no-hook Session in the Workspace completes a tool turn after A was detached  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2242ms lease=<free>
+NOTE  final lease  -> <free>
+== RESULT s2b-lease-head4-ws-t1-yes-SIGKILL: 5 passed, 1 failed
+=== node s2b-lease.mjs ws-base2 m no SIGTERM 04:07:22
+NOTE  lease before  -> <no row>
+PASS  A (hooks=no) turn 1 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3275ms
+NOTE  lease holder while A is attached and idle  -> <free>
+PASS  B (no hooks, same Workspace) completes a tool turn while A is attached+idle  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2256ms
+NOTE  lease after B  -> <free>
+PASS  A turn 2 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 787ms
+NOTE  Harness stopped with SIGTERM  -> lease=<free>
+NOTE  load retried until writer lease lapsed  -> 51s
+PASS  new Harness loads A  -> status=200  lease=<free>
+PASS  A turn after cold load completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3646ms lease=<free>
+NOTE  A detached on the new Harness  -> status=204  lease=<free>
+PASS  a fresh no-hook Session in the Workspace completes a tool turn after A was detached  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2672ms lease=<free>
+NOTE  final lease  -> <free>
+== RESULT s2b-lease-head4-ws-base2-no-SIGTERM: 6 passed, 0 failed
+=== node s5b-lost.mjs - ws-t9b 04:08:41
+NOTE  (d) operation with the dispatch acknowledgement dropped  -> 200 {"operationId":"10a31124-dd10-4771-95f2-0616ec8fa5f1","output":{"continue":true}} dropped=1
+PASS  (d) cold reload reconciles: settled, ONE physical call, ONE success callback  -> load=200 state=settled calls=1 callbacks=1 lease=hooks-activation-3d6601fbc6d3a29c70741066a0be5a71e34def04c4723b0dd1a470c2ab52fd76
+PASS  (d) the reconciled Session then runs a normal tool turn  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3953ms lease=hooks-activation-02d1abbc16794fb1be7ded1fc08dee7ac2fee56ae0c7e549994ddda0184d4fe2
+== RESULT s5b-lost-head4-ws-t9b: 2 passed, 0 failed
+=== ALL-DONE 04:09:58

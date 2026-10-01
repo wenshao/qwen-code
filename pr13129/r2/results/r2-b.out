@@ -1,0 +1,105 @@
+=== ARM=head4 node s5b-lost.mjs - ws-t9c 04:27:50
+NOTE  (d) operation with the dispatch acknowledgement dropped  -> 200 {"operationId":"4dfb4956-d12f-4a9d-b91e-9f3d5e04c41b","output":{"continue":true}} dropped=1
+PASS  (d) cold reload reconciles: settled, ONE physical call, ONE success callback  -> load=200 state=settled calls=1 callbacks=1 lease=hooks-activation-ddc18783ad384b955b2cc6d89910444d3f1767d8823c29904f005a7e2d2f2882
+PASS  (d) the reconciled Session then runs a normal tool turn  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2359ms lease=hooks-activation-71c2003c20a9fe5772a99e8d0b9bd3d31bdd39af2660f68d00305ae536bb3bf0
+== RESULT s5b-lost-head4-ws-t9c: 2 passed, 0 failed
+=== ARM=head4 ARM2=head4 node s2f-catalog-only.mjs ws-f1d 04:28:58
+NOTE  catalog registration only  -> register=200  records: registrations=1 executions=0 lease=hooks-activation-716892259eef2d0d0f59ac5448cc38da4176ff4dbcff088d7af2eac2dce91ae1
+NOTE  Harness SIGKILLed  -> lease=hooks-activation-716892259eef2d0d0f59ac5448cc38da4176ff4dbcff088d7af2eac2dce91ae1
+PASS  head4: reloaded Session runs a tool turn  -> load=200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2678ms lease=hooks-activation-120b1afca3a014c35377d7a3772edb92c0ddcf57cc0905068096b541b8a7a51d
+PASS  head4: after detaching A, a plain Session runs a tool turn  -> detach=204 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1184ms lease=<free>
+== RESULT s2f-catalog-only-head4-to-head4-ws-f1d: 2 passed, 0 failed
+=== ARM=head3 ARM2=head4 node s2f-catalog-only.mjs ws-f1b 04:30:07
+NOTE  catalog registration only  -> register=200  records: registrations=1 executions=0 lease=hooks-98384bb1-60d6-42cd-a310-3e356c4cddc2
+NOTE  Harness SIGKILLed  -> lease=hooks-98384bb1-60d6-42cd-a310-3e356c4cddc2
+FAIL  head4: reloaded Session runs a tool turn  -> load=200 admit=202 terminal=turn_error[{"sessionId":"54cba178-e37b-4ec3-9c33-d24f1683aa4a","promptId":"59eaff29-8a76-4e0b-a65c-2873dcf5c571","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 849ms lease=hooks-98384bb1-60d6-42cd-a310-3e35
+FAIL  head4: after detaching A, a plain Session runs a tool turn  -> detach=204 admit=202 terminal=turn_error[{"sessionId":"817f8225-f3b2-420c-952c-59d2682097b3","promptId":"6026d9ab-5d19-4cb9-b20e-febb886ec182","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 793ms lease=hooks-98384bb1
+== RESULT s2f-catalog-only-head3-to-head4-ws-f1b: 0 passed, 2 failed
+=== ARM=head4 node s1-permission.mjs 04:31:14
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  create default-approval Session with catalog  -> status=200 approvalMode=default
+PASS  1a turn completes, no human Action (PermissionRequest Hook allowed)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 727ms asked=[] file=P1
+PASS  1a PermissionRequest Hook ran before PreToolUse  -> start > ups > perm(plain.txt) > plain > plain > plain > plain > plain > plain > plain > pre(plain.txt) > plain > post(plain.txt) > batch > stop > display
+PASS  1a before-Hook context reaches the model only after the tool result  -> requests=[tools=0 ] [tools=1 PRE-CTX:plain.txt,POST-CTX:plain.txt,BATCH-CTX]
+FAIL  1b PreToolUse deny: file not written, refusal reaches model, no PostToolUse for the refused call  -> ups > perm(blocked.txt) > pre(blocked.txt) > batch > stop > display | result write_file: "No reason provided"
+PASS  1c rewritten args need a fresh approval; only the approved replacement is written  -> asked=["allow->200"] rewrite-a=null rewritten-a=REWRITTEN-BY-HOOK order=ups > perm(rewrite-a.txt) > plain > pre(rewrite-a.txt) > plain > plain > plain > plain > plain > plain > plain > post(rewritten-a.txt) > batch > stop > display
+PASS  1c' denying the fresh approval writes neither path  -> asked=["deny->200"] result write_file: "The Session owner denied this tool call, so it was not run."
+PASS  1d PermissionRequest Hook deny: not written, PreToolUse not run  -> ups > perm(permdeny.txt) > batch > stop > display | result write_file: "PermissionRequest Hook denied the call."
+NOTE  detach default Session before the yolo Session  -> 204
+PASS  1e yolo + PreToolUse ask -> Action requested; allow -> written; no PermissionRequest Hook in yolo  -> asked=["allow->200"] order=plain > plain > plain > plain > plain > plain > plain > plain > start > ups > pre(ask-y.txt) > post(ask-y.txt) > batch > stop > display
+PASS  1e' yolo + ask, deny -> not written  -> asked=["deny->200"]
+PASS  load again on the same Harness  -> {"load":200}
+PASS  after reload: PRE-CTX/POST-CTX of 1a appear exactly once in history  -> pre=1 post=1 batch=5
+NOTE  cold load waited for the old writer lease  -> 74s
+PASS  cold load on a new Harness (catalog pin omitted -> restored)  -> status=200 {"sessionId":"e81fea4d-08f0-41d2-81e6-3cf9fd8ac615","clientId":"44759031-a75a-412d-81fb-68258d1ff937","workspaceCwd":"/Users/wenshao/pr13129-rig/run/r2/harness-
+NOTE  first prompt after cold load  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 42ms
+PASS  after cold load: contexts still exactly once; SessionStart not re-run  -> pre=1 post=1 hooks-after=plain > plain > plain > plain > plain > plain > plain > ups > stop > display admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 42ms catalog=undefined@undefined
+PASS  load with a different catalog pin is refused  -> status=409 hosted_tool_profile_conflict
+== RESULT s1-permission-head4: 14 passed, 1 failed
+=== ARM=head4 node s3-catalog.mjs 04:33:24
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  P1 on rev1: h-a (rev1) runs, once Hook attempted and fails, turn still completes (fail-open)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1946ms hooks=once,rev1
+PASS  register rev2 with expectedRevision=1  -> 200 {"operationId":"326eeb68-9f8e-4cf3-a54a-92dc812071e9","registered":true}
+PASS  retrying the same registration operation is idempotent  -> 200 {"operationId":"326eeb68-9f8e-4cf3-a54a-92dc812071e9","registered":true}
+PASS  registering the older revision under a new operation is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  expectedRevision mismatch is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  a catalog revision the Runtime does not have is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  GET hooks reports rev2 without h-a  -> rev=2 hooks=h-b,h-once
+PASS  public hook-catalog reports rev2  -> 200 {"object":"agent.hook_catalog","session_id":"8d531b67-63d0-4e2c-b811-82f57d7b516a","catalogs":[{"catalog_id":"cat-t2","catalog_revision":2,"hooks":[{"hook_id":"h-b","event_name":"PreToolUse","type":"function","sequential":false,"async":false,"fail_closed":false,"once":false,"matcher
+PASS  P2 on rev2: h-b runs, h-a does not, failed once Hook is not retried  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1542ms hooks=rev2,plain,plain,plain,plain,plain,plain,plain,plain
+PASS  earlier executions stay bound to rev1, later ones to rev2  -> registrations=1@seq2,2@seq51
+PASS  status/cancel/status of the failed once execution dispatch no new effect  -> status=200 settled/"settled" cancel=200 settled after=settled newLedger=0
+PASS  after detach + new Harness: rev2 still effective, once still consumed  -> load=200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1898ms hooks=rev2
+PASS  fresh Session: successful once Hook runs exactly once over three turns  -> once=1
+== RESULT s3-catalog-head4: 13 passed, 0 failed
+=== ARM=head4 node s4-prompt.mjs 04:33:43
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  Notification operation outside a turn: 200 with aggregated prompt + function context  -> 200 {"operationId":"844c4be8-9ca3-4a0c-a595-98fa7c975c16","output":{"continue":true,"decision":"allow","hookSpecificOutput":{"hookEventName":"Notification","additionalContext":"PROMPT-NOTIFY-CTX\nNOTIFY-CTX"}}}
+PASS  exactly one model request, flagged as the prompt Hook  -> requests=1 promptHook=true
+PASS  no user turn / prompt events were created by the operation  -> new events=managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_
+NOTE  status after operation  -> {"sessionId":"ebfa2388-9fab-45c5-b9f7-39142e4698d1","hasActivePrompt":false,"recoveryBlocked":false}
+PASS  same operationId + same input replays the saved result, no new model request  -> 200 newModel=0
+PASS  same operationId + different input is refused  -> 503 {"error":"hosted_hook_operation_failed","code":"hosted_hook_operation_failed"}
+PASS  a user prompt is refused while a prompt Hook operation owns the model  -> prompt during op -> 409 hosted_mcp_operation_active; op -> 200
+PASS  a Hook operation is refused while a user turn is active  -> turn=202 op during turn -> 409 hosted_turn_active
+PASS  in-turn prompt Hook (UserPromptSubmit) adds its context to the main model request  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 759ms hookReqs=1
+NOTE  Store resource kinds for the Session  -> managed-activation-boundary=8 managed-activation-install=9 managed-admission=2 managed-checkpoint=3 managed-definition=1 managed-hook-catalog=1 managed-hook-input=15 managed-hook-messages=2 managed-hook-model-route=4 managed-hook-model-usage=4 managed-hook-plan=9 managed-hook-result
+PASS  detach emits neither SessionEnd nor SessionDelete  -> detach=204 lifecycle=<none>
+PASS  DELETE runs SessionEnd then SessionDelete, once each  -> delete=204 lifecycle:SessionEnd,lifecycle:SessionDelete
+== RESULT s4-prompt-head4: 10 passed, 0 failed
+=== ARM=head4 node s6-limits.mjs 04:33:55
+NOTE  ws-t5 rig repair  -> null
+PASS  ws-t5: 17 children recorded, 16 executed physically, the refused one has a bounded receipt  -> children=17 physical=16
+PASS  fail-open: the operation succeeds and the Session accepts the next prompt  -> op=200 next=202
+NOTE  ws-t5b rig repair  -> null
+PASS  ws-t5b: 17 children recorded, 16 executed physically, the refused one has a bounded receipt  -> children=17 physical=16
+PASS  fail-closed: the refused Hook makes the aggregate blocking; Session still usable  -> op=200 output={"continue":false,"decision":"block","reason":"Hook evaluation failed."} next=202 blocked=false
+NOTE  ws-t9d rig repair  -> null
+NOTE  individual 70 KB receipt: result  -> op=200 bytes=68 {"operationId":"b5ea49f8-e70f-4e72-9dab-a766bc89151d","output":null} children=settled plan=settled physical=1
+PASS  individual 70 KB receipt: bounded result (no 60 KB+ payload returned) and the Session continues  -> resultBytes=68 next=turn_complete
+PASS  individual 70 KB receipt: replaying the operation returns the saved result without re-running Hooks  -> replay=200 physical=1
+NOTE  ws-t6b rig repair  -> null
+NOTE  aggregate 8 x 10 KB: result  -> op=200 bytes=186 {"operationId":"02b25bc7-e342-4269-8a16-f3574bf857b0","output":{"continue":false,"decision":"block","reason":"Hook data exceeds the 60 KiB resource or 8 MiB control/transaction limit."}} children=settled,settled,settled,settled,settled,settled,settled,settled plan=settled ph
+PASS  aggregate 8 x 10 KB: bounded result (no 60 KB+ payload returned) and the Session continues  -> resultBytes=186 next=turn_complete
+PASS  aggregate 8 x 10 KB: replaying the operation returns the saved result without re-running Hooks  -> replay=200 physical=8
+== RESULT s6-limits: 8 passed, 0 failed
+=== ARM=head4 node s8-secrets.mjs 04:34:16
+NOTE  rig repair  -> null
+PASS  HTTP hook received the deployment header (credential lives only at the Runtime)  -> op=200 http=1 auth=Bearer RIG-SECRET-HEADER-7f3a
+PASS  public catalog lists the 4 Hooks with display metadata only  -> 200 {"object":"agent.hook_catalog","session_id":"f5e1c5e8-270f-4692-bcaa-2bdac726d770","catalogs":[{"catalog_id":"cat-t7","catalog_revision":1,"hooks":[{"hook_id":"sec-http","event_name":"Notification","type":"http","sequential":false,"async":false,"fail_close
+PASS  public catalog contains none of the secrets / recipes / module paths  -> clean
+NOTE  private GET /session/:id/hooks contains  -> none of the secrets
+PASS  another actor cannot read the catalog  -> 404 {"error":{"code":"session_not_found","message":"The Session was not found.","request_id":"827b7846-ae13-4004-bd4a-7825c3
+PASS  unauthenticated request is refused  -> 404
+PASS  a Session without Hooks reports an empty catalog list  -> 200 {"object":"agent.hook_catalog","session_id":"0c0a713f-e7ab-450b-8ad0-8c57f93892b0","catalogs":[]}
+FAIL  no secret / recipe / module path appears anywhere in the MySQL database  -> RIG-PROMPT-TEXT-SENSITIVE
+NOTE  prompt Hook text stored in the Store (design: Harness receives prompt definitions)  -> true
+== RESULT s8-secrets: 6 passed, 1 failed
+=== ARM=head4 node s10-baseline.mjs 04:34:20
+PASS  ordinary Hosted tool turn completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1160ms
+PASS  ambient Legacy Hooks from host settings did not run  -> marker=false
+NOTE  GET /session/:id/hooks  -> 409 {"error":"hosted_hooks_unavailable","code":"hosted_hooks_unavailable"}
+NOTE  public hook-catalog  -> 200 {"object":"agent.hook_catalog","session_id":"881753cf-e56a-49a1-bc9e-909c3129c9be","catalogs":[]}
+NOTE  model requests  -> 2
+== RESULT s10-baseline-head4: 2 passed, 0 failed
+=== ALL-DONE 04:34:25

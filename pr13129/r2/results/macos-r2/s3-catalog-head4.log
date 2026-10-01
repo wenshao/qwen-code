@@ -1,0 +1,17 @@
+# s3-catalog-head4  db=r2 arm=head4  2026-10-01T04:33:24.153Z
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  P1 on rev1: h-a (rev1) runs, once Hook attempted and fails, turn still completes (fail-open)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1946ms hooks=once,rev1
+PASS  register rev2 with expectedRevision=1  -> 200 {"operationId":"326eeb68-9f8e-4cf3-a54a-92dc812071e9","registered":true}
+PASS  retrying the same registration operation is idempotent  -> 200 {"operationId":"326eeb68-9f8e-4cf3-a54a-92dc812071e9","registered":true}
+PASS  registering the older revision under a new operation is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  expectedRevision mismatch is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  a catalog revision the Runtime does not have is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  GET hooks reports rev2 without h-a  -> rev=2 hooks=h-b,h-once
+PASS  public hook-catalog reports rev2  -> 200 {"object":"agent.hook_catalog","session_id":"8d531b67-63d0-4e2c-b811-82f57d7b516a","catalogs":[{"catalog_id":"cat-t2","catalog_revision":2,"hooks":[{"hook_id":"h-b","event_name":"PreToolUse","type":"function","sequential":false,"async":false,"fail_closed":false,"once":false,"matcher":"write_file"},{
+PASS  P2 on rev2: h-b runs, h-a does not, failed once Hook is not retried  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1542ms hooks=rev2,plain,plain,plain,plain,plain,plain,plain,plain
+  executions: UserPromptSubmit:h-once@rev1(once settled) PreToolUse:h-a@rev1 PreToolUse:h-b@rev2
+PASS  earlier executions stay bound to rev1, later ones to rev2  -> registrations=1@seq2,2@seq51
+PASS  status/cancel/status of the failed once execution dispatch no new effect  -> status=200 settled/"settled" cancel=200 settled after=settled newLedger=0
+PASS  after detach + new Harness: rev2 still effective, once still consumed  -> load=200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1898ms hooks=rev2
+PASS  fresh Session: successful once Hook runs exactly once over three turns  -> once=1
+== RESULT s3-catalog-head4: 13 passed, 0 failed
