@@ -12,6 +12,7 @@ const MAIN = 'packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/q
 const PROPS = `${MAIN}/config/ManagedAgentProperties.java`;
 const CONN = `${MAIN}/harness/QwenHostedHarnessConnector.java`;
 const RBE = 'com.alibaba.qwen.code.runtimebroker.RuntimeBrokerException';
+const DAE = 'org.springframework.dao.DataAccessException';
 const AUTH = 'workspaceExecution.authorize(session);';
 const PUT = 'attachments.put(key, attached);';
 
@@ -39,6 +40,16 @@ export const MUTANTS = {
     edits: wrap(`catch (${RBE} e) { throw new ${RBE}(503, e.getCode(), e.getMessage(), e.isRetryable()); }`) },
   C9: { file: CONN, what: 'recheck deleted',
     edits: [[`            ${AUTH}\n`, '']] },
+  // Round 5 (bot R3-1/R3-2/R2-1 on 00480dbd); anchors exist only in the post-#13088 layout.
+  C10: { file: CONN, what: 'Harness contacted (client().capabilities()) before the recheck (bot R3-1 M2)', newOnly: true,
+    edits: [['            if (passiveManagedRuntimeRecovery) {\n                workspaceExecution.authorizePassiveAttachment(session);',
+      '            client().capabilities();\n            if (passiveManagedRuntimeRecovery) {\n                workspaceExecution.authorizePassiveAttachment(session);']] },
+  C11: { file: CONN, what: 'recheck retried once on DataAccessException (bot R3-2 retry)', newOnly: true,
+    edits: wrap(`catch (${DAE} e) { ${AUTH} }`) },
+  C12: { file: CONN, what: 'Harness closeSession() on DataAccessException, then rethrow (bot R3-2 ARM B)', newOnly: true,
+    edits: wrap(`catch (${DAE} e) { client().closeSession(session.sessionId()); throw e; }`) },
+  C13: { file: CONN, what: 'DataAccessException swallowed while a cached attachment exists (bot R2-1 fix-induced)', newOnly: true,
+    edits: wrap(`catch (${DAE} e) { if (attachments.get(new AttachmentKey(tenantId, sessionId)) == null) { throw e; } }`) },
 };
 
 if (id === 'list') {
@@ -61,7 +72,9 @@ let edits = m.edits;
 // path, and requireReadyForNewWork has a second authorize(session). Anchor on createOrLoad's.
 if (m.file === CONN && src.includes('workspaceExecution.authorizePassiveAttachment(session);')) {
   const TAIL = '\n            }\n        }\n        AttachmentKey key';
-  if (id === 'C5') {
+  if (m.newOnly && id === 'C10') {
+    edits = m.edits;
+  } else if (id === 'C5') {
     edits = [['            } else {\n                ' + AUTH + '\n            }\n', '            }\n'],
       [`        ${PUT}\n`, `        ${PUT}\n        if (session.workspace() != null && !passiveManagedRuntimeRecovery) { ${AUTH} }\n`]];
   } else if (id === 'C9') {

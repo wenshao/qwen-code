@@ -115,7 +115,9 @@ async function cold() {
   say('turn', { ...row(session), settledMs: w.ms, timeout: !!w.timeout });
   say('registryState', state(ws));
   say('harnessCalls', tapFor(session, t0));
-  say('modelCallsForSession', 'see model log');
+  say('capabilitiesCallsDuringTurn', tapEntries()
+    .filter((e) => e.path === '/capabilities' && Date.parse(e.t) >= t0 && Date.parse(e.t) <= t0 + w.ms + 500)
+    .map((e) => `${e.t.slice(11, 23)} GET /capabilities -> ${e.status ?? 'no reply'}`));
   say('fileWritten', exists(st, 'cold.txt'));
   say('terminal', await terminalEvents(session));
   say('thrown', summarize(await thrown(['RuntimeBrokerException'], { sinceMs: t0 })).slice(0, 4));
@@ -131,6 +133,7 @@ async function transient() {
   const ws = `ws-transient-${TAG}`;
   const st = process.env.ST ?? 'c';
   register(ws, `st-${st}`);
+  fs.rmSync(`${R}/roots/${st}/child/transient.txt`, { force: true });
   setRules([{ id: 'harness-down', path: '^/session', mode: 'drop', remaining: 999 }]);
   const c = await create(ws, 'G0_FILES name=transient.txt', `transient-${TAG}`);
   const session = c.json.id;
@@ -153,7 +156,47 @@ async function transient() {
   out(`transient-${JAR}-${TAG}.json`, res);
 }
 
-const fns = { warm, cold, transient };
+// Warm attachment + non-refusal failure: the Turn is admitted and running, then
+// the table the recheck joins is renamed away and the event stream cut, so each
+// re-dispatch hits a DataAccessException on the warm cache. Pristine: retried,
+// no Harness call while hidden. C13 (swallow while a cached attachment exists)
+// keeps serving the cached attachment.
+async function warmtransient() {
+  const ws = `ws-wt-${TAG}`;
+  const st = process.env.ST ?? 'd';
+  register(ws, `st-${st}`);
+  fs.rmSync(`${R}/roots/${st}/child/wt.txt`, { force: true });
+  const c = await create(ws, 'G0_HANG hold=30000 name=wt.txt', `wt-${TAG}`);
+  const session = c.json.id;
+  say('create', { status: c.status, session, code: c.json.error?.code });
+  const running = await waitFor(() => {
+    const r = row(session);
+    return r?.submission_attempted && r.admitted && exists(st, 'wt.txt') && r;
+  }, { timeoutMs: 90_000 });
+  say('beforeHide', running ?? row(session));
+  await sleep(1000);
+  sql('RENAME TABLE managed_workspace_create_command TO rig_hidden_create_command');
+  const tHide = Date.now();
+  const cut = await fetch('http://127.0.0.1:16116/__rig/cut').then((r) => r.text());
+  say('hiddenAndStreamsCut', { streams: Number(cut) });
+  const seen = await timeline(session, 45_000, (r) => ['COMPLETED', 'FAILED', 'CANCELLED'].includes(r.status));
+  const callsWhileHidden = tapFor(session, tHide);
+  sql('RENAME TABLE rig_hidden_create_command TO managed_workspace_create_command');
+  say('timelineWhileHidden', seen);
+  say('harnessCallsWhileHidden', callsWhileHidden);
+  say('retryLogWhileHidden', retryLines(session).slice(-6));
+  say('thrownWhileHidden', summarize(await thrown(['BadSqlGrammarException'], { sinceMs: tHide }))
+    .filter((e) => e.frames.some((f) => f.startsWith('QwenHostedHarnessConnector.createOrLoad'))).slice(0, 2));
+  if (!['COMPLETED', 'FAILED', 'CANCELLED'].includes(row(session).status)) {
+    const tRestore = Date.now();
+    const w = await waitTurn(session, { timeoutMs: 150_000 });
+    say('afterRestore', { ...row(session), settledSecAfterRestore: +((Date.now() - tRestore) / 1000).toFixed(1), timeout: !!w.timeout });
+  }
+  say('terminal', await terminalEvents(session));
+  out(`warmtransient-${JAR}-${TAG}.json`, res);
+}
+
+const fns = { warm, cold, transient, warmtransient };
 if (!fns[name]) {
   console.error(`unknown scenario ${name}`);
   process.exit(2);

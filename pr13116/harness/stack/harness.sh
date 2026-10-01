@@ -1,6 +1,6 @@
 #!/bin/bash
 # VERIFICATION RIG ONLY (PR 13116): packaged Hosted Harness (dist/cli.js of main).
-S=/Users/wenshao/pr13116-rig/stack; CLI=/Users/wenshao/pr13116-rig/wt-jar/dist/cli.js
+S=/Users/wenshao/pr13116-rig/stack; CLI=/Users/wenshao/pr13116-rig/${CLI_TREE:-wt-jar}/dist/cli.js
 H=$S/hhome; mkdir -p $H/.qwen $S/run/hruntime $S/decoy
 MODEL_URL=http://127.0.0.1:15116/v1
 cat > $H/.qwen/settings.json <<JSON

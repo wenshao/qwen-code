@@ -2,7 +2,7 @@
 # VERIFICATION RIG ONLY (PR 13116). usage: spring.sh <jar label> <db> [extra --key=value ...]
 #   JFR records every thrown exception with its stack (the observed call paths).
 S=/Users/wenshao/pr13116-rig/stack; RIG=/Users/wenshao/pr13116-rig; L=$1; DB=$2; shift 2
-JAR=$RIG/jars/$L.jar; CLI=$RIG/wt-jar/dist/cli.js
+JAR=$RIG/jars/$L.jar; CLI=$RIG/${CLI_TREE:-wt-jar}/dist/cli.js
 mkdir -p $S/run/state-$DB $S/decoy
 MOUNTS=""; i=0
 for st in a b c d e f g h i j k l; do
