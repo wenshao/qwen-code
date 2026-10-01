@@ -1,0 +1,28 @@
+# s14-r5-fixes-a_head-a_prev-b_head-b_prev-d_head-d_prev-e_head-e_prev-f_head-f_prev-g_head-g_prev  db=r5db  2026-10-01T13:53:28.518Z
+PASS  [a·head] R1-2 fixed: the stale tab's Reject gets 409 action_already_resolved, the card leaves at once, the list is read again, and no warning is shown  -> HTTP 409 action_already_resolved card gone at 0 ms, back at null, present after 6 s=false, actions/query +1, alerts=[]
+NOTE  [a·head] outcome  -> action=decided executions=1 (tab A allowed)
+NOTE  [a·head] cleanup  -> {"status":"COMPLETED","error":"","ms":19}
+PASS  [a·prev] before: the card stays and the page says "Retry the same option"  -> HTTP 409 action_already_resolved card gone at 0 ms, back at 16, present after 6 s=true, actions/query +0, alerts=["The approval answer could not be confirmed. Retry the same option or refresh to check its status."]
+NOTE  [a·prev] outcome  -> action=decided executions=1 (tab A allowed)
+NOTE  [a·prev] cleanup  -> {"status":"COMPLETED","error":"","ms":19}
+PASS  [b·head] a wrong "already resolved" for a live Action hides the card only until the next read lists it again  -> real body replayed={"error":{"code":"action_already_resolved","message":"The Action has already ended.","request_id":"managed_c3f2cfe1-78c9-48f6-8c56-db338648e859"}}; card gone at 0 ms, back at 16 ms, actions/query +1, alerts=[]
+FAIL  [b·head] the restored card still answers: the real Allow is applied once  -> respond HTTP 202, turn=COMPLETED, executions=1, file=null
+PASS  [b·prev] before: the card stays with "Retry the same option"  -> real body replayed={"error":{"code":"action_already_resolved","message":"The Action has already ended.","request_id":"managed_c3f2cfe1-78c9-48f6-8c56-db338648e859"}}; card gone at null ms, back at null ms, actions/query +0, alerts=["The approval answer could not be confirmed. Retry the same option or refresh to check its status."]
+FAIL  [b·prev] the restored card still answers: the real Allow is applied once  -> respond HTTP 202, turn=COMPLETED, executions=1, file=null
+PASS  [d·head] R1-4 fixed: a failed first load says "could not be loaded"; a failed refresh beside the card says "could not be refreshed"  -> first load failed: card=0 alerts=["Pending approvals could not be loaded. Retry loading approvals"]; background re-read failed: card=1 alerts=["Pending approvals could not be refreshed. Retry loading approvals"] reads=3
+NOTE  [d·head] cleanup  -> {"status":"COMPLETED","error":"","ms":17}
+PASS  [d·prev] before: both say "could not be loaded"  -> first load failed: card=0 alerts=["Pending approvals could not be loaded. Retry loading approvals"]; background re-read failed: card=1 alerts=["Pending approvals could not be loaded. Retry loading approvals"] reads=3
+NOTE  [d·prev] cleanup  -> {"status":"COMPLETED","error":"","ms":19}
+PASS  [e·head] R1-5 fixed: a 404 is read once, not retried; the Retry button still reads again on demand  -> reads in 20 s=1, Retry button=1, alerts=["Pending approvals could not be loaded. Retry loading approvals"]; after Retry (service healthy): card=true reads=2
+NOTE  [e·head] cleanup  -> {"status":"COMPLETED","error":"","ms":26}
+PASS  [e·prev] before: a 404 is read four times  -> reads in 20 s=4, Retry button=1, alerts=["Pending approvals could not be loaded. Retry loading approvals"]; after Retry (service healthy): card=true reads=5
+NOTE  [e·prev] cleanup  -> {"status":"COMPLETED","error":"","ms":17}
+PASS  [f·head] R1-8 fixed: Chromium's accessible description of the dialog includes the arguments caveat, and no IDREF dangles when arguments are shown  -> no arguments: {"found":true,"role":"alertdialog","name":"WriteFile","description":"Apply this change? write_file Tool arguments are unavailable for this approval.","ids":3,"dangling":[]}; with arguments: {"found":true,"role":"alertdialog","name":"WriteFile","description":"Apply this change? WriteFile { \"file_path\": \"probe.txt\", \"content\": \"INJECTED-ARGUMENT-BYTES\" }","ids":3,"dangling":[]}
+NOTE  [f·head] cleanup  -> {"status":"COMPLETED","error":"","ms":16}
+PASS  [f·prev] before: the caveat is not in the accessible description  -> no arguments: {"found":true,"role":"alertdialog","name":"WriteFile","description":"Apply this change? write_file","ids":2,"dangling":[]}; with arguments: {"found":true,"role":"alertdialog","name":"WriteFile","description":"Apply this change? write_file","ids":2,"dangling":[]}
+NOTE  [f·prev] cleanup  -> {"status":"COMPLETED","error":"","ms":16}
+PASS  [g·head] R1-7 fixed: the Harness's own call title reaches the card  -> card text="? WriteFile Write RIG-TITLE-13107 probe.txt Apply this change? Reject Yes, allow once"
+NOTE  [g·head] cleanup  -> {"status":"COMPLETED","error":"","ms":21}
+PASS  [g·prev] before: the title is dropped and the card falls back to the tool name  -> card text="? WriteFile write_file Apply this change? Reject Yes, allow once"
+NOTE  [g·prev] cleanup  -> {"status":"COMPLETED","error":"","ms":25}
+== s14-r5-fixes-a_head-a_prev-b_head-b_prev-d_head-d_prev-e_head-e_prev-f_head-f_prev-g_head-g_prev: 12 passed, 2 failed

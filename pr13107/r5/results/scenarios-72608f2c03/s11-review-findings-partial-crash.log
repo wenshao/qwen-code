@@ -1,0 +1,11 @@
+# s11-review-findings  db=r5db  2026-10-01T13:46:36.009Z
+FAIL  [R1-1a] clicking Refresh removes the live card for a while (summary dropped → reader disabled)  -> gaps=0 longest=0 ms, option buttons present during the gap: false
+NOTE  [R1-1a] after the reload  -> card=1 actions/query +1
+NOTE  [R1-1a] cleanup  -> {"status":"COMPLETED","error":"","ms":27}
+PASS  [R1-1b] summary route failing WITHOUT a reload: the card stays (summary kept from before)  -> sessions/get failures=2 alerts=["rig 503"]
+FAIL  [R1-1b] summary route failing + Refresh: the card stays away and Actions are not read for 15 s  -> card=1 actions/query during outage=0 sessions/get failures=12 alerts=["rig 503"]
+NOTE  [R1-1b] /actions/query is healthy meanwhile  -> HTTP 200, requested=1
+NOTE  [R1-1b] after the summary route recovers  -> card back=true after 2 ms (the summary poller runs every 3 s)
+NOTE  [R1-1b] cleanup  -> {"status":"COMPLETED","error":"","ms":49}
+NOTE  [R1-2] tab A answered "Yes, allow once"  -> action=decided tab B card=1
+FAIL  [R1-2] the stale tab's "Reject" gets 409 for an ended Action, the card stays, and the page says "Retry the same option"  -> HTTP 409 action_already_resolved card=0 alerts=[]

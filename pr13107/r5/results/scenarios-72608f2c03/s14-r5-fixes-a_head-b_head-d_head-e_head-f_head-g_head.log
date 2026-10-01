@@ -1,0 +1,15 @@
+# s14-r5-fixes-a_head-b_head-d_head-e_head-f_head-g_head  db=r5db  2026-10-01T14:18:18.481Z
+PASS  [a·head] R1-2 fixed: the stale tab's Reject gets 409 action_already_resolved, the card leaves at once, the list is read again, and no warning is shown  -> HTTP 409 action_already_resolved card gone at 0 ms, back at null, present after 6 s=false, actions/query +1, alerts=[]
+NOTE  [a·head] outcome  -> action=decided executions=1 (tab A allowed)
+NOTE  [a·head] cleanup  -> {"status":"COMPLETED","error":"","ms":15}
+PASS  [b·head] a wrong "already resolved" for a live Action hides the card only until the next read lists it again  -> real body replayed={"error":{"code":"action_already_resolved","message":"The Action has already ended.","request_id":"managed_193ccb3f-171d-4bee-864b-debc6dec3fb3"}}; card gone at 0 ms, back at 15 ms, actions/query +1, alerts=[]
+PASS  [b·head] the restored card still answers: the real Allow is applied once  -> respond HTTP 202, turn=COMPLETED, executions=1, file="B-HEAD"
+PASS  [d·head] R1-4 fixed: a failed first load says "could not be loaded"; a failed refresh beside the card says "could not be refreshed"  -> first load failed: card=0 alerts=["Pending approvals could not be loaded. Retry loading approvals"]; background re-read failed: card=1 alerts=["Pending approvals could not be refreshed. Retry loading approvals"] reads=3
+NOTE  [d·head] cleanup  -> {"status":"COMPLETED","error":"","ms":16}
+PASS  [e·head] R1-5 fixed: a 404 is read once, not retried; the Retry button still reads again on demand  -> reads in 20 s=1, Retry button=1, alerts=["Pending approvals could not be loaded. Retry loading approvals"]; after Retry (service healthy): card=true reads=2
+NOTE  [e·head] cleanup  -> {"status":"COMPLETED","error":"","ms":33}
+PASS  [f·head] R1-8 fixed: Chromium's accessible description of the dialog includes the arguments caveat, and no IDREF dangles when arguments are shown  -> no arguments: {"found":true,"role":"alertdialog","name":"WriteFile","description":"Apply this change? write_file Tool arguments are unavailable for this approval.","ids":3,"dangling":[]}; with arguments: {"found":true,"role":"alertdialog","name":"WriteFile","description":"Apply this change? WriteFile { \"file_path\": \"probe.txt\", \"content\": \"INJECTED-ARGUMENT-BYTES\" }","ids":3,"dangling":[]}
+NOTE  [f·head] cleanup  -> {"status":"COMPLETED","error":"","ms":20}
+PASS  [g·head] R1-7 fixed: the Harness's own call title reaches the card  -> card text="? WriteFile Write RIG-TITLE-13107 probe.txt Apply this change? Reject Yes, allow once"
+NOTE  [g·head] cleanup  -> {"status":"COMPLETED","error":"","ms":17}
+== s14-r5-fixes-a_head-b_head-d_head-e_head-f_head-g_head: 7 passed, 0 failed

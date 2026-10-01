@@ -1,0 +1,59 @@
+diff --git a/packages/web-shell/client/components/managed/use-managed-actions.test.tsx b/packages/web-shell/client/components/managed/use-managed-actions.test.tsx
+index 611b51d80a..e4e8b85d25 100644
+--- a/packages/web-shell/client/components/managed/use-managed-actions.test.tsx
++++ b/packages/web-shell/client/components/managed/use-managed-actions.test.tsx
+@@ -334,6 +334,36 @@ describe('useManagedActions', () => {
+     expect(hook.latest?.loadError).toBeUndefined();
+   });
+ 
++  it('restores the retry budget after a reload of the Session summary', async () => {
++    vi.useFakeTimers();
++    const listPending = vi
++      .fn()
++      .mockRejectedValueOnce(new Error('unavailable'))
++      .mockRejectedValueOnce(new Error('unavailable'))
++      .mockRejectedValueOnce(new Error('unavailable'))
++      .mockRejectedValueOnce(new Error('unavailable'))
++      .mockRejectedValueOnce(new Error('unavailable'))
++      .mockResolvedValueOnce([pending]);
++    const provider = {
++      actions: { listPending, respond: vi.fn() },
++    } as unknown as ManagedAgentProvider;
++    const hook = mount(provider, { enabled: true, events: [] });
++    for (const delay of [0, 2_000, 5_000, 10_000, 60_000]) {
++      await act(async () => vi.advanceTimersByTimeAsync(delay));
++    }
++    expect(listPending).toHaveBeenCalledTimes(4);
++
++    // Refresh reloads the summary: the capability is unknown, then known again.
++    hook.rerender({ enabled: undefined });
++    hook.rerender({ enabled: true });
++    await act(async () => vi.advanceTimersByTimeAsync(0));
++    expect(listPending).toHaveBeenCalledTimes(5);
++    await act(async () => vi.advanceTimersByTimeAsync(2_000));
++    expect(listPending).toHaveBeenCalledTimes(6);
++    expect(hook.latest?.action).toEqual(pending);
++    expect(hook.latest?.loadError).toBeUndefined();
++  });
++
+   it('keeps the shown approval while the capability is unknown', async () => {
+     const listPending = vi.fn().mockResolvedValue([pending]);
+     const respond = vi.fn().mockResolvedValue(undefined);
+diff --git a/packages/web-shell/client/components/managed/use-managed-actions.ts b/packages/web-shell/client/components/managed/use-managed-actions.ts
+index 3cf7ce8ca7..ab400f4a80 100644
+--- a/packages/web-shell/client/components/managed/use-managed-actions.ts
++++ b/packages/web-shell/client/components/managed/use-managed-actions.ts
+@@ -103,7 +103,12 @@ export function useManagedActions(
+       loadFailures.current = 0;
+       return undefined;
+     }
+-    if (enabled === undefined) return undefined;
++    if (enabled === undefined) {
++      // So is a reload, which is how a user retries from the page: the
++      // reader comes back with the same Session and a fresh retry budget.
++      loadFailures.current = 0;
++      return undefined;
++    }
+     const abort = new AbortController();
+     let retryTimer: ReturnType<typeof setTimeout> | undefined;
+     reader

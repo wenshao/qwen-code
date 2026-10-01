@@ -1,0 +1,28 @@
+# s11-review-findings  db=r5db  2026-10-01T13:47:52.741Z
+FAIL  [R1-1a] clicking Refresh removes the live card for a while (summary dropped → reader disabled)  -> gaps=0 longest=0 ms, option buttons present during the gap: false
+NOTE  [R1-1a] after the reload  -> card=1 actions/query +1
+NOTE  [R1-1a] cleanup  -> {"status":"COMPLETED","error":"","ms":17}
+PASS  [R1-1b] summary route failing WITHOUT a reload: the card stays (summary kept from before)  -> sessions/get failures=2 alerts=["rig 503"]
+FAIL  [R1-1b] summary route failing + Refresh: the card stays away and Actions are not read for 15 s  -> card=1 actions/query during outage=0 sessions/get failures=12 alerts=["rig 503"]
+NOTE  [R1-1b] /actions/query is healthy meanwhile  -> HTTP 200, requested=1
+NOTE  [R1-1b] after the summary route recovers  -> card back=true after 3 ms (the summary poller runs every 3 s)
+NOTE  [R1-1b] cleanup  -> {"status":"COMPLETED","error":"","ms":21}
+NOTE  [R1-2] tab A answered "Yes, allow once"  -> action=decided tab B card=1
+FAIL  [R1-2] the stale tab's "Reject" gets 409 for an ended Action, the card stays, and the page says "Retry the same option"  -> HTTP 409 action_already_resolved card=0 alerts=[]
+FAIL  [R1-2] retrying the same option repeats the 409 and nothing re-reads the list  -> not reached: the card left after the first 409
+NOTE  [R1-2] outcome  -> tool executions=1 (tab A allowed; tab B clicked Reject twice)
+NOTE  [R1-2] cleanup  -> {"status":"COMPLETED","error":"","ms":20}
+NOTE  [R1-3] answer 1 failed (503)  -> alerts=["The approval answer could not be confirmed. Retry the same option or refresh to check its status."]
+FAIL  [R1-3] the "could not be confirmed" alert outlives approval 1 and sits beside approval 2  -> approval 2=edit card=? Edit edit Apply this change? Reject Yes, allow once Tool a alerts=[]
+NOTE  [R1-3] cleanup  -> {"status":"COMPLETED","error":"","ms":30}
+FAIL  [R1-4] a failed background re-read shows "Pending approvals could not be loaded." beside a loaded card  -> card=1 alerts=[] reads=3
+NOTE  [R1-4] 3 s later (2 s retry rung)  -> card=1 alerts=[] reads=3
+NOTE  [R1-4] cleanup  -> {"status":"COMPLETED","error":"","ms":50}
+FAIL  [R1-5] a deterministic 404 is retried like a transient failure, then left with a Retry button and no server message  -> reads=1 at [461] ms alerts=["Pending approvals could not be loaded. Retry loading approvals"]
+NOTE  [R1-5] cleanup  -> {"status":"COMPLETED","error":"","ms":27}
+NOTE  [R1-6] ladder exhausted  -> reads=4 card=0
+PASS  [R1-6] after Refresh, one more transient failure is not retried: no card for 15 s while the service is healthy  -> reads=5 card=0 alerts=["Pending approvals could not be loaded. Retry loading approvals"]
+NOTE  [R1-6] cleanup  -> {"status":"COMPLETED","error":"","ms":40}
+FAIL  [R1-8] the arguments-unavailable notice is outside the dialog's aria-describedby  -> describedby texts=["Apply this change?","write_file","Tool arguments are unavailable for this approval."] notice=["Tool arguments are unavailable for this approval."] insidePanel=false
+NOTE  [R1-8] cleanup  -> {"status":"COMPLETED","error":"","ms":39}
+== s11-review-findings: 2 passed, 8 failed
