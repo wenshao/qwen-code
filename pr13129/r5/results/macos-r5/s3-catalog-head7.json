@@ -1,0 +1,77 @@
+{
+  "name": "s3-catalog-head7",
+  "pass": 13,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "rig repair of an earlier F1 leak",
+      "note": true,
+      "detail": "null"
+    },
+    {
+      "label": "P1 on rev1: h-a (rev1) runs, once Hook attempted and fails, turn still completes (fail-open)",
+      "ok": true,
+      "detail": "admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1223ms hooks=once,rev1"
+    },
+    {
+      "label": "register rev2 with expectedRevision=1",
+      "ok": true,
+      "detail": "200 {\"operationId\":\"aea2868b-d35b-4f9a-8fdd-2e0d0cde88d1\",\"registered\":true}"
+    },
+    {
+      "label": "retrying the same registration operation is idempotent",
+      "ok": true,
+      "detail": "200 {\"operationId\":\"aea2868b-d35b-4f9a-8fdd-2e0d0cde88d1\",\"registered\":true}"
+    },
+    {
+      "label": "registering the older revision under a new operation is refused",
+      "ok": true,
+      "detail": "409 {\"error\":\"hook_registration_failed\",\"code\":\"hook_registration_failed\"}"
+    },
+    {
+      "label": "expectedRevision mismatch is refused",
+      "ok": true,
+      "detail": "409 {\"error\":\"hook_registration_failed\",\"code\":\"hook_registration_failed\"}"
+    },
+    {
+      "label": "a catalog revision the Runtime does not have is refused",
+      "ok": true,
+      "detail": "409 {\"error\":\"hook_registration_failed\",\"code\":\"hook_registration_failed\"}"
+    },
+    {
+      "label": "GET hooks reports rev2 without h-a",
+      "ok": true,
+      "detail": "rev=2 hooks=h-b,h-once"
+    },
+    {
+      "label": "public hook-catalog reports rev2",
+      "ok": true,
+      "detail": "200 {\"object\":\"agent.hook_catalog\",\"session_id\":\"f6b11181-08a8-40eb-9b68-ed7e530a49d9\",\"catalogs\":[{\"catalog_id\":\"cat-t2\",\"catalog_revision\":2,\"hooks\":[{\"hook_id\":\"h-b\",\"event_name\":\"PreToolUse\",\"type\":\"function\",\"sequential\":false,\"async\":false,\"fail_closed\":false,\"once\":false,\"matcher\":\"write_file\"},{"
+    },
+    {
+      "label": "P2 on rev2: h-b runs, h-a does not, failed once Hook is not retried",
+      "ok": true,
+      "detail": "admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 852ms hooks=rev2"
+    },
+    {
+      "label": "earlier executions stay bound to rev1, later ones to rev2",
+      "ok": true,
+      "detail": "registrations=1@seq2,2@seq53"
+    },
+    {
+      "label": "status/cancel/status of the failed once execution dispatch no new effect",
+      "ok": true,
+      "detail": "status=200 settled/\"settled\" cancel=200 settled after=settled newLedger=0"
+    },
+    {
+      "label": "after detach + new Harness: rev2 still effective, once still consumed",
+      "ok": true,
+      "detail": "load=200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1254ms hooks=rev2"
+    },
+    {
+      "label": "fresh Session: successful once Hook runs exactly once over three turns",
+      "ok": true,
+      "detail": "once=1"
+    }
+  ]
+}

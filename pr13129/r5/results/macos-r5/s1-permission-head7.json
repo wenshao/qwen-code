@@ -1,0 +1,102 @@
+{
+  "name": "s1-permission-head7",
+  "pass": 14,
+  "fail": 1,
+  "rows": [
+    {
+      "label": "rig repair of an earlier F1 leak",
+      "note": true,
+      "detail": "null"
+    },
+    {
+      "label": "create default-approval Session with catalog",
+      "ok": true,
+      "detail": "status=200 approvalMode=default"
+    },
+    {
+      "label": "1a turn completes, no human Action (PermissionRequest Hook allowed)",
+      "ok": true,
+      "detail": "admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 491ms asked=[] file=P1"
+    },
+    {
+      "label": "1a PermissionRequest Hook ran before PreToolUse",
+      "ok": true,
+      "detail": "start > ups > perm(plain.txt) > pre(plain.txt) > post(plain.txt) > batch > stop > display"
+    },
+    {
+      "label": "1a before-Hook context reaches the model only after the tool result",
+      "ok": true,
+      "detail": "requests=[tools=0 ] [tools=1 PRE-CTX:plain.txt,POST-CTX:plain.txt,BATCH-CTX]"
+    },
+    {
+      "label": "1b PreToolUse deny: file not written, refusal reaches model, no PostToolUse for the refused call",
+      "ok": false,
+      "detail": "ups > perm(blocked.txt) > pre(blocked.txt) > batch > stop > display | result write_file: \"No reason provided\""
+    },
+    {
+      "label": "1c rewritten args need a fresh approval; only the approved replacement is written",
+      "ok": true,
+      "detail": "asked=[\"allow->200\"] rewrite-a=null rewritten-a=REWRITTEN-BY-HOOK order=ups > perm(rewrite-a.txt) > pre(rewrite-a.txt) > post(rewritten-a.txt) > batch > stop > display"
+    },
+    {
+      "label": "1c' denying the fresh approval writes neither path",
+      "ok": true,
+      "detail": "asked=[\"deny->200\"] result write_file: \"The Session owner denied this tool call, so it was not run.\""
+    },
+    {
+      "label": "1d PermissionRequest Hook deny: not written, PreToolUse not run",
+      "ok": true,
+      "detail": "ups > perm(permdeny.txt) > batch > stop > display | result write_file: \"PermissionRequest Hook denied the call.\""
+    },
+    {
+      "label": "detach default Session before the yolo Session",
+      "note": true,
+      "detail": "204"
+    },
+    {
+      "label": "1e yolo + PreToolUse ask -> Action requested; allow -> written; no PermissionRequest Hook in yolo",
+      "ok": true,
+      "detail": "asked=[\"allow->200\"] order=start > ups > pre(ask-y.txt) > post(ask-y.txt) > batch > stop > display"
+    },
+    {
+      "label": "1e' yolo + ask, deny -> not written",
+      "ok": true,
+      "detail": "asked=[\"deny->200\"]"
+    },
+    {
+      "label": "load again on the same Harness",
+      "ok": true,
+      "detail": "{\"load\":200}"
+    },
+    {
+      "label": "after reload: PRE-CTX/POST-CTX of 1a appear exactly once in history",
+      "ok": true,
+      "detail": "pre=1 post=1 batch=5"
+    },
+    {
+      "label": "cold load waited for the old writer lease",
+      "note": true,
+      "detail": "67s"
+    },
+    {
+      "label": "cold load on a new Harness (catalog pin omitted -> restored)",
+      "ok": true,
+      "detail": "status=200 {\"sessionId\":\"4f745f3b-f4ff-479e-a7e7-fe2e0c23c098\",\"clientId\":\"4bd15430-d33f-4cee-9e43-fd97ab8728f0\",\"workspaceCwd\":\"/Users/wenshao/pr13129-rig/run/r5/harness-"
+    },
+    {
+      "label": "first prompt after cold load",
+      "note": true,
+      "detail": "admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 16ms"
+    },
+    {
+      "label": "after cold load: contexts still exactly once; SessionStart not re-run",
+      "ok": true,
+      "detail": "pre=1 post=1 hooks-after=ups > stop > display admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 16ms catalog=undefined@undefined"
+    },
+    {
+      "label": "load with a different catalog pin is refused",
+      "ok": true,
+      "detail": "status=409 hosted_tool_profile_conflict"
+    }
+  ]
+}

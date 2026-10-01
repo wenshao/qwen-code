@@ -1,0 +1,29 @@
+5:cd $W && git diff --name-only 0a5f518b4f73fbd10ad58a764d456afc1961e9d1 HEAD | grep -E "\.test\.ts$" > $O/r5-changed-tests.txt
+6:CLI=$(grep "^packages/cli/" $O/r5-changed-tests.txt | sed 's#packages/cli/##' | tr '\n' ' ')
+7:CORE=$(grep "^packages/core/" $O/r5-changed-tests.txt | sed 's#packages/core/##' | grep -v "core/client.test.ts" | tr '\n' ' ')
+9:cd $W/packages/cli && npx vitest run $CLI --reporter=verbose > $O/r5-unit-cli.log 2>&1; echo "cli exit=$?"
+10:cd $W/packages/core && npx vitest run $CORE --reporter=dot > $O/r5-unit-core.log 2>&1; echo "core exit=$?"
+11:for f in r5-unit-cli r5-unit-core; do echo "== $f: $(grep -E '^ +Tests ' $O/$f.log)"; done
+12:grep -E '^ +×' $O/r5-unit-cli.log | sed 's/^ *× //' | cut -c1-200
+14:cd $W && git show d5de4f1813 -- packages/cli/src/serve/managed-hook-runtime.ts packages/core/src/hooks/hookRunner.ts packages/core/src/hooks/httpHookRunner.ts > $S/d5de.patch
+15:if git apply -R --check $S/d5de.patch; then git apply -R $S/d5de.patch; git status --short
+17:  cd $W/packages/core && npx vitest run src/hooks/httpHookRunner.test.ts --reporter=verbose 2>&1 | grep -E '^ +×|^ +Tests ' | sed 's/^ *//' | cut -c1-200
+18:  cd $W && git checkout HEAD -- packages/cli/src/serve/managed-hook-runtime.ts packages/core/src/hooks/hookRunner.ts packages/core/src/hooks/httpHookRunner.ts && git status --sh
+files: cli       11 core       15; load { 22.66 24.48 28.59 }
+cli exit=0
+core exit=0
+== r5-unit-cli:       Tests  516 passed | 4 skipped (520)
+== r5-unit-core:       Tests  1445 passed | 5 skipped (1450)
+ M packages/cli/src/serve/managed-hook-runtime.ts
+ M packages/core/src/hooks/hookRunner.ts
+ M packages/core/src/hooks/httpHookRunner.ts
+× src/serve/managed-hook-runtime.test.ts > ManagedHookRuntime > waits for HTTP completion evidence after cancel (response) 85ms
+Tests  1 failed | 24 passed | 4 skipped (29)
+× src/hooks/httpHookRunner.test.ts > HttpHookRunner > managed request evidence > preserves an in-flight managed response after user cancellation (response) 9ms
+× src/hooks/httpHookRunner.test.ts > HttpHookRunner > managed request evidence > preserves an in-flight managed response after user cancellation (body-loss) 1ms
+× src/hooks/httpHookRunner.test.ts > HttpHookRunner > managed request evidence > preserves an in-flight managed response after user cancellation (timeout) 1ms
+× src/hooks/httpHookRunner.test.ts > HttpHookRunner > managed request evidence > preserves an in-flight managed response after user cancellation (shutdown) 1ms
+Tests  4 failed | 39 passed (43)
+restored
+
+[exited with code 0]
