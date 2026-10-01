@@ -1,0 +1,27 @@
+[2m# arm: a8beb51cd5   QWEN_HOME=~/.qwen[0m
+[1;36m$ findmnt -n -o TARGET,FSTYPE ~/.qwen/settings.json[0m
+~/.qwen/settings.json ext4
+[1;36m$ grep -o '"\$version": [0-9]' ~/.qwen/settings.json[0m   [2m# < 4: every start tries a normalisation save[0m
+"$version": 3
+[1;36m$ qwen sandbox[0m   [2m# start 1[0m
+Boundary: tools; backend: auto → bwrap (full)
+[1;36m$ ls -A ~/.qwen | grep settings.json.write-[0m
+  [1;32m→ 0 private recovery dir(s)[0m
+[1;36m$ qwen sandbox[0m   [2m# start 2[0m
+Boundary: tools; backend: auto → bwrap (full)
+[1;36m$ ls -A ~/.qwen | grep settings.json.write-[0m
+  [1;32m→ 0 private recovery dir(s)[0m
+[1;36m$ qwen sandbox[0m   [2m# start 3[0m
+Boundary: tools; backend: auto → bwrap (full)
+[1;36m$ ls -A ~/.qwen | grep settings.json.write-[0m
+  [1;32m→ 0 private recovery dir(s)[0m
+
+[2m# writer B rewrites the bind-mounted file in place after this writer copied its backup[0m
+  fs ops: #1 mkdtempSync, #2 writeFileSync, #3 copyFileSync ← writer B edits target, #4 unlinkSync
+  thrown:
+    [33mFailed to write file: EBUSY: resource busy or locked,[0m
+    [33m  rename '~/.qwen/settings.json.write-5sUeaB/settings.json.tmp' -> '~/.qwen/settings.json'.[0m
+    [33mRecovery copy retained at '~/.qwen/settings.json.write-5sUeaB/settings.json.orig';[0m
+    [33minspect the current target before restoring it.[0m
+  target now: [1;32mwriter B's bytes (not rolled back)[0m
+  kept: settings.json.write-5sUeaB/settings.json.orig  [1;32m(= bytes before writer B)[0m
