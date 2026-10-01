@@ -77,6 +77,25 @@ figs['06-r2'] = page(
     shotBlock('new head — creator view (zh): composer enabled under the “暂未开放消息执行” banner', 'head', [strip('head-05-creator-zh-n1', 40, 175), strip('head-05-creator-zh-n1', 730, 860)]) +
     shotBlock('new head — running later Turn, Cancel turn shown to the creator', 'head', [strip('head-03-creator-running-cancel-n1', 640, 860)]),
 );
+figs['07-r3'] = page(
+  'Round 3 — re-verified at 5d4499cf (five author commits) and on head ⊕ main 310f4ba3',
+  'Server classes are byte-identical to round 2 except the OpenAPI resource; the web-shell banner changed. Everything rebuilt from 5d4499cf (and from the trial merge) and re-run on native MySQL 8.4.7.',
+  table(['Item', 'On the real stack'], [
+    ['F3 / R1-4 banner', P('fixed for the creator (both languages); reader still reads “not available in this service yet”')],
+    ['R1-11 contract version', P('1.27.0 with a v1.27 entry')],
+    ['R1-1 stale “remain gated” text', A('README + design docs fixed; OpenAPI createSession / webShellCreateSession and generated types :79 still say it')],
+    ['R1-12 negative controls', P('mutation 17 / 18 killed by the PR’s own tests (J11 equivalent); J2, J6, J14 now killed')],
+    ['R1-14 approvals-run later Turn', P('HostedPublicWorkspaceIT 2 / 2 in 5 runs (head ×4, three at load 40–55; head ⊕ main ×1) — 16 model requests and 8 answers hold')],
+    ['unit · Hosted IT', P('head 281 / 281 · 2 / 2;  head ⊕ 310f4ba3 290 / 290 · 2 / 2')],
+    ['web-shell eslint/prettier/tsc · managed vitest · generated types', P('clean · 77 / 77 · no diff')],
+    ['S1 core · panel · approvals · real model', P('51 / 51 (also on head ⊕ main) · 7 / 7 · 15 / 15 · 5 / 5')],
+    ['F1 cancel vs authorization refusal', F('unchanged: 202, COMPLETED, file written (head and head ⊕ main)')],
+    ['F2 worker crash', F('unchanged: binding LOST, 3 / 3 hosted_turn_failed 0.7–0.9 s (head and head ⊕ main)')],
+    ['F4 / R1-2 · R1-3 · R1-15 (declined)', A('unchanged: 202 → FAILED 277 ms · 503 + PENDING block · Harness session created')],
+  ]) +
+    shotBlock('creator (zh) on 5d4499cf — the “暂未开放消息执行” line is gone, composer enabled', 'head', [strip('head-05-creator-zh-p1', 40, 150), strip('head-05-creator-zh-p1', 730, 860)]) +
+    shotBlock('reader (bob) on 5d4499cf — read-only; the line stays', 'info', [strip('head-06-reader-bound-p1', 40, 175)], 'For a reader the line now contradicts the transcript right below it (the creator’s Turns did run); wording such as “only the Session creator can send” would fit. Nit.'),
+);
 fs.writeFileSync(`${OUT}/cards.json`, JSON.stringify(Object.keys(figs)));
 export { figs, page, table, P, F, A, N, OUT };
 
