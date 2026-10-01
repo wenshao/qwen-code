@@ -1,0 +1,13 @@
+# s11-review-findings-r1-2-r1-3-r1-4  db=r3db  2026-10-01T05:30:00.408Z
+NOTE  [R1-2] tab A answered "Yes, allow once"  -> action=decided tab B card=1
+PASS  [R1-2] the stale tab's "Reject" gets 409 for an ended Action, the card stays, and the page says "Retry the same option"  -> HTTP 409 action_already_resolved card=1 alerts=["The approval answer could not be confirmed. Retry the same option or refresh to check its status."]
+PASS  [R1-2] retrying the same option repeats the 409 and nothing re-reads the list  -> HTTP 409 actions/query +0
+NOTE  [R1-2] outcome  -> tool executions=1 (tab A allowed; tab B clicked Reject twice)
+NOTE  [R1-2] cleanup  -> {"status":"COMPLETED","error":"","ms":15}
+NOTE  [R1-3] answer 1 failed (503)  -> alerts=["The approval answer could not be confirmed. Retry the same option or refresh to check its status."]
+PASS  [R1-3] the "could not be confirmed" alert outlives approval 1 and sits beside approval 2  -> approval 2=edit card=? Edit edit Apply this change? Reject Yes, allow once Tool a alerts=["The approval answer could not be confirmed. Retry the same option or refresh to check its status."]
+NOTE  [R1-3] cleanup  -> {"status":"COMPLETED","error":"","ms":17}
+PASS  [R1-4] a failed background re-read shows "Pending approvals could not be loaded." beside a loaded card  -> card=1 alerts=["Pending approvals could not be loaded. Retry loading approvals"] reads=2
+NOTE  [R1-4] 3 s later (2 s retry rung)  -> card=1 alerts=[] reads=3
+NOTE  [R1-4] cleanup  -> {"status":"COMPLETED","error":"","ms":18}
+== s11-review-findings-r1-2-r1-3-r1-4: 4 passed, 0 failed

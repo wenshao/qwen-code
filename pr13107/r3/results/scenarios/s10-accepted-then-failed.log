@@ -1,0 +1,11 @@
+# s10-accepted-then-failed  db=r3db  2026-10-01T05:20:27.193Z
+PASS  the answer is accepted: HTTP 202, operation pending  -> {"operationId":"op_ee918d56d01745039e4ed58ef238d0ca","sessionId":"f7ea30f0-8711-439a-87f1-2edf3d2ff56c","type":"action_response","status":"pending","admissionStage":"java_durable","deliveryState":"pending","replayed":false}
+PASS  the operation then fails server-side and the Action is still requested  -> operations=[["FAILED","tool_approval_1a581ac64a22fad121474b994e6801c0:allow","invalid_action_response"]] action=requested
+NOTE  the page 13.5 s after the click  -> card=0 alert="" actions/query=2
+PASS  after a reload the card is shown again
+NOTE  reloaded page, "Yes, allow once" #1  -> HTTP 202 status=failed failureCode=invalid_action_response replayed=true card=1 alert="The approval answer could not be confirmed. Retry the same option or refresh to check its status."
+NOTE  reloaded page, "Yes, allow once" #2  -> HTTP 202 status=failed failureCode=invalid_action_response replayed=true card=1 alert="The approval answer could not be confirmed. Retry the same option or refresh to check its status."
+NOTE  same option again after the Harness recovers  -> HTTP failed card=1
+PASS  retrying the same option can never apply the answer (the key replays the FAILED operation)  -> operations=[["FAILED","tool_approval_1a581ac64a22fad121474b994e6801c0:allow","invalid_action_response"]]
+PASS  only the other option (a new key) gets through  -> turn=COMPLETED operations=[["FAILED","tool_approval_1a581ac64a22fad121474b994e6801c0:allow","invalid_action_response"],["COMPLETED","tool_approval_1a581ac64a22fad121474b994e6801c0:deny"]]
+== s10-accepted-then-failed: 5 passed, 0 failed
