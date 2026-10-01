@@ -119,8 +119,17 @@ export async function startModel(logFile) {
     let step = -1;
     const whole = JSON.stringify(messages);
     const ph = whole.match(/RIGPH:([A-Za-z0-9+/=]+):END/);
+    let batchAt = -1;
+    messages.forEach((m, i) => {
+      if (m.role === 'user' && /BATCH:\d+:END/.test(text(m.content))) batchAt = i;
+    });
     if (ph) {
       reply = { content: Buffer.from(ph[1], 'base64').toString() };
+    } else if (batchAt >= 0 && batchAt >= last) {
+      // Compact form for large batches: BATCH:<n>:END -> one assistant message with n distinct write_file calls.
+      const n = Number(text(messages[batchAt].content).match(/BATCH:(\d+):END/)[1]);
+      step = messages.slice(batchAt + 1).filter((m) => m.role === 'assistant' && m.tool_calls?.length).length;
+      reply = step === 0 ? { toolCalls: Array.from({ length: n }, (_, i) => ({ id: `c${i}`, type: 'function', function: { name: 'write_file', arguments: JSON.stringify({ file_path: `b${i}`, content: '' }) } })) } : { content: 'DONE' };
     } else if (last >= 0) {
       const all = [...text(messages[last].content).matchAll(/SCRIPT:([A-Za-z0-9+/=]+):END/g)];
       const spec = JSON.parse(Buffer.from(all.at(-1)[1], 'base64').toString());

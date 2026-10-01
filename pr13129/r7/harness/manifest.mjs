@@ -165,6 +165,14 @@ for (const [set, letters] of [['a', ['a8', 'b8', 'c8', 'd8', 'e8']], ['b', ['f8'
     STORAGE_EXTRA[`ws-${k}-${set}`] = letters[i];
   });
 }
+CATALOGS['ws-il'] = [{ catalogId: 'cat-il', catalogRevision: 1, hooks: [fn('il', 'InstructionsLoaded', 'plain', { handlerId: 'ilh', handlerRevision: 2 })] }];
+CATALOGS['ws-big300'] = [{ catalogId: 'cat-big300', catalogRevision: 1, hooks: [fn('big-pre', 'PreToolUse', 'pre', { matcher: 'write_file', handlerId: 'bigp', handlerRevision: 2 })] }];
+CATALOGS['ws-big650'] = [{ catalogId: 'cat-big650', catalogRevision: 1, hooks: [fn('big-pre', 'PreToolUse', 'pre', { matcher: 'write_file', handlerId: 'bigp', handlerRevision: 2 })] }];
+STORAGE_EXTRA['ws-il'] = 'f6';
+STORAGE_EXTRA['ws-big300'] = 'g6';
+STORAGE_EXTRA['ws-big650'] = 'h6';
+CATALOGS['ws-big650old'] = [{ ...CATALOGS['ws-big300'][0], catalogId: 'cat-big650old' }]; STORAGE_EXTRA['ws-big650old'] = 'h7';
+for (const [n, l] of [[20, 'f7'], [100, 'g7'], [400, 'h9']]) { CATALOGS[`ws-big${n}`] = [{ ...CATALOGS['ws-big300'][0], catalogId: `cat-big${n}` }]; STORAGE_EXTRA[`ws-big${n}`] = l; }
 CATALOGS['ws-cap'] = [{ ...CATALOGS['ws-t6'][0], catalogId: 'cat-cap' }];
 for (const n of ['ws-f1a', 'ws-f1b', 'ws-f1c', 'ws-f1d']) CATALOGS[n] = CATALOGS['ws-t2'].map((c) => ({ ...c, catalogId: `cat-${n.slice(3)}` }));
 CATALOGS['ws-lx1'] = [{ catalogId: 'cat-lx1', catalogRevision: 1, hooks: [cmd('cmd-pre', 'PreToolUse', '/lx/cmd/pre.sh', { matcher: 'write_file', timeout: 15_000 }), cmd('cmd-detach', 'UserPromptSubmit', '/lx/cmd/detach.sh', { timeout: 5_000 }), cmd('cmd-long', 'Notification', '/lx/cmd/long.sh', { timeout: 90_000 })] }];

@@ -65,6 +65,21 @@ figs['10-round7'] = page(
       [
         ['cancel windows from round 6 (s17: HTTP / function / grace / assistant commit / control)', s17.pass === 15 ? OK('15/15') : BAD(count(s17)), lxRes('s17-cancel-window-head9')?.[1] === '15' ? OK('15/15') : BAD('fails')],
         ['single-call cancel at 4 stages, function + HTTP Hooks', s11.pass === 8 ? OK('8/8 (+2 documented negatives)') : BAD(count(s11)), lxRes('s11-cancel-head9')?.[1] === '8' ? OK('8/8 (+2 documented negatives)') : BAD('fails')],
+        [
+          'review r4156861669 (P2): refused PreToolUse on a large batch, then cancel',
+          (() => {
+            const ok = (n) => res('r7', `s19-review-repro-head9-p2-${n}`).rows[0];
+            const big = res('r7', 's19-review-repro-head9-p2-650').rows[0];
+            const oldBig = res('r7', 's19-review-repro-head8old-p2-650').rows[0];
+            const bytes = (r) => r.detail.match(/decoded record bytes=(\d+)/)?.[1];
+            const reproduced = !big.ok && /load=503 managed_session_open_failed/.test(big.detail) && /load=200 recoveryRequired/.test(oldBig.detail);
+            return reproduced
+              ? BAD(`reproduced · 20 calls (${bytes(ok(20))} B) and 300 calls (${bytes(ok(300))} B) recover · 650 calls: refusal record > 64 KiB → cancel 409, next 409, load 503 managed_session_open_failed, also in a new process and for a Session left by af89ec27ac (which af89ec27ac itself still opens: 200 recoveryRequired)`)
+              : WARN('not reproduced');
+          })(),
+          '—',
+        ],
+        ['review r4156861642 (P1): InstructionsLoaded refused before effect, then cancel', WARN('not reproduced here: with QWEN.md in the Workspace no InstructionsLoaded execution was recorded'), '—'],
         ['unknown SessionEnd: 3 × DELETE (accepted H2 limitation)', WARN('503 each, 1 HTTP request, Session + owner kept'), WARN('same')],
         ['regression (real stack)', OK(reg), OK(`s9-linux ${lxRes('s9-linux-99db')?.[1]}/7 · F1 SIGKILL holds · lost ack ${lxRes('s5b-lost-head9-ws-t9b')?.[1]}/2`)],
         ['unit tests; pin (revert c5a4cd2853 production change)', OK(`CLI ${unit.match(/r7-unit-cli:\s+Tests\s+(\d+) passed/)?.[1]} · core ${unit.match(/r7-unit-core:\s+Tests\s+(\d+) passed/)?.[1]} · revert fails the 6 positive cases, 4 guard cases pass both ways`), OK('core 54/54 · CLI (3 files) 292/292')],
