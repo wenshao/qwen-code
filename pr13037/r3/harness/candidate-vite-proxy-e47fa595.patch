@@ -1,0 +1,18 @@
+--- a/packages/web-shell/vite.config.ts
++++ b/packages/web-shell/vite.config.ts
+@@ -48,6 +48,15 @@
+ const managedAgentJavaProxy: ProxyOptions = {
+   target: process.env['QWEN_MANAGED_AGENT_JAVA_URL'] ?? 'http://127.0.0.1:8080',
+   changeOrigin: true,
++  configure: (proxy) => {
++    // An upstream response that ends before its Content-Length (an aborted
++    // artifact download) must end the browser's response too.
++    proxy.on('proxyRes', (proxyRes, _req, res) => {
++      proxyRes.on('close', () => {
++        if (!proxyRes.complete) res.destroy();
++      });
++    });
++  },
+ };
+ 
+ export const QUALIFIED_VOICE_STREAM_PROXY =
