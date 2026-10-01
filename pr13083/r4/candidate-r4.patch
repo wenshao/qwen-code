@@ -1,0 +1,117 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.test.ts b/packages/cli/src/serve/hosted-harness-session.test.ts
+index 6487c1ecea..9edbc86afd 100644
+--- a/packages/cli/src/serve/hosted-harness-session.test.ts
++++ b/packages/cli/src/serve/hosted-harness-session.test.ts
+@@ -4839,7 +4839,8 @@ describe('Hosted Harness Runtime turn takeover', () => {
+       .mockResolvedValue();
+     const { server, loaded } = await loadReplacement(true);
+     expect(loaded.status).toBe(200);
+-    expect(acquireSpy).not.toHaveBeenCalled();
++    // The cancellation path adopts the Runtime Session; it still dispatches nothing.
++    expect(acquireSpy).toHaveBeenCalled();
+     const recovery = loaded.body._meta?.[
+       'qwen.daemon.managedRuntimeRecovery'
+     ] as {
+diff --git a/packages/cli/src/serve/hosted-runtime-recovery.test.ts b/packages/cli/src/serve/hosted-runtime-recovery.test.ts
+index 406b6d7ff1..dae13cfd17 100644
+--- a/packages/cli/src/serve/hosted-runtime-recovery.test.ts
++++ b/packages/cli/src/serve/hosted-runtime-recovery.test.ts
+@@ -385,6 +385,7 @@ describe('recoverHostedRuntimeTurn', () => {
+ 
+   it('reports parked executions without dispatching on a passive load', async () => {
+     await parkAtAwaitRuntime();
++    vi.spyOn(HostedWorkspaceBroker.prototype, 'acquire').mockResolvedValue();
+     const execute = vi
+       .spyOn(HostedWorkspaceBroker.prototype, 'execute')
+       .mockRejectedValue(new Error('must not dispatch'));
+@@ -401,6 +402,7 @@ describe('recoverHostedRuntimeTurn', () => {
+         brokerOptions,
+         passive: true,
+       });
++      expect(HostedWorkspaceBroker.prototype.acquire).toHaveBeenCalled();
+       expect(recovered).toBeDefined();
+       expect(execute).not.toHaveBeenCalled();
+       // A passive load only reads: nothing may be journaled for the prompt.
+@@ -435,6 +437,7 @@ describe('recoverHostedRuntimeTurn', () => {
+ 
+   it('reports an execution the Broker cannot account for as unknown', async () => {
+     await parkAtAwaitRuntime();
++    vi.spyOn(HostedWorkspaceBroker.prototype, 'acquire').mockResolvedValue();
+     vi.spyOn(HostedWorkspaceBroker.prototype, 'status').mockResolvedValue(
+       undefined,
+     );
+@@ -448,6 +451,7 @@ describe('recoverHostedRuntimeTurn', () => {
+         brokerOptions,
+         passive: true,
+       });
++      expect(HostedWorkspaceBroker.prototype.acquire).toHaveBeenCalled();
+       expect(recovered!.report.executions).toEqual([
+         expect.objectContaining({
+           executionCallId: EXECUTION_ID,
+@@ -680,6 +684,7 @@ describe('recoverHostedRuntimeTurn', () => {
+ 
+   it('reports only the state, never the result payload, from a passive read', async () => {
+     await parkAtAwaitRuntime();
++    vi.spyOn(HostedWorkspaceBroker.prototype, 'acquire').mockResolvedValue();
+     vi.spyOn(HostedWorkspaceBroker.prototype, 'status').mockResolvedValue({
+       state: 'settled',
+     });
+@@ -693,6 +698,7 @@ describe('recoverHostedRuntimeTurn', () => {
+         brokerOptions,
+         passive: true,
+       });
++      expect(HostedWorkspaceBroker.prototype.acquire).toHaveBeenCalled();
+       // A passive load only reads: nothing may be journaled for the prompt.
+       expect(
+         (await replacement.sink.project()).filter(
+diff --git a/packages/cli/src/serve/hosted-runtime-recovery.ts b/packages/cli/src/serve/hosted-runtime-recovery.ts
+index e33a949c63..0e9ca9f589 100644
+--- a/packages/cli/src/serve/hosted-runtime-recovery.ts
++++ b/packages/cli/src/serve/hosted-runtime-recovery.ts
+@@ -243,14 +243,40 @@ export async function recoverHostedRuntimeTurn(input: {
+   const pending = items.filter((item) => item.state === 'in_progress');
+   const states = new Map<string, { state: string } | undefined>();
+   let acquiredRuntime = false;
++  if (passive && items.length > 0) {
++    // A replacement Broker answers status, cancel and release only for a
++    // Runtime Session it has adopted, so the cancellation path re-attaches
++    // to the dead owner's one first. Acquiring dispatches nothing.
++    try {
++      await broker.acquire();
++      acquiredRuntime = true;
++    } catch (cause) {
++      await broker.release().catch((releaseCause) => {
++        writeStderrLineSafe(
++          `qwen serve: Hosted Harness recovery could not release the Runtime Session: ${String(releaseCause)}`,
++        );
++      });
++      throw cause;
++    }
++  }
+   if (pending.length > 0) {
+     if (passive) {
+-      for (const item of pending) {
+-        const status = await broker.status(item.executionCallId);
+-        states.set(
+-          item.executionCallId,
+-          status === undefined ? undefined : { state: status.state },
+-        );
++      try {
++        for (const item of pending) {
++          const status = await broker.status(item.executionCallId);
++          states.set(
++            item.executionCallId,
++            status === undefined ? undefined : { state: status.state },
++          );
++        }
++      } catch (cause) {
++        await broker.release().catch((releaseCause) => {
++          writeStderrLineSafe(
++            `qwen serve: Hosted Harness recovery could not release the Runtime Session: ${String(releaseCause)}`,
++          );
++        });
++        acquiredRuntime = false;
++        throw cause;
+       }
+     } else {
+       // The Shell profile's drives need the original publisher, which a
