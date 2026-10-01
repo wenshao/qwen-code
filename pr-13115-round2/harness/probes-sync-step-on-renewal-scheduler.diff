@@ -1,0 +1,99 @@
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerServiceTest.java
+@@ -4949,6 +4949,96 @@
+      * domain must never be re-provisioned, and the kind matches what the
+      * fixtures bake into their requests.
+      */
++    // ---- verification probes (round 2): renewingStep vs a synchronous provisioner ----
++
++    /**
++     * Warm a restored READY binding whose worker is gone. The observation
++     * leg's reconcile takes 2.4s of a 1.5s lease. When firstUnknown, the
++     * first reconcile answers UNKNOWN so the loop retries on the
++     * single-threaded renewal scheduler, and the rest of the chain runs there.
++     */
++    private String probeSlowObservationLeg(boolean async, boolean firstUnknown)
++            throws Exception {
++        var bindings = new InMemoryRuntimeBindingRepository();
++        var sessions = new InMemoryRuntimeSessionRepository();
++        var executions = new InMemoryToolExecutionRepository();
++        var fixture = new RuntimeRecoveryContract.Fixture(bindings, sessions,
++                executions, "sync-step");
++        RuntimeBindingRecord ready = fixture.binding;
++        bindings.releaseOperation(ready.getBindingId(), "recovery",
++                ready.getOperationGeneration());
++        RuntimeRecoveryEvidence loss = RuntimeRecoveryContract.evidence(ready,
++                RuntimeRecoveryEvidence.Fact.JOURNAL_LOST);
++        AtomicInteger calls = new AtomicInteger();
++        AtomicReference<String> slowThread = new AtomicReference<>();
++        RuntimeProvisioner provisioner = new LostDomainProvisioner() {
++            @Override
++            public CompletionStage<RuntimeObservation> reconcile(
++                    RuntimeProvisionRequest request,
++                    RuntimeProvisionSeed seed, RuntimeResourceHandle handle,
++                    RuntimeLease lease) {
++                int call = calls.incrementAndGet();
++                if (firstUnknown && call == 1) {
++                    return CompletableFuture.completedFuture(
++                            RuntimeObservation.unknown(handle));
++                }
++                if (call == (firstUnknown ? 2 : 1)) {
++                    return CompletableFuture.completedFuture(
++                            RuntimeObservation.notFound(loss, null));
++                }
++                Supplier<RuntimeObservation> slow = () -> {
++                    slowThread.set(Thread.currentThread().getName());
++                    try {
++                        Thread.sleep(2400);
++                    } catch (InterruptedException interrupted) {
++                        Thread.currentThread().interrupt();
++                    }
++                    return RuntimeObservation.notFound(loss, null);
++                };
++                return async ? CompletableFuture.supplyAsync(slow)
++                        : CompletableFuture.completedFuture(slow.get());
++            }
++
++            @Override
++            public boolean supportsStartupRecovery(
++                    RuntimeResourceHandle handle) {
++                return true;
++            }
++        };
++        try (RuntimeBrokerService service = new RuntimeBrokerService(
++                ignored -> CompletableFuture.completedFuture(
++                        ready.getRequest().getScope()),
++                provisioner, new FakeTransport(), bindings, sessions,
++                executions, "restarted", Duration.ofMillis(1500),
++                Duration.ofMillis(1500), Clock.systemUTC(), () -> "execution")) {
++            String code = failure(service.warm("sync-step-harness")).getCode();
++            System.out.println("PROBE async=" + async + " firstUnknown="
++                    + firstUnknown + " slowStepThread=" + slowThread.get()
++                    + " calls=" + calls.get() + " code=" + code);
++            return code;
++        }
++    }
++
++    @Test
++    void probeAsyncSlowObservationKeepsTheClaim() throws Exception {
++        assertEquals("runtime_broker_runtime_lost",
++                probeSlowObservationLeg(true, true));
++    }
++
++    @Test
++    void probeSyncSlowObservationOnTheCallerThreadKeepsTheClaim()
++            throws Exception {
++        assertEquals("runtime_broker_runtime_lost",
++                probeSlowObservationLeg(false, false));
++    }
++
++    @Test
++    void probeSyncSlowObservationOnTheRenewalSchedulerKeepsTheClaim()
++            throws Exception {
++        assertEquals("runtime_broker_runtime_lost",
++                probeSlowObservationLeg(false, true));
++    }
++
+     private abstract static class LostDomainProvisioner
+             implements RuntimeProvisioner {
+         @Override
