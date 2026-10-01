@@ -1,0 +1,456 @@
+qwen serve
+
+Run Qwen Code as a local HTTP daemon (Stage 1 experimental: --http-bridge)
+
+Options:
+      --telemetry                           Enable telemetry? This flag specific
+                                            ally controls if telemetry is sent.
+                                            Other --telemetry-* flags set specif
+                                            ic values but do not enable telemetr
+                                            y on their own.
+  [deprecated: Use the "telemetry.enabled" setting in settings.json instead. Thi
+                          s flag will be removed in a future version.] [boolean]
+      --telemetry-target                    Set the telemetry target (local or g
+                                            cp). Overrides settings files.
+  [deprecated: Use the "telemetry.target" setting in settings.json instead. This
+   flag will be removed in a future version.] [string] [choices: "local", "gcp"]
+      --telemetry-otlp-endpoint             Set the OTLP endpoint for telemetry.
+                                             Overrides environment variables and
+                                             settings files.
+  [deprecated: Use the "telemetry.otlpEndpoint" setting in settings.json instead
+                      . This flag will be removed in a future version.] [string]
+      --telemetry-otlp-protocol             Set the OTLP protocol for telemetry
+                                            (grpc or http). Overrides settings f
+                                            iles.
+  [deprecated: Use the "telemetry.otlpProtocol" setting in settings.json instead
+  . This flag will be removed in a future version.] [string] [choices: "grpc", "
+                                                                          http"]
+      --telemetry-log-prompts               Enable or disable logging of user pr
+                                            ompts for telemetry. Overrides setti
+                                            ngs files.
+   [deprecated: Use the "telemetry.logPrompts" setting in settings.json instead.
+                       This flag will be removed in a future version.] [boolean]
+      --telemetry-outfile                   Redirect all telemetry output to the
+                                             specified file.
+  [deprecated: Use the "telemetry.outfile" setting in settings.json instead. Thi
+                           s flag will be removed in a future version.] [string]
+  -d, --debug                               Run in debug mode?
+                                                      [boolean] [default: false]
+      --bare                                Minimal mode: skip implicit startup
+                                            auto-discovery and only honor explic
+                                            itly provided CLI inputs.
+                                                      [boolean] [default: false]
+      --safe-mode                           Disable all customizations (context
+                                            files, hooks, extensions, skills, MC
+                                            P servers) for troubleshooting.
+                                                                       [boolean]
+      --proxy                               Proxy for Qwen Code, like schema://u
+                                            ser:password@host:port
+   [deprecated: Use the "proxy" setting in settings.json instead. This flag will
+                                       be removed in a future version.] [string]
+      --insecure                            Skip TLS certificate verification fo
+                                            r API connections (for self-signed c
+                                            erts in trusted/lab environments). E
+                                            quivalent to setting QWEN_TLS_INSECU
+                                            RE=1. WARNING: removes protection ag
+                                            ainst man-in-the-middle attacks.
+                                                      [boolean] [default: false]
+      --chat-recording                      Enable chat recording to disk. If fa
+                                            lse, chat history is not saved and -
+                                            -continue/--resume will not work.
+                                                                       [boolean]
+      --port                                TCP port to bind (use 0 for an OS-as
+                                            signed ephemeral port)
+                                                        [number] [default: 4170]
+      --hostname                            Interface to bind. Loopback (127.0.0
+                                            .0/8, localhost, ::1, [::1]) is auth
+                                            -free; anything else requires a toke
+                                            n (one is generated and printed when
+                                             neither --token nor QWEN_SERVER_TOK
+                                            EN supplies one). A localhost bind t
+                                            hat resolves off-loopback never gene
+                                            rates, and still refuses when no tok
+                                            en source resolved; an empty value i
+                                            s rejected as operator error.
+                                                 [string] [default: "127.0.0.1"]
+      --profile                             Deployment profile. hosted-harness e
+                                            nables the private no-tool Managed S
+                                            ession API on loopback.
+                     [choices: "default", "hosted-harness"] [default: "default"]
+      --hosted-harness-capability-digest    SHA-256 capability digest for the pr
+                                            ivate Hosted Harness profile. Falls
+                                            back to QWEN_HOSTED_HARNESS_CAPABILI
+                                            TY_DIGEST.                  [string]
+      --token                               Bearer token required on every reque
+                                            st. Falls back to the QWEN_SERVER_TO
+                                            KEN env var; a non-loopback bind wit
+                                            h neither generates an ephemeral tok
+                                            en at startup, while loopback keeps
+                                            the trusted tokenless mode unless --
+                                            require-auth is set.        [string]
+      --max-sessions                        Cap on concurrent live sessions. New
+                                             spawn requests beyond this return 5
+                                            03; attach to existing sessions stil
+                                            l works. Set to 0 to disable.
+                                                          [number] [default: 32]
+      --max-total-sessions                  Non-negative integer cap on concurre
+                                            nt live sessions across all workspac
+                                            e runtimes. Set to 0 to disable.
+                                                                        [number]
+      --max-pending-prompts-per-session     Per-session cap on accepted prompts
+                                            waiting or running. New prompts beyo
+                                            nd this return 503. Set to 0 to disa
+                                            ble.           [number] [default: 5]
+      --workspace                           Absolute workspace path to register
+                                            with this daemon. POST /session requ
+                                            ests with a mismatched cwd return 40
+                                            0 workspace_mismatch. Defaults to pr
+                                            ocess.cwd() when omitted. Repeat to
+                                            register isolated workspace runtimes
+                                            ; the first is primary.      [array]
+      --memory-project-scope                Choose how project memory is partiti
+                                            oned. Defaults to "workspace" so eac
+                                            h daemon workspace stays isolated; "
+                                            git-root" preserves the legacy share
+                                            d scope. Overrides QWEN_CODE_MEMORY_
+                                            PROJECT_SCOPE when provided.
+                                     [string] [choices: "git-root", "workspace"]
+      --max-connections                     Listener-level TCP connection cap (s
+                                            erver.maxConnections). Bounds raw so
+                                            ckets — slow/phantom SSE clients get
+                                             rejected at accept time once full.
+                                            Set to 0 to disable.
+                                                         [number] [default: 256]
+      --require-auth                        Refuse to start without a bearer tok
+                                            en, even on loopback. Hardens the lo
+                                            opback developer default for shared
+                                            dev hosts / CI runners / multi-tenan
+                                            t workstations where any local user
+                                            can hit 127.0.0.1. Requires --token,
+                                             QWEN_SERVER_TOKEN, or --open-with-a
+                                            uth (which installs its own generate
+                                            d loopback token); on non-loopback b
+                                            inds the generated ephemeral token a
+                                            lso satisfies it, so the no-configur
+                                            ed-secret fail-fast is loopback-only
+                                            . /health also requires Authorizatio
+                                            n when enabled (no loopback exemptio
+                                            n — k8s/Compose probes must pass the
+                                             bearer too).
+                                                      [boolean] [default: false]
+      --enable-session-shell                Enable direct POST /session/:id/shel
+                                            l execution. Available with bearer a
+                                            uth or trusted loopback; each call s
+                                            till requires a session-bound client
+                                             id.      [boolean] [default: false]
+      --tls-cert                            Path to a PEM certificate file. Serv
+                                            e over HTTPS instead of HTTP. Requir
+                                            ed for secure-context browser APIs (
+                                            voice input/getUserMedia, WebRTC) wh
+                                            en accessed over a LAN IP. Must be u
+                                            sed together with --tls-key. Generat
+                                            e a local cert with mkcert. [string]
+      --tls-key                             Path to a PEM private key file. Must
+                                             be used together with --tls-cert.
+                                                                        [string]
+      --experimental-lsp                    Forward the experimental LSP opt-in
+                                            to spawned agent sessions.
+                                                      [boolean] [default: false]
+      --restore-ask-user-question           On session load/resume, re-hang a tr
+                                            ailing unanswered ask_user_question
+                                            instead of synthesizing a failed too
+                                            l result. [boolean] [default: false]
+      --channel                             Experimental: start a daemon-managed
+                                             channel worker for the named channe
+                                            l. Repeat to select multiple channel
+                                            s, or use --channel all.     [array]
+      --web                                 Serve the Web Shell UI at the daemon
+                                             root path. Use --no-web for an API-
+                                            only daemon.
+                                                       [boolean] [default: true]
+      --open                                Open the Web Shell in a browser once
+                                             the daemon is listening. With a tok
+                                            en configured, the launch URL (token
+                                             included) is handed to the browser
+                                            launcher and is visible in the proce
+                                            ss list, so prefer opening the URL m
+                                            anually on multi-user hosts. No-op w
+                                            ith --no-web, when the UI assets are
+                                             absent, or in headless/CI/SSH envir
+                                            onments.  [boolean] [default: false]
+      --open-with-auth                      Open the Web Shell with bearer authe
+                                            ntication on loopback. Reuse --token
+                                             or QWEN_SERVER_TOKEN, or generate a
+                                             temporary 256-bit token and deliver
+                                             it in the URL fragment. In headless
+                                             environments, print the fragment UR
+                                            L for manual opening.
+                                                      [boolean] [default: false]
+      --token-qr                            Print the token-bearing QR even when
+                                             stdout is captured (not an interact
+                                            ive terminal) and the bearer is an o
+                                            perator-supplied (stable) token, whi
+                                            ch is withheld by default to keep st
+                                            able credentials out of collected lo
+                                            gs. Enable only when the log pipelin
+                                            e is as trusted as the daemon host.
+                                            Can also be set via the serve.tokenQ
+                                            r setting (user, system, and system-
+                                            defaults scopes only); the flag wins
+                                             when passed. --no-token-qr suppress
+                                            es the startup quickstart token QR f
+                                            or that run on every quickstart path
+                                             — interactive terminal and generate
+                                            d token included. It does not govern
+                                             the Local Control pairing QR, which
+                                             --local-control prints by design.
+                                                                       [boolean]
+      --local-control                       Share the Web Shell on the local IPv
+                                            4 network with its own revocable pai
+                                            ring token, terminal QR code, and be
+                                            st-effort sleep inhibition. Ctrl+C t
+                                            urns it off by ending the whole daem
+                                            on; the Web Shell Settings card turn
+                                            s it off while the daemon keeps runn
+                                            ing.      [boolean] [default: false]
+      --local-control-address               Which local IPv4 address to share wh
+                                            en the host is on more than one netw
+                                            ork. Only needed if --local-control
+                                            reports an ambiguous choice.[string]
+      --event-ring-size                     Per-session SSE replay ring depth. S
+                                            ets the replay backlog available to
+                                            `GET /session/:id/events` reconnects
+                                             that send a `Last-Event-ID: N` head
+                                            er. Larger = more reconnect headroom
+                                             at the cost of a few hundred KB ext
+                                            ra RAM per session. Must be a positi
+                                            ve finite integer.
+                                                        [number] [default: 8000]
+      --compacted-replay-max-bytes          Per-session in-memory compacted repl
+                                            ay snapshot byte cap for `POST /sess
+                                            ion/:id/load` late attaches. Larger
+                                            = more recent history in load snapsh
+                                            ots at higher heap cost. Must be a p
+                                            ositive safe integer no larger than
+                                            256 MiB. [number] [default: 4194304]
+      --max-journal-events                  Per-session baseline cap on replay e
+                                            ntries retained in the in-flight liv
+                                            e journal (current unfinished turn).
+                                             Compatible text/thought chunks shar
+                                            e bounded entries. When exceeded, th
+                                            e daemon first tries adaptive growth
+                                             (see --max-journal-bytes); without
+                                            granted headroom the oldest entries
+                                            are dropped. Pinning this flag (or -
+                                            -max-journal-bytes) disables adaptiv
+                                            e growth. Defaults to 10000 when uns
+                                            et. Must be a positive safe integer.
+                                                                        [number]
+      --max-journal-bytes                   Per-session baseline source-event by
+                                            te cap on the in-flight live journal
+                                            . When a turn outgrows it, adaptive
+                                            growth raises the session's caps (pe
+                                            r-session hard cap 256 MiB) within a
+                                             growth pool derived from the daemon
+                                             memory budget (see --memory-budget-
+                                            mb); without granted headroom the ol
+                                            dest entries are dropped whole (at l
+                                            east one is always kept), so the ret
+                                            ained tail can be much smaller than
+                                            the cap. Pinning this flag (or --max
+                                            -journal-events) disables adaptive g
+                                            rowth. Defaults to 8388608 bytes whe
+                                            n unset. Must be a positive safe int
+                                            eger.                       [number]
+      --http-bridge                         HTTP bridge mode: attempt to preheat
+                                             the primary `qwen --acp` child; tru
+                                            sted secondaries start one on demand
+                                            . Stage 2 native in-process mode is
+                                            not yet implemented; this flag will
+                                            become opt-in then.
+                                                       [boolean] [default: true]
+      --memory-budget-mb                    Total memory budget in MB for the da
+                                            emon process tree. When unset, deriv
+                                            ed as 50% of cgroup-constrained or h
+                                            ost memory, and capped at the resolv
+                                            ed available memory either way. In `
+                                            admit` and `enforce` modes it determ
+                                            ines managed ACP child capacity; `en
+                                            force` also applies the modeled per-
+                                            child old-space ceiling. It also siz
+                                            es one daemon-wide pool of 5% of the
+                                             effective budget (capped at 1024 MB
+                                            ; 0, growth disabled, when the effec
+                                            tive budget falls below the 1024 MB
+                                            minimum; see --max-journal-bytes). R
+                                            eported under `limits.memory` in dae
+                                            mon status, alongside a modeled per-
+                                            child partition under `limits.memory
+                                            .childHeap`. Must be an integer in [
+                                            1024, 1048576].             [number]
+      --memory-pressure-mode                Whether the daemon derives a memory-
+                                            pressure level from its own RSS and
+                                            V8 heap. `observe` (default) reports
+                                             the level in daemon status and rais
+                                            es a status issue when it leaves nor
+                                            mal. `off` still reports the underly
+                                            ing figures but raises no issue, so
+                                            the overall status rollup is unchang
+                                            ed — use it while calibrating, or if
+                                             you alert on the top-level status.
+                                            Nothing remediates in either mode.
+                                [choices: "off", "observe"] [default: "observe"]
+      --child-heap-mode                     Whether the daemon models a per-chil
+                                            d heap partition of the memory budge
+                                            t. `observe` (default) reports the p
+                                            artition it would apply — `limits.me
+                                            mory.childHeap.perChildCeilingMb` an
+                                            d `maxConcurrentChildren` — and coun
+                                            ts spawns that would have exceeded i
+                                            t. Nothing is applied: no child is s
+                                            ized from the budget and no spawn is
+                                             refused. `off` models nothing. Note
+                                             a refusal count of 0 does NOT mean
+                                            the partition would be safe to apply
+                                            ; children still run on the much lar
+                                            ger host-derived ceiling, so a workl
+                                            oad needing more old space than the
+                                            modeled ceiling looks healthy here.
+                                            `admit` rejects starts past the mode
+                                            led process limit but keeps the exis
+                                            ting child heap arguments. Experimen
+                                            tal `enforce` also applies the fixed
+                                             modeled old-space ceiling to each m
+                                            anaged child; it does not cap total
+                                            process RSS.
+            [choices: "off", "observe", "admit", "enforce"] [default: "observe"]
+      --mcp-client-budget                   Cap on live MCP clients spawned insi
+                                            de the ACP child for the bound works
+                                            pace. Positive integer. Combine with
+                                             --mcp-budget-mode to control behavi
+                                            or at the cap. When unset, mode defa
+                                            ults to off (no accounting-driven en
+                                            forcement, but GET /workspace/mcp st
+                                            ill reports `clientCount`). Distinct
+                                             from claude-code MCP_SERVER_CONNECT
+                                            ION_BATCH_SIZE which gates startup c
+                                            oncurrency, not the total client cou
+                                            nt.                         [number]
+      --mcp-budget-mode                     How --mcp-client-budget is enforced.
+                                             `warn` (default when budget set): n
+                                            o refusal, snapshot surfaces warning
+                                             at >=75% of budget. `enforce`: conn
+                                            ects past the cap are refused (`disa
+                                            bledReason: "budget"`, deterministic
+                                             by mcpServers declaration order). `
+                                            off`: pure observability. Boot rejec
+                                            ts `enforce` without a budget.
+                                             [choices: "enforce", "warn", "off"]
+      --allow-origin                        Cross-origin allowlist for browser c
+                                            lients.                      [array]
+      --allow-private-auth-base-url         Allow /workspace/auth/provider to in
+                                            stall localhost/private-network base
+                                            Url values. Use only for local devel
+                                            opment with trusted clients.
+                                                      [boolean] [default: false]
+      --prompt-deadline-ms                  Server-side wallclock cap on POST /s
+                                            ession/:id/prompt (ms). Falls back t
+                                            o QWEN_SERVE_PROMPT_DEADLINE_MS. Pos
+                                            itive integer.              [number]
+      --experimental-paired-engines         Experimental: build workspace runtim
+                                            es, other than the private Conversat
+                                            ions one, with paired Legacy and Man
+                                            aged engines. No Managed engine is a
+                                            vailable yet, so sessions run on Leg
+                                            acy with a durable owner.
+                                                      [boolean] [default: false]
+      --experimental-managed-agents         Reserved experimental mode; not impl
+                                            emented and rejects startup.
+                                                      [boolean] [default: false]
+      --experimental-managed-runtime-worke  Reserved experimental mode; not impl
+      r                                     emented and rejects startup.
+                                                      [boolean] [default: false]
+      --experimental-managed-runtime-auto-  Reserved experimental mode; not impl
+      local                                 emented and rejects startup.
+                                                      [boolean] [default: false]
+      --experimental-managed-runtime-url    Reserved experimental Runtime URL; n
+                                            ot implemented and rejects startup.
+                                                                        [string]
+      --experimental-managed-runtime-token  Reserved experimental Runtime creden
+                                            tial; not implemented and rejects st
+                                            artup.                      [string]
+      --managed-runtime-broker-url          Private Broker URL for --profile hos
+                                            ted-harness; required together with
+                                            token for Workspace tool turns.
+                                                                        [string]
+      --managed-runtime-broker-token        Private Broker credential for --prof
+                                            ile hosted-harness; required togethe
+                                            r with URL for Workspace tool turns.
+                                                                        [string]
+      --writer-idle-timeout-ms              Per-SSE-connection idle deadline (ms
+                                            ). Falls back to QWEN_SERVE_WRITER_I
+                                            DLE_TIMEOUT_MS. Positive integer.
+                                                                        [number]
+      --channel-idle-timeout-ms             Compatibility auto-reap delay for an
+                                             idle workspace ACP child. 0 or unse
+                                            t = reap after work drains; keepaliv
+                                            e windows may extend it (default).
+                                                                        [number]
+      --initialize-timeout-ms               ACP child request timeout, including
+                                             the initialize handshake (ms). Defa
+                                            ult: 10000 (10 s).          [number]
+      --session-restore-timeout-ms          ACP session load/resume timeout (ms)
+                                            . Default: 60000. An explicit --init
+                                            ialize-timeout-ms can raise (but nev
+                                            er lower) this default.     [number]
+      --session-reap-interval-ms            Session reaper scan interval (ms). 0
+                                             = disabled. Default: 60000.[number]
+      --session-idle-timeout-ms             Idle timeout before a disconnected s
+                                            ession is reaped (ms). 0 = disabled.
+                                             Default: 1800000 (30 min). [number]
+      --session-prompt-settled-close-grace  Grace period after a prompt settles
+      -ms                                   before an otherwise-idle session may
+                                             be auto-closed (ms). Poll-based SSE
+                                             clients use this window to reconnec
+                                            t without triggering a session rebui
+                                            ld. 0 = disabled (immediate close).
+                                            Default: 0.                 [number]
+      --permission-response-timeout-ms      Wall-clock timeout for a human permi
+                                            ssion / ask_user_question response i
+                                            n daemon (ACP) mode (ms). 0 or unset
+                                             = disabled (wait indefinitely). Def
+                                            ault: 0.                    [number]
+      --external-tool-guard-mode            Managed ACP pre-execution policy mod
+                                            e. Default off preserves current CLI
+                                             and daemon behavior. Required fails
+                                             startup unless a compatible loopbac
+                                            k provider is available.
+                                   [choices: "off", "required"] [default: "off"]
+      --external-tool-guard-endpoint        Origin-only loopback HTTP(S) endpoin
+                                            t for required external tool guardin
+                                            g, for example http://127.0.0.1:8787
+                                            .                           [string]
+      --external-tool-guard-timeout-ms      Per-handshake/prepare external tool
+                                            guard timeout in milliseconds. Defau
+                                            lt: 3000.                   [number]
+      --rate-limit                          Enable per-tier HTTP rate limiting.
+                                            Tiers: prompt (10/min), mutation (30
+                                            /min), read (120/min). Health, heart
+                                            beat, SSE, and /acp are exempt.
+                                                                       [boolean]
+      --rate-limit-prompt                   Max prompt requests per window per c
+                                            lient (default 10). Requires --rate-
+                                            limit.                      [number]
+      --rate-limit-mutation                 Max mutation requests per window per
+                                             client (default 30). Requires --rat
+                                            e-limit.                    [number]
+      --rate-limit-read                     Max read requests per window per cli
+                                            ent (default 120). Requires --rate-l
+                                            imit.                       [number]
+      --rate-limit-window-ms                Rate limit window duration in ms (de
+                                            fault 60000). Requires --rate-limit.
+                                                                        [number]
+  -v, --version                             Show version number        [boolean]
+  -h, --help                                Show help                  [boolean]
+EXIT=0
+

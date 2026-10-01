@@ -1,0 +1,400 @@
+qwen serve
+
+Run Qwen Code as a local HTTP daemon (Stage 1 experimental: --http-bridge)
+
+Options:
+      --telemetry                                Enable telemetry? This flag specifically controls if telemetry is sent. Other --telemetry-* flags set specific values but do not enable telemetry on th
+                                                 eir own.           [deprecated: Use the "telemetry.enabled" setting in settings.json instead. This flag will be removed in a future version.] [boolean]
+      --telemetry-target                         Set the telemetry target (local or gcp). Overrides settings files.
+                                            [deprecated: Use the "telemetry.target" setting in settings.json instead. This flag will be removed in a future version.] [string] [choices: "local", "gcp"]
+      --telemetry-otlp-endpoint                  Set the OTLP endpoint for telemetry. Overrides environment variables and settings files.
+                                                                [deprecated: Use the "telemetry.otlpEndpoint" setting in settings.json instead. This flag will be removed in a future version.] [string]
+      --telemetry-otlp-protocol                  Set the OTLP protocol for telemetry (grpc or http). Overrides settings files.
+                                      [deprecated: Use the "telemetry.otlpProtocol" setting in settings.json instead. This flag will be removed in a future version.] [string] [choices: "grpc", "http"]
+      --telemetry-log-prompts                    Enable or disable logging of user prompts for telemetry. Overrides settings files.
+                                                                 [deprecated: Use the "telemetry.logPrompts" setting in settings.json instead. This flag will be removed in a future version.] [boolean]
+      --telemetry-outfile                        Redirect all telemetry output to the specified file.
+                                                                     [deprecated: Use the "telemetry.outfile" setting in settings.json instead. This flag will be removed in a future version.] [string]
+  -d, --debug                                    Run in debug mode?                                                                                                           [boolean] [default: false]
+      --bare                                     Minimal mode: skip implicit startup auto-discovery and only honor explicitly provided CLI inputs.                            [boolean] [default: false]
+      --safe-mode                                Disable all customizations (context files, hooks, extensions, skills, MCP servers) for troubleshooting.                                       [boolean]
+      --proxy                                    Proxy for Qwen Code, like schema://user:password@host:port
+                                                                                 [deprecated: Use the "proxy" setting in settings.json instead. This flag will be removed in a future version.] [string]
+      --insecure                                 Skip TLS certificate verification for API connections (for self-signed certs in trusted/lab environments). Equivalent to setting QWEN_TLS_INSECURE=1. W
+                                                 ARNING: removes protection against man-in-the-middle attacks.                                                                [boolean] [default: false]
+      --chat-recording                           Enable chat recording to disk. If false, chat history is not saved and --continue/--resume will not work.                                     [boolean]
+      --port                                     TCP port to bind (use 0 for an OS-assigned ephemeral port)                                                                     [number] [default: 4170]
+      --hostname                                 Interface to bind. Loopback (127.0.0.0/8, localhost, ::1, [::1]) is auth-free; anything else requires a token (one is generated and printed when neithe
+                                                 r --token nor QWEN_SERVER_TOKEN supplies one). A localhost bind that resolves off-loopback never generates, and still refuses when no token source reso
+                                                 lved; an empty value is rejected as operator error.                                                                     [string] [default: "127.0.0.1"]
+      --profile                                  Deployment profile. hosted-harness enables the private no-tool Managed Session API on loopback.
+                                                                                                                                             [choices: "default", "hosted-harness"] [default: "default"]
+      --hosted-harness-capability-digest         SHA-256 capability digest for the private Hosted Harness profile. Falls back to QWEN_HOSTED_HARNESS_CAPABILITY_DIGEST.                         [string]
+      --token                                    Bearer token required on every request. Falls back to the QWEN_SERVER_TOKEN env var; a non-loopback bind with neither generates an ephemeral token at s
+                                                 tartup, while loopback keeps the trusted tokenless mode unless --require-auth is set.                                                          [string]
+      --max-sessions                             Cap on concurrent live sessions. New spawn requests beyond this return 503; attach to existing sessions still works. Set to 0 to disable.
+                                                                                                                                                                                  [number] [default: 32]
+      --max-total-sessions                       Non-negative integer cap on concurrent live sessions across all workspace runtimes. Set to 0 to disable.                                       [number]
+      --max-pending-prompts-per-session          Per-session cap on accepted prompts waiting or running. New prompts beyond this return 503. Set to 0 to disable.                  [number] [default: 5]
+      --workspace                                Absolute workspace path to register with this daemon. POST /session requests with a mismatched cwd return 400 workspace_mismatch. Defaults to process.c
+                                                 wd() when omitted. Repeat to register isolated workspace runtimes; the first is primary.                                                        [array]
+      --memory-project-scope                     Choose how project memory is partitioned. Defaults to "workspace" so each daemon workspace stays isolated; "git-root" preserves the legacy shared scope
+                                                 . Overrides QWEN_CODE_MEMORY_PROJECT_SCOPE when provided.                                                   [string] [choices: "git-root", "workspace"]
+      --max-connections                          Listener-level TCP connection cap (server.maxConnections). Bounds raw sockets — slow/phantom SSE clients get rejected at accept time once full. Set to
+                                                 0 to disable.                                                                                                                   [number] [default: 256]
+      --require-auth                             Refuse to start without a bearer token, even on loopback. Hardens the loopback developer default for shared dev hosts / CI runners / multi-tenant works
+                                                 tations where any local user can hit 127.0.0.1. Requires --token, QWEN_SERVER_TOKEN, or --open-with-auth (which installs its own generated loopback tok
+                                                 en); on non-loopback binds the generated ephemeral token also satisfies it, so the no-configured-secret fail-fast is loopback-only. /health also requir
+                                                 es Authorization when enabled (no loopback exemption — k8s/Compose probes must pass the bearer too).                         [boolean] [default: false]
+      --enable-session-shell                     Enable direct POST /session/:id/shell execution. Available with bearer auth or trusted loopback; each call still requires a session-bound client id.
+                                                                                                                                                                              [boolean] [default: false]
+      --tls-cert                                 Path to a PEM certificate file. Serve over HTTPS instead of HTTP. Required for secure-context browser APIs (voice input/getUserMedia, WebRTC) when acce
+                                                 ssed over a LAN IP. Must be used together with --tls-key. Generate a local cert with mkcert.                                                   [string]
+      --tls-key                                  Path to a PEM private key file. Must be used together with --tls-cert.                                                                         [string]
+      --experimental-lsp                         Forward the experimental LSP opt-in to spawned agent sessions.                                                               [boolean] [default: false]
+      --restore-ask-user-question                On session load/resume, re-hang a trailing unanswered ask_user_question instead of synthesizing a failed tool result.        [boolean] [default: false]
+      --channel                                  Experimental: start a daemon-managed channel worker for the named channel. Repeat to select multiple channels, or use --channel all.            [array]
+      --web                                      Serve the Web Shell UI at the daemon root path. Use --no-web for an API-only daemon.                                          [boolean] [default: true]
+      --open                                     Open the Web Shell in a browser once the daemon is listening. With a token configured, the launch URL (token included) is handed to the browser launche
+                                                 r and is visible in the process list, so prefer opening the URL manually on multi-user hosts. No-op with --no-web, when the UI assets are absent, or in
+                                                  headless/CI/SSH environments.                                                                                               [boolean] [default: false]
+      --open-with-auth                           Open the Web Shell with bearer authentication on loopback. Reuse --token or QWEN_SERVER_TOKEN, or generate a temporary 256-bit token and deliver it in
+                                                 the URL fragment. In headless environments, print the fragment URL for manual opening.                                       [boolean] [default: false]
+      --token-qr                                 Print the token-bearing QR even when stdout is captured (not an interactive terminal) and the bearer is an operator-supplied (stable) token, which is w
+                                                 ithheld by default to keep stable credentials out of collected logs. Enable only when the log pipeline is as trusted as the daemon host. Can also be se
+                                                 t via the serve.tokenQr setting (user, system, and system-defaults scopes only); the flag wins when passed. --no-token-qr suppresses the startup quicks
+                                                 tart token QR for that run on every quickstart path — interactive terminal and generated token included. It does not govern the Local Control pairing Q
+                                                 R, which --local-control prints by design.                                                                                                    [boolean]
+      --local-control                            Share the Web Shell on the local IPv4 network with its own revocable pairing token, terminal QR code, and best-effort sleep inhibition. Ctrl+C turns it
+                                                  off by ending the whole daemon; the Web Shell Settings card turns it off while the daemon keeps running.                    [boolean] [default: false]
+      --local-control-address                    Which local IPv4 address to share when the host is on more than one network. Only needed if --local-control reports an ambiguous choice.       [string]
+      --event-ring-size                          Per-session SSE replay ring depth. Sets the replay backlog available to `GET /session/:id/events` reconnects that send a `Last-Event-ID: N` header. Lar
+                                                 ger = more reconnect headroom at the cost of a few hundred KB extra RAM per session. Must be a positive finite integer.        [number] [default: 8000]
+      --compacted-replay-max-bytes               Per-session in-memory compacted replay snapshot byte cap for `POST /session/:id/load` late attaches. Larger = more recent history in load snapshots at
+                                                 higher heap cost. Must be a positive safe integer no larger than 256 MiB.                                                   [number] [default: 4194304]
+      --max-journal-events                       Per-session baseline cap on replay entries retained in the in-flight live journal (current unfinished turn). Compatible text/thought chunks share bound
+                                                 ed entries. When exceeded, the daemon first tries adaptive growth (see --max-journal-bytes); without granted headroom the oldest entries are dropped. P
+                                                 inning this flag (or --max-journal-bytes) disables adaptive growth. Defaults to 10000 when unset. Must be a positive safe integer.             [number]
+      --max-journal-bytes                        Per-session baseline source-event byte cap on the in-flight live journal. When a turn outgrows it, adaptive growth raises the session's caps (per-sessi
+                                                 on hard cap 256 MiB) within a growth pool derived from the daemon memory budget (see --memory-budget-mb); without granted headroom the oldest entries a
+                                                 re dropped whole (at least one is always kept), so the retained tail can be much smaller than the cap. Pinning this flag (or --max-journal-events) disa
+                                                 bles adaptive growth. Defaults to 8388608 bytes when unset. Must be a positive safe integer.                                                   [number]
+      --http-bridge                              HTTP bridge mode: attempt to preheat the primary `qwen --acp` child; trusted secondaries start one on demand. Stage 2 native in-process mode is not yet
+                                                  implemented; this flag will become opt-in then.                                                                              [boolean] [default: true]
+      --memory-budget-mb                         Total memory budget in MB for the daemon process tree. When unset, derived as 50% of cgroup-constrained or host memory, and capped at the resolved avai
+                                                 lable memory either way. In `admit` and `enforce` modes it determines managed ACP child capacity; `enforce` also applies the modeled per-child old-spac
+                                                 e ceiling. It also sizes one daemon-wide pool of 5% of the effective budget (capped at 1024 MB; 0, growth disabled, when the effective budget falls bel
+                                                 ow the 1024 MB minimum; see --max-journal-bytes). Reported under `limits.memory` in daemon status, alongside a modeled per-child partition under `limit
+                                                 s.memory.childHeap`. Must be an integer in [1024, 1048576].                                                                                    [number]
+      --memory-pressure-mode                     Whether the daemon derives a memory-pressure level from its own RSS and V8 heap. `observe` (default) reports the level in daemon status and raises a st
+                                                 atus issue when it leaves normal. `off` still reports the underlying figures but raises no issue, so the overall status rollup is unchanged — use it wh
+                                                 ile calibrating, or if you alert on the top-level status. Nothing remediates in either mode.           [choices: "off", "observe"] [default: "observe"]
+      --child-heap-mode                          Whether the daemon models a per-child heap partition of the memory budget. `observe` (default) reports the partition it would apply — `limits.memory.ch
+                                                 ildHeap.perChildCeilingMb` and `maxConcurrentChildren` — and counts spawns that would have exceeded it. Nothing is applied: no child is sized from the
+                                                 budget and no spawn is refused. `off` models nothing. Note a refusal count of 0 does NOT mean the partition would be safe to apply; children still run
+                                                 on the much larger host-derived ceiling, so a workload needing more old space than the modeled ceiling looks healthy here. `admit` rejects starts past
+                                                 the modeled process limit but keeps the existing child heap arguments. Experimental `enforce` also applies the fixed modeled old-space ceiling to each
+                                                 managed child; it does not cap total process RSS.                                  [choices: "off", "observe", "admit", "enforce"] [default: "observe"]
+      --mcp-client-budget                        Cap on live MCP clients spawned inside the ACP child for the bound workspace. Positive integer. Combine with --mcp-budget-mode to control behavior at t
+                                                 he cap. When unset, mode defaults to off (no accounting-driven enforcement, but GET /workspace/mcp still reports `clientCount`). Distinct from claude-c
+                                                 ode MCP_SERVER_CONNECTION_BATCH_SIZE which gates startup concurrency, not the total client count.                                              [number]
+      --mcp-budget-mode                          How --mcp-client-budget is enforced. `warn` (default when budget set): no refusal, snapshot surfaces warning at >=75% of budget. `enforce`: connects pa
+                                                 st the cap are refused (`disabledReason: "budget"`, deterministic by mcpServers declaration order). `off`: pure observability. Boot rejects `enforce` w
+                                                 ithout a budget.                                                                                                    [choices: "enforce", "warn", "off"]
+      --allow-origin                             Cross-origin allowlist for browser clients.                                                                                                     [array]
+      --allow-private-auth-base-url              Allow /workspace/auth/provider to install localhost/private-network baseUrl values. Use only for local development with trusted clients.
+                                                                                                                                                                              [boolean] [default: false]
+      --prompt-deadline-ms                       Server-side wallclock cap on POST /session/:id/prompt (ms). Falls back to QWEN_SERVE_PROMPT_DEADLINE_MS. Positive integer.                     [number]
+      --experimental-paired-engines              Experimental: build workspace runtimes, other than the private Conversations one, with paired Legacy and Managed engines. No Managed engine is availabl
+                                                 e yet, so sessions run on Legacy with a durable owner.                                                                       [boolean] [default: false]
+      --experimental-managed-agents              Reserved experimental mode; not implemented and rejects startup.                                                             [boolean] [default: false]
+      --experimental-managed-runtime-worker      Reserved experimental mode; not implemented and rejects startup.                                                             [boolean] [default: false]
+      --experimental-managed-runtime-auto-local  Reserved experimental mode; not implemented and rejects startup.                                                             [boolean] [default: false]
+      --experimental-managed-runtime-url         Reserved experimental Runtime URL; not implemented and rejects startup.                                                                        [string]
+      --experimental-managed-runtime-token       Reserved experimental Runtime credential; not implemented and rejects startup.                                                                 [string]
+      --managed-runtime-broker-url               Private Broker URL for --profile hosted-harness; required together with token for Workspace tool turns.                                        [string]
+      --managed-runtime-broker-token             Private Broker credential for --profile hosted-harness; required together with URL for Workspace tool turns.                                   [string]
+      --writer-idle-timeout-ms                   Per-SSE-connection idle deadline (ms). Falls back to QWEN_SERVE_WRITER_IDLE_TIMEOUT_MS. Positive integer.                                      [number]
+      --channel-idle-timeout-ms                  Compatibility auto-reap delay for an idle workspace ACP child. 0 or unset = reap after work drains; keepalive windows may extend it (default). [number]
+      --initialize-timeout-ms                    ACP child request timeout, including the initialize handshake (ms). Default: 10000 (10 s).                                                     [number]
+      --session-restore-timeout-ms               ACP session load/resume timeout (ms). Default: 60000. An explicit --initialize-timeout-ms can raise (but never lower) this default.            [number]
+      --session-reap-interval-ms                 Session reaper scan interval (ms). 0 = disabled. Default: 60000.                                                                               [number]
+      --session-idle-timeout-ms                  Idle timeout before a disconnected session is reaped (ms). 0 = disabled. Default: 1800000 (30 min).                                            [number]
+      --session-prompt-settled-close-grace-ms    Grace period after a prompt settles before an otherwise-idle session may be auto-closed (ms). Poll-based SSE clients use this window to reconnect witho
+                                                 ut triggering a session rebuild. 0 = disabled (immediate close). Default: 0.                                                                   [number]
+      --permission-response-timeout-ms           Wall-clock timeout for a human permission / ask_user_question response in daemon (ACP) mode (ms). 0 or unset = disabled (wait indefinitely). Default: 0
+                                                 .                                                                                                                                              [number]
+      --external-tool-guard-mode                 Managed ACP pre-execution policy mode. Default off preserves current CLI and daemon behavior. Required fails startup unless a compatible loopback provi
+                                                 der is available.                                                                                         [choices: "off", "required"] [default: "off"]
+      --external-tool-guard-endpoint             Origin-only loopback HTTP(S) endpoint for required external tool guarding, for example http://127.0.0.1:8787.                                  [string]
+      --external-tool-guard-timeout-ms           Per-handshake/prepare external tool guard timeout in milliseconds. Default: 3000.                                                              [number]
+      --rate-limit                               Enable per-tier HTTP rate limiting. Tiers: prompt (10/min), mutation (30/min), read (120/min). Health, heartbeat, SSE, and /acp are exempt.   [boolean]
+      --rate-limit-prompt                        Max prompt requests per window per client (default 10). Requires --rate-limit.                                                                 [number]
+      --rate-limit-mutation                      Max mutation requests per window per client (default 30). Requires --rate-limit.                                                               [number]
+      --rate-limit-read                          Max read requests per window per client (default 120). Requires --rate-limit.                                                                  [number]
+      --rate-limit-window-ms                     Rate limit window duration in ms (default 60000). Requires --rate-limit.                                                                       [number]
+  -v, --version                                  Show version number                                                                                                                           [boolean]
+  -h, --help                                     Show help                                                                                                                                     [boolean]
+EXIT=0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
