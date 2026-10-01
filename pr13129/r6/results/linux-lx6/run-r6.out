@@ -1,0 +1,88 @@
+manifest: 75 catalogs, 72345 bytes -> /Users/wenshao/pr13129-rig/run/lx6/hooks.json
+spring pid=270 up after 50s log=/Users/wenshao/pr13129-rig/run/lx6/spring-0.log
+Successfully applied 27 migrations to schema `lx6`, now at version v27 (execution time 00:42.180s)
+=== unit core
+ Test Files  3 passed (3)
+      Tests  54 passed (54)
+=== unit cli
+ FAIL  src/serve/hosted-workspace-tool-turn.test.ts [ src/serve/hosted-workspace-tool-turn.test.ts ]
+ Test Files  1 failed | 1 passed (2)
+      Tests  29 passed (29)
+=== ARGV_FIXED=1 node s9-linux.mjs 13:35:11
+PASS  A: PreToolUse command ran inside a fresh qwen-hook-* cgroup unit and its context reached the model  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 9395ms cgroup=0::/hooks/qwen-hook-70437fa8-c501-41ca-800b-019595aae306 HOME=/var/rig-run/lx6/ws/v/child
+PASS  A: detached (setsid) descendant was killed by the unit, not left running  -> detached pid=915 alive=false cgroup=0::/hooks/qwen-hook-b53badcb-791b-441f-b5eb-46d6bfc32ad7 record=settled/"settled" turnMs=10853
+NOTE  A: UserPromptSubmit with a detached child — receipt  -> {"state":"settled","execution":"settled"}
+PASS  A: no qwen-hook-* unit left behind  -> units=<none>
+PASS  B: command PreToolUse deny prevents the write  -> result write_file: "No reason provided"
+PASS  C: cancel drains the unit (TERM, then cgroup.kill for the TERM-ignoring child) and settles  -> cancel=200 running op=200 {"operationId":"1dfc2c0d-9fb8-4cf0-a2e7-01be8ee9fe2a","output":null} stubborn=1072 alive=false unitsDuring=1 unitsAfter=0 settled=cancelled/"settled" 2211ms
+PASS  C: Session accepts the next prompt  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 6226ms
+NOTE  rig repair (F1 leak from an aborted earlier attempt)  -> null
+PASS  D: recipe env is NOT readable by another uid (argv and environ)  -> launcher pid=1188 readAsNobody=[] environAsNobody=denied hookSawSecret=true op=200
+== RESULT s9-linux-99db: 7 passed, 0 failed
+=== node s2b-lease.mjs ws-t1 a yes SIGKILL 13:35:57
+NOTE  lease before  -> <no row>
+PASS  A (hooks=yes) turn 1 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 5044ms
+NOTE  lease holder while A is attached and idle  -> hooks-activation-7bef79cb38bae2c5ca8a12f767914a86da2edca7c609ba93c59359063e065550
+FAIL  B (no hooks, same Workspace) completes a tool turn while A is attached+idle  -> admit=202 terminal=turn_error[{"sessionId":"452bc81b-52c9-4efd-afd6-f4f7b4bf503a","promptId":"7750bac3-f19d-486c-a7d5-89770e01bf9c","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 1168ms
+NOTE  lease after B  -> hooks-activation-7bef79cb38bae2c5ca8a12f767914a86da2edca7c609ba93c59359063e065550
+PASS  A turn 2 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3268ms
+NOTE  Harness stopped with SIGKILL  -> lease=hooks-activation-7bef79cb38bae2c5ca8a12f767914a86da2edca7c609ba93c59359063e065550
+NOTE  load retried until writer lease lapsed  -> 50s
+PASS  new Harness loads A  -> status=200  lease=hooks-activation-7bef79cb38bae2c5ca8a12f767914a86da2edca7c609ba93c59359063e065550
+PASS  A turn after cold load completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 5015ms lease=hooks-activation-85588a0fc5443c24ae3d26168f0bb69d92f5482c71eeddd92eca05d5cc7b8af3
+NOTE  A detached on the new Harness  -> status=204  lease=<free>
+PASS  a fresh no-hook Session in the Workspace completes a tool turn after A was detached  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1684ms lease=<free>
+NOTE  final lease  -> <free>
+== RESULT s2b-lease-head8-ws-t1-yes-SIGKILL: 5 passed, 1 failed
+=== node s5b-lost.mjs - ws-t9b 13:37:14
+NOTE  (d) operation with the dispatch acknowledgement dropped  -> 200 {"operationId":"b93305ea-59b9-4e84-be79-23fb7a8bbbb4","output":{"continue":true}} dropped=1
+PASS  (d) cold reload reconciles: settled, ONE physical call, ONE success callback  -> load=200 state=settled calls=1 callbacks=1 lease=hooks-activation-2f4e2dd35e2991cb54e615cc29f4c65834e01ff6ab42c48497a9fd9117804a0e
+PASS  (d) the reconciled Session then runs a normal tool turn  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3097ms lease=hooks-activation-27223ed669e40a4097ccac29b19b55a22afbf40dd61e996fd44f03480afd3822
+== RESULT s5b-lost-head8-ws-t9b: 2 passed, 0 failed
+=== node s11-cancel.mjs 13:38:23
+PASS  UserPromptSubmit: cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=329ms terminal=turn_complete(cancelled) recoveryBlocked=false hook=cancelled/"settled" written=false next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1125ms
+PASS  PreToolUse: cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=427ms terminal=turn_complete(cancelled) recoveryBlocked=false hook=cancelled/"settled" written=false next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1165ms
+PASS  PostToolUse: cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=423ms terminal=turn_complete(cancelled) recoveryBlocked=false hook=cancelled/"settled" written=true next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 989ms
+PASS  Stop: cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=317ms terminal=turn_complete(cancelled) recoveryBlocked=false hook=cancelled/"settled" written=true next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 952ms
+FAIL  PreToolUse (callback ignores the abort, 8 s): cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=1114ms terminal=<none> recoveryBlocked=true hook=recovery_blocked/"outcome_unknown" written=false next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms
+NOTE  PreToolUse (callback ignores the abort, 8 s): another Session in the same Workspace  -> admit=202 terminal=turn_error[{"sessionId":"95c4afae-0d03-4af7-a09c-053eff2fc638","promptId":"0d1a2ffb-f299-4abb-9456-4d07141fe070","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 1254ms
+NOTE  PreToolUse (callback ignores the abort, 8 s): after detach + load  -> detach=503 load=409  admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 3ms
+PASS  PreToolUse (HTTP Hook, server replies after 8 s): cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=7811ms terminal=turn_complete(cancelled) recoveryBlocked=false hook=settled/"settled" written=false next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 555ms
+PASS  UserPromptSubmit (HTTP Hook, server replies after 8 s): cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=7742ms terminal=turn_complete(cancelled) recoveryBlocked=false hook=settled/"settled" written=false next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 8690ms
+PASS  PostToolUse (HTTP Hook, server replies after 8 s): cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=7704ms terminal=turn_complete(cancelled) recoveryBlocked=false hook=settled/"settled" written=true next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 559ms
+PASS  Stop (HTTP Hook, server replies after 8 s): cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=7578ms terminal=turn_complete(cancelled) recoveryBlocked=false hook=settled/"settled" written=true next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 8622ms
+FAIL  PreToolUse (HTTP Hook, server never replies; Hook timeout 10 s): cancel mid-Hook, then the Session runs the next turn  -> cancel=204 cancel→idle=9589ms terminal=<none> recoveryBlocked=true hook=recovery_blocked/"outcome_unknown" written=false next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 3ms
+NOTE  PreToolUse (HTTP Hook, server never replies; Hook timeout 10 s): another Session in the same Workspace  -> admit=202 terminal=turn_error[{"sessionId":"1a2df43c-4146-4d71-8dd8-983827b98e86","promptId":"0e411972-15b3-43a0-939a-39bd3ccd8ebf","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 1149ms
+NOTE  PreToolUse (HTTP Hook, server never replies; Hook timeout 10 s): after detach + load  -> detach=503 load=409  admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 2ms
+== RESULT s11-cancel-head8: 8 passed, 2 failed
+=== SET=7 ARM=head7 node s17-cancel-window.mjs 13:40:07
+FAIL  (b) 2 calls, cancel during call 1 PreToolUse HTTP Hook (server answers after 4 s): turn cancelled, every call has a result, next turn runs  -> create=200 trigger=2829ms cancel=204@3834ms idle@7046ms terminal=<none> recoveryBlocked=true calls=2 results=0 [] preToolUse=[settled/settled] hookRuns=1 filesWritten=0 next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms
+FAIL  (b) 2 calls, cancel during call 1 PreToolUse HTTP Hook (server answers after 4 s): detach, load, another prompt, then a second Session (no Hooks) writes in the Workspace  -> detach=204 load=200 recoveryRequired again=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms detach2=204 other=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1696ms otherFile=true
+FAIL  (b) 2 calls, cancel during call 1 PreToolUse HTTP Hook (server answers after 4 s): a new Harness process cold-loads the Session from the Store and runs a turn  -> load=200 recoveryRequired durable calls/results=2/0 next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 5ms
+FAIL  (b) 2 calls, cancel during call 1 PreToolUse function Hook (honours the abort): turn cancelled, every call has a result, next turn runs  -> create=200 trigger=1650ms cancel=204@2652ms idle@2981ms terminal=<none> recoveryBlocked=true calls=2 results=0 [] preToolUse=[cancelled/settled] hookRuns=1 filesWritten=0 next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms
+FAIL  (b) 2 calls, cancel during call 1 PreToolUse function Hook (honours the abort): detach, load, another prompt, then a second Session (no Hooks) writes in the Workspace  -> detach=204 load=200 recoveryRequired again=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 3ms detach2=204 other=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2331ms otherFile=true
+FAIL  (b) 2 calls, cancel during call 1 PreToolUse function Hook (honours the abort): a new Harness process cold-loads the Session from the Store and runs a turn  -> load=200 recoveryRequired durable calls/results=2/0 next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 6ms
+FAIL  (b) 2 calls, cancel during call 1 PreToolUse function Hook (finishes 0.5 s later, inside the grace): turn cancelled, every call has a result, next turn runs  -> create=200 trigger=1880ms cancel=204@2082ms idle@2851ms terminal=<none> recoveryBlocked=true calls=2 results=0 [] preToolUse=[cancelled/settled] hookRuns=1 filesWritten=0 next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undef
+FAIL  (b) 2 calls, cancel during call 1 PreToolUse function Hook (finishes 0.5 s later, inside the grace): detach, load, another prompt, then a second Session (no Hooks) writes in the Workspace  -> detach=204 load=200 recoveryRequired again=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms detach2=204 other=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 2137ms oth
+FAIL  (b) 2 calls, cancel during call 1 PreToolUse function Hook (finishes 0.5 s later, inside the grace): a new Harness process cold-loads the Session from the Store and runs a turn  -> load=200 recoveryRequired durable calls/results=2/0 next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms
+FAIL  (a) cancel while the assistant tool-call commit is in flight, PreToolUse function Hook: turn cancelled, every call has a result, next turn runs  -> create=200 trigger=2560ms cancel=204@3561ms idle@5589ms delayedStoreReply=200-reply-delayed terminal=<none> recoveryBlocked=true calls=1 results=0 [] preToolUse=[] hookRuns=0 filesWritten=0 next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked
+FAIL  (a) cancel while the assistant tool-call commit is in flight, PreToolUse function Hook: detach, load, another prompt, then a second Session (no Hooks) writes in the Workspace  -> detach=204 load=200 recoveryRequired again=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 5ms detach2=204 other=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 3256ms otherFile=true
+FAIL  (a) cancel while the assistant tool-call commit is in flight, PreToolUse function Hook: a new Harness process cold-loads the Session from the Store and runs a turn  -> load=200 recoveryRequired durable calls/results=1/0 next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 6ms
+PASS  (a) control: same timing, no Hooks: turn cancelled, every call has a result, next turn runs  -> create=200 trigger=1818ms cancel=204@2819ms idle@5250ms delayedStoreReply=200-reply-delayed terminal=turn_complete(cancelled) recoveryBlocked=false calls=1 results=1 [result write_file: "Runtime tool cancelled."] preToolUse=[] hookRuns=0 filesWritten=0 next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=f
+PASS  (a) control: same timing, no Hooks: detach, load, another prompt, then a second Session (no Hooks) writes in the Workspace  -> detach=204 load=200 again=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 374ms detach2=204 other=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 11219ms otherFile=true
+== RESULT s17-cancel-window-head7: 2 passed, 12 failed
+    throw new Error('harness did not start: ' + fs.readFileSync(this.logPath, 'utf8'));
+Error: harness did not start: qwen serve: --token is visible in the process command line; prefer the QWEN_SERVER_TOKEN env var for any non-trivial deployment.
+=== SET=8 ARM=head8 node s17-cancel-window.mjs 13:45:07
+== RESULT s17-cancel-window-head8: 0 passed, 0 failed
+  const err = new Error(message);
+Error: Command failed: /usr/bin/mysql -uroot -prig13129 -h127.0.0.1 -P33129 -N -B lx6 -e SELECT COUNT(*) FROM managed_workspace_registry WHERE tenant_id='t-rig' AND workspace_id='ws-w2h-8'
+    at genericNodeError (node:internal/errors:983:15)
+    at checkExecSyncError (node:child_process:916:11)
+=== node s12-lifecycle.mjs 13:45:16
+== RESULT s12-lifecycle-head8: 0 passed, 0 failed
+  const err = new Error(message);
+Error: Command failed: /usr/bin/mysql -uroot -prig13129 -h127.0.0.1 -P33129 -N -B lx6 -e SELECT COUNT(*) FROM managed_workspace_registry WHERE tenant_id='t-rig' AND workspace_id='ws-life4'
+    at genericNodeError (node:internal/errors:983:15)
+    at checkExecSyncError (node:child_process:916:11)
+=== ALL-DONE 13:45:27
