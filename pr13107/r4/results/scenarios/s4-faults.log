@@ -1,0 +1,28 @@
+# s4-faults  db=r4db  2026-10-01T08:40:44.031Z
+PASS  [a] card shown  -> session=fd9c7fb5-8398-4012-aeec-4dd9994c14c7 action=tool_approval_713b3464bf9768b756804ea5eae2ef40
+PASS  [a] 503: the card comes back and the failure text is shown  -> alert="The approval answer could not be confirmed. Retry the same option or refresh to check its status."
+PASS  [a] 503: nothing was committed  -> state=requested operations=0
+PASS  [a] retry succeeds with the same idempotency key  -> keys=["tool_approval_713b3464bf9768b756804ea5eae2ef40:allow","tool_approval_713b3464bf9768b756804ea5eae2ef40:allow"] statuses=[503,202]
+PASS  [a] Turn completes; file written once  -> status=COMPLETED executions=1
+PASS  [a] the failure text is gone after the successful retry  -> alert=""
+PASS  [b] card shown  -> session=8e8f3d31-abdf-4884-aba7-7ddfeb3d7c03 action=tool_approval_fd1314d93e8561f095afef3b096b2854
+PASS  [b] lost reply while delivery is slow: the card comes back with the failure text  -> card=1 alert="The approval answer could not be confirmed. Retry the same option or refresh to check its status." action=requested operations=[["RUNNING","tool_approval_fd1314d93e8561f095afef3b096b2854:allow"]]
+PASS  [b] one durable operation only, however many clicks  -> [["COMPLETED","tool_approval_fd1314d93e8561f095afef3b096b2854:allow",""]]
+PASS  [b] Turn completes; the tool ran once  -> status=COMPLETED executions=1
+NOTE  [b] respond calls seen by the page  -> [{"status":0,"failure":"net::ERR_CONNECTION_RESET","key":"tool_approval_fd1314d93e8561f095afef3b096b2854:allow"},{"status":202,"key":"tool_approval_fd1314d93e8561f095afef3b096b2854:allow","replayed":true}]
+NOTE  [b] end state of the page  -> card=0 alert=""
+PASS  [c] card shown  -> session=3086563c-d400-43f3-85d0-d13220520bd0 action=tool_approval_80f7b991e865b92c15eadd0c3bee3f88
+PASS  [c] lost "allow" reply while delivery is slow: the card comes back with the failure text  -> card=1 alert="The approval answer could not be confirmed. Retry the same option or refresh to check its status." action=requested operations=[["RUNNING","tool_approval_80f7b991e865b92c15eadd0c3bee3f88:allow"]]
+NOTE  [c] respond calls seen by the page  -> [{"status":0,"failure":"net::ERR_CONNECTION_RESET","option":"allow","key":"tool_approval_80f7b991e865b92c15eadd0c3bee3f88:allow"},{"status":202,"option":"deny","key":"tool_approval_80f7b991e865b92c15eadd0c3bee3f88:deny","opStatus":"pending"}]
+NOTE  [c] operations  -> [["COMPLETED","tool_approval_80f7b991e865b92c15eadd0c3bee3f88:allow",""],["FAILED","tool_approval_80f7b991e865b92c15eadd0c3bee3f88:deny","action_already_resolved"]]
+NOTE  [c] outcome  -> Turn=COMPLETED file="ALLOWED-THEN-DENIED" executions=1 final=UI_DONE rounds=1 results=["[{"type":"text","text":"Successfully created and wrote to new file: /Users/wenshao/pr13107-rig/run/r4db/ws/a/child/s4c-mupabeoz.txt."}]
+NOTE  [c] end state of the page  -> card=0 alert=""
+PASS  [c] the first committed answer wins (allow): the tool ran although the last click was "Reject"  -> file="ALLOWED-THEN-DENIED"
+PASS  [c] the page never tells the owner that the second answer lost  -> alert=""
+PASS  [d] card shown  -> session=19234474-7a49-43ff-909f-e18cb969d6be action=tool_approval_786b48667cf064e768b6d2d57984b3a2
+PASS  [d] 202 with status failed: the card stays and the page says the answer could not be confirmed  -> card=1 alert="The approval answer could not be confirmed. Retry the same option or refresh to check its status."
+PASS  [d] retrying the same option reaches the service with the same key and the tool runs once  -> keys=["tool_approval_786b48667cf064e768b6d2d57984b3a2:allow","tool_approval_786b48667cf064e768b6d2d57984b3a2:allow"] statuses=[202,202] turn=COMPLETED executions=1
+PASS  [e] card shown  -> session=4aa9b298-3209-48ea-931e-d4a045df3471 action=tool_approval_6787ec0d76344bf9b41a69fd96150c2b
+PASS  [e] 202 with status recovery_blocked: the card stays and the page says the answer could not be confirmed  -> card=1 alert="The approval answer could not be confirmed. Retry the same option or refresh to check its status."
+PASS  [e] retrying the same option reaches the service with the same key and the tool runs once  -> keys=["tool_approval_6787ec0d76344bf9b41a69fd96150c2b:allow","tool_approval_6787ec0d76344bf9b41a69fd96150c2b:allow"] statuses=[202,202] turn=COMPLETED executions=1
+== s4-faults: 20 passed, 0 failed

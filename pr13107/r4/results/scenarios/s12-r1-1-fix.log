@@ -1,0 +1,16 @@
+# s12-r1-1-fix  db=r4db  2026-10-01T08:42:34.008Z
+PASS  [a] healthy Refresh: the card and its buttons never leave  -> {"gaps":0,"longest":0}
+PASS  [a] "Yes, allow once" clicked during the reload window is delivered  -> responds=1 turn=COMPLETED executions=1
+PASS  [b] summary route failing + Refresh: the card stays  -> alerts=["rig 503"] actions/query during outage=0
+PASS  [b] answering during the outage reaches the service; the tool runs once  -> respond=202 turn=COMPLETED executions=1
+NOTE  [b] Actions reads while the summary was unknown  -> 0
+NOTE  [c] Action answered elsewhere during the outage  -> action=decided card on this page=1 alerts=["rig 503"]
+PASS  [c] the kept card is stale: "allow" gets 409 for the ended Action and nothing ran  -> HTTP 409 action_already_resolved executions=0 alerts=["rig 503","The approval answer could not be confirmed. Retry the same option or refresh to check its status."]
+NOTE  [c] after the summary route recovers  -> card gone=true after 1789 ms alerts=["The approval answer could not be confirmed. Retry the same option or refresh to check its status."]
+NOTE  [d] a Session without a Workspace  -> capabilities={"tasks":true,"artifacts":false,"actions":false}
+NOTE  [d] first samples after selecting Session 2  -> [{"t":0,"header":"cf71828a","cardShown":true},{"t":13,"header":"","cardShown":false},{"t":25,"header":"bc5e89a1","cardShown":false},{"t":36,"header":"bc5e89a1","cardShown":false}]
+PASS  [d] switching Sessions never shows the first Session's approval on the second  -> samples with a card under a non-Session-1 header before Session 2's read returned: 0 of 125
+PASS  [d] the second Session's own card appears  -> queries for S2=1
+PASS  [d] a Session without the Actions capability is not read and shows no card  -> queries for the plain Session=0 card=0 (all queries since switch=0)
+NOTE  [d] cleanup  -> [{"status":"COMPLETED","error":"","ms":36},{"status":"COMPLETED","error":"","ms":29}]
+== s12-r1-1-fix: 8 passed, 0 failed
