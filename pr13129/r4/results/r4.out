@@ -1,0 +1,193 @@
+=== ARM=head6 node s11-cancel.mjs 11:21:03
+PASS  UserPromptSubmit: cancel mid-Hook, then the Session runs the next turn  -> cancel=204 terminal=turn_complete(cancelled) recoveryBlocked=false hook=cancelled/"settled" written=false next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 774ms
+PASS  PreToolUse: cancel mid-Hook, then the Session runs the next turn  -> cancel=204 terminal=turn_complete(cancelled) recoveryBlocked=false hook=cancelled/"settled" written=false next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 636ms
+PASS  PostToolUse: cancel mid-Hook, then the Session runs the next turn  -> cancel=204 terminal=turn_complete(cancelled) recoveryBlocked=false hook=cancelled/"settled" written=true next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 637ms
+PASS  Stop: cancel mid-Hook, then the Session runs the next turn  -> cancel=204 terminal=turn_complete(cancelled) recoveryBlocked=false hook=cancelled/"settled" written=true next=admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 639ms
+FAIL  PreToolUse (callback ignores the abort, 8 s): cancel mid-Hook, then the Session runs the next turn  -> cancel=204 terminal=<none> recoveryBlocked=true hook=recovery_blocked/"outcome_unknown" written=false next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 3ms
+NOTE  PreToolUse (callback ignores the abort, 8 s): another Session in the same Workspace  -> admit=202 terminal=turn_error[{"sessionId":"e8e4b236-6366-43e0-b130-4ac23e132c27","promptId":"b942831d-1678-4654-8ece-7e039dda1012","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 519ms
+NOTE  PreToolUse (callback ignores the abort, 8 s): after detach + load  -> detach=503 load=409  admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 3ms
+FAIL  PreToolUse (HTTP Hook, server replies after 8 s): cancel mid-Hook, then the Session runs the next turn  -> cancel=204 terminal=<none> recoveryBlocked=true hook=recovery_blocked/"outcome_unknown" written=false next=admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms
+NOTE  PreToolUse (HTTP Hook, server replies after 8 s): another Session in the same Workspace  -> admit=202 terminal=turn_error[{"sessionId":"85c793c2-fa3f-449d-9fd0-66e04b0f197f","promptId":"27fb0812-8639-4494-85f2-24a4557de282","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 418ms
+NOTE  PreToolUse (HTTP Hook, server replies after 8 s): after detach + load  -> detach=503 load=409  admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 2ms
+== RESULT s11-cancel-head6: 4 passed, 2 failed
+=== ARM=head6 node s14-activation-fault.mjs 11:21:28
+NOTE  warm-up turn  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 537ms activation-install writes seen so far=1
+NOTE  one 503 on the activation-install commit: detach + load  -> detach=204  load=200  admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 325ms
+NOTE  one 503 on the activation-install commit  -> hookOp=200  install requests=3 journal tx=12 status.recoveryBlocked=false next prompt: admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 322ms
+NOTE  activation-install commit succeeds, its reply is dropped once: detach + load  -> detach=204  load=200  admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 335ms
+NOTE  activation-install commit succeeds, its reply is dropped once  -> hookOp=200  install requests=3 journal tx=12 status.recoveryBlocked=false next prompt: admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 331ms
+NOTE  503 on every activation-install commit (retries exhausted): detach + load  -> detach=204  load=200  admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 990ms
+NOTE  503 on every activation-install commit (retries exhausted)  -> hookOp=503 hosted_hook_operation_failed install requests=3 journal tx=1 status.recoveryBlocked=false next prompt: admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 2ms | after the fault cleared: admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 2m
+== RESULT s14-activation-fault-head6: 0 passed, 0 failed
+=== ARM=head6 node s15-history-hooks.mjs 11:21:39
+PASS  with Hooks: Write, Write, undo of the second Write, Write  -> turns=turn_complete,turn_complete,turn_complete history=200 snapshots=2 undo=200  afterUndo="one" final="three"
+PASS  with Hooks: PreToolUse and PostToolUse ran once per write (3 each)  -> pre=3 post=3
+PASS  with Hooks: after detach, another Session uses the Workspace  -> detach=204 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 843ms lease=<free>
+PASS  no Hooks: Write, Write, undo of the second Write, Write  -> turns=turn_complete,turn_complete,turn_complete history=200 snapshots=2 undo=200  afterUndo="one" final="three"
+PASS  no Hooks: after detach, another Session uses the Workspace  -> detach=204 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 955ms lease=<free>
+== RESULT s15-history-hooks-head6: 5 passed, 0 failed
+=== ARM=head6 WS=ws-hvs HOOK=hv-start node s9mac-refusal.mjs 11:21:54
+NOTE  rig repair  -> null
+PASS  command Hook refused before any effect (marker file not created)  -> turn: admit=202 terminal=<none> recoveryBlocked=true 548ms record=recovery_blocked/"not_started_proven"
+NOTE  Session after the refusal  -> status.recoveryBlocked=true next prompt -> 409 hosted_turn_recovery_required
+NOTE  cancel of the blocked execution  -> 200 cancelled -> record cancelled/"not_started_proven"
+PASS  after cancelling the blocked occurrence the Session accepts work again  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 530ms
+PASS  after cancel + detach + load the Session accepts work again  -> detach=204  load=200  admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 431ms
+NOTE  next prompt after recovery  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 543ms cmd-ups records=1 states=cancelled/not_started_proven
+NOTE  plan markers  -> SessionStart:settled/"settled" result=true UserPromptSubmit:settled/"settled" result=true Stop:settled/"settled" result=true MessageDisplay:settled/"settled" result=true UserPromptSubmit:settled/"settled" result=true Stop:settled/"settled" result=true MessageDisplay:settled/"settled" result=true UserPromptSubmit:settled/"settled" result=true Stop:settled/
+PASS  after also cancelling the plan marker the Session accepts work  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 436ms
+NOTE  turn status  -> {"sessionId":"975665e2-12be-4b8d-8cc0-c6e52d136e25","hasActivePrompt":false,"recoveryBlocked":false}
+PASS  after /cancel + detach + load the Session accepts work  -> cancel=204  detach=204 load=200  admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 447ms
+PASS  marker still absent at the end
+== RESULT s9mac-refusal-ws-hvs-head6: 6 passed, 0 failed
+=== ARM=head6 WS=ws-hvo HOOK=hvo-ups node s9mac-refusal.mjs 11:22:02
+NOTE  rig repair  -> null
+PASS  command Hook refused before any effect (marker file not created)  -> turn: admit=202 terminal=<none> recoveryBlocked=true 549ms record=recovery_blocked/"not_started_proven"
+NOTE  Session after the refusal  -> status.recoveryBlocked=true next prompt -> 409 hosted_turn_recovery_required
+NOTE  cancel of the blocked execution  -> 200 cancelled -> record cancelled/"not_started_proven"
+PASS  after cancelling the blocked occurrence the Session accepts work again  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 426ms
+PASS  after cancel + detach + load the Session accepts work again  -> detach=204  load=200  admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 431ms
+NOTE  next prompt after recovery  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 438ms cmd-ups records=1 states=cancelled/not_started_proven
+NOTE  plan markers  -> SessionStart:settled/"settled" result=true UserPromptSubmit:settled/"settled" result=true UserPromptSubmit:settled/"settled" result=true Stop:settled/"settled" result=true MessageDisplay:settled/"settled" result=true UserPromptSubmit:settled/"settled" result=true Stop:settled/"settled" result=true MessageDisplay:settled/"settled" result=true UserPromptSub
+PASS  after also cancelling the plan marker the Session accepts work  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 450ms
+NOTE  turn status  -> {"sessionId":"78936178-9278-4102-a893-f310b817a646","hasActivePrompt":false,"recoveryBlocked":false}
+PASS  after /cancel + detach + load the Session accepts work  -> cancel=204  detach=204 load=200  admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 446ms
+PASS  marker still absent at the end
+== RESULT s9mac-refusal-ws-hvo-head6: 6 passed, 0 failed
+=== ARM=head6 WS=ws-hvp HOOK=hv-pre TOOL=1 node s9mac-refusal.mjs 11:22:09
+NOTE  rig repair  -> null
+PASS  command Hook refused before any effect (marker file not created)  -> turn: admit=202 terminal=<none> recoveryBlocked=true 661ms record=recovery_blocked/"not_started_proven"
+NOTE  Session after the refusal  -> status.recoveryBlocked=true next prompt -> 409 hosted_turn_recovery_required
+NOTE  cancel of the blocked execution  -> 200 cancelled -> record cancelled/"not_started_proven"
+FAIL  after cancelling the blocked occurrence the Session accepts work again  -> admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 3ms
+FAIL  after cancel + detach + load the Session accepts work again  -> detach=204  load=200  admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms
+NOTE  next prompt after recovery  -> admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 3ms cmd-ups records=1 states=cancelled/not_started_proven
+NOTE  plan markers  -> SessionStart:settled/"settled" result=true UserPromptSubmit:settled/"settled" result=true PreToolUse:settled/"settled" result=true
+FAIL  after also cancelling the plan marker the Session accepts work  -> admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 3ms
+NOTE  turn status  -> {"sessionId":"119098a0-5ca5-4266-8a49-f1696bd577d1","hasActivePrompt":false,"recoveryBlocked":true}
+FAIL  after /cancel + detach + load the Session accepts work  -> cancel=204  detach=204 load=200 true admit=409 hosted_turn_recovery_required terminal=<none> recoveryBlocked=undefined 4ms
+PASS  marker still absent at the end
+== RESULT s9mac-refusal-ws-hvp-head6: 2 passed, 4 failed
+=== ARM=head6 node s12-lifecycle.mjs 11:22:13
+NOTE  SessionEnd succeeds  -> DELETE=204  retry=404 hosted_session_not_found status-after=404 SessionEnd=settled/"settled" SessionDelete runs=1 deleted_session_id=matches lease=<free> otherSession=terminal=turn_complete(end_turn)
+NOTE  SessionEnd throws  -> DELETE=204  retry=404 hosted_session_not_found status-after=404 SessionEnd=settled/"settled" SessionDelete runs=1 deleted_session_id=matches lease=<free> otherSession=terminal=turn_complete(end_turn)
+NOTE  SessionEnd refused before effect (missing handler revision)  -> DELETE=503 managed_session_close_failed retry=204  status-after=404 SessionEnd=cancelled/"not_started_proven" SessionDelete runs=1 deleted_session_id=matches lease=<free> otherSession=terminal=turn_complete(end_turn)
+NOTE  SessionEnd HTTP reply dropped (unknown)  -> DELETE=503 managed_session_close_failed retry=503 managed_session_close_failed status-after=200 SessionEnd=recovery_blocked/"outcome_unknown" SessionDelete runs=0 deleted_session_id=undefined lease=hooks-activation-24525244adb9665beff6acf791be623153768170e4bb16dccbee347447ffaf98 otherSession=terminal=turn_error[{"sessionId":"980
+== RESULT s12-lifecycle-head6: 0 passed, 0 failed
+=== ARM=head6 node s2b-lease.mjs ws-t9d t yes SIGTERM 11:22:28
+NOTE  lease before  -> <no row>
+PASS  A (hooks=yes) turn 1 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1420ms
+NOTE  lease holder while A is attached and idle  -> hooks-activation-447dab48dc01304d5e28ba5ad0f0d13c0fac5a0e11c3ca9db5c30d848b3ecfda
+FAIL  B (no hooks, same Workspace) completes a tool turn while A is attached+idle  -> admit=202 terminal=turn_error[{"sessionId":"47bfdf0f-5d62-455e-ae4a-b2fc37f4c8a5","promptId":"efa6817a-0604-460d-81d1-4dabe65b63a3","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 525ms
+NOTE  lease after B  -> hooks-activation-447dab48dc01304d5e28ba5ad0f0d13c0fac5a0e11c3ca9db5c30d848b3ecfda
+PASS  A turn 2 completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1433ms
+NOTE  Harness stopped with SIGTERM  -> lease=hooks-activation-447dab48dc01304d5e28ba5ad0f0d13c0fac5a0e11c3ca9db5c30d848b3ecfda
+NOTE  load retried until writer lease lapsed  -> 57s
+PASS  new Harness loads A  -> status=200  lease=hooks-activation-447dab48dc01304d5e28ba5ad0f0d13c0fac5a0e11c3ca9db5c30d848b3ecfda
+PASS  A turn after cold load completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1578ms lease=hooks-activation-1613f15174afb68101b5839ad9f4bc3aed4ac3e78c145e62b550667aba05bb84
+NOTE  A detached on the new Harness  -> status=204  lease=<free>
+PASS  a fresh no-hook Session in the Workspace completes a tool turn after A was detached  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 852ms lease=<free>
+NOTE  final lease  -> <free>
+== RESULT s2b-lease-head6-ws-t9d-yes-SIGTERM: 5 passed, 1 failed
+=== ARM=head6 node s2e-reattach.mjs ws-t6b h 11:23:34
+PASS  round 1: hook turn completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1300ms hooks=2 lease=hooks-activation-d9304f3c806b32dd72d3c32187ecdbbbd57b17aa14589ee9cf70b96692d4a089
+PASS  round 1: detach + load  -> detach=204 load=200  lease=<free>
+PASS  round 2: hook turn completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1296ms hooks=2 lease=hooks-activation-26eb1bc06378e032ece03e8478bb882b47b14af0e31a1bd243b2a02af156125f
+PASS  round 2: detach + load  -> detach=204 load=200  lease=<free>
+PASS  round 3: hook turn completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1413ms hooks=2 lease=hooks-activation-7685dba2a0aa69be22868b81080f5fda93694782e2d63f2194c12f99107efd2b
+PASS  DELETE frees the lease  -> delete=204 "" lease=<free>
+== RESULT s2e-reattach-head6-ws-t6b: 6 passed, 0 failed
+=== ARM=head6 node s5b-lost.mjs ws-t4b ws-t9c 11:23:43
+PASS  (c) partial response body: received once, stays unknown, blocks new work  -> op=503 child=recovery_blocked/"outcome_unknown" status=recovery_blocked physical=1
+NOTE  (d) operation with the dispatch acknowledgement dropped  -> 200 {"operationId":"25cb9c11-86a4-4e37-81a1-78500fce3991","output":{"continue":true}} dropped=1
+PASS  (d) cold reload reconciles: settled, ONE physical call, ONE success callback  -> load=200 state=settled calls=1 callbacks=1 lease=hooks-activation-eddcc385e7b1751973fbdccece310562e009f0c08236ed43fc1aba969303d92d
+PASS  (d) the reconciled Session then runs a normal tool turn  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 985ms lease=hooks-activation-7b8c43aff267d613f33ea37b120f0630bba50bff1ac1d0c3d162ec62b891ab16
+== RESULT s5b-lost-head6-ws-t9c: 3 passed, 0 failed
+=== ARM=head6 node s1-permission.mjs 11:24:48
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  create default-approval Session with catalog  -> status=200 approvalMode=default
+PASS  1a turn completes, no human Action (PermissionRequest Hook allowed)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 450ms asked=[] file=P1
+PASS  1a PermissionRequest Hook ran before PreToolUse  -> start > ups > perm(plain.txt) > pre(plain.txt) > post(plain.txt) > batch > stop > display
+PASS  1a before-Hook context reaches the model only after the tool result  -> requests=[tools=0 ] [tools=1 PRE-CTX:plain.txt,POST-CTX:plain.txt,BATCH-CTX]
+FAIL  1b PreToolUse deny: file not written, refusal reaches model, no PostToolUse for the refused call  -> ups > perm(blocked.txt) > pre(blocked.txt) > batch > stop > display | result write_file: "No reason provided"
+PASS  1c rewritten args need a fresh approval; only the approved replacement is written  -> asked=["allow->200"] rewrite-a=null rewritten-a=REWRITTEN-BY-HOOK order=ups > perm(rewrite-a.txt) > pre(rewrite-a.txt) > post(rewritten-a.txt) > batch > stop > display
+PASS  1c' denying the fresh approval writes neither path  -> asked=["deny->200"] result write_file: "The Session owner denied this tool call, so it was not run."
+PASS  1d PermissionRequest Hook deny: not written, PreToolUse not run  -> ups > perm(permdeny.txt) > batch > stop > display | result write_file: "PermissionRequest Hook denied the call."
+NOTE  detach default Session before the yolo Session  -> 204
+PASS  1e yolo + PreToolUse ask -> Action requested; allow -> written; no PermissionRequest Hook in yolo  -> asked=["allow->200"] order=start > ups > pre(ask-y.txt) > post(ask-y.txt) > batch > stop > display
+PASS  1e' yolo + ask, deny -> not written  -> asked=["deny->200"]
+PASS  load again on the same Harness  -> {"load":200}
+PASS  after reload: PRE-CTX/POST-CTX of 1a appear exactly once in history  -> pre=1 post=1 batch=5
+NOTE  cold load waited for the old writer lease  -> 67s
+PASS  cold load on a new Harness (catalog pin omitted -> restored)  -> status=200 {"sessionId":"9209f367-e2c4-4eaa-a1e1-c79642d47fe9","clientId":"4e36be3c-f9ae-4153-b5d2-19d5cff0e35a","workspaceCwd":"/Users/wenshao/pr13129-rig/run/r4/harness-
+NOTE  first prompt after cold load  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 18ms
+PASS  after cold load: contexts still exactly once; SessionStart not re-run  -> pre=1 post=1 hooks-after=ups > stop > display admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 18ms catalog=undefined@undefined
+PASS  load with a different catalog pin is refused  -> status=409 hosted_tool_profile_conflict
+== RESULT s1-permission-head6: 14 passed, 1 failed
+=== ARM=head6 node s3-catalog.mjs 11:26:25
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  P1 on rev1: h-a (rev1) runs, once Hook attempted and fails, turn still completes (fail-open)  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1090ms hooks=once,rev1
+PASS  register rev2 with expectedRevision=1  -> 200 {"operationId":"9692f1f4-f5bc-476a-800c-310829300e37","registered":true}
+PASS  retrying the same registration operation is idempotent  -> 200 {"operationId":"9692f1f4-f5bc-476a-800c-310829300e37","registered":true}
+PASS  registering the older revision under a new operation is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  expectedRevision mismatch is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  a catalog revision the Runtime does not have is refused  -> 409 {"error":"hook_registration_failed","code":"hook_registration_failed"}
+PASS  GET hooks reports rev2 without h-a  -> rev=2 hooks=h-b,h-once
+PASS  public hook-catalog reports rev2  -> 200 {"object":"agent.hook_catalog","session_id":"1e6c396b-b761-4b13-abe0-2a055e61b01c","catalogs":[{"catalog_id":"cat-t2","catalog_revision":2,"hooks":[{"hook_id":"h-b","event_name":"PreToolUse","type":"function","sequential":false,"async":false,"fail_closed":false,"once":false,"matcher":"write_file"},{
+PASS  P2 on rev2: h-b runs, h-a does not, failed once Hook is not retried  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 860ms hooks=rev2
+PASS  earlier executions stay bound to rev1, later ones to rev2  -> registrations=1@seq2,2@seq53
+PASS  status/cancel/status of the failed once execution dispatch no new effect  -> status=200 settled/"settled" cancel=200 settled after=settled newLedger=0
+PASS  after detach + new Harness: rev2 still effective, once still consumed  -> load=200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1135ms hooks=rev2
+PASS  fresh Session: successful once Hook runs exactly once over three turns  -> once=1
+== RESULT s3-catalog-head6: 13 passed, 0 failed
+=== ARM=head6 node s4-prompt.mjs 11:26:36
+NOTE  rig repair of an earlier F1 leak  -> null
+PASS  Notification operation outside a turn: 200 with aggregated prompt + function context  -> 200 {"operationId":"e6562f05-0b90-45ba-928f-2fb1a1564e2b","output":{"continue":true,"decision":"allow","hookSpecificOutput":{"hookEventName":"Notification","additionalContext":"PROMPT-NOTIFY-CTX\nNOTIFY-CTX"}}}
+PASS  exactly one model request, flagged as the prompt Hook  -> requests=1 promptHook=true
+PASS  no user turn / prompt events were created by the operation  -> new events=managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journal_event,managed_journa
+NOTE  status after operation  -> {"sessionId":"8c0efb67-2d40-498c-95db-623039d4a5de","hasActivePrompt":false,"recoveryBlocked":false}
+PASS  same operationId + same input replays the saved result, no new model request  -> 200 newModel=0
+PASS  same operationId + different input is refused  -> 503 {"error":"hosted_hook_operation_failed","code":"hosted_hook_operation_failed"}
+PASS  a user prompt is refused while a prompt Hook operation owns the model  -> prompt during op -> 409 hosted_mcp_operation_active; op -> 200
+PASS  a Hook operation is refused while a user turn is active  -> turn=202 op during turn -> 409 hosted_turn_active
+PASS  in-turn prompt Hook (UserPromptSubmit) adds its context to the main model request  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 323ms hookReqs=1
+NOTE  Store resource kinds for the Session  -> managed-activation-boundary=8 managed-activation-install=9 managed-admission=2 managed-checkpoint=3 managed-definition=1 managed-hook-catalog=1 managed-hook-input=15 managed-hook-messages=2 managed-hook-model-route=4 managed-hook-model-usage=4 managed-hook-plan=9 managed-hook-result=15 managed-hook_execution=45 managed-hook_registr
+PASS  detach emits neither SessionEnd nor SessionDelete  -> detach=204 lifecycle=<none>
+PASS  DELETE runs SessionEnd then SessionDelete, once each  -> delete=204 lifecycle:SessionEnd,lifecycle:SessionDelete
+== RESULT s4-prompt-head6: 10 passed, 0 failed
+=== ARM=head6 node s6-limits.mjs 11:26:44
+NOTE  ws-t5 rig repair  -> null
+PASS  ws-t5: 17 children recorded, 16 executed physically, the refused one has a bounded receipt  -> children=17 physical=16
+PASS  fail-open: the operation succeeds and the Session accepts the next prompt  -> op=200 next=202
+NOTE  ws-t5b rig repair  -> null
+PASS  ws-t5b: 17 children recorded, 16 executed physically, the refused one has a bounded receipt  -> children=17 physical=16
+PASS  fail-closed: the refused Hook makes the aggregate blocking; Session still usable  -> op=200 output={"continue":false,"decision":"block","reason":"Hook evaluation failed."} next=202 blocked=false
+NOTE  ws-t9d rig repair  -> null
+NOTE  individual 70 KB receipt: result  -> op=200 bytes=68 {"operationId":"95566cfb-ccae-4e66-a352-1d26fbe25ea5","output":null} children=settled plan=settled physical=1
+PASS  individual 70 KB receipt: bounded result (no 60 KB+ payload returned) and the Session continues  -> resultBytes=68 next=turn_complete
+PASS  individual 70 KB receipt: replaying the operation returns the saved result without re-running Hooks  -> replay=200 physical=1
+NOTE  ws-t6b rig repair  -> null
+NOTE  aggregate 8 x 10 KB: result  -> op=200 bytes=186 {"operationId":"58ffd280-b277-4e24-a9d2-c134a63523de","output":{"continue":false,"decision":"block","reason":"Hook data exceeds the 60 KiB resource or 8 MiB control/transaction limit."}} children=settled,settled,settled,settled,settled,settled,settled,settled plan=settled physical=8
+PASS  aggregate 8 x 10 KB: bounded result (no 60 KB+ payload returned) and the Session continues  -> resultBytes=186 next=turn_complete
+PASS  aggregate 8 x 10 KB: replaying the operation returns the saved result without re-running Hooks  -> replay=200 physical=8
+== RESULT s6-limits: 8 passed, 0 failed
+=== ARM=head6 node s8-secrets.mjs 11:26:58
+NOTE  rig repair  -> null
+PASS  HTTP hook received the deployment header (credential lives only at the Runtime)  -> op=200 http=1 auth=Bearer RIG-SECRET-HEADER-7f3a
+PASS  public catalog lists the 4 Hooks with display metadata only  -> 200 {"object":"agent.hook_catalog","session_id":"b9e115f9-6954-485b-9da0-6b8a552ec9ba","catalogs":[{"catalog_id":"cat-t7","catalog_revision":1,"hooks":[{"hook_id":"sec-http","event_name":"Notification","type":"http","sequential":false,"async":false,"fail_closed":false,"once":false},{"hook_id":"sec-fn","event_
+PASS  public catalog contains none of the secrets / recipes / module paths  -> clean
+NOTE  private GET /session/:id/hooks contains  -> none of the secrets
+PASS  another actor cannot read the catalog  -> 404 {"error":{"code":"session_not_found","message":"The Session was not found.","request_id":"a56a8bef-0cb3-4658-9d70-62c77f
+PASS  unauthenticated request is refused  -> 404
+PASS  a Session without Hooks reports an empty catalog list  -> 200 {"object":"agent.hook_catalog","session_id":"d061b635-f7e9-47f5-ab03-7ff1a56e91fe","catalogs":[]}
+FAIL  no secret / recipe / module path appears anywhere in the MySQL database  -> RIG-PROMPT-TEXT-SENSITIVE
+NOTE  prompt Hook text stored in the Store (design: Harness receives prompt definitions)  -> true
+== RESULT s8-secrets: 6 passed, 1 failed
+=== ARM=head6 node s10-baseline.mjs 11:27:00
+PASS  ordinary Hosted tool turn completes  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 646ms
+PASS  ambient Legacy Hooks from host settings did not run  -> marker=false
+NOTE  GET /session/:id/hooks  -> 409 {"error":"hosted_hooks_unavailable","code":"hosted_hooks_unavailable"}
+NOTE  public hook-catalog  -> 200 {"object":"agent.hook_catalog","session_id":"a4a3c1c7-2d42-41d2-8264-341417c8c3a6","catalogs":[]}
+NOTE  model requests  -> 2
+== RESULT s10-baseline-head6: 2 passed, 0 failed
+=== ALL-DONE 11:27:02
