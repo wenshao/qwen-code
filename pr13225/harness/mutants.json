@@ -1,0 +1,220 @@
+[
+ {
+  "id": "BASELINE",
+  "what": "no change"
+ },
+ {
+  "id": "M01",
+  "what": "grace-held rows re-polled at now+60s instead of retired_at+grace",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "next = Math.addExact(retiredAt, grace.toMillis());",
+  "to": "next = now + CLAIM_MILLIS;"
+ },
+ {
+  "id": "M02",
+  "what": "claim examines 1 due candidate per tick (LIMIT 32 -> 1)",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "ORDER BY gc_next_at, scope_key, publication_id LIMIT 32",
+  "to": "ORDER BY gc_next_at, scope_key, publication_id LIMIT 1"
+ },
+ {
+  "id": "M03",
+  "what": "renew accepts an already expired claim",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "\" AND gc_generation = ? AND gc_claim_until > ?\"",
+  "to": "\" AND gc_generation = ? AND ? IS NOT NULL\""
+ },
+ {
+  "id": "M04",
+  "what": "confirm ignores claim generation",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "|| ToolPublicationRetentionStore.number(row, \"gc_generation\") != claim.generation()",
+  "to": "|| false"
+ },
+ {
+  "id": "M05",
+  "what": "confirm ignores claim expiry",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "|| ToolPublicationRetentionStore.number(row, \"gc_claim_until\") <= ToolPublicationRetentionStore.now(jdbc)",
+  "to": "|| false"
+ },
+ {
+  "id": "M06",
+  "what": "confirm ignores cursor",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "|| !claim.cursor().equals(row.get(\"gc_cursor\"))) {",
+  "to": "|| false) {"
+ },
+ {
+  "id": "M07",
+  "what": "no per-page versioning probe",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "page.stream().anyMatch(object -> object.key() != null)",
+  "to": "false"
+ },
+ {
+  "id": "M08",
+  "what": "adapter deleteIfPresent skips its versioning probe",
+  "file": "store/AliyunToolPublicationObjectStore.java",
+  "from": "deleteIfPresent(String key) {\n        requireUnversioned();",
+  "to": "deleteIfPresent(String key) {"
+ },
+ {
+  "id": "M09",
+  "what": "inline cleanup covers every publication in the Session scope",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "\" WHERE scope_key = ? AND publication_id = ?)\",",
+  "to": "\" WHERE scope_key = ? OR publication_id = ?)\","
+ },
+ {
+  "id": "M10",
+  "what": "held quota not released on COLLECTED",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "+ \" capture_held_bytes = 0, producer_held_bytes = 0, admission_held_bytes = 0,\"",
+  "to": "+ \" capture_held_bytes = capture_held_bytes, producer_held_bytes = producer_held_bytes, admission_held_bytes = admission_held_bytes,\""
+ },
+ {
+  "id": "M11",
+  "what": "blocked candidates are not rescheduled",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "\"UPDATE qwen_tool_publication SET gc_blocker = ?, gc_next_at = ?\"",
+  "to": "\"UPDATE qwen_tool_publication SET gc_blocker = ?, gc_next_at = gc_next_at + 0 * ?\""
+ },
+ {
+  "id": "M12",
+  "what": "another owner's live DELETING claim can be taken",
+  "edits": [
+   {
+    "file": "store/ToolPublicationCollector.java",
+    "from": "(gc_owner = ? OR gc_claim_until <= ?))\"",
+    "to": "(gc_owner = ? OR gc_claim_until <= ? OR TRUE))\""
+   },
+   {
+    "file": "store/ToolPublicationCollector.java",
+    "from": "&& ToolPublicationRetentionStore.number(row, \"gc_claim_until\") > now) {",
+    "to": "&& false) {"
+   }
+  ]
+ },
+ {
+  "id": "M13",
+  "what": "transient classification also applies to PUT/DELETE",
+  "file": "store/AliyunToolPublicationObjectStore.java",
+  "from": "&& request.getMethod() == HttpMethod.GET",
+  "to": "&& request.getMethod() != null"
+ },
+ {
+  "id": "M14",
+  "what": "strategy lets the SDK replay GET natively (unguarded)",
+  "file": "store/AliyunToolPublicationObjectStore.java",
+  "from": "throw new TransientReadException(service);",
+  "to": "return true;"
+ },
+ {
+  "id": "M15",
+  "what": "adapter never retries a classified transient GET",
+  "file": "store/AliyunToolPublicationObjectStore.java",
+  "from": "if (retries >= ClientConfiguration.DEFAULT_MAX_RETRIES) {\n                    throw error.original;",
+  "to": "if (true) {\n                    throw error.original;"
+ },
+ {
+  "id": "M16",
+  "what": "F2 store verification loop back to raw read()",
+  "file": "store/ToolPublicationDataStore.java",
+  "from": "int count = input.readNBytes(buffer, 0, buffer.length);\n                if (count == 0) {",
+  "to": "int count = input.read(buffer, 0, 65536);\n                if (count == -1) {"
+ },
+ {
+  "id": "M17",
+  "what": "F2 guarded wrapper back to raw read()",
+  "file": "store/ToolPublicationRetentionStore.java",
+  "from": "int result = in.readNBytes(bytes, offset, Math.min(length, 1024 * 1024));",
+  "to": "int result = in.read(bytes, offset, length);"
+ },
+ {
+  "id": "M18",
+  "what": "502 not classified transient",
+  "file": "store/AliyunToolPublicationObjectStore.java",
+  "from": "|| response.getStatusCode() == 502",
+  "to": "|| response.getStatusCode() == 9502"
+ },
+ {
+  "id": "M19",
+  "what": "InvalidResponse classified transient",
+  "file": "store/AliyunToolPublicationObjectStore.java",
+  "from": "&& !\"InvalidResponse\".equals(service.getErrorCode())",
+  "to": ""
+ },
+ {
+  "id": "M21",
+  "what": "defer ignores generation fence",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "\" AND retention_state = 'DELETING' AND gc_owner = ? AND gc_generation = ?\",",
+  "to": "\" AND retention_state = 'DELETING' AND gc_owner = ? AND gc_generation = gc_generation + 0 * ?\","
+ },
+ {
+  "id": "M22",
+  "what": "keeps deleting after losing the claim",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "if (!renew(claim)) {",
+  "to": "if (!renew(claim) && false) {"
+ },
+ {
+  "id": "M23",
+  "what": "gc-enabled flag ignored (GC always on)",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "if (!properties.getToolPublication().isGcEnabled()) {",
+  "to": "if (false) {"
+ },
+ {
+  "id": "M24",
+  "what": "quarantined publications are collected",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "if (observed.blocker() != null) {",
+  "to": "if (observed.blocker() != null && !\"quarantined\".equals(observed.blocker())) {"
+ },
+ {
+  "id": "M25",
+  "what": "recovery-protected publications are collected",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "if (observed.blocker() != null) {",
+  "to": "if (observed.blocker() != null && !\"recovery_protected\".equals(observed.blocker())) {"
+ },
+ {
+  "id": "M26",
+  "what": "unresolved PUT publications are collected",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "if (observed.blocker() != null) {",
+  "to": "if (observed.blocker() != null && !\"put_unresolved\".equals(observed.blocker())) {"
+ },
+ {
+  "id": "M27",
+  "what": "reader_active publications are collected",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "if (observed.blocker() != null) {",
+  "to": "if (observed.blocker() != null && !\"reader_active\".equals(observed.blocker())) {"
+ },
+ {
+  "id": "M28",
+  "what": "grace_period publications are collected",
+  "file": "store/ToolPublicationCollector.java",
+  "from": "if (observed.blocker() != null) {",
+  "to": "if (observed.blocker() != null && !\"grace_period\".equals(observed.blocker())) {"
+ },
+ {
+  "id": "M29",
+  "what": "no versioning probe before physical delete at all (M07+M08)",
+  "edits": [
+   {
+    "file": "store/ToolPublicationCollector.java",
+    "from": "page.stream().anyMatch(object -> object.key() != null)",
+    "to": "false"
+   },
+   {
+    "file": "store/AliyunToolPublicationObjectStore.java",
+    "from": "deleteIfPresent(String key) {\n        requireUnversioned();",
+    "to": "deleteIfPresent(String key) {"
+   }
+  ]
+ }
+]
