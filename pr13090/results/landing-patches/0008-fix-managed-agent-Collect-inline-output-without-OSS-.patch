@@ -1,0 +1,57 @@
+From 21a5e02f36c18a5b0c882fb06d5cbc1481bec30e Mon Sep 17 00:00:00 2001
+From: yiliang114 <1204183885@qq.com>
+Date: Fri, 2 Oct 2026 11:39:05 +0800
+Subject: [PATCH 08/10] fix(managed-agent): Collect inline output without OSS
+ probes
+
+---
+ .../store/ToolPublicationCollector.java         |  4 +++-
+ .../store/ToolPublicationCollectorTest.java     | 17 +++++++++++++++++
+ 2 files changed, 20 insertions(+), 1 deletion(-)
+
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
+index 97b5139878..bbd4dfcff1 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
+@@ -54,7 +54,9 @@ public final class ToolPublicationCollector {
+                             + " WHERE scope_key = ? AND publication_id = ? AND slot_key > ? ORDER BY slot_key LIMIT 100",
+                     (row, index) -> new ObjectKey(row.getString("slot_key"), row.getString("object_key")),
+                     claim.scope(), claim.publication(), claim.cursor());
+-            objects.requireUnversioned();
++            if (page.stream().anyMatch(object -> object.key() != null)) {
++                objects.requireUnversioned();
++            }
+             for (var object : page) {
+                 if (!renew(claim)) {
+                     return false;
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
+index ef7625d800..354214a282 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
+@@ -103,6 +103,23 @@ public class ToolPublicationCollectorTest extends ToolPublicationRetentionStoreT
+                 Long.class, heldSession, deadline)).isEqualTo(150);
+     }
+ 
++    @Test
++    void inlinePublicationReleasesQuotaWhenTheObjectStoreIsUnavailable() {
++        addObject("inline", null, new byte[] {4});
++        retire();
++        var objects = new DeletingObjects() {
++            @Override public void requireUnversioned() {
++                throw new IllegalStateException("OSS versioning unavailable");
++            }
++        };
++        assertThat(collector(objects).runOnce()).isTrue();
++        assertThat(state()).isEqualTo("COLLECTED");
++        assertThat(held()).isZero();
++        assertThat(objects.deleted).isEmpty();
++        assertThat(jdbc.queryForObject("SELECT inline_bytes FROM qwen_tool_publication_object WHERE scope_key = ?",
++                byte[].class, scope)).isNull();
++    }
++
+     @Test
+     void collectionPreservesOtherPublicationsMessagesAndCheckpoints() {
+         addObject("target-result", null, new byte[] {2});
+-- 
+2.55.0
+

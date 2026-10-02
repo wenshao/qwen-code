@@ -1,0 +1,828 @@
+From 02bc34938254d558f84fe29f856dd05cbe9131b0 Mon Sep 17 00:00:00 2001
+From: "jinye.djy" <jinye.djy@alibaba-inc.com>
+Date: Wed, 30 Sep 2026 15:06:01 +0800
+Subject: [PATCH 04/10] test(managed-agent): Add tool output collection
+ deployment gates
+
+Co-authored-by: Qwen-Coder <qwen-coder@alibabacloud.com>
+---
+ ...anaged-tool-output-retention-operations.md |  81 ++++++
+ ...-tool-output-retention-operations.zh-CN.md |  81 ++++++
+ .../sdk-java/managed-agent-server/pom.xml     |  32 +++
+ .../managedagent/store/O4FaultProcess.java    |  69 +++++
+ .../managedagent/store/O4FileObjects.java     |  37 +++
+ .../managedagent/store/O4MySqlDatabase.java   |  36 +++
+ .../code/managedagent/store/O4MySqlIT.java    | 242 ++++++++++++++++++
+ .../qwen/code/managedagent/store/O4OssIT.java | 170 ++++++++++++
+ 8 files changed, 748 insertions(+)
+ create mode 100644 docs/design/managed-tool-output-retention-operations.md
+ create mode 100644 docs/design/managed-tool-output-retention-operations.zh-CN.md
+ create mode 100644 packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4FaultProcess.java
+ create mode 100644 packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4FileObjects.java
+ create mode 100644 packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4MySqlDatabase.java
+ create mode 100644 packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4MySqlIT.java
+ create mode 100644 packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4OssIT.java
+
+diff --git a/docs/design/managed-tool-output-retention-operations.md b/docs/design/managed-tool-output-retention-operations.md
+new file mode 100644
+index 0000000000..56a16665d7
+--- /dev/null
++++ b/docs/design/managed-tool-output-retention-operations.md
+@@ -0,0 +1,81 @@
++# O4 tool output retention: deployment gates and operations
++
++[简体中文](./managed-tool-output-retention-operations.zh-CN.md) · [Lifecycle design](./managed-tool-output-retention.md)
++
++## Deployment decision
++
++Physical collection remains disabled. The O4 implementation is stacked on unmerged O2/O3; it must be reconciled with their final interfaces and the latest main migration numbers before landing. The migrations in this branch are forward additions, not permission to reuse a version already deployed on main. Upgrade **every Java publication writer** before enabling collection: an older instance can perform a PUT without the attempt ledger, invalidating the write-closure evidence.
++
++The default is `QWEN_MANAGED_AGENT_TOOL_PUBLICATION_GC_ENABLED=false`; the deletion grace is `QWEN_MANAGED_AGENT_TOOL_PUBLICATION_DELETION_GRACE=24h`. Observation runs while physical collection is disabled. Close, archive, ACK, event expiry and Runtime reclamation do not retire the Session retention root. Successful Session deletion establishes the irreversible retirement time; changing the grace does not reset that time. Keep the 24-hour deployment policy. A zero grace is used only in fresh isolated tests.
++
++On the current O3 baseline, admission of lifecycle operations for Workspace-bound Sessions returns `workspace_unavailable`. The atomic public-deletion test therefore uses a legacy public Session fixture linked to a private output owner. O4 supplies the protected completion barrier; it does not enable the unfinished Workspace lifecycle path. The full Hosted gate must first establish that its actual deletion route reaches this same completion barrier.
++
++Enable physical collection only after the real database, real OSS and full Hosted foreground Shell gates below pass on the intended deployment revision. An unavailable or skipped gate is not a pass. This document does not authorize production enablement.
++
++## Reproducible gate entry points
++
++Use Java 21 and build/install the checkout's Java SDK and Runtime Broker dependencies first, as described in their READMEs. The O4 profiles require real MySQL and never silently substitute H2. Provide an existing dedicated database URL with a `qwen_o4_` name, for example `jdbc:mysql://127.0.0.1:3306/qwen_o4_gate`. The test user needs CREATE/DROP DATABASE privileges. Each case creates a fresh random `qwen_o4_` database, migrates it, and drops only that generated database; it never cleans the supplied database. After an interrupted runner, inspect the generated database names before removing orphan test schemas.
++
++Set `QWEN_O4_MYSQL_PASSWORD` through the test environment rather than command arguments. Do not put credentials in the JDBC URL or logs. These commands deliberately select focused unit tests before the opt-in integration phase:
++
++```sh
++mvn -f packages/sdk-java/managed-agent-server/pom.xml \
++  -P o4-mysql-gates -Dtest=ToolPublicationCollectorTest \
++  -Dqwen.o4.mysql.url=jdbc:mysql://127.0.0.1:3306/qwen_o4_gate \
++  -Dqwen.o4.mysql.user=o4_test verify
++```
++
++The MySQL gate executes the retention and collection regression cases on real SQL, proves a writer waits for the retirement lock, kills child JVMs after a physical PUT/DELETE and before SQL acknowledgment, pauses a reader with SIGSTOP past its real two-minute lease, and replays a delayed unknown PUT after a successful retry. Storage for the process faults is a controlled filesystem adapter. SIGSTOP/SIGCONT needs macOS or Linux; Windows does not establish this gate. The child writes only readiness/result markers, not raw output or credentials. The runner kills owned children before dropping their database.
++
++The 100 MiB and 1 GiB cases use already-admitted catalog fixtures with 1 MiB objects and inline metadata, under a 256 MiB test JVM heap. They verify 100-key pagination, exact byte accounting, final inline cleanup, retained outside objects and one-time quota release. They establish collector capacity, not a full O2 Shell execution or a production RSS limit. Controlled claim expiry and SQL exceptions exercise recovery, but do not claim actual database network partition evidence.
++
++The OSS profile repeats the database/process cases and substitutes real OSS for the capacity cases, then checks real deletion, explicit nonexistent-object success, discarded delete responses and an identity denied DeleteObject. It requires a dedicated **private bucket that has never enabled versioning**, with `o4-test` in its name, and creates a fresh `o4-tests/<UUID>/` prefix per storage case. Cleanup deletes only deterministic keys owned by that case. It does not modify bucket IAM or sweep prefixes.
++
++```sh
++mvn -f packages/sdk-java/managed-agent-server/pom.xml \
++  -P o4-oss-gates -Dtest=ToolPublicationCollectorTest \
++  -Dqwen.o4.mysql.url=jdbc:mysql://127.0.0.1:3306/qwen_o4_gate \
++  -Dqwen.o4.mysql.user=o4_test \
++  -Dqwen.o4.oss.region=cn-hangzhou \
++  -Dqwen.o4.oss.test-bucket=my-o4-test-bucket verify
++```
++
++Supply the normal test identity via `OSS_ACCESS_KEY_ID`, `OSS_ACCESS_KEY_SECRET` and optional `OSS_SESSION_TOKEN`. Supply the negative-test identity via `OSS_DELETE_DENIED_ACCESS_KEY_ID`, `OSS_DELETE_DENIED_ACCESS_KEY_SECRET` and optional `OSS_DELETE_DENIED_SESSION_TOKEN`. The negative identity must permit GetBucketVersioning and GetBucketAcl but deny DeleteObject for the fresh test prefix; missing identities fail the gate. Both clients use regional HTTPS, V4 signing and zero implicit retries. A thrown response-loss fixture follows a real successful OSS deletion; this is not a claim that the network itself dropped that response.
++
++## Full Hosted deployment acceptance
++
++Use separate test tenants, workspaces, Sessions, an isolated bucket and unique object keys. Record server, Harness and Broker revisions, database engine/isolation level, OSS region, workload size and the source of each measurement. Run actual foreground Shell commands producing 100 MiB and 1 GiB across stdout/stderr. Check catalog byte lengths/digests, manifest/pages, the original outcome, its SQL/storage copies, recovery and public range downloads before deleting the Session.
++
++For close/archive, ACK, event expiration and Runtime recycling, prove recovery still reads the same output and the tool side-effect marker remains one. Race Session deletion against writer acquisition, receipt commit, projection/backfill and a throttled download. Each race must produce a valid retained reference or a rejection/wait, with no Artifact resurrection after deletion and existing public 404 behavior. Verify that an expired download returns no more bytes when its process resumes, even if another request has acquired a new lease.
++
++Use a controlled transport/process fault at each PUT boundary. Drop the response, allow a retry to return, then release the original delayed request; the original UNKNOWN/IN_FLIGHT attempt must remain blocking and quota must stay held. Do not infer write closure from elapsed time or a successful HEAD/GET. For deletion, drop a response, kill a worker between pages, disconnect confirmation SQL and race two server instances. Validate repeated exact keys, durable cursor/generation, unchanged side-effect count, and one quota release after every object acknowledgment. Partial, blocked, quarantined, recovery-protected and legacy missing-evidence publications must remain retained. Deployment enablement requires these actual Hosted/OSS observations in addition to the automated catalog fixtures.
++
++## Observation and failure handling
++
++The observer logs a bounded sample of at most 100 RETIRING publications per minute. Its candidate count, blocker histogram and eligible logical used bytes are **sample values**, not a total backlog or physical bucket size. Obtain full stage totals separately:
++
++```sql
++SELECT retention_state, COUNT(*) AS publications,
++       SUM(capture_used_bytes + producer_used_bytes + admission_used_bytes) AS logical_used_bytes,
++       SUM(capture_held_bytes + producer_held_bytes + admission_held_bytes) AS held_bytes
++FROM qwen_tool_publication GROUP BY retention_state;
++
++SELECT state, COUNT(*) AS attempts
++FROM qwen_output_put_attempt GROUP BY state;
++
++SELECT gc_blocker, COUNT(*) AS publications
++FROM qwen_tool_publication
++WHERE retention_state IN ('RETIRING', 'DELETING') GROUP BY gc_blocker;
++```
++
++`gc_blocker` is populated by enabled collection attempts; NULL during observation does not prove eligibility. Logical used bytes exclude storage amplification from duplicated inline/OSS copies. Validate physical totals from exact catalog keys and corresponding inline columns, never infer them from quota or sweep a bucket prefix.
++
++Expected blockers include grace period, reader activity, unresolved PUT, incomplete operation/object evidence, missing legacy write evidence, quarantine, incomplete admission and recovery protection. Escalate unresolved writes and sustained `collection_retry` separately from an ordinary grace wait. A failed delete or SQL confirmation preserves quota, persists a one-minute retry delay and allows healthy publications to advance. Each page contains at most 100 keys; claim ownership is renewed between objects, and stale generations cannot confirm. Multi-instance recovery repeats idempotent deletes after claim expiry.
++
++Do not clear UNKNOWN/IN_FLIGHT attempts, set `write_evidence`/`accepted_complete` on old rows, release quota, clear recovery protection, edit the retirement generation or delete tombstones to make a backlog disappear. Older evidence remains protected; expired-publication recovery belongs to #13019. A privileged object-store administrator can break these guarantees by recreating keys outside the managed writer path; such writes are outside the collection contract.
++
++To stop further pages, disable GC on all server instances. A currently executing page can finish its SQL confirmation; configuration disablement does not restore deleted bytes. Keep tombstones and zeroed quota, correct the failure, and resume the same generation/cursor protocol. Collection removes original output payloads, not all historical model messages or public previews.
++
++## Evidence ledger
++
++The initial implementation is verified on macOS with Java 21.0.8, Maven 3.9.14 and Homebrew MySQL 26.7.0 (InnoDB, REPEATABLE-READ). Record exact test totals and the tested revision in the PR's separate E2E report. The filesystem process and catalog capacity gates are separate from the real OSS and full Hosted gates. No real OSS environment was available for the initial run; production GC remains disabled. Windows, Linux, MariaDB, actual SQL network partitions and full Hosted/OSS Shell closures remain unverified until their own evidence is attached.
+diff --git a/docs/design/managed-tool-output-retention-operations.zh-CN.md b/docs/design/managed-tool-output-retention-operations.zh-CN.md
+new file mode 100644
+index 0000000000..551721e398
+--- /dev/null
++++ b/docs/design/managed-tool-output-retention-operations.zh-CN.md
+@@ -0,0 +1,81 @@
++# O4 工具输出保留：部署门禁与运维
++
++[English](./managed-tool-output-retention-operations.md) · [生命周期设计](./managed-tool-output-retention.zh-CN.md)
++
++## 部署决策
++
++物理回收保持关闭。O4 实现叠加在尚未合并的 O2/O3 上，落地前必须对齐其最终接口及最新 main 的迁移编号。本分支迁移是前向增量，不能复用 main 上已经部署的版本。启用清理前必须升级**全部 Java publication writer**：旧实例可以绕过 attempt 台账执行 PUT，破坏写入闭合证据。
++
++默认 `QWEN_MANAGED_AGENT_TOOL_PUBLICATION_GC_ENABLED=false`，删除宽限期为 `QWEN_MANAGED_AGENT_TOOL_PUBLICATION_DELETION_GRACE=24h`。物理回收关闭时仍执行观察。close、archive、ACK、事件过期及 Runtime 回收不会退役 Session 保留根。Session 成功删除建立不可逆的退役时间；修改宽限期不会重置时间。部署保持 24 小时策略，零宽限期仅用于全新隔离测试。
++
++当前 O3 基线对绑定 Workspace 的 Session 生命周期 operation admission 返回 `workspace_unavailable`。因此，公开删除原子性测试使用关联私有输出 owner 的 legacy 公开 Session fixture。O4 提供受保护的完成屏障，不启用尚未完成的 Workspace 生命周期路径。完整 Hosted 门禁首先必须确认实际删除路径进入同一完成屏障。
++
++只有下面的真实数据库、真实 OSS 及完整 Hosted 前台 Shell 门禁在目标部署 revision 上全部通过后，才能启用物理回收。不可用或跳过的门禁不算通过。本文不授权开启生产 GC。
++
++## 可复现门禁入口
++
++使用 Java 21，先按 Java SDK 和 Runtime Broker 的 README 构建并安装本 checkout 的依赖。O4 profile 要求真实 MySQL，不会静默替换为 H2。提供已有专用数据库 URL，库名以 `qwen_o4_` 开头，例如 `jdbc:mysql://127.0.0.1:3306/qwen_o4_gate`。测试身份需要 CREATE/DROP DATABASE 权限。每个用例创建全新随机 `qwen_o4_` 数据库、迁移并只删除该生成库；不会清理传入的数据库。runner 中断后，清理遗留测试库之前先核对生成库名。
++
++通过测试环境设置 `QWEN_O4_MYSQL_PASSWORD`，不要放入命令参数。JDBC URL 和日志中不得包含凭据。以下命令在显式启用的集成阶段前只选择针对性单元测试：
++
++```sh
++mvn -f packages/sdk-java/managed-agent-server/pom.xml \
++  -P o4-mysql-gates -Dtest=ToolPublicationCollectorTest \
++  -Dqwen.o4.mysql.url=jdbc:mysql://127.0.0.1:3306/qwen_o4_gate \
++  -Dqwen.o4.mysql.user=o4_test verify
++```
++
++MySQL 门禁在真实 SQL 上执行保留与回收回归，证明 writer 等待退役锁，在物理 PUT/DELETE 完成而 SQL 确认之前杀死子 JVM，以 SIGSTOP 将读取暂停至真实两分钟租约过期，并在重试成功后释放延迟的未知 PUT。进程故障使用受控文件系统适配器。SIGSTOP/SIGCONT 需要 macOS 或 Linux；Windows 不能建立这项证据。子进程只写就绪/结果标记，不写原始输出或凭据。runner 在删除数据库前杀死自己创建的子进程。
++
++100 MiB 和 1 GiB 用例使用已接纳的 catalog fixture，包含 1 MiB 对象和 inline 元数据，测试 JVM 堆上限为 256 MiB。验证 100 key 分页、精确字节账、最终 inline 清理、目录外对象保留及一次性配额回收。它们证明 collector 容量，不代表完整 O2 Shell 执行或生产 RSS 上限。受控 claim 过期及 SQL 异常验证恢复，不宣称真实数据库网络分区证据。
++
++OSS profile 重跑数据库/进程用例，将容量用例替换为真实 OSS，并检查实际删除、不存在对象成功、丢弃删除应答及 DeleteObject 被拒绝的身份。必须使用从未启用版本控制的**专用私有桶**，桶名含 `o4-test`；每个存储用例创建全新 `o4-tests/<UUID>/` 前缀。清理只删除该用例拥有的确定 key，不修改桶 IAM，也不扫描前缀。
++
++```sh
++mvn -f packages/sdk-java/managed-agent-server/pom.xml \
++  -P o4-oss-gates -Dtest=ToolPublicationCollectorTest \
++  -Dqwen.o4.mysql.url=jdbc:mysql://127.0.0.1:3306/qwen_o4_gate \
++  -Dqwen.o4.mysql.user=o4_test \
++  -Dqwen.o4.oss.region=cn-hangzhou \
++  -Dqwen.o4.oss.test-bucket=my-o4-test-bucket verify
++```
++
++通过 `OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET` 及可选 `OSS_SESSION_TOKEN` 提供正常测试身份。通过 `OSS_DELETE_DENIED_ACCESS_KEY_ID`、`OSS_DELETE_DENIED_ACCESS_KEY_SECRET` 及可选 `OSS_DELETE_DENIED_SESSION_TOKEN` 提供负面测试身份。负面身份必须允许 GetBucketVersioning 和 GetBucketAcl，但拒绝新测试前缀的 DeleteObject；缺少身份会使门禁失败。两个客户端均使用固定地域 HTTPS、V4 签名及零隐式重试。应答丢失 fixture 在真实 OSS 删除成功后抛异常，不宣称网络自身丢掉了应答。
++
++## 完整 Hosted 部署验收
++
++使用独立测试 tenant、workspace、Session、隔离桶及唯一对象 key。记录 server、Harness、Broker revision，数据库引擎/隔离级别、OSS region、负载大小及每项测量来源。实际执行前台 Shell 命令，分别在 stdout/stderr 产生合计 100 MiB 和 1 GiB。删除 Session 前检查 catalog 长度/digest、manifest/pages、原始 outcome 及其 SQL/存储副本、恢复及公开 range 下载。
++
++close/archive、ACK、事件过期及 Runtime 回收后，证明恢复仍读取相同输出，工具副作用标记保持一次。使 Session 删除与 writer acquisition、receipt commit、projection/backfill 及限速下载竞争。每次竞争必须保留有效引用或拒绝/等待，删除后不得重建 Artifact，并保持公开 404。验证过期下载进程恢复后不再返回字节，即使另一个请求已经取得新租约。
++
++在每个 PUT 边界使用受控传输/进程故障。丢弃应答，让重试返回后再释放原延迟请求；原 UNKNOWN/IN_FLIGHT attempt 必须继续阻塞并占额。不能通过等待时间或成功 HEAD/GET 推断写入闭合。删除侧丢弃应答、在分页间杀 worker、断开确认 SQL，并让两个 server 实例竞争。验证重复精确 key、持久游标/generation、副作用次数不变，以及全部对象确认后只释放一次配额。partial、blocked、quarantined、恢复保护及历史证据缺失的 publication 必须保持保留。部署启用除了自动 catalog fixture，还需要这些实际 Hosted/OSS 观察证据。
++
++## 观察与故障处理
++
++observer 每分钟记录最多 100 条 RETIRING publication 的有界样本。候选数量、阻塞原因分布及 eligible 逻辑 used 字节均是**样本值**，不是总积压或桶物理容量。总阶段数量应另行查询：
++
++```sql
++SELECT retention_state, COUNT(*) AS publications,
++       SUM(capture_used_bytes + producer_used_bytes + admission_used_bytes) AS logical_used_bytes,
++       SUM(capture_held_bytes + producer_held_bytes + admission_held_bytes) AS held_bytes
++FROM qwen_tool_publication GROUP BY retention_state;
++
++SELECT state, COUNT(*) AS attempts
++FROM qwen_output_put_attempt GROUP BY state;
++
++SELECT gc_blocker, COUNT(*) AS publications
++FROM qwen_tool_publication
++WHERE retention_state IN ('RETIRING', 'DELETING') GROUP BY gc_blocker;
++```
++
++`gc_blocker` 由启用后的清理尝试填写；观察期间 NULL 不代表符合条件。逻辑 used 字节不包含 inline/OSS 副本的存储放大。应按 catalog 精确 key 及对应 inline 列核对物理容量，不能从配额推算或扫描桶前缀。
++
++预期阻塞包括宽限期、活跃 reader、未解决 PUT、operation/object 证据未完成、历史写入证据缺失、隔离、接纳未完成及恢复保护。未解决写入和持续 `collection_retry` 应与正常宽限等待分别处理。删除或 SQL 确认失败保持配额，持久记录一分钟重试延迟并允许健康 publication 继续推进。每页最多 100 key，对象间续租 claim，旧 generation 不可确认。多实例恢复在 claim 过期后重复幂等删除。
++
++不能通过清除 UNKNOWN/IN_FLIGHT attempt、给历史行填 `write_evidence`/`accepted_complete`、释放配额、清除恢复保护、修改退役 generation 或删除墓碑来消除积压。旧证据继续受到保护；过期 publication 恢复属于 #13019。拥有对象存储权限的管理员若绕过 managed writer 路径重建 key，会破坏保证；这类写入不在回收契约内。
++
++停止后续页面时，在全部 server 实例关闭 GC。正在执行的页面仍可完成 SQL 确认；关闭配置不能恢复已删除字节。保留墓碑和归零配额，修复故障后继续同一套 generation/游标协议。回收删除原始输出 payload，不擦除全部历史模型消息或公开预览。
++
++## 证据记录
++
++首轮实现在 macOS、Java 21.0.8、Maven 3.9.14 和 Homebrew MySQL 26.7.0（InnoDB、REPEATABLE-READ）上验证。准确测试数量与 revision 记录在 PR 独立 E2E 报告中。文件系统进程及 catalog 容量门禁与真实 OSS、完整 Hosted 门禁分别记录。首轮没有可用真实 OSS 环境，生产 GC 继续关闭。Windows、Linux、MariaDB、实际 SQL 网络分区及完整 Hosted/OSS Shell 闭包仍未验证，直到补充各自证据。
+diff --git a/packages/sdk-java/managed-agent-server/pom.xml b/packages/sdk-java/managed-agent-server/pom.xml
+index 305dd98427..069a7f51f6 100644
+--- a/packages/sdk-java/managed-agent-server/pom.xml
++++ b/packages/sdk-java/managed-agent-server/pom.xml
+@@ -224,5 +224,37 @@
+                 <executions><execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution></executions>
+             </plugin></plugins></build>
+         </profile>
++        <profile>
++            <id>o4-mysql-gates</id>
++            <build><plugins><plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-failsafe-plugin</artifactId>
++                <version>${maven-failsafe-plugin.version}</version>
++                <configuration>
++                    <includes><include>**/O4MySqlIT.java</include></includes>
++                    <failIfNoTests>true</failIfNoTests>
++                    <argLine>-Xmx256m</argLine>
++                    <systemPropertyVariables><qwen.o4.required>true</qwen.o4.required></systemPropertyVariables>
++                    <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
++                </configuration>
++                <executions><execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution></executions>
++            </plugin></plugins></build>
++        </profile>
++        <profile>
++            <id>o4-oss-gates</id>
++            <build><plugins><plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-failsafe-plugin</artifactId>
++                <version>${maven-failsafe-plugin.version}</version>
++                <configuration>
++                    <includes><include>**/O4OssIT.java</include></includes>
++                    <failIfNoTests>true</failIfNoTests>
++                    <argLine>-Xmx256m</argLine>
++                    <systemPropertyVariables><qwen.o4.required>true</qwen.o4.required></systemPropertyVariables>
++                    <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
++                </configuration>
++                <executions><execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution></executions>
++            </plugin></plugins></build>
++        </profile>
+     </profiles>
+ </project>
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4FaultProcess.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4FaultProcess.java
+new file mode 100644
+index 0000000000..0164d40252
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4FaultProcess.java
+@@ -0,0 +1,69 @@
++package com.alibaba.qwen.code.managedagent.store;
++
++import com.alibaba.qwen.code.managedagent.api.ApiException;
++import com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties;
++import com.fasterxml.jackson.databind.ObjectMapper;
++import java.io.FilterInputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.time.Duration;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.jdbc.datasource.DataSourceTransactionManager;
++import org.springframework.jdbc.datasource.DriverManagerDataSource;
++
++/** Child JVM exits only after the parent releases it, or is killed at a durable boundary. */
++public final class O4FaultProcess {
++    private O4FaultProcess() {}
++    public static void main(String[] args) throws Exception {
++        String mode = args[0];
++        var source = new DriverManagerDataSource(args[1], args[2],
++                System.getenv().getOrDefault("QWEN_O4_MYSQL_PASSWORD", ""));
++        var jdbc = new JdbcTemplate(source);
++        var manager = new DataSourceTransactionManager(source);
++        var retention = new ToolPublicationRetentionStore(jdbc, manager);
++        Path root = Path.of(args[6]);
++        var objects = new O4FileObjects(root) {
++            @Override public void putIfAbsent(String key, byte[] bytes) {
++                super.putIfAbsent(key, bytes);
++                pause();
++            }
++            @Override public void deleteIfPresent(String key) {
++                super.deleteIfPresent(key);
++                pause();
++            }
++            @Override public InputStream open(String key) {
++                return new FilterInputStream(super.open(key)) {
++                    @Override public int read(byte[] bytes, int offset, int length) throws IOException {
++                        pause();
++                        return in.read(bytes, offset, length);
++                    }
++                };
++            }
++            private void pause() {
++                try {
++                    Files.writeString(root.resolve("ready"), mode);
++                    while (!Files.exists(root.resolve("resume"))) { Thread.sleep(20); }
++                } catch (IOException | InterruptedException error) { throw new IllegalStateException(error); }
++            }
++        };
++        var key = new ObjectMapper().createObjectNode().put("tenantId", args[3])
++                .put("workspaceId", "workspace-1").put("sessionId", args[4]);
++        if ("put".equals(mode)) {
++            retention.put(key, args[5], "pub-1", "exact/one", new byte[] {7}, objects);
++        } else if ("delete".equals(mode)) {
++            var props = new ManagedAgentProperties();
++            props.getToolPublication().setGcEnabled(true);
++            props.getToolPublication().setDeletionGrace(Duration.ZERO);
++            new ToolPublicationCollector(jdbc, manager, retention, objects, props).runOnce();
++        } else if ("read".equals(mode)) {
++            try (var input = retention.open(args[5], "pub-1", "exact/one", objects)) {
++                try {
++                    int count = input.read(new byte[1]);
++                    Files.writeString(root.resolve("result"), "returned:" + count);
++                } catch (ApiException error) { Files.writeString(root.resolve("result"), error.getCode()); }
++            }
++        } else { throw new IllegalArgumentException("Unknown fault mode"); }
++    }
++}
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4FileObjects.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4FileObjects.java
+new file mode 100644
+index 0000000000..b38ca3ef03
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4FileObjects.java
+@@ -0,0 +1,37 @@
++package com.alibaba.qwen.code.managedagent.store;
++
++import java.io.IOException;
++import java.io.InputStream;
++import java.nio.file.FileAlreadyExistsException;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.StandardOpenOption;
++
++/** Controlled durable storage for process faults; this is not OSS evidence. */
++class O4FileObjects implements ToolPublicationObjectStore {
++    protected final Path root;
++    O4FileObjects(Path root) { this.root = root.toAbsolutePath().normalize(); }
++    protected Path path(String key) {
++        Path result = root.resolve(key).normalize();
++        if (!result.startsWith(root) || result.equals(root)) { throw new IllegalArgumentException("Invalid test object key"); }
++        return result;
++    }
++    @Override public void putIfAbsent(String key, byte[] bytes) {
++        try {
++            Path file = path(key);
++            Files.createDirectories(file.getParent());
++            Files.write(file, bytes, StandardOpenOption.CREATE_NEW);
++        } catch (FileAlreadyExistsException expected) {
++            // Same immutable-key semantics as the production adapter.
++        } catch (IOException error) { throw new IllegalStateException("Test PUT failed", error); }
++    }
++    @Override public InputStream open(String key) {
++        try { return Files.newInputStream(path(key)); }
++        catch (IOException error) { throw new IllegalStateException("Test GET failed", error); }
++    }
++    @Override public void deleteIfPresent(String key) {
++        try { Files.deleteIfExists(path(key)); }
++        catch (IOException error) { throw new IllegalStateException("Test DELETE failed", error); }
++    }
++    @Override public void requireUnversioned() {}
++}
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4MySqlDatabase.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4MySqlDatabase.java
+new file mode 100644
+index 0000000000..f568f3ab12
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4MySqlDatabase.java
+@@ -0,0 +1,36 @@
++package com.alibaba.qwen.code.managedagent.store;
++
++import java.util.UUID;
++import javax.sql.DataSource;
++import org.junit.jupiter.api.Assumptions;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.jdbc.datasource.DriverManagerDataSource;
++
++/** Creates and drops only a fresh, explicitly named O4 test database. */
++final class O4MySqlDatabase implements AutoCloseable {
++    private final JdbcTemplate admin;
++    private final String database;
++    private final String url;
++    private final String user;
++    private final DriverManagerDataSource source;
++
++    O4MySqlDatabase() {
++        String base = System.getProperty("qwen.o4.mysql.url");
++        if (!Boolean.getBoolean("qwen.o4.required")) { Assumptions.assumeTrue(base != null, "O4 MySQL not configured"); }
++        if (base == null || !base.matches("jdbc:mysql://[a-zA-Z0-9.:-]+/qwen_o4_[a-zA-Z0-9_]+")) {
++            throw new IllegalArgumentException("O4 requires a dedicated qwen_o4_ MySQL URL without credentials or query parameters");
++        }
++        database = "qwen_o4_" + UUID.randomUUID().toString().replace("-", "");
++        user = System.getProperty("qwen.o4.mysql.user", "root");
++        String password = System.getenv().getOrDefault("QWEN_O4_MYSQL_PASSWORD", "");
++        admin = new JdbcTemplate(new DriverManagerDataSource(base, user, password));
++        admin.execute("CREATE DATABASE `" + database + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin");
++        url = base.substring(0, base.lastIndexOf('/') + 1) + database;
++        source = new DriverManagerDataSource(url, user, password);
++    }
++
++    DataSource source() { return source; }
++    String url() { return url; }
++    String user() { return user; }
++    @Override public void close() { admin.execute("DROP DATABASE `" + database + "`"); }
++}
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4MySqlIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4MySqlIT.java
+new file mode 100644
+index 0000000000..44191ee553
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4MySqlIT.java
+@@ -0,0 +1,242 @@
++package com.alibaba.qwen.code.managedagent.store;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++
++import java.io.IOException;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.time.Duration;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.Executors;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.TimeoutException;
++import org.junit.jupiter.api.AfterEach;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.Timeout;
++import org.junit.jupiter.api.io.TempDir;
++import org.junit.jupiter.params.ParameterizedTest;
++import org.junit.jupiter.params.provider.ValueSource;
++
++/** Real SQL gates plus controlled storage/process faults; OSS is a separate required gate. */
++@Timeout(value = 240)
++public class O4MySqlIT extends ToolPublicationCollectorTest {
++    protected O4MySqlDatabase database;
++    @TempDir Path root;
++
++    @Override protected javax.sql.DataSource dataSource() {
++        database = new O4MySqlDatabase();
++        return database.source();
++    }
++    @AfterEach void dropDatabase() { if (database != null) { database.close(); } }
++
++    @Test
++    void writerReallyWaitsOnRetirementTransactionAndThenIsRejected() throws Exception {
++        var locked = new CountDownLatch(1);
++        var release = new CountDownLatch(1);
++        var entered = new CountDownLatch(1);
++        try (var executor = Executors.newFixedThreadPool(2)) {
++            var deleting = executor.submit(() -> tx.executeWithoutResult(status -> {
++                ToolPublicationRetentionStore.lockDeletion(jdbc, tenant, session);
++                locked.countDown();
++                try { assertThat(release.await(10, TimeUnit.SECONDS)).isTrue(); }
++                catch (InterruptedException error) { throw new IllegalStateException(error); }
++                ToolPublicationRetentionStore.retire(jdbc, tenant, session, "delete-contended");
++            }));
++            assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
++            var writer = executor.submit(() -> {
++                entered.countDown();
++                return tx.execute(status -> new ManagedSessionStore(jdbc).acquireWriter(tenant, session,
++                        "a".repeat(32), new ManagedSessionStoreModels.AcquireWriterRequest("workspace-1", "late", 60000L)));
++            });
++            assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
++            try { assertThatThrownBy(() -> writer.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class); }
++            finally { release.countDown(); }
++            deleting.get(10, TimeUnit.SECONDS);
++            assertThatThrownBy(() -> writer.get(10, TimeUnit.SECONDS))
++                    .hasCauseInstanceOf(com.alibaba.qwen.code.managedagent.api.ApiException.class);
++        }
++    }
++
++    @Test
++    void killedPutAndSuccessfulRetryKeepTheOriginalAttemptUnresolved() throws Exception {
++        Process child = child("put");
++        try {
++            ready(child);
++            child.destroyForcibly();
++            assertThat(child.waitFor(10, TimeUnit.SECONDS)).isTrue();
++            var objects = new O4FileObjects(root);
++            retention.put(key, scope, "pub-1", "exact/one", new byte[] {7}, objects);
++            assertThat(jdbc.queryForList("SELECT state FROM qwen_output_put_attempt WHERE scope_key = ?",
++                    String.class, scope)).containsExactlyInAnyOrder("IN_FLIGHT", "RETURNED");
++            retire();
++            assertThat(collector(objects).runOnce()).isFalse();
++            assertThat(blocker()).isEqualTo("put_unresolved");
++            assertThat(held()).isEqualTo(3000);
++            assertThat(Files.exists(root.resolve("exact/one"))).isTrue();
++        } finally { stop(child); }
++    }
++
++    @Test
++    void killedDeleteAfterPhysicalSuccessRetriesMissingKeyAndReleasesOnce() throws Exception {
++        var objects = new O4FileObjects(root);
++        for (String slot : java.util.List.of("one", "two", "three")) {
++            objects.putIfAbsent("exact/" + slot, new byte[] {7});
++            addObject(slot, "exact/" + slot, null);
++        }
++        retire();
++        Process child = child("delete");
++        try {
++            ready(child);
++            assertThat(Files.exists(root.resolve("exact/one"))).isFalse();
++            assertThat(Files.exists(root.resolve("exact/two"))).isTrue();
++            assertThat(Files.exists(root.resolve("exact/three"))).isTrue();
++            child.destroyForcibly();
++            assertThat(child.waitFor(10, TimeUnit.SECONDS)).isTrue();
++            assertThat(state()).isEqualTo("DELETING");
++            assertThat(held()).isEqualTo(3000);
++            var replacement = collector(objects);
++            assertThat(replacement.runOnce()).isFalse();
++            retryNow();
++            assertThat(replacement.runOnce()).isTrue();
++            assertThat(state()).isEqualTo("COLLECTED");
++            assertThat(Files.exists(root.resolve("exact/two"))).isFalse();
++            assertThat(Files.exists(root.resolve("exact/three"))).isFalse();
++            assertThat(held()).isZero();
++            assertThat(replacement.runOnce()).isFalse();
++            assertThat(jdbc.queryForObject("SELECT gc_generation FROM qwen_tool_publication WHERE scope_key = ?",
++                    Long.class, scope)).isEqualTo(2);
++        } finally { stop(child); }
++    }
++
++    @Test
++    void stoppedProcessResumesAfterRealLeaseDeadlineWithoutReturningBytes() throws Exception {
++        boolean windows = System.getProperty("os.name").startsWith("Windows");
++        if (Boolean.getBoolean("qwen.o4.required")) { assertThat(windows).as("POSIX process stop gate requires macOS/Linux").isFalse(); }
++        else { org.junit.jupiter.api.Assumptions.assumeFalse(windows, "POSIX process stop gate requires macOS/Linux"); }
++        new O4FileObjects(root).putIfAbsent("exact/one", new byte[] {7});
++        Process child = child("read");
++        try {
++            ready(child);
++            signal(child, "-STOP");
++            long expires = jdbc.queryForObject("SELECT expires_at FROM qwen_output_read_lease WHERE tenant_key = ?",
++                    Long.class, ToolPublicationRetentionStore.hash(tenant));
++            while (ToolPublicationRetentionStore.now(jdbc) <= expires + 1000) { Thread.sleep(1000); }
++            Files.writeString(root.resolve("resume"), "resume");
++            signal(child, "-CONT");
++            assertThat(child.waitFor(15, TimeUnit.SECONDS)).isTrue();
++            assertThat(child.exitValue()).isZero();
++            assertThat(Files.readString(root.resolve("result"))).isEqualTo("tool_output_read_expired");
++        } finally { stop(child); }
++    }
++
++    @Test
++    void delayedUnknownPutRemainsProtectedAfterSuccessfulRetryAndLateArrival() throws Exception {
++        var late = new CountDownLatch(1);
++        var arrival = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.Future<?>>();
++        try (var executor = Executors.newSingleThreadExecutor()) {
++            var objects = new O4FileObjects(root) {
++                private boolean first = true;
++                @Override public void putIfAbsent(String objectKey, byte[] bytes) {
++                    if (first) {
++                        first = false;
++                        arrival.set(executor.submit(() -> {
++                            try { late.await(); }
++                            catch (InterruptedException error) { throw new IllegalStateException(error); }
++                            super.putIfAbsent(objectKey, bytes);
++                        }));
++                        throw new IllegalStateException("PUT response lost while request is still running");
++                    }
++                    super.putIfAbsent(objectKey, bytes);
++                }
++            };
++            try {
++                assertThatThrownBy(() -> retention.put(key, scope, "pub-1", "exact/one", new byte[] {7}, objects))
++                        .isInstanceOf(IllegalStateException.class);
++                retention.put(key, scope, "pub-1", "exact/one", new byte[] {7}, objects);
++                retire();
++                assertThat(collector(objects).runOnce()).isFalse();
++            } finally { late.countDown(); }
++        }
++        arrival.get().get(10, TimeUnit.SECONDS);
++        assertThat(blocker()).isEqualTo("put_unresolved");
++        assertThat(held()).isEqualTo(3000);
++        assertThat(Files.exists(root.resolve("exact/one"))).isTrue();
++    }
++
++    @ParameterizedTest
++    @ValueSource(longs = {100L * 1024 * 1024, 1024L * 1024 * 1024})
++    void largeCatalogCollectionUsesBoundedPages(long bytes) throws Exception {
++        collectCapacity(new O4FileObjects(root), bytes, "capacity/");
++        try (var files = Files.walk(root.resolve("capacity"))) {
++            assertThat(files.filter(Files::isRegularFile).count()).isEqualTo(1);
++        }
++    }
++
++    /** Already-admitted catalog fixture, not an end-to-end O2 Shell execution. */
++    protected void collectCapacity(ToolPublicationObjectStore objects, long total, String prefix) throws Exception {
++        byte[] segment = new byte[1024 * 1024];
++        String digest = java.util.HexFormat.of().formatHex(
++                java.security.MessageDigest.getInstance("SHA-256").digest(segment));
++        long stored = 0;
++        int count = 0;
++        objects.putIfAbsent(prefix + "outside", new byte[] {9});
++        while (stored < total) {
++            String slot = "segment-" + String.format("%04d", count++);
++            String objectKey = prefix + slot;
++            retention.put(key, scope, "pub-1", objectKey, segment, objects);
++            try (var input = objects.open(objectKey)) {
++                assertThat(input.transferTo(java.io.OutputStream.nullOutputStream())).isEqualTo(segment.length);
++            }
++            jdbc.update("INSERT INTO qwen_tool_publication_object (scope_key, publication_id, slot_key, resource_id,"
++                            + " resource_kind, byte_length, sha256, object_key, state, operation_id, created_at)"
++                            + " VALUES (?, 'pub-1', ?, ?, 'managed-tool-result-content', ?, ?, ?, 'VERIFIED', 'op', CURRENT_TIMESTAMP(6))",
++                    scope, slot, slot, segment.length, digest, objectKey);
++            stored += segment.length;
++        }
++        for (String name : java.util.List.of("manifest", "pages", "outcome")) { addObject("z-" + name, null, new byte[] {1}); }
++        jdbc.update("UPDATE qwen_tool_publication SET capture_used_bytes = ?, capture_held_bytes = ?,"
++                        + " producer_used_bytes = 3, producer_held_bytes = 1000 WHERE scope_key = ?", total, total, scope);
++        assertThat(jdbc.queryForObject("SELECT SUM(byte_length) FROM qwen_tool_publication_object WHERE scope_key = ?",
++                Long.class, scope)).isEqualTo(total + 3);
++        retire();
++        var gc = collector(objects);
++        int pages = 0;
++        while (!"COLLECTED".equals(state())) {
++            assertThat(gc.runOnce()).isTrue();
++            pages++;
++            assertThat(pages).isLessThanOrEqualTo((count + 3 + 99) / 100);
++            if (!"COLLECTED".equals(state())) { assertThat(held()).isEqualTo(total + 2000); }
++        }
++        assertThat(pages).isEqualTo((count + 3 + 99) / 100);
++        assertThat(held()).isZero();
++        assertThat(jdbc.queryForObject("SELECT collected_bytes FROM qwen_tool_publication WHERE scope_key = ?",
++                Long.class, scope)).isEqualTo(total + 3);
++        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM qwen_tool_publication_object WHERE scope_key = ?"
++                + " AND (state <> 'COLLECTED' OR inline_bytes IS NOT NULL)", Long.class, scope)).isZero();
++        try (var input = objects.open(prefix + "outside")) { assertThat(input.read()).isEqualTo(9); }
++        System.out.println("O4 capacity: bytes=" + total + ", catalogObjects=" + (count + 3) + ", pages=" + pages);
++    }
++
++    private Process child(String mode) throws IOException {
++        String classpath = System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"));
++        return new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
++                "-Xmx128m", "-cp", classpath, O4FaultProcess.class.getName(), mode,
++                database.url(), database.user(), tenant, session, scope, root.toString())
++                .redirectErrorStream(true).redirectOutput(root.resolve("child.log").toFile()).start();
++    }
++    private void ready(Process child) throws Exception {
++        long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
++        while (!Files.exists(root.resolve("ready")) && child.isAlive() && System.nanoTime() < deadline) { Thread.sleep(20); }
++        assertThat(Files.exists(root.resolve("ready"))).as("child reached durable boundary").isTrue();
++    }
++    private static void signal(Process child, String signal) throws Exception {
++        Process command = new ProcessBuilder("kill", signal, Long.toString(child.pid())).start();
++        assertThat(command.waitFor(5, TimeUnit.SECONDS)).isTrue();
++        assertThat(command.exitValue()).isZero();
++    }
++    private static void stop(Process child) throws InterruptedException {
++        child.destroyForcibly();
++        assertThat(child.waitFor(10, TimeUnit.SECONDS)).isTrue();
++    }
++}
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4OssIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4OssIT.java
+new file mode 100644
+index 0000000000..edaff8d776
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/O4OssIT.java
+@@ -0,0 +1,170 @@
++package com.alibaba.qwen.code.managedagent.store;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++
++import com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties;
++import com.alibaba.qwen.code.managedagent.config.ToolPublicationConfiguration;
++import com.aliyun.oss.ClientBuilderConfiguration;
++import com.aliyun.oss.OSS;
++import com.aliyun.oss.OSSClientBuilder;
++import com.aliyun.oss.OSSException;
++import com.aliyun.oss.common.auth.DefaultCredentialProvider;
++import com.aliyun.oss.common.auth.DefaultCredentials;
++import com.aliyun.oss.common.comm.SignVersion;
++import java.io.InputStream;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Set;
++import java.util.UUID;
++import org.junit.jupiter.api.BeforeAll;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.Timeout;
++import org.junit.jupiter.params.ParameterizedTest;
++import org.junit.jupiter.params.provider.ValueSource;
++
++/** Opt-in real OSS gates, including inherited real SQL/process gates. No credential values are logged. */
++public class O4OssIT extends O4MySqlIT {
++    @BeforeAll
++    static void requireOssEnvironment() {
++        if (!Boolean.getBoolean("qwen.o4.required")) {
++            org.junit.jupiter.api.Assumptions.assumeTrue(System.getProperty("qwen.o4.oss.test-bucket") != null,
++                    "O4 OSS not configured");
++        }
++        bucket();
++        required("qwen.o4.oss.region");
++        for (String name : List.of("OSS_ACCESS_KEY_ID", "OSS_ACCESS_KEY_SECRET",
++                "OSS_DELETE_DENIED_ACCESS_KEY_ID", "OSS_DELETE_DENIED_ACCESS_KEY_SECRET")) { secret(name); }
++    }
++
++    private static String required(String name) {
++        String value = System.getProperty(name);
++        if (value == null || value.isBlank()) { throw new IllegalArgumentException("Missing " + name); }
++        return value;
++    }
++    private static String secret(String name) {
++        String value = System.getenv(name);
++        if (value == null || value.isBlank()) { throw new IllegalArgumentException("Missing environment credential " + name); }
++        return value;
++    }
++    private static String bucket() {
++        String value = required("qwen.o4.oss.test-bucket");
++        if (!value.matches("[a-z0-9-]*o4-test[a-z0-9-]*")) {
++            throw new IllegalArgumentException("Use a dedicated private, never-versioned bucket named with o4-test");
++        }
++        return value;
++    }
++    private static OSS client() throws Exception {
++        secret("OSS_ACCESS_KEY_ID");
++        secret("OSS_ACCESS_KEY_SECRET");
++        var props = new ManagedAgentProperties();
++        props.getToolPublication().setOssRegion(required("qwen.o4.oss.region"));
++        props.getToolPublication().setOssEndpoint("https://oss-" + required("qwen.o4.oss.region") + ".aliyuncs.com");
++        props.getToolPublication().setOssBucket(bucket());
++        props.getToolPublication().setServiceBaseUrl("https://o4-test.invalid");
++        return new ToolPublicationConfiguration().toolPublicationOss(props);
++    }
++    private static OSS deniedClient() {
++        var credentials = new DefaultCredentials(secret("OSS_DELETE_DENIED_ACCESS_KEY_ID"),
++                secret("OSS_DELETE_DENIED_ACCESS_KEY_SECRET"), System.getenv("OSS_DELETE_DENIED_SESSION_TOKEN"));
++        var config = new ClientBuilderConfiguration();
++        config.setSignatureVersion(SignVersion.V4);
++        config.setMaxErrorRetry(0);
++        return OSSClientBuilder.create()
++                .endpoint("https://oss-" + required("qwen.o4.oss.region") + ".aliyuncs.com")
++                .region(required("qwen.o4.oss.region"))
++                .credentialsProvider(new DefaultCredentialProvider(credentials)).clientConfiguration(config).build();
++    }
++
++    @Test
++    void realDeleteLostResponseRetriesAndConfirmsMissingObject() throws Exception {
++        try (var real = new OssFixture(client())) {
++            String objectKey = "o4-tests/" + UUID.randomUUID() + "/one";
++            var uncertain = new ToolPublicationObjectStore() {
++                private boolean first = true;
++                @Override public void putIfAbsent(String key, byte[] bytes) { real.putIfAbsent(key, bytes); }
++                @Override public InputStream open(String key) { return real.open(key); }
++                @Override public void requireUnversioned() { real.requireUnversioned(); }
++                @Override public void deleteIfPresent(String key) {
++                    real.deleteIfPresent(key);
++                    if (first) { first = false; throw new IllegalStateException("discarded real DELETE response"); }
++                }
++            };
++            retention.put(key, scope, "pub-1", objectKey, new byte[] {7}, real);
++            addObject("one", objectKey, null);
++            retire();
++            var gc = collector(uncertain);
++            assertThatThrownBy(gc::runOnce).isInstanceOf(IllegalStateException.class);
++            assertThat(held()).isEqualTo(3000);
++            assertThat(real.client.doesObjectExist(bucket(), objectKey)).isFalse();
++            retryNow();
++            assertThat(gc.runOnce()).isTrue();
++            real.deleteIfPresent(objectKey);
++            assertThat(state()).isEqualTo("COLLECTED");
++            assertThat(held()).isZero();
++        }
++    }
++
++    @Test
++    void realPermissionFailurePreservesQuotaUntilAuthorizedRetry() throws Exception {
++        try (var restricted = new OssFixture(deniedClient()); var real = new OssFixture(client())) {
++            String objectKey = "o4-tests/" + UUID.randomUUID() + "/denied";
++            retention.put(key, scope, "pub-1", objectKey, new byte[] {7}, real);
++            addObject("one", objectKey, null);
++            retire();
++            assertThatThrownBy(() -> collector(restricted).runOnce()).isInstanceOfSatisfying(OSSException.class,
++                    error -> assertThat(error.getErrorCode()).isEqualTo("AccessDenied"));
++            assertThat(real.client.doesObjectExist(bucket(), objectKey)).isTrue();
++            assertThat(held()).isEqualTo(3000);
++            assertThat(state()).isEqualTo("DELETING");
++            retryNow();
++            assertThat(collector(real).runOnce()).isTrue();
++            assertThat(held()).isZero();
++        }
++    }
++
++    @Override
++    @ParameterizedTest
++    @ValueSource(longs = {100L * 1024 * 1024, 1024L * 1024 * 1024})
++    @Timeout(value = 1800)
++    void largeCatalogCollectionUsesBoundedPages(long bytes) throws Exception {
++        try (var objects = new OssFixture(client())) {
++            String prefix = "o4-tests/" + UUID.randomUUID() + "/";
++            collectCapacity(objects, bytes, prefix);
++            List<String> keys = jdbc.queryForList("SELECT object_key FROM qwen_tool_publication_object"
++                    + " WHERE scope_key = ? AND object_key IS NOT NULL", String.class, scope);
++            for (String objectKey : keys) { assertThat(objects.client.doesObjectExist(bucket(), objectKey)).isFalse(); }
++        }
++    }
++
++    private static final class OssFixture implements ToolPublicationObjectStore, AutoCloseable {
++        private final OSS client;
++        private final AliyunToolPublicationObjectStore objects;
++        private final Set<String> keys = new HashSet<>();
++        private OssFixture(OSS client) {
++            this.client = client;
++            try { objects = new AliyunToolPublicationObjectStore(client, bucket()); }
++            catch (RuntimeException error) { client.shutdown(); throw error; }
++        }
++        @Override public void putIfAbsent(String key, byte[] bytes) {
++            keys.add(key);
++            objects.putIfAbsent(key, bytes);
++        }
++        @Override public InputStream open(String key) { return objects.open(key); }
++        @Override public void deleteIfPresent(String key) { objects.deleteIfPresent(key); }
++        @Override public void requireUnversioned() { objects.requireUnversioned(); }
++        @Override public void close() {
++            RuntimeException failure = null;
++            try {
++                for (String key : keys) {
++                    try { objects.deleteIfPresent(key); }
++                    catch (RuntimeException error) {
++                        if (failure == null) { failure = error; }
++                        else { failure.addSuppressed(error); }
++                    }
++                }
++            } finally { client.shutdown(); }
++            if (failure != null) { throw failure; }
++        }
++    }
++}
+-- 
+2.55.0
+

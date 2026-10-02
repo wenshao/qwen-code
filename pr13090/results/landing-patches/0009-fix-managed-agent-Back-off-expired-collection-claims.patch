@@ -1,0 +1,41 @@
+From 5e79bb2c0a8c758d4cbfe77f0fa1701cc308e88e Mon Sep 17 00:00:00 2001
+From: yiliang114 <1204183885@qq.com>
+Date: Fri, 2 Oct 2026 12:08:39 +0800
+Subject: [PATCH 09/10] fix(managed-agent): Back off expired collection claims
+
+---
+ .../code/managedagent/store/ToolPublicationCollector.java    | 1 +
+ .../managedagent/store/ToolPublicationCollectorTest.java     | 5 +++++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
+index bbd4dfcff1..db91bc471e 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
+@@ -59,6 +59,7 @@ public final class ToolPublicationCollector {
+             }
+             for (var object : page) {
+                 if (!renew(claim)) {
++                    defer(claim);
+                     return false;
+                 }
+                 if (object.key() != null) {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
+index 354214a282..a2e284650b 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
+@@ -340,6 +340,11 @@ public class ToolPublicationCollectorTest extends ToolPublicationRetentionStoreT
+         assertThat(objects.deleted).containsExactly("exact/a");
+         assertThat(state()).isEqualTo("DELETING");
+         assertThat(held()).isEqualTo(3000);
++        assertThat(jdbc.queryForObject("SELECT gc_blocker FROM qwen_tool_publication WHERE scope_key = ?",
++                String.class, scope)).isEqualTo("collection_retry");
++        assertThat(collector(objects).runOnce()).isFalse();
++        assertThat(objects.deleted).containsExactly("exact/a");
++        retryNow();
+         assertThat(collector(objects).runOnce()).isTrue();
+         assertThat(objects.deleted).containsExactly("exact/a", "exact/a", "exact/b");
+         assertThat(held()).isZero();
+-- 
+2.55.0
+

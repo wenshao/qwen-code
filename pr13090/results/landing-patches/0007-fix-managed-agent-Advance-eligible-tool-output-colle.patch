@@ -1,0 +1,297 @@
+From 7d508820ac2fcb3acb4db5d7b47d62262cc7dd9f Mon Sep 17 00:00:00 2001
+From: yiliang114 <1204183885@qq.com>
+Date: Fri, 2 Oct 2026 07:48:28 +0800
+Subject: [PATCH 07/10] fix(managed-agent): Advance eligible tool output
+ collection
+
+---
+ ...anaged-tool-output-retention-operations.md |  2 +-
+ ...-tool-output-retention-operations.zh-CN.md |  2 +-
+ docs/design/managed-tool-output-retention.md  |  2 +-
+ .../managed-tool-output-retention.zh-CN.md    |  2 +-
+ .../store/ToolPublicationCollector.java       | 77 +++++++++-------
+ .../ToolPublicationStoreTest.java             | 10 +--
+ .../store/ToolPublicationCollectorTest.java   | 89 +++++++++++++++++++
+ 7 files changed, 141 insertions(+), 43 deletions(-)
+
+diff --git a/docs/design/managed-tool-output-retention-operations.md b/docs/design/managed-tool-output-retention-operations.md
+index 946505c428..72a758875e 100644
+--- a/docs/design/managed-tool-output-retention-operations.md
++++ b/docs/design/managed-tool-output-retention-operations.md
+@@ -72,7 +72,7 @@ WHERE retention_state IN ('RETIRING', 'DELETING') GROUP BY gc_blocker;
+ 
+ `gc_blocker` is populated by enabled collection attempts; NULL during observation does not prove eligibility. Logical used bytes exclude storage amplification from duplicated inline/OSS copies. Validate physical totals from exact catalog keys and corresponding inline columns, never infer them from quota or sweep a bucket prefix.
+ 
+-Expected blockers include grace period, reader activity, unresolved PUT, incomplete operation/object evidence, missing legacy write evidence, quarantine, incomplete admission and recovery protection. Escalate unresolved writes and sustained `collection_retry` separately from an ordinary grace wait. A failed delete or SQL confirmation preserves quota, persists a one-minute retry delay and allows healthy publications to advance. Each page contains at most 100 keys; claim ownership is renewed between objects, and stale generations cannot confirm. Multi-instance recovery repeats idempotent deletes after claim expiry.
++Expected blockers include grace period, reader activity, unresolved PUT, incomplete operation/object evidence, missing legacy write evidence, quarantine, incomplete admission and recovery protection. Escalate unresolved writes and sustained `collection_retry` separately from an ordinary grace wait. Each tick checks at most 32 due candidates and collects at most one page. A grace wait sets the next attempt to the original retirement timestamp plus the configured grace, avoiding minute-by-minute polling throughout the 24-hour window. Other blockers, a failed delete or SQL confirmation preserve quota and retry after one minute, allowing healthy publications to advance. Each page contains at most 100 keys; claim ownership is renewed between objects, and stale generations cannot confirm. Multi-instance recovery repeats idempotent deletes after claim expiry.
+ 
+ Do not clear UNKNOWN/IN_FLIGHT attempts, set `write_evidence`/`accepted_complete` on old rows, release quota, clear recovery protection, edit the retirement generation or delete tombstones to make a backlog disappear. Older evidence remains protected; expired-publication recovery belongs to #13019. A privileged object-store administrator can break these guarantees by recreating keys outside the managed writer path; such writes are outside the collection contract.
+ 
+diff --git a/docs/design/managed-tool-output-retention-operations.zh-CN.md b/docs/design/managed-tool-output-retention-operations.zh-CN.md
+index 80adb82c86..5518ab8796 100644
+--- a/docs/design/managed-tool-output-retention-operations.zh-CN.md
++++ b/docs/design/managed-tool-output-retention-operations.zh-CN.md
+@@ -72,7 +72,7 @@ WHERE retention_state IN ('RETIRING', 'DELETING') GROUP BY gc_blocker;
+ 
+ `gc_blocker` 由启用后的清理尝试填写；观察期间 NULL 不代表符合条件。逻辑 used 字节不包含 inline/OSS 副本的存储放大。应按 catalog 精确 key 及对应 inline 列核对物理容量，不能从配额推算或扫描桶前缀。
+ 
+-预期阻塞包括宽限期、活跃 reader、未解决 PUT、operation/object 证据未完成、历史写入证据缺失、隔离、接纳未完成及恢复保护。未解决写入和持续 `collection_retry` 应与正常宽限等待分别处理。删除或 SQL 确认失败保持配额，持久记录一分钟重试延迟并允许健康 publication 继续推进。每页最多 100 key，对象间续租 claim，旧 generation 不可确认。多实例恢复在 claim 过期后重复幂等删除。
++预期阻塞包括宽限期、活跃 reader、未解决 PUT、operation/object 证据未完成、历史写入证据缺失、隔离、接纳未完成及恢复保护。未解决写入和持续 `collection_retry` 应与正常宽限等待分别处理。每个 tick 最多检查 32 个到期候选并最多回收一页。宽限期等待将下次尝试设为原始退役时间加配置宽限期，避免在 24 小时窗口内每分钟轮询。其他阻塞、删除或 SQL 确认失败保持配额，一分钟后重试，允许健康 publication 继续推进。每页最多 100 key，对象间续租 claim，旧 generation 不可确认。多实例恢复在 claim 过期后重复幂等删除。
+ 
+ 不能通过清除 UNKNOWN/IN_FLIGHT attempt、给历史行填 `write_evidence`/`accepted_complete`、释放配额、清除恢复保护、修改退役 generation 或删除墓碑来消除积压。旧证据继续受到保护；过期 publication 恢复属于 #13019。拥有对象存储权限的管理员若绕过 managed writer 路径重建 key，会破坏保证；这类写入不在回收契约内。
+ 
+diff --git a/docs/design/managed-tool-output-retention.md b/docs/design/managed-tool-output-retention.md
+index 2ebf0c53c5..68ee540221 100644
+--- a/docs/design/managed-tool-output-retention.md
++++ b/docs/design/managed-tool-output-retention.md
+@@ -22,7 +22,7 @@ Every physical PUT first records a distinct durable attempt outside the network
+ 
+ ## Collection and quota
+ 
+-Observe candidates with automatic deletion disabled. Candidate eligibility is rechecked under locks: permanently retired Session, grace elapsed, complete committed accepted publication, no active reader, no pending/unknown PUT, no candidate object, no unresolved operation, quarantine or recovery protection, and upgraded write evidence. A persistent claim generation and cursor support restart and competing instances. Each instance runs one scheduled collector on a dedicated single-thread output scheduler shared with observation, so storage I/O does not stall live-session scheduling. Each confirmation checks remaining catalog entries with a primary-key existence probe and clears Session resources through their own Session primary-key prefix.
++Observe candidates with automatic deletion disabled. Candidate eligibility is rechecked under locks: permanently retired Session, grace elapsed, complete committed accepted publication, no active reader, no pending/unknown PUT, no candidate object, no unresolved operation, quarantine or recovery protection, and upgraded write evidence. A persistent claim generation and cursor support restart and competing instances. Each instance runs one scheduled collector on a dedicated single-thread output scheduler shared with observation, so storage I/O does not stall live-session scheduling. Each tick checks at most 32 due candidates under separate transactions and collects at most one page. Grace-held candidates wait until the original retirement time plus the configured grace; other blockers retry after one minute. Each confirmation checks remaining catalog entries with a primary-key existence probe and clears only resources cataloged to that publication within the Session primary-key prefix.
+ 
+ Collection marks `DELETING` in SQL, deletes at most 100 exact catalog keys outside transactions, then confirms the page under the original claim. Idempotent `deleteIfPresent` handles missing objects and lost responses; exceptions leave the page pending. No prefix scans. A stale collector cannot advance a replacement claim or release quota. Successful physical deletion cannot be undone by new readers or PUT attempts because retirement and `DELETING` close admission.
+ 
+diff --git a/docs/design/managed-tool-output-retention.zh-CN.md b/docs/design/managed-tool-output-retention.zh-CN.md
+index b680b89817..1928034dcd 100644
+--- a/docs/design/managed-tool-output-retention.zh-CN.md
++++ b/docs/design/managed-tool-output-retention.zh-CN.md
+@@ -22,7 +22,7 @@ Session 是保留根。close、archive、Runtime 排空、ACK 和事件过期后
+ 
+ ## 清理与配额
+ 
+-默认关闭自动删除，先观察候选。持锁重新检查候选：Session 永久退役、宽限期到期、完整 committed 且已接纳的 publication、无活跃读租约、无未结束或未知 PUT、无 candidate 对象、未完成 operation、隔离或恢复保护，并具备升级后的写入证据。持久 claim generation 和游标支持重启及多实例竞争；每实例仅一个调度清理器，和候选观察共用独立单线程输出调度器，避免存储 I/O 阻塞活跃 Session 调度。每页确认通过主键存在性查询检查剩余 catalog 项，并通过 Session 自身的主键前缀清理资源。
++默认关闭自动删除，先观察候选。持锁重新检查候选：Session 永久退役、宽限期到期、完整 committed 且已接纳的 publication、无活跃读租约、无未结束或未知 PUT、无 candidate 对象、未完成 operation、隔离或恢复保护，并具备升级后的写入证据。持久 claim generation 和游标支持重启及多实例竞争；每实例仅一个调度清理器，和候选观察共用独立单线程输出调度器，避免存储 I/O 阻塞活跃 Session 调度。每个 tick 在独立事务中最多检查 32 个到期候选，并最多回收一页。宽限期阻塞的候选等待至原始退役时间加配置宽限期；其他阻塞一分钟后重试。每页确认通过主键存在性查询检查剩余 catalog 项，并在 Session 自身的主键前缀内仅清理属于该 publication catalog 的资源。
+ 
+ SQL 标记 `DELETING` 后，在事务外每页最多删除 100 个 catalog 精确 key，再在原 claim 下确认。幂等 `deleteIfPresent` 处理不存在对象和应答丢失；异常保留待重试页，不按前缀扫删。旧清理器不能推进新 claim 或释放配额。退役和 `DELETING` 关闭接纳，阻止新读者和 PUT 重新创建已删对象。
+ 
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
+index 3ab3d2c4b1..97b5139878 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollector.java
+@@ -99,43 +99,52 @@ public final class ToolPublicationCollector {
+         var candidates = jdbc.queryForList("SELECT scope_key, publication_id, tenant_id, session_id FROM"
+                         + " qwen_tool_publication WHERE (retention_state = 'RETIRING' AND gc_next_at <= ?)"
+                         + " OR (retention_state = 'DELETING' AND gc_next_at <= ? AND (gc_owner = ? OR gc_claim_until <= ?))"
+-                        + " ORDER BY gc_next_at, scope_key, publication_id LIMIT 1", time, time, owner, time);
+-        if (candidates.isEmpty()) {
+-            return null;
+-        }
+-        var candidate = candidates.getFirst();
+-        return transactions.execute(status -> {
+-            String tenant = (String) candidate.get("tenant_id");
+-            String session = (String) candidate.get("session_id");
+-            ToolPublicationRetentionStore.lockSession(jdbc, tenant, session);
+-            var row = jdbc.queryForMap("SELECT * FROM qwen_tool_publication WHERE scope_key = ?"
+-                    + " AND publication_id = ? FOR UPDATE", candidate.get("scope_key"), candidate.get("publication_id"));
+-            long now = ToolPublicationRetentionStore.now(jdbc);
+-            if ("RETIRING".equals(row.get("retention_state"))) {
+-                if (ToolPublicationRetentionStore.number(row, "gc_next_at") > now) {
+-                    return null;
+-                }
+-                Duration grace = properties.getToolPublication().getDeletionGrace();
+-                var observed = retention.candidate(row, grace);
+-                if (observed.blocker() != null) {
+-                    jdbc.update("UPDATE qwen_tool_publication SET gc_blocker = ?, gc_next_at = ?"
+-                                    + " WHERE scope_key = ? AND publication_id = ?",
+-                            observed.blocker(), now + CLAIM_MILLIS, observed.scope(), observed.publication());
++                        + " ORDER BY gc_next_at, scope_key, publication_id LIMIT 32", time, time, owner, time);
++        for (var candidate : candidates) {
++            Claim claim = transactions.execute(status -> {
++                String tenant = (String) candidate.get("tenant_id");
++                String session = (String) candidate.get("session_id");
++                ToolPublicationRetentionStore.lockSession(jdbc, tenant, session);
++                var row = jdbc.queryForMap("SELECT * FROM qwen_tool_publication WHERE scope_key = ?"
++                        + " AND publication_id = ? FOR UPDATE", candidate.get("scope_key"), candidate.get("publication_id"));
++                long now = ToolPublicationRetentionStore.now(jdbc);
++                if ("RETIRING".equals(row.get("retention_state"))) {
++                    if (ToolPublicationRetentionStore.number(row, "gc_next_at") > now) {
++                        return null;
++                    }
++                    Duration grace = properties.getToolPublication().getDeletionGrace();
++                    var observed = retention.candidate(row, grace);
++                    if (observed.blocker() != null) {
++                        long next = now + CLAIM_MILLIS;
++                        if ("grace_period".equals(observed.blocker())) {
++                            long retiredAt = jdbc.queryForObject("SELECT retired_at FROM qwen_output_session_retirement"
++                                            + " WHERE tenant_key = ? AND session_key = ?", Long.class,
++                                    ToolPublicationRetentionStore.hash(tenant), ToolPublicationRetentionStore.hash(session));
++                            next = Math.addExact(retiredAt, grace.toMillis());
++                        }
++                        jdbc.update("UPDATE qwen_tool_publication SET gc_blocker = ?, gc_next_at = ?"
++                                        + " WHERE scope_key = ? AND publication_id = ?",
++                                observed.blocker(), next, observed.scope(), observed.publication());
++                        return null;
++                    }
++                } else if (ToolPublicationRetentionStore.number(row, "gc_next_at") > now
++                        || !"DELETING".equals(row.get("retention_state"))
++                        || !owner.equals(row.get("gc_owner"))
++                        && ToolPublicationRetentionStore.number(row, "gc_claim_until") > now) {
+                     return null;
+                 }
+-            } else if (ToolPublicationRetentionStore.number(row, "gc_next_at") > now
+-                    || !"DELETING".equals(row.get("retention_state"))
+-                    || !owner.equals(row.get("gc_owner"))
+-                    && ToolPublicationRetentionStore.number(row, "gc_claim_until") > now) {
+-                return null;
++                long generation = ToolPublicationRetentionStore.number(row, "gc_generation") + 1;
++                jdbc.update("UPDATE qwen_tool_publication SET retention_state = 'DELETING', gc_generation = ?,"
++                                + " gc_owner = ?, gc_claim_until = ?, gc_blocker = NULL WHERE scope_key = ? AND publication_id = ?",
++                        generation, owner, now + CLAIM_MILLIS, row.get("scope_key"), row.get("publication_id"));
++                return new Claim((String) row.get("scope_key"), (String) row.get("publication_id"), tenant, session,
++                        generation, (String) row.get("gc_cursor"));
++            });
++            if (claim != null) {
++                return claim;
+             }
+-            long generation = ToolPublicationRetentionStore.number(row, "gc_generation") + 1;
+-            jdbc.update("UPDATE qwen_tool_publication SET retention_state = 'DELETING', gc_generation = ?,"
+-                            + " gc_owner = ?, gc_claim_until = ?, gc_blocker = NULL WHERE scope_key = ? AND publication_id = ?",
+-                    generation, owner, now + CLAIM_MILLIS, row.get("scope_key"), row.get("publication_id"));
+-            return new Claim((String) row.get("scope_key"), (String) row.get("publication_id"), tenant, session,
+-                    generation, (String) row.get("gc_cursor"));
+-        });
++        }
++        return null;
+     }
+ 
+     private boolean confirm(Claim claim, List<ObjectKey> page) {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationStoreTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationStoreTest.java
+index c96fb58678..19f8b80c0f 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationStoreTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationStoreTest.java
+@@ -293,8 +293,8 @@ class ToolPublicationStoreTest {
+                     : first.publishSegment(key, "pub-1", PUBLICATION_TOKEN, "original", "stdout", 0, bytes, null));
+             try {
+                 assertThat(written.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+-                jdbc.update("UPDATE qwen_tool_publication_operation SET deadline = ? WHERE operation_id = 'original'",
+-                        java.sql.Timestamp.from(Instant.now().minusSeconds(1)));
++                jdbc.update("UPDATE qwen_tool_publication_operation SET deadline ="
++                        + " TIMESTAMPADD(SECOND, -1, CURRENT_TIMESTAMP(6)) WHERE operation_id = 'original'");
+                 var originalDeadline = jdbc.queryForObject("SELECT deadline FROM qwen_tool_publication_operation"
+                         + " WHERE operation_id = 'original'", java.sql.Timestamp.class);
+                 var before = jdbc.queryForMap("SELECT object_key, resource_id, byte_length, sha256, operation_id"
+@@ -423,7 +423,7 @@ class ToolPublicationStoreTest {
+                 assertThat(entered.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                 String column = expired ? "deadline" : "claim_until";
+                 jdbc.update("UPDATE qwen_tool_publication_operation SET " + column
+-                        + " = ? WHERE operation_id = 'held'", java.sql.Timestamp.from(Instant.now().minusSeconds(1)));
++                        + " = TIMESTAMPADD(SECOND, -1, CURRENT_TIMESTAMP(6)) WHERE operation_id = 'held'");
+                 assertThat(data.operationStatus(key, "pub-1", PUBLICATION_TOKEN, "held").path("state").asText())
+                         .isEqualTo(expired ? "EXPIRED" : "RETRYABLE");
+                 var candidate = jdbc.queryForMap("SELECT object_key, resource_id, byte_length, sha256"
+@@ -476,8 +476,8 @@ class ToolPublicationStoreTest {
+         assertThatThrownBy(() -> data.publishSegment(key, "pub-1", PUBLICATION_TOKEN,
+                 "candidate", "stdout", 0, new byte[] {1}, null)).hasMessageContaining("lost PUT reply");
+         data.prefix(key, "pub-1", PUBLICATION_TOKEN, "prefix", "stderr");
+-        jdbc.update("UPDATE qwen_tool_publication_operation SET deadline = ?, state = 'PENDING'",
+-                java.sql.Timestamp.from(Instant.now().minusSeconds(1)));
++        jdbc.update("UPDATE qwen_tool_publication_operation SET deadline ="
++                + " TIMESTAMPADD(SECOND, -1, CURRENT_TIMESTAMP(6)), state = 'PENDING'");
+         assertThatThrownBy(() -> data.recoverOperation(key, "pub-1", PUBLICATION_TOKEN, "prefix"))
+                 .hasMessageContaining("prefix cannot be recovered");
+         assertThatThrownBy(() -> data.recoverOperation(key, "pub-1", "wrong-token", "candidate"))
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
+index 7dcee90b2f..ef7625d800 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationCollectorTest.java
+@@ -54,6 +54,95 @@ public class ToolPublicationCollectorTest extends ToolPublicationRetentionStoreT
+         jdbc.update("UPDATE qwen_tool_publication SET gc_next_at = 0, gc_claim_until = 0 WHERE scope_key = ?", scope);
+     }
+ 
++    private String addPublication(String publication, String sessionId) {
++        String publicationScope = ToolPublicationRetentionStore.hash(tenant + sessionId);
++        jdbc.update("INSERT INTO qwen_tool_publication (scope_key, tenant_key, tenant_id, workspace_id, session_id,"
++                        + " publication_id, execution_key, capture_id, binding_json, binding_digest, token_hash, state,"
++                        + " capture_bytes, producer_bytes, admission_bytes, producer_phase, write_evidence, accepted_complete,"
++                        + " capture_held_bytes, producer_held_bytes, admission_held_bytes, capture_used_bytes)"
++                        + " SELECT ?, tenant_key, tenant_id, workspace_id, ?, ?, ?, ?, binding_json, binding_digest,"
++                        + " token_hash, state, capture_bytes, producer_bytes, admission_bytes, producer_phase,"
++                        + " write_evidence, accepted_complete, capture_held_bytes, producer_held_bytes, admission_held_bytes,"
++                        + " capture_used_bytes FROM qwen_tool_publication WHERE scope_key = ? AND publication_id = 'pub-1'",
++                publicationScope, sessionId, publication, ToolPublicationRetentionStore.hash(publicationScope + publication),
++                "capture-" + publication, scope);
++        return publicationScope;
++    }
++
++    @Test
++    void graceCandidatesYieldToAnEligiblePublicationAndWaitUntilTheirDeadline() {
++        String heldSession = "held-session";
++        for (int index = 0; index < 150; index++) { addPublication("held-" + index, heldSession); }
++        addObject("one", "eligible/one", null);
++        retire();
++        Duration grace = Duration.ofHours(24);
++        jdbc.update("UPDATE qwen_output_session_retirement SET retired_at = ? WHERE tenant_id = ? AND session_id = ?",
++                ToolPublicationRetentionStore.now(jdbc) - grace.toMillis() - 1000, tenant, session);
++        tx.executeWithoutResult(status -> {
++            ToolPublicationRetentionStore.lockDeletion(jdbc, tenant, heldSession);
++            ToolPublicationRetentionStore.retire(jdbc, tenant, heldSession, "delete-held");
++        });
++        long deadline = jdbc.queryForObject("SELECT retired_at FROM qwen_output_session_retirement"
++                + " WHERE tenant_id = ? AND session_id = ?", Long.class, tenant, heldSession) + grace.toMillis();
++        jdbc.update("UPDATE qwen_tool_publication SET gc_next_at = 1 WHERE scope_key = ?", scope);
++        var properties = new ManagedAgentProperties();
++        properties.getToolPublication().setGcEnabled(true);
++        properties.getToolPublication().setDeletionGrace(grace);
++        var objects = new DeletingObjects();
++        var gc = new ToolPublicationCollector(jdbc, manager, retention, objects, properties);
++        gc.runOnce();
++        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM qwen_tool_publication WHERE session_id = ?"
++                + " AND gc_blocker IS NOT NULL", Long.class, heldSession)).isBetween(2L, 32L);
++        for (int tick = 1; tick < 5 && !"COLLECTED".equals(state()); tick++) { gc.runOnce(); }
++        assertThat(state()).isEqualTo("COLLECTED");
++        assertThat(objects.deleted).containsExactly("eligible/one");
++        assertThat(held()).isZero();
++        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM qwen_tool_publication WHERE session_id = ?"
++                        + " AND retention_state = 'RETIRING' AND gc_blocker = 'grace_period' AND gc_next_at = ?"
++                        + " AND capture_held_bytes + producer_held_bytes + admission_held_bytes = 3000",
++                Long.class, heldSession, deadline)).isEqualTo(150);
++    }
++
++    @Test
++    void collectionPreservesOtherPublicationsMessagesAndCheckpoints() {
++        addObject("target-result", null, new byte[] {2});
++        addPublication("pub-2", session);
++        jdbc.update("INSERT INTO qwen_tool_publication_object (scope_key, publication_id, slot_key, resource_id,"
++                        + " resource_kind, byte_length, sha256, inline_bytes, state, operation_id, created_at)"
++                        + " VALUES (?, 'pub-2', 'sibling-result', 'sibling-result', 'managed-tool-result-content',"
++                        + " 1, ?, ?, 'VERIFIED', 'op', CURRENT_TIMESTAMP(6))", scope, scope, new byte[] {2});
++        for (String resource : List.of("target-result", "sibling-result", "message-1", "checkpoint-1")) {
++            String kind = resource.equals("message-1") ? "managed-message"
++                    : resource.equals("checkpoint-1") ? "managed-checkpoint" : "managed-tool-result-content";
++            jdbc.update("INSERT INTO qwen_managed_session_resource (session_scope_key, tenant_id, workspace_id, session_id,"
++                            + " resource_id, kind, schema_version, byte_length, sha256, storage_kind, inline_bytes,"
++                            + " publish_command_id, state, created_at) VALUES (?, ?, 'workspace-1', ?, ?, ?,"
++                            + " 1, 1, ?, 'MYSQL_INLINE', ?, 'publish', 'REFERENCED', CURRENT_TIMESTAMP(6))",
++                    ManagedSessionStore.sessionScopeKey(tenant, session), tenant, session, resource, kind, scope, new byte[] {2});
++        }
++        long used = jdbc.queryForObject("SELECT capture_used_bytes + producer_used_bytes + admission_used_bytes"
++                + " FROM qwen_tool_publication WHERE scope_key = ? AND publication_id = 'pub-1'", Long.class, scope);
++        retire();
++        assertThat(collector(new DeletingObjects()).runOnce()).isTrue();
++        assertThat(jdbc.queryForObject("SELECT inline_bytes FROM qwen_managed_session_resource"
++                + " WHERE resource_id = 'target-result'", byte[].class)).isNull();
++        for (String resource : List.of("sibling-result", "message-1", "checkpoint-1")) {
++            assertThat(jdbc.queryForObject("SELECT inline_bytes FROM qwen_managed_session_resource"
++                    + " WHERE resource_id = ?", byte[].class, resource)).containsExactly(2);
++        }
++        assertThat(jdbc.queryForObject("SELECT inline_bytes FROM qwen_tool_publication_object"
++                + " WHERE publication_id = 'pub-2'", byte[].class)).containsExactly(2);
++        assertThat(jdbc.queryForObject("SELECT retention_state FROM qwen_tool_publication"
++                + " WHERE publication_id = 'pub-2'", String.class)).isEqualTo("RETIRING");
++        assertThat(jdbc.queryForObject("SELECT capture_used_bytes + producer_used_bytes + admission_used_bytes"
++                + " FROM qwen_tool_publication WHERE publication_id = 'pub-2'", Long.class)).isEqualTo(used);
++        assertThat(used).isPositive();
++        assertThat(jdbc.queryForObject("SELECT capture_used_bytes + producer_used_bytes + admission_used_bytes"
++                + " FROM qwen_tool_publication WHERE publication_id = 'pub-1'", Long.class)).isZero();
++        assertThat(jdbc.queryForObject("SELECT collected_bytes FROM qwen_tool_publication"
++                + " WHERE publication_id = 'pub-1'", Long.class)).isEqualTo(used);
++    }
++
+     @Test
+     void aFailingPublicationDoesNotStarveTheNextPublication() {
+         jdbc.update("INSERT INTO qwen_tool_publication (scope_key, tenant_key, tenant_id, workspace_id, session_id,"
+-- 
+2.55.0
+

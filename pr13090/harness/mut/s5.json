@@ -1,0 +1,18 @@
+{
+ "lines": [
+  "## legacy rows      E delay after eligible   blocked re-evaluations / min (steady)   tapped SQL statements / min (steady)",
+  "++   150 (S1 grace)            0.17 s          each row once while in grace (151 total)                —",
+  "!!  1,500                       1.9 s          1,500 / min, forever                                     ~13,700 / min",
+  "--  3,000                      38.6 s          1,760-1,824 / min (scan saturated ≈ 30 rows/s)            ~16,500 / min",
+  "",
+  "== every row ends as legacy_write_evidence_missing and can never be collected; each costs a locked re-evaluation every 60 s",
+  "== model: the 60 s re-poll needs N rows/min but one instance scans ≤ 32 rows/s (~30 measured) → E waits ≈ N/30 − 60 s",
+  "==        3,000/30 − 60 = 40 s predicted vs 38.6 s measured; the same mechanism produced 94.8 s with LIMIT 1 in S1",
+  "",
+  "## synthetic part: 2,850 / 1,350 rows are SQL clones of the 150 real rows (same scope/session, new ids, write_evidence FALSE)",
+  "## exactly what V27 leaves on rows written before the upgrade; the collector, scheduler, locks and MySQL are real"
+ ],
+ "note": "F1 (capacity, before GC enablement): only the grace wait was moved to its deadline. Terminal blockers (legacy evidence, quarantine, not accepted complete, …) still re-poll every 60 s, so a deployment with more than ~1,800 such rows per instance delays every eligible publication again and keeps ~230-275 SQL statements/s busy indefinitely.",
+ "landing": "-P o4-mysql-gates on 38fcb7bd: surefire 455/455 + O4MySqlGate 40/40 (35 + 5 newer O4-1 cases), checker PASS",
+ "c3": "with J5 + -Dmaven.test.failure.ignore=true Maven exits 0; real checker exits 1, C3 checker exits 0 on the same report (1 <failure>)"
+}

@@ -1,0 +1,40 @@
+From 6afc3d63c17dca84447979febccb9d707d2b22ad Mon Sep 17 00:00:00 2001
+From: jinye <djy1989418@126.com>
+Date: Thu, 1 Oct 2026 19:06:23 +0800
+Subject: [PATCH 06/10] docs(managed-agent): Preserve deployment gate
+ identifiers
+
+---
+ docs/design/managed-tool-output-retention-operations.md       | 2 +-
+ docs/design/managed-tool-output-retention-operations.zh-CN.md | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/docs/design/managed-tool-output-retention-operations.md b/docs/design/managed-tool-output-retention-operations.md
+index 4622b5211a..946505c428 100644
+--- a/docs/design/managed-tool-output-retention-operations.md
++++ b/docs/design/managed-tool-output-retention-operations.md
+@@ -14,7 +14,7 @@ Enable physical collection only after the real database, real OSS and full Hoste
+ 
+ ## Reproducible gate entry points
+ 
+-Use Java 21 and build/install the checkout's Java SDK and Runtime Broker dependencies first, as described in their READMEs. The O4 profiles require real MySQL 8.4 with performance*schema enabled and never silently substitute H2. Provide an existing dedicated database URL with a `qwen_o4*`name, for example`jdbc:mysql://127.0.0.1:3306/qwen*o4_gate`. The test user needs CREATE/DROP DATABASE privileges and SELECT access to performance_schema.data_lock_waits, data_locks and threads on the isolated test server. That metadata is used only to observe an actual InnoDB lock wait by writer connection ID, generated schema and tenant table. Each case creates a fresh random `qwen_o4*` database, migrates it, and drops only that generated database; it never cleans the supplied database. The main test data source uses a four-connection pool and closes it before dropping the generated database. After an interrupted runner, inspect generated database names, case directories and owned child PIDs before cleaning up; never remove the supplied database.
++Use Java 21 and build/install the checkout's Java SDK and Runtime Broker dependencies first, as described in their READMEs. The O4 profiles require real MySQL 8.4 with `performance_schema` enabled and never silently substitute H2. Provide an existing dedicated database URL with a `qwen_o4_` name, for example `jdbc:mysql://127.0.0.1:3306/qwen_o4_gate`. The test user needs CREATE/DROP DATABASE privileges and SELECT access to `performance_schema.data_lock_waits`, `performance_schema.data_locks` and `performance_schema.threads` on the isolated test server. That metadata is used only to observe an actual InnoDB lock wait by writer connection ID, generated schema and tenant table. Each case creates a fresh random `qwen_o4_` database, migrates it, and drops only that generated database; it never cleans the supplied database. The main test data source uses a four-connection pool and closes it before dropping the generated database. After an interrupted runner, inspect generated database names, case directories and owned child PIDs before cleaning up; never remove the supplied database.
+ 
+ Set `QWEN_O4_MYSQL_PASSWORD` through the test environment rather than command arguments. Do not put credentials in the JDBC URL or logs. IPv6 literal hosts and the non-sensitive options allowPublicKeyRetrieval, useSSL, sslMode, characterEncoding, connectTimeout and socketTimeout are supported and preserved for the generated database and child. User/password, plugin, userinfo and other connection options are rejected. Run the full profiles from a clean report directory, without integration-test selectors; the explicit Gate classes stay outside ordinary CI's IT family. A successful Maven command alone is insufficient: the source-derived report check below must also pass, with no skipped/failed case or selector property. The plugin's failIfNoSpecifiedTests cannot cover every empty method selector, so preserve the two-stage entry joined by &&; failure of either stage is a failed gate:
+ 
+diff --git a/docs/design/managed-tool-output-retention-operations.zh-CN.md b/docs/design/managed-tool-output-retention-operations.zh-CN.md
+index e8c3566379..80adb82c86 100644
+--- a/docs/design/managed-tool-output-retention-operations.zh-CN.md
++++ b/docs/design/managed-tool-output-retention-operations.zh-CN.md
+@@ -14,7 +14,7 @@
+ 
+ ## 可复现门禁入口
+ 
+-使用 Java 21，先按 Java SDK 和 Runtime Broker 的 README 构建并安装本 checkout 的依赖。O4 profile 要求启用 performance*schema 的真实 MySQL 8.4，不会静默替换为 H2。提供已有专用数据库 URL，库名以 `qwen_o4*`开头，例如`jdbc:mysql://127.0.0.1:3306/qwen*o4_gate`。测试身份需要隔离测试服务器上的 CREATE/DROP DATABASE 权限，以及对 performance_schema.data_lock_waits、data_locks、threads 的 SELECT 权限。这些元数据仅用于按 writer 连接 ID、随机库名和 tenant 表观察真实 InnoDB 锁等待。每个用例创建全新随机 `qwen_o4*` 数据库、迁移并只删除该生成库；不会清理传入的数据库。主测试数据源使用最多四个连接的池，删库前先关闭池。runner 中断后，清理前核对生成库名、用例目录及自己创建的子进程 PID；不得删除传入库。
++使用 Java 21，先按 Java SDK 和 Runtime Broker 的 README 构建并安装本 checkout 的依赖。O4 profile 要求启用 `performance_schema` 的真实 MySQL 8.4，不会静默替换为 H2。提供已有专用数据库 URL，库名以 `qwen_o4_` 开头，例如 `jdbc:mysql://127.0.0.1:3306/qwen_o4_gate`。测试身份需要隔离测试服务器上的 CREATE/DROP DATABASE 权限，以及对 `performance_schema.data_lock_waits`、`performance_schema.data_locks`、`performance_schema.threads` 的 SELECT 权限。这些元数据仅用于按 writer 连接 ID、随机库名和 tenant 表观察真实 InnoDB 锁等待。每个用例创建全新随机 `qwen_o4_` 数据库、迁移并只删除该生成库；不会清理传入的数据库。主测试数据源使用最多四个连接的池，删库前先关闭池。runner 中断后，清理前核对生成库名、用例目录及自己创建的子进程 PID；不得删除传入库。
+ 
+ 通过测试环境设置 `QWEN_O4_MYSQL_PASSWORD`，不要放入命令参数。JDBC URL 和日志中不得包含凭据。支持 IPv6 literal host，以及 allowPublicKeyRetrieval、useSSL、sslMode、characterEncoding、connectTimeout、socketTimeout 这些非敏感选项，原样保留到生成库和子进程。拒绝 user/password、插件、userinfo 及其他选项。从干净报告目录运行完整 profile，不使用集成测试选择器；显式 Gate 类不属于普通 CI 的 IT 家族。仅 Maven 成功不足以作为证据，下面的源码导出报告检查也必须通过，且不得有跳过/失败用例或选择器属性。插件的 failIfNoSpecifiedTests 不能覆盖所有方法选择器的零测试情况，因此必须保留以 && 连接的两阶段入口，任一失败都不算门禁通过：
+ 
+-- 
+2.55.0
+
