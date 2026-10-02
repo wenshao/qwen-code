@@ -1,0 +1,33 @@
+// s11: a reader blocked inside an OSS GET (no bytes yet, so no lease check runs) while its Session is retired.
+// Aligned to the observer's 60 s cadence so the next tick falls inside the reader's window (SDK socket timeout ~50 s).
+import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import * as L from './lib.mjs';
+L.openLog('s11-reader-active');
+const log = () => fs.readFileSync(`${L.S}/logs/${process.env.SPRING_LOG}`, 'utf8').split('\n').filter((l) => l.includes('tool_output_retention sample=')).map((l) => l.replace(/^(\S+).*tool_output_retention /, '$1 '));
+const m = await L.makeOutput('reader', 'ws-obs-R', 'st-s47', L.genCmd('obsR', 4 * 1024 * 1024, 0, 0));
+const a = m.arts.find((x) => x.stream_role === 'stdout');
+const segKey = L.one(`SELECT o.object_key FROM qwen_tool_publication_object o JOIN qwen_tool_publication p ON p.publication_id=o.publication_id WHERE p.session_id='${m.session}' AND o.slot_key='segment:stdout:1'`);
+L.say('made', { session: m.session, segKey: segKey.slice(-16) });
+const n0 = log().length;
+while (log().length === n0) await L.sleep(250);
+const tickAt = Date.parse(log().at(-1).split(' ')[0]);
+L.say('aligned-to-tick', log().at(-1));
+await L.sleep(Math.max(0, tickAt + 14_000 - Date.now()));
+await L.oss('/fault', { op: 'get', mode: 'delay', ms: 75_000, count: 1, match: segKey });
+const t0 = Date.now();
+const progress = { bytes: 0 };
+const dl = L.streamDownload(m.session, a, { progress });
+await L.sleep(4000);
+L.say('before-retire', `bytes=${progress.bytes} leaseRows=${L.one('SELECT COUNT(*) FROM qwen_output_read_lease')}`);
+L.say('retire', L.opSeam(m.session, 'DELETE').split('\n').at(-1).replace(/^op \S+ /, ''));
+L.say('after-retire', `leaseRows=${L.one('SELECT COUNT(*) FROM qwen_output_read_lease')} expires_in_ms=${L.one('SELECT MAX(expires_at) - (UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3))*1000) FROM qwen_output_read_lease')}`);
+const n1 = log().length;
+while (log().length === n1) await L.sleep(250);
+L.say('tick-with-blocked-reader', log().at(-1));
+const r = await dl;
+await L.oss('/clear-faults', {});
+L.say('reader-end', `status=${r.status} received=${r.bytes} ended=${r.ended} at=${r.closeMs} ms; leaseRows=${L.one('SELECT COUNT(*) FROM qwen_output_read_lease')}`);
+const n2 = log().length;
+while (log().length === n2) await L.sleep(250);
+L.say('tick-after-reader-gone', log().at(-1));

@@ -1,0 +1,13 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationStoreTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationStoreTest.java
+index c96fb58678..67bafcd0a0 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationStoreTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationStoreTest.java
+@@ -735,6 +735,8 @@ class ToolPublicationStoreTest {
+                                 manifestRef.path("digest").asText(), null)));
+         var admissions = new ToolPublicationAdmissionStore(jdbc, manager, sessions, data);
+         JsonNode committed = admissions.commitReceipt(key, "pub-1", WRITER_TOKEN, commit);
++        assertThat(jdbc.queryForObject("SELECT accepted_complete FROM qwen_tool_publication"
++                + " WHERE publication_id = 'pub-1'", Boolean.class)).isEqualTo(!partial);
+         assertThat(committed.path("historyRevision").asLong()).isEqualTo(receiptSequence);
+         assertThat(admissions.commitReceipt(key, "pub-1", WRITER_TOKEN, commit)).isEqualTo(committed);
+         JsonNode brokerReceipt = data.receiptForBroker(executions.findByExecutionCallId("execution-1"));
