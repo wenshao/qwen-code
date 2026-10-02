@@ -1,0 +1,36 @@
+## WHERE session_scope_key = ? AND hook_once_key_hash = ?
++----+-------------+-+------+------------
+| id | select_type | | type | possible_ke
++----+-------------+-+------+------------
+|  1 | SIMPLE      | | NULL | NULL       
++----+-------------+-+------+------------
+-> Zero rows (no matching row in const table)  (cost=0..0 rows=0) (actual time=83e-6..83e-6 rows=0 loops=1)
+
+## WHERE session_scope_key = ? AND hook_occurrence_hash = ? AND hook_ordinal = ?
++----+-------------+--------------------+---------------------------------------------------------------+---------------------------------+---------+-------------------+------+----------+-------+
+| id | select_type |                    |                                                               | key                             | key_len | ref               | rows | filtered | Extra |
++----+-------------+--------------------+---------------------------------------------------------------+---------------------------------+---------+-------------------+------+----------+-------+
+|  1 | SIMPLE      |on_extension_record |ession_extension_operation,idx_managed_session_hook_definition | uq_managed_session_hook_ordinal | 522     | const,const,const |    1 |   100.00 | NULL  |
++----+-------------+--------------------+---------------------------------------------------------------+---------------------------------+---------+-------------------+------+----------+-------+
+-> Limit: 1 row(s)  (cost=0..0 rows=1) (actual time=208e-6..249e-6 rows=1 loops=1)
+    -> Rows fetched before execution  (cost=0..0 rows=1) (actual time=41e-6..41e-6 rows=1 loops=1)
+
+## WHERE session_scope_key = ? AND hook_occurrence_hash = ?
++----+-------------+--------------------+--------------------------------------------------------------+---------------------------------+---------+-------------+------+----------+-------+
+| id | select_type |                    |                                                              | key                             | key_len | ref         | rows | filtered | Extra |
++----+-------------+--------------------+--------------------------------------------------------------+---------------------------------+---------+-------------+------+----------+-------+
+|  1 | SIMPLE      |on_extension_record |ssion_extension_operation,idx_managed_session_hook_definition | uq_managed_session_hook_ordinal | 513     | const,const |    9 |   100.00 | NULL  |
++----+-------------+--------------------+--------------------------------------------------------------+---------------------------------+---------+-------------+------+----------+-------+
+-> Limit: 1 row(s)  (cost=3.15 rows=1) (actual time=0.0875..0.0875 rows=1 loops=1)
+    -> Index lookup on qwen_managed_session_extension_record using uq_managed_session_hook_ordinal (session_scope_key='?', hook_occurrence_hash='?')  (cost=3.15 rows=9) (actual time=0.0873..0.0873 rows=1 loops=1)
+
+## WHERE session_scope_key = ? AND hook_definition_hash = ?
++----+-------------+--------------------+--------------------------------------------------------------+-------------------------------------+---------+-------------+------+----------+-------+
+| id | select_type |                    |                                                              | key                                 | key_len | ref         | rows | filtered | Extra |
++----+-------------+--------------------+--------------------------------------------------------------+-------------------------------------+---------+-------------+------+----------+-------+
+|  1 | SIMPLE      |on_extension_record |ssion_extension_operation,idx_managed_session_hook_definition | idx_managed_session_hook_definition | 513     | const,const |    1 |   100.00 | NULL  |
++----+-------------+--------------------+--------------------------------------------------------------+-------------------------------------+---------+-------------+------+----------+-------+
+-> Limit: 1 row(s)  (cost=0.35 rows=1) (actual time=0.0113..0.0113 rows=1 loops=1)
+    -> Index lookup on qwen_managed_session_extension_record using idx_managed_session_hook_definition (session_scope_key='?', hook_definition_hash='?')  (cost=0.35 rows=1) (actual time=0.011..0.011 rows=1 loops=1)
+
+rows in that Session: 10837

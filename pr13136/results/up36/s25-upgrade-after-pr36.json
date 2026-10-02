@@ -1,0 +1,112 @@
+{
+  "name": "s25-upgrade-after-pr36",
+  "pass": 12,
+  "fail": 2,
+  "rows": [
+    {
+      "label": "flyway history",
+      "note": true,
+      "detail": "3 runtime broker SQL 1 58 | 4 managed session store SQL 1 23 | 5 managed session lifecycle SQL 1 42 | 6 managed turn retry SQL 1 17 | 7 managed workspace binding SQL 1 129 | 8 managed workspace registry SQL 1 14 | 9 managed workspace creation command SQL 1 11 | 27 managed hook records SQL 1 12 | 28 managed hook admission index SQL 1 93 | 29 managed hook admission backfill JDBC 1 157"
+    },
+    {
+      "label": "V28 and V29 applied successfully",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "indexes",
+      "note": true,
+      "detail": "idx_managed_session_hook_definition:1 uq_managed_session_hook_once:0 uq_managed_session_hook_ordinal:0"
+    },
+    {
+      "label": "U1: journal head after the backfill",
+      "ok": true,
+      "detail": "READY -; 30 Hook rows, unprojected: 0 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0"
+    },
+    {
+      "label": "U2: journal head after the backfill",
+      "ok": true,
+      "detail": "READY -; 30 Hook rows, unprojected: 0 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0"
+    },
+    {
+      "label": "U3: journal head after the backfill",
+      "ok": true,
+      "detail": "BLOCKED_RESOURCE hook_admission_record_unverified; 30 Hook rows, unprojected: 1 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0"
+    },
+    {
+      "label": "U4: journal head after the backfill",
+      "ok": true,
+      "detail": "BLOCKED_RESOURCE hook_admission_record_duplicate; 31 Hook rows, unprojected: 1 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0"
+    },
+    {
+      "label": "U5: journal head after the backfill",
+      "ok": true,
+      "detail": "BLOCKED_RESOURCE hook_admission_record_unverified; 30 Hook rows, unprojected: 1 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0"
+    },
+    {
+      "label": "U1/U2: every backfilled key equals the SQL recomputation from its body",
+      "ok": true,
+      "detail": "U1 0, U2 0 mismatches"
+    },
+    {
+      "label": "U1 and U2 hold the same once-key hash (two Sessions may use one key)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "U1 load on pr36",
+      "note": true,
+      "detail": "200  "
+    },
+    {
+      "label": "U2 load on pr36",
+      "note": true,
+      "detail": "200  "
+    },
+    {
+      "label": "U3 load on pr36",
+      "note": true,
+      "detail": "503 managed_session_open_failed managed_session_open_failed"
+    },
+    {
+      "label": "U4 load on pr36",
+      "note": true,
+      "detail": "503 managed_session_open_failed managed_session_open_failed"
+    },
+    {
+      "label": "U5 load on pr36",
+      "note": true,
+      "detail": "503 managed_session_open_failed managed_session_open_failed"
+    },
+    {
+      "label": "U1, U2 load 200; U3, U4, U5 are refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "U1 after the upgrade: turn completes, once-key Hook does not fire again, Notification ops 200",
+      "ok": false,
+      "detail": "admit=202 terminal=turn_error[{\"sessionId\":\"d22da4bc-0bdc-478f-91d8-f0be6e24be06\",\"promptId\":\"39cc6691-ecdb-4909-bfef-2eb5eb7c895e\",\"code\":\"hosted_turn_failed\",\"message\":\"Hosted Harness turn failed.\"}] recoveryBlocked=false 30169ms; once-key Hook calls 1 -> 1; ops 503,409,409; "
+    },
+    {
+      "label": "U1 rows written by this PR carry keys equal to the SQL recomputation",
+      "ok": true,
+      "detail": "mismatches 0; hook_execution rows 33"
+    },
+    {
+      "label": "U1 detach + load + prompt after the upgrade",
+      "ok": false,
+      "detail": "detach 204 load 200 admit=202 terminal=turn_error[{\"sessionId\":\"d22da4bc-0bdc-478f-91d8-f0be6e24be06\",\"promptId\":\"d61b3f67-2462-4932-9f37-c4db0ab03897\",\"code\":\"hosted_turn_failed\",\"message\":\"Hosted Harness turn failed.\"}] recoveryBlocked=false 30129ms once calls 1"
+    },
+    {
+      "label": "new Session U6 in ws-up1: once-key Hook fires exactly once",
+      "ok": true,
+      "detail": "admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1887ms | admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1390ms once calls 1"
+    },
+    {
+      "label": "new Session U7 in ws-up3 (U3 blocked) works",
+      "ok": true,
+      "detail": "200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1355ms once calls 1"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+# s25-upgrade-after-pr36  db=up36 arm=pr36  2026-10-02T01:39:35.479Z
+NOTE  flyway history  -> 3 runtime broker SQL 1 58 | 4 managed session store SQL 1 23 | 5 managed session lifecycle SQL 1 42 | 6 managed turn retry SQL 1 17 | 7 managed workspace binding SQL 1 129 | 8 managed workspace registry SQL 1 14 | 9 managed workspace creation command SQL 1 11 | 27 managed hook records SQL 1 12 | 28 managed hook admission index SQL 1 93 | 29 managed hook admission backfill JDBC 1 157
+PASS  V28 and V29 applied successfully
+NOTE  indexes  -> idx_managed_session_hook_definition:1 uq_managed_session_hook_once:0 uq_managed_session_hook_ordinal:0
+PASS  U1: journal head after the backfill  -> READY -; 30 Hook rows, unprojected: 0 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0
+PASS  U2: journal head after the backfill  -> READY -; 30 Hook rows, unprojected: 0 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0
+PASS  U3: journal head after the backfill  -> BLOCKED_RESOURCE hook_admission_record_unverified; 30 Hook rows, unprojected: 1 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0
+PASS  U4: journal head after the backfill  -> BLOCKED_RESOURCE hook_admission_record_duplicate; 31 Hook rows, unprojected: 1 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0
+PASS  U5: journal head after the backfill  -> BLOCKED_RESOURCE hook_admission_record_unverified; 30 Hook rows, unprojected: 1 executions, 0 registrations; mismatches vs SQL recomputation (projected rows): 0
+PASS  U1/U2: every backfilled key equals the SQL recomputation from its body  -> U1 0, U2 0 mismatches
+PASS  U1 and U2 hold the same once-key hash (two Sessions may use one key)
+NOTE  U1 load on pr36  -> 200  
+NOTE  U2 load on pr36  -> 200  
+NOTE  U3 load on pr36  -> 503 managed_session_open_failed managed_session_open_failed
+NOTE  U4 load on pr36  -> 503 managed_session_open_failed managed_session_open_failed
+NOTE  U5 load on pr36  -> 503 managed_session_open_failed managed_session_open_failed
+PASS  U1, U2 load 200; U3, U4, U5 are refused
+FAIL  U1 after the upgrade: turn completes, once-key Hook does not fire again, Notification ops 200  -> admit=202 terminal=turn_error[{"sessionId":"d22da4bc-0bdc-478f-91d8-f0be6e24be06","promptId":"39cc6691-ecdb-4909-bfef-2eb5eb7c895e","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 30169ms; once-key Hook calls 1 -> 1; ops 503,409,409; 
+PASS  U1 rows written by this PR carry keys equal to the SQL recomputation  -> mismatches 0; hook_execution rows 33
+FAIL  U1 detach + load + prompt after the upgrade  -> detach 204 load 200 admit=202 terminal=turn_error[{"sessionId":"d22da4bc-0bdc-478f-91d8-f0be6e24be06","promptId":"d61b3f67-2462-4932-9f37-c4db0ab03897","code":"hosted_turn_failed","message":"Hosted Harness turn failed."}] recoveryBlocked=false 30129ms once calls 1
+PASS  new Session U6 in ws-up1: once-key Hook fires exactly once  -> admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1887ms | admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1390ms once calls 1
+PASS  new Session U7 in ws-up3 (U3 blocked) works  -> 200 admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1355ms once calls 1
+== RESULT s25-upgrade-after-pr36: 12 passed, 2 failed
