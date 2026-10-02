@@ -1,0 +1,219 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.test.ts b/packages/cli/src/serve/hosted-harness-session.test.ts
+index f6a12a8c21..3498a77f28 100644
+--- a/packages/cli/src/serve/hosted-harness-session.test.ts
++++ b/packages/cli/src/serve/hosted-harness-session.test.ts
+@@ -6550,7 +6550,7 @@ describe('Hosted Harness Runtime turn takeover', () => {
+    * execute hangs until the owner is "crashed" via cancel, leaving the turn
+    * unsettled in the journal.
+    */
+-  async function parkToolTurn() {
++  async function parkToolTurn(profile: string = FILE_PROFILE) {
+     vi.spyOn(HostedWorkspaceBroker.prototype, 'warm').mockResolvedValue();
+     acquireSpy = vi
+       .spyOn(HostedWorkspaceBroker.prototype, 'acquire')
+@@ -6578,7 +6578,7 @@ describe('Hosted Harness Runtime turn takeover', () => {
+       sessionId: SESSION_ID,
+       sessionScope: 'thread',
+       managedSessionStore: store(),
+-      toolProfile: FILE_PROFILE,
++      toolProfile: profile,
+     });
+     expect(created.status).toBe(200);
+     state.model.mockImplementationOnce(
+@@ -6632,13 +6632,16 @@ describe('Hosted Harness Runtime turn takeover', () => {
+     acquireSpy.mockClear();
+   }
+ 
+-  async function loadReplacement(passive = false) {
++  async function loadReplacement(
++    passive = false,
++    profile: string = FILE_PROFILE,
++  ) {
+     const server = replacementApp();
+     const loaded = await replacementHeaders(
+       supertest(server).post(`/session/${SESSION_ID}/load`),
+     ).send({
+       managedSessionStore: storeFor(BOOT_ID_2),
+-      toolProfile: FILE_PROFILE,
++      toolProfile: profile,
+       // Only the coordinator's takeover may drive or report a parked Turn.
+       [passive ? 'passiveManagedRuntimeRecovery' : 'driveRuntimeRecovery']:
+         true,
+@@ -6646,6 +6649,58 @@ describe('Hosted Harness Runtime turn takeover', () => {
+     return { server, loaded };
+   }
+ 
++  it('keeps glob declared when the coordinator continues a recovered /2 Turn', async () => {
++    // The continue route builds its own tool turn; without the Session's
++    // profile it would fall back to the /1 declarations, and a model that
++    // calls glob again would end the recovered Turn with a profile refusal.
++    await parkToolTurn('hosted-workspace-files/2');
++    vi.spyOn(HostedWorkspaceBroker.prototype, 'execute').mockResolvedValue({
++      executionStatus: 'success',
++      responseParts: [{ text: 'written' }],
++    } as never);
++    const { server, loaded } = await loadReplacement(
++      false,
++      'hosted-workspace-files/2',
++    );
++    expect(loaded.status).toBe(200);
++    const recovery = loaded.body._meta?.[
++      'qwen.daemon.managedRuntimeRecovery'
++    ] as { checkpointId: string; activationId: string };
++    let declared: string[] | undefined;
++    state.model.mockImplementationOnce(async ({ toolTurn, signal }) => {
++      declared = (await toolTurn!.declarations(signal)).map(
++        (declaration) => declaration.name ?? '',
++      );
++      return { text: 'continued', model: 'test-model' };
++    });
++    const continued = await replacementHeaders(
++      supertest(server).post(`/session/${SESSION_ID}/managed-runtime/continue`),
++    )
++      .set('X-Qwen-Client-Id', loaded.body.clientId as string)
++      .send({
++        promptId: PROMPT_ID,
++        checkpointId: recovery.checkpointId,
++        activationId: recovery.activationId,
++      });
++    expect(continued.status).toBe(200);
++    await vi.waitFor(() => expect(declared).toBeDefined(), {
++      timeout: 10_000,
++    });
++    expect(declared).toEqual(['read_file', 'write_file', 'edit', 'glob']);
++    await vi.waitFor(
++      async () => {
++        const status = await replacementHeaders(
++          supertest(server).get(`/session/${SESSION_ID}/status`),
++        ).set('X-Qwen-Client-Id', loaded.body.clientId as string);
++        expect(status.body.hasActivePrompt).toBe(false);
++      },
++      { timeout: 10_000 },
++    );
++    await replacementHeaders(
++      supertest(server).delete(`/session/${SESSION_ID}`),
++    );
++  });
++
+   it.each(
+     (['continue', 'cancel'] as const).flatMap((route) =>
+       (['closing', 'authorizing', 'detached'] as const).map((phase) => ({
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 43d31aa2d4..196bb1d8a6 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -2656,6 +2656,7 @@ export function registerHostedHarnessSessionRoutes(
+             waiters: session.waiters,
+           },
+           session.mcp,
++          session.toolProfile,
+         );
+         let state: 'completed' | 'cancelled' | 'error' = 'completed';
+         try {
+diff --git a/packages/cli/src/serve/managed-context-worker.test.ts b/packages/cli/src/serve/managed-context-worker.test.ts
+index 946ee72d76..1578e1ee37 100644
+--- a/packages/cli/src/serve/managed-context-worker.test.ts
++++ b/packages/cli/src/serve/managed-context-worker.test.ts
+@@ -1194,6 +1194,12 @@ describe('Managed context tool gate', () => {
+     const through = await read('call-1', 'peek/secret.txt');
+     expect(through.result.executionStatus).toBe('error');
+     expect(JSON.stringify(through)).not.toContain('sibling');
++    // The refusal reaches the model and the durable record: it names the
++    // path as the model gave it, never the Runtime host's layout.
++    expect(JSON.stringify(through)).toContain("Path 'peek/secret.txt'");
++    expect(JSON.stringify(through)).not.toContain(
++      realDirectory(root, 'services/api'),
++    );
+     // A nonexistent path keeps the tool's own not-found answer, not a
+     // traversal accusation (realpathIfPresent's ENOENT fallback).
+     const missing = await read('call-2', 'src/nope.txt');
+@@ -1206,6 +1212,46 @@ describe('Managed context tool gate', () => {
+     expect(JSON.stringify(own)).toContain('mine');
+   });
+ 
++  it('lists an outward link found by a broad glob without following it', async () => {
++    // A monorepo Session often holds a link to a library outside its
++    // directory; glob lists the link itself (`follow: false`), so a broad
++    // pattern must still answer, while anything found through the link stays
++    // refused.
++    const root = workspace(['services/api/src', 'services/web']);
++    fs.writeFileSync(path.join(root, 'services/api/src/index.ts'), '');
++    fs.writeFileSync(path.join(root, 'services/web/secret.txt'), 'sibling');
++    fs.symlinkSync(
++      path.join('..', 'web'),
++      path.join(root, 'services/api/peek'),
++    );
++    const origin = await startWorker({
++      ...BOOT,
++      mountRoot: root,
++      capabilityDigest: WORKSPACE_CAPABILITY_DIGEST,
++    });
++    const install1 = workspaceInstallation('session-1', 'services/api');
++    await post(origin, CONTEXT, install1);
++    await post(origin, ACTIVATION, workspaceActivation(install1));
++    const glob = async (callId: string, input: Record<string, unknown>) =>
++      (
++        await post(origin, EXECUTE, {
++          ...shell('session-1', callId, ''),
++          toolName: 'glob',
++          input,
++        })
++      ).json();
++
++    const broad = await glob('call-1', { pattern: '**/*' });
++    const through = await glob('call-2', { pattern: 'peek/**/*' });
++
++    expect(broad.result.executionStatus).toBe('success');
++    expect(JSON.stringify(broad)).toContain('src/index.ts');
++    expect(JSON.stringify(broad)).toContain('peek');
++    expect(JSON.stringify(broad)).not.toContain('secret.txt');
++    expect(through.result.executionStatus).toBe('error');
++    expect(JSON.stringify(through)).not.toContain('secret.txt');
++  });
++
+   it('keeps the echoed pattern verbatim for a Session at the filesystem root', async () => {
+     // Degenerate root: '/' is both the boundary and every path's prefix, so
+     // the rewrite must stand down rather than eat the pattern's separators.
+diff --git a/packages/cli/src/serve/managed-runtime-tool-executor.ts b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+index d1b7d0e2d3..34dfbdd1e4 100644
+--- a/packages/cli/src/serve/managed-runtime-tool-executor.ts
++++ b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+@@ -787,10 +787,8 @@ export class ManagedToolExecutor {
+         typeof params['file_path'] === 'string' &&
+         !path.isAbsolute(params['file_path'].trim())
+       ) {
+-        params['file_path'] = path.resolve(
+-          directory,
+-          params['file_path'].trim(),
+-        );
++        const requestedFile = params['file_path'].trim();
++        params['file_path'] = path.resolve(directory, requestedFile);
+         // The glob admission makes an in-context symlink enumerable, so the
+         // lexical resolve is no longer sufficient: realpath the result and
+         // refuse anything that lands outside the Session directory. The
+@@ -805,8 +803,10 @@ export class ManagedToolExecutor {
+           relative.startsWith(`..${path.sep}`) ||
+           path.isAbsolute(relative)
+         ) {
++          // Name the path as the model gave it: the resolved value is the
++          // Runtime host's physical layout.
+           throw new Error(
+-            `Path '${params['file_path'] as string}' is not within the Session working directory.`,
++            `Path '${requestedFile}' is not within the Session working directory.`,
+           );
+         }
+       }
+@@ -927,9 +927,12 @@ export class ManagedToolExecutor {
+           const realRoot = await realpathIfPresent(root);
+           for (const hit of resultPaths) {
+             if (typeof hit !== 'string') continue;
++            // Glob lists a link without following it (`follow: false`), so a
++            // link inside the Session is a Session entry; what must stay
++            // inside is the directory the hit was found in.
+             const relative = path.relative(
+               realRoot,
+-              await realpathIfPresent(hit),
++              await realpathIfPresent(path.dirname(hit)),
+             );
+             if (
+               relative === '..' ||
