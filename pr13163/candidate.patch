@@ -1,0 +1,65 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
+index 15bc768462..892dd814ed 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
+@@ -222,10 +222,11 @@ public class ManagedAgentService {
+             String idempotencyKey, String sessionId,
+             List<InputBlock> blocks) {
+         validateIdempotencyKey(idempotencyKey);
+-        requireHarness();
+         List<Map<String, Object>> input = input(blocks, true);
+         String requestDigest = digests.digest(Map.of(
+                 "sessionId", sessionId, "input", input));
++        // RIG CANDIDATE C2: a replay is a read, so it still needs the read grant.
++        requireReadGrant(store.requireSession(tenantId, sessionId), actorId);
+         // Replay is a read of the recorded admission, not a re-admission:
+         // answer a same-key retry before the admission gate, which may now
+         // refuse on state that postdates the recorded admission (a
+@@ -234,10 +235,13 @@ public class ManagedAgentService {
+         Admission replay = replay(tenantId, SUBMIT, idempotencyKey,
+                 requestDigest);
+         if (replay != null) {
++            requireHarness();
+             dispatch(tenantId, replay);
+             return response(replay);
+         }
+         requireSubmitter(tenantId, actorId, sessionId);
++        // RIG CANDIDATE C0: authorization answers before Harness availability, as on main.
++        requireHarness();
+         String payloadDigest = SubmitHarnessTurn.computePayloadDigest(input);
+         Admission admission;
+         try {
+@@ -285,6 +289,9 @@ public class ManagedAgentService {
+             String tenantId, String actorId, String idempotencyKey, String sessionId,
+             String title) {
+         validateIdempotencyKey(idempotencyKey);
++        // RIG CANDIDATE C2: the recorded answer carries the Session body; keep it (and
++        // title validation, as before this PR) behind the read grant.
++        requireReadGrant(store.requireSession(tenantId, sessionId), actorId);
+         String effectiveTitle = validRenameTitle(title);
+         String requestDigest = digests.digest(Map.of(
+                 "sessionId", sessionId, "title", effectiveTitle));
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+index 12323c7657..f4551a9d77 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+@@ -519,10 +519,15 @@ public class ManagedAgentStore implements AgentStateStore {
+         long now = clock.millis();
+         insertCommand(tenantId, operation, idempotencyKey, requestDigest,
+                 sessionId, null, "PENDING", session.status(), now);
+-        appendEvent(tenantId, sessionId, null,
+-                mutationEvent(kind, "requested"),
+-                Map.of("sessionId", sessionId), false,
+-                mutationSource(operation, idempotencyKey, "requested"), now);
++        // RIG CANDIDATE C1: a retired (abandoned) command left its requested event behind.
++        String requestedSource = mutationSource(operation, idempotencyKey,
++                "requested");
++        if (!hasSourceEvent(tenantId, sessionId, requestedSource)) {
++            appendEvent(tenantId, sessionId, null,
++                    mutationEvent(kind, "requested"),
++                    Map.of("sessionId", sessionId), false,
++                    requestedSource, now);
++        }
+         return new SessionMutationCommand(sessionId, "PENDING", false);
+     }
+ 

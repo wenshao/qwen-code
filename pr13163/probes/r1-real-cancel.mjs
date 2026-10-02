@@ -1,0 +1,42 @@
+// VERIFICATION RIG ONLY (PR #13163): real model (qwen3.8-max). A later Turn writes step files one per tool call;
+// once the second file exists the creator's can_create is revoked and the creator cancels; the grant comes back 1 s
+// later. Does the Turn keep writing into the Workspace?
+// usage: DB=<db> node r1-real-cancel.mjs <workspace> <storage>
+import fs from 'node:fs';
+import { api, sql, one, register, waitTurn, turnRow, executions, wsFile, Report, sleep, TENANT, j } from './lib.mjs';
+const [WS, ST] = [process.argv[2], process.argv[3]];
+const r = new Report(`r1-real-cancel-${WS}`);
+if (one(`SELECT COUNT(*) FROM managed_workspace_registry WHERE tenant_id='${TENANT}' AND workspace_id='${WS}'`) === '0') register(WS, `st-${ST}`);
+const W = `tenant_id='${TENANT}' AND workspace_id='${WS}'`;
+sql(`UPDATE managed_workspace_access SET can_read=TRUE, can_create=TRUE WHERE ${W} AND actor_id='alice'`);
+const k = (s) => `${s}-${WS}-${Date.now()}`;
+const dir = wsFile(ST, 'child');
+const steps = () => (fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^step-\d+\.txt$/.test(f)).sort() : []);
+const t1 = 'Create a file named notes.txt in the current directory containing exactly one line: alpha-7319. Use the write_file tool. Reply with one short sentence.';
+const c = await api('POST', '/v1/agents/sessions', { agent_id: 'qwen-code', input: [{ type: 'input_text', text: t1 }], workspace: { workspace_id: WS, cwd_relative: 'child' } }, { actor: 'alice', key: k('create') });
+const S = c.json.id;
+const w1 = await waitTurn(S, { timeoutMs: 240_000 });
+r.check('Turn 1 (real model writes notes.txt) COMPLETED', w1.status === 'COMPLETED', j(w1));
+const t2 = 'Create twelve files in the current directory, strictly one at a time: step-01.txt, step-02.txt, ..., step-12.txt. Each file contains only its own two-digit number. Make exactly one write_file tool call per assistant message and wait for its result before creating the next file. Never put two tool calls in one message. When all twelve exist, reply DONE.';
+const sub = await api('POST', `/v1/agents/sessions/${S}/events`, { type: 'agent.session.input.message', input: [{ type: 'input_text', text: t2 }] }, { actor: 'alice', key: k('steps') });
+r.check('later Turn admitted', sub.status === 202, `${sub.status}`);
+const start = Date.now();
+while (steps().length < 2 && Date.now() - start < 180_000) await sleep(100);
+const atCancel = steps();
+const ex0 = executions(S);
+sql(`UPDATE managed_workspace_access SET can_create=FALSE WHERE ${W} AND actor_id='alice'`);
+const t0 = Date.now();
+const cancel = await api('POST', `/v1/agents/sessions/${S}/events`, { type: 'agent.session.cancel', turn_id: sub.json.turn_id }, { actor: 'alice', key: k('cancel') });
+r.note('cancel under revoked can_create', `${cancel.status} ${cancel.json.status ?? cancel.json.error?.code} in ${cancel.ms} ms; step files at cancel: ${atCancel.length}`);
+await sleep(1000);
+sql(`UPDATE managed_workspace_access SET can_create=TRUE WHERE ${W} AND actor_id='alice'`);
+const end = await waitTurn(S, { timeoutMs: 240_000 });
+const endAt = Date.now() - t0;
+await sleep(20_000);
+const final = steps();
+r.note('Turn end', `${end.status} ${end.error} at +${endAt} ms`);
+r.note('step files: at cancel -> 20 s after the Turn ended', `${atCancel.length} -> ${final.length} ${j(final)}`);
+r.note('tool executions recorded after the cancel', `${executions(S) - ex0}`);
+r.note('Turn history', j(turnRow(S)));
+r.done({ session: S, cancel: { status: cancel.status, code: cancel.json.error?.code ?? cancel.json.status, ms: cancel.ms }, atCancel: atCancel.length, final: final.length, end: { ...end, at: endAt }, executionsAfter: executions(S) - ex0 });
+process.exit(0);
