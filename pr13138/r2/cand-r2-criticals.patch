@@ -1,0 +1,144 @@
+diff --git a/packages/cli/src/serve/workspace-recovery-bundle.test.ts b/packages/cli/src/serve/workspace-recovery-bundle.test.ts
+index 5e3d38c428..0c8d3af3f2 100644
+--- a/packages/cli/src/serve/workspace-recovery-bundle.test.ts
++++ b/packages/cli/src/serve/workspace-recovery-bundle.test.ts
+@@ -112,12 +112,35 @@ describe('local offline recovery bundle', () => {
+         await writeFile(join(f.candidate, 'workspace', 'file'), 'changed');
+       if (difference === 'mode')
+         await chmod(join(f.candidate, 'workspace', 'file'), 0o700);
+-      await expect(
+-        f.bundle.compareTree(f.source, 'workspace'),
+-      ).rejects.toThrow();
++      // Neither side changed a pinned path: the copy is wrong, so the cut stays retryable.
++      await expect(f.bundle.compareTree(f.source, 'workspace')).rejects.toThrow(
++        'snapshot_source_mismatch',
++      );
+     },
+   );
+ 
++  it('sweeps only its own interrupted temporaries before the census', async () => {
++    const f = await fixture();
++    await writeFile(join(f.source, 'file'), 'x');
++    await cp(f.source, join(f.candidate, 'workspace'), { recursive: true });
++    await f.bundle.compareTree(f.source, 'workspace');
++    const count = await f.bundle.census();
++    const own = join(
++      f.candidate,
++      '.w1-recovery',
++      `assets.ndjson.partial-${f.bundle.operationId}`,
++    );
++    await writeFile(own, 'killed mid-publish');
++    await f.bundle.initialize(f.source, f.history);
++    expect(await f.bundle.census()).toBe(count);
++    await writeFile(
++      join(f.candidate, '.w1-recovery', 'assets.ndjson.partial-foreign'),
++      'x',
++    );
++    await f.bundle.initialize(f.source, f.history);
++    await expect(f.bundle.census()).rejects.toThrow('undeclared_bundle_entry');
++  });
++
+   it.each([
+     'absolute',
+     'escape',
+diff --git a/packages/cli/src/serve/workspace-recovery-bundle.ts b/packages/cli/src/serve/workspace-recovery-bundle.ts
+index 445381df24..42d431154d 100644
+--- a/packages/cli/src/serve/workspace-recovery-bundle.ts
++++ b/packages/cli/src/serve/workspace-recovery-bundle.ts
+@@ -11,6 +11,7 @@ import {
+   mkdir,
+   open,
+   opendir,
++  readdir,
+   readlink,
+   realpath,
+   rename,
+@@ -327,6 +328,16 @@ export class LocalRecoveryBundle {
+       }
+       for (const path of ['file-history', 'authority', 'authority/objects'])
+         await this.recordEntry(await entry(this.root, path));
++      // A killed publish() leaves its own temporary behind; nothing else may remove it before census().
++      for (const path of ['.w1-recovery', 'authority/objects']) {
++        for (const name of await readdir(join(this.root, path))) {
++          if (!name.endsWith(`.partial-${this.operationId}`)) continue;
++          const stat = await lstat(join(this.root, path, name));
++          if (!stat.isFile() || stat.nlink !== 1)
++            throw new Error('invalid_temporary_file');
++          await unlink(join(this.root, path, name));
++        }
++      }
+     } else {
+       for (const path of [
+         'workspace',
+@@ -434,7 +445,18 @@ export class LocalRecoveryBundle {
+         recoveryJson(saved) !== recoveryJson({ ...original, path: name })
+       )
+         throw new Error('source_drift');
+-      const copy = await entry(this.root, name, candidateRoot);
++      let copy: BundleEntry;
++      try {
++        copy = await entry(this.root, name, candidateRoot);
++      } catch (error) {
++        if (
++          ['ENOENT', 'ENOTDIR'].includes(
++            (error as NodeJS.ErrnoException).code ?? '',
++          )
++        )
++          throw new Error('snapshot_source_mismatch');
++        throw error;
++      }
+       if (recoveryJson({ ...original, path: name }) !== recoveryJson(copy))
+         throw new Error('snapshot_source_mismatch');
+       await this.recordEntry(copy);
+@@ -451,8 +473,14 @@ export class LocalRecoveryBundle {
+           sourceRoot,
+         );
+       } catch (error) {
+-        if (sourceReadDrift(error)) throw new Error('source_drift');
+-        throw error;
++        if (!sourceReadDrift(error)) throw error;
++        // Only a pinned path can have disappeared from the source; anything else exists in the copy alone.
++        const pinned = await this.rpc('assetLookup', {
++          key: recoveryAssetKey('entry', copy.path),
++        });
++        throw new Error(
++          pinned === null ? 'snapshot_source_mismatch' : 'source_drift',
++        );
+       }
+       if (recoveryJson({ ...original, path: copy.path }) !== recoveryJson(copy))
+         throw new Error('snapshot_source_mismatch');
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceRecoveryStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceRecoveryStore.java
+index 832d05fb02..57fb6792ee 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceRecoveryStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceRecoveryStore.java
+@@ -12,6 +12,8 @@ import java.nio.file.Path;
+ import java.security.MessageDigest;
+ import java.security.NoSuchAlgorithmException;
+ import java.sql.Timestamp;
++import java.time.LocalDateTime;
++import java.time.ZoneOffset;
+ import java.util.HexFormat;
+ import java.util.List;
+ import java.util.Map;
+@@ -509,6 +511,7 @@ public final class WorkspaceRecoveryStore {
+                 (result, index) -> {
+                     var value = new ColumnMapRowMapper().mapRow(result, index);
+                     value.put("writer_lease_until", result.getTimestamp("writer_lease_until"));
++                    value.put("writer_lease_wall_clock", result.getObject("writer_lease_until", LocalDateTime.class));
+                     return value;
+                 }, tenant, session);
+         check(heads.size() <= 1, "source_drift");
+@@ -530,6 +533,13 @@ public final class WorkspaceRecoveryStore {
+                     "lastCommitDigest", "last_commit_digest", "activationEpoch", "activation_epoch",
+                     "latestCheckpointResourceId", "latest_checkpoint_resource_id", "compactedThroughRevision", "compacted_through_revision",
+                     "recoveryStatus", "recovery_status", "recoveryDetailCode", "recovery_detail_code");
++            // Pin the stored DATETIME wall clock, not an instant derived from this JVM's default time zone.
++            LocalDateTime wall = (LocalDateTime) head.get("writer_lease_wall_clock");
++            if (wall == null) {
++                value.putNull("writerLeaseUntil");
++            } else {
++                value.put("writerLeaseUntil", wall.toInstant(ZoneOffset.UTC).toEpochMilli());
++            }
+         }
+         return source;
+     }
