@@ -43,7 +43,7 @@ const figs = {};
 figs['01-cancel-under-refusal'] = page(
   'Creator cancels a running later Turn while Workspace authorization is refused',
   'Real stack: Spring (server jar) + embedded Runtime Broker + packaged Hosted Harness (<code>dist/cli.js</code>) + MySQL 8.4.7. The later Turn is held in its model call (30 s), then asks for <code>write_file</code>. The refusal is applied after the model call starts, then the creator (alice) cancels. Same probe on both arms.',
-  t(['Condition at cancel time', '#13112 head <code>b9b4da46</code>', 'this PR <code>c3925ffc</code> (= <code>3cd09bec</code> production code)'], [
+  t(['Condition at cancel time', '#13112 head <code>b9b4da46</code>', 'this PR <code>c3925ffc</code> (cancel path unchanged through <code>9c0bcf41</code>; revoke / DRAINING / re-registration / reader re-run there: same)'], [
     ['<b>real model qwen3.8-max</b> writing step-01…step-12 one per call; revoke + cancel after step-02, grant back 1 s later', `${bad('409')} → run 1: Turn ${bad('COMPLETED')} at 28.8 s, files ${bad('2 → 12')}, 10 tool calls after the cancel; run 2: tool call raced the revoke → Turn ${amb('stuck RUNNING')} (see figure 5)`, `${ok('202')} in 9 ms → ${ok('CANCELLED')} at 1.0 s, files ${ok('2 → 2')}, 0 tool calls after the cancel (2/2 runs)`],
     ['<code>can_create</code> revoked, restored 1 s after the cancel', `${bad('409')} workspace_unavailable → Turn ${bad('COMPLETED')} at 33.5 s, file ${bad('written-after-cancel')}`, `${ok('202')} in 6 ms → model aborted at 60 ms → ${ok('CANCELLED')}, no file`],
     ['Workspace <code>DRAINING</code>, restored 1 s after the cancel', `${bad('409')} → Turn ${bad('COMPLETED')} at 32.8 s, file ${bad('written')}`, `${ok('202')} in 49 ms → aborted at 198 ms → ${ok('CANCELLED')}, no file`],
@@ -63,7 +63,7 @@ figs['01-cancel-under-refusal'] = page(
 figs['02-delivery'] = page(
   'Lost and cross-owner cancel deliveries are re-sent on lease renewal',
   'Tap between Spring and the Harness drops <code>POST /session/:id/cancel</code>. Cross-owner: two Spring JVMs on one database, Turn owned by Spring A, cancel posted to Spring B (B started with the scanner idle so it never claims). Model held 60–90 s. Times are ms after the cancel was admitted.',
-  t(['Scenario', 'main <code>b3dda468</code>', 'this PR <code>c3925ffc</code>'], [
+  t(['Scenario', 'main <code>b3dda468</code>', 'this PR <code>c3925ffc</code> (cancel path unchanged in <code>9c0bcf41</code>)'], [
     ['unbound, first delivery dropped', `1 attempt (dropped) and ${bad('never re-sent')}; Turn ran the full 60 s`, `attempts at 7 (dropped), ${ok('19 606')} → CANCELLED at 19.8 s`],
     ['bound, first delivery dropped', dim('— (no bound later Turns on main)'), `attempts at 13 (dropped), ${ok('19 505')} → CANCELLED at 19.6 s, no file`],
     ['bound, three deliveries dropped', dim('—'), `9, 19 506, 39 504 (dropped), ${ok('59 507')} → CANCELLED at 59.8 s, no file`],
@@ -85,51 +85,47 @@ figs['03-webshell'] = page(
 );
 
 figs['04-tests-mutation-merge'] = page(
-  'The head\'s own server suite is red, and the red tests are the ones that pin the new cancel gate',
-  'JDK 21, offline Maven, <code>managed-agent-server</code> default (H2) lane; Hosted IT on MySQL 8.4.7. Mutation: one replace per mutant over the PR\'s production code, full lane each, kills = new failing testcases beyond the unmutated baseline (a load-flaky <code>ToolPublicationStoreTest</code> case is ignored).',
+  'Server suite across the three heads seen during this run, mutation of the new code, and the merge order',
+  'JDK 21, offline Maven, <code>managed-agent-server</code> default (H2) lane; Hosted IT on MySQL 8.4.7. Mutation: one replace per mutant over the PR\'s production code, full lane each, kill = new failing testcase beyond the unmutated baseline (a load-flaky <code>ToolPublicationStoreTest</code> case is ignored).',
   `<h2>Suites</h2>` +
     t(['Tree', 'Result'], [
-      ['<code>c3925ffc</code> (previous head)', `${bad('test compile error')} ×3 <code>PublicSession.title()</code> — CI "Runtime Broker and Managed Agent MariaDB / Java 21" red with the same error`],
-      ['<code>3cd09bec</code> (current head)', `compiles; ${bad('448 run, 6 failed')} (deterministic, same 6 on two runs)`],
+      ['<code>c3925ffc</code>', `${bad('test compile error')} ×3 <code>PublicSession.title()</code>; CI "Runtime Broker and Managed Agent MariaDB / Java 21" red with the same error`],
+      ['<code>3cd09bec</code> (compile fixed)', `${bad('448 run, 6 failed')}: <code>requireHarness()</code> ahead of the admission gate (4 tests, incl. <code>creatorCancelsWithoutTheGrantsThatAdmitNewWork:1028</code>, which stopped before its cancel assertions) + the unbound rename fixture (2 tests)`],
+      ['<code>9c0bcf41</code> (current head)', `${ok('448 run, 0 failed')}; the reorder matches this report's earlier candidate C0 line for line; rename now checks the read grant first; the unbound fixture throws a retryable Broker error`],
+      ['<code>9c0bcf41</code> HostedPublicWorkspaceIT (MySQL 8.4.7)', `${ok('2 passed')} (+1 Linux-only case skipped on macOS); same on <code>3cd09bec</code>`],
       ['#13112 head <code>b9b4da46</code>', `${ok('451 run, 0 failed')}`],
-      ['<code>3cd09bec</code> HostedPublicWorkspaceIT (MySQL 8.4.7)', `${ok('2 passed')} (+1 Linux-only case skipped on macOS)`],
       ['WebShell vitest (changed files + generated-type drift)', `${ok('53/53 + 2/2')}`],
     ]) +
-    `<h2>The 6 failures, two root causes</h2>` +
-    t(['Root cause', 'Failing tests'], [
-      ['<code>f04bf98c</code> moved <code>requireHarness()</code> ahead of the admission gate: with the Harness unavailable, submit answers 503 hosted_harness_disabled instead of 409 workspace_unavailable', '<code>creatorCancelsWithoutTheGrantsThatAdmitNewWork:1028</code>, <code>reRegistrationRefusesLaterWorkBeforeAnyCommandIsWritten:1055</code>, <code>emptyBoundCreationOutsideTheProfile…:663</code>, <code>revocationHidesBoundSessionAndBlocksRetry:372</code> (and behind it :433, rename now validates the title before the read check)'],
-      ['rename treats <code>IllegalStateException</code> / Harness 4xx as permanent (409 + DELETE row); main\'s <b>unbound</b> rename tests expect 503 and same-key recovery', '<code>ManagedAgentServerIntegrationTest.retriesAPendingRenameWithTheSameIdempotencyKey:660</code>, <code>ManagedSessionLifecycleTest.allowsOneLifecycleChangeAtATime:382</code>'],
-    ]) +
     `<h2>Mutation (16 mutants)</h2>` +
-    t(['Mutant', 'head + compile fix', 'head + compile fix + C0 (2-line reorder)'], [
-      ['N8 cancel goes back through the submit gate (= revert the headline)', bad('survives'), ok('killed')],
-      ['N7 <code>requireCanceller</code> drops the creator clause', bad('survives'), ok('killed')],
+    t(['Mutant', '<code>3cd09bec</code> (+ compile fix)', '<code>9c0bcf41</code>'], [
+      ['N8 cancel goes back through the submit gate (= revert the headline)', bad('survives (masked by the red test)'), ok('killed')],
+      ['N7 <code>requireCanceller</code> drops the creator clause', bad('survives (masked)'), ok('killed')],
       ['N6 <code>requireCanceller</code> drops the <code>canRead</code> clause', bad('survives'), bad('survives')],
-      ['N10 <code>bindingCurrent</code> ignores <code>storage_id</code> (bot R1-2)', bad('survives'), dim('not rerun')],
-      ['N5 opt-in clause dropped (store <code>insertCancelCommand</code> still refuses)', amb('survives, equivalent'), amb('survives, equivalent')],
-      ['N2 <code>!leaseLost.get()</code> → true (bot R1-9) / N4 boot-id guard dropped', amb('survive, equivalent'), dim('—')],
-      ['N1 renewal dispatch removed, N3 cancel attaches again, N9/N11 binding clauses, N12/N13 replay order, N14/N16 rename retirement, N15 store refuses bound cancel', ok('9/9 killed'), ok('N12b killed')],
+      ['N10 <code>bindingCurrent</code> ignores <code>storage_id</code> (bot R1-2)', bad('survives'), bad('survives')],
+      ['N5 opt-in clause dropped (store <code>insertCancelCommand</code> still refuses)', amb('equivalent'), amb('equivalent')],
+      ['N2 <code>!leaseLost.get()</code> → true (bot R1-9) / N4 boot-id guard dropped', amb('equivalent'), dim('not rerun')],
+      ['N1 renewal dispatch removed, N3 cancel attaches again, N9/N11 binding clauses, N12/N13 replay order, N14/N16 rename retirement, N15 store refuses bound cancel', ok('9/9 killed'), dim('not rerun (code unchanged)')],
     ]) +
     `<h2>Merge order</h2>` +
-    `<div class="note bad"><code>git merge-tree</code> of this head with #13112's head <code>b9b4da46</code>: <b>8 files conflict</b> (both G0 design docs, HarnessCoordinator, ManagedAgentService, ManagedWorkspaceRegistry, the OpenAPI contract, HarnessCoordinatorTest, generated managed-agent-api.ts). <code>ManagedAgentStore</code> auto-merges silently to #13112's <code>FAILED</code>-row rename retirement while the service hunk that pairs with this PR's <code>DELETE</code> conflicts. #13112's head already carries the no-attach cancel and the renewal re-send (<code>bf247307</code>; HarnessCoordinator differs only in a comment).</div>`,
+    `<div class="note bad"><code>git merge-tree</code> of <code>9c0bcf41</code> with #13112's head <code>22a4012f</code>: <b>8 files conflict</b> (both G0 design docs, HarnessCoordinator, ManagedAgentService, ManagedWorkspaceRegistry, the OpenAPI contract, HarnessCoordinatorTest, generated managed-agent-api.ts). <code>ManagedAgentStore</code> auto-merges silently to #13112's <code>FAILED</code>-row rename retirement while the service hunk that pairs with this PR's <code>DELETE</code> conflicts. #13112 already carries the no-attach cancel and the renewal re-send (<code>bf247307</code>; HarnessCoordinator differs only in comments). Against current main <code>f5c9bf8a</code> (#13142 landed): 1 file conflicts, the OpenAPI contract.</div>`,
 );
 
 figs['05-defects'] = page(
-  'Rename retry 500, replay before the read grant, and a Turn the cancel cannot end',
+  'Still open at 9c0bcf41: rename retry 500, submit replay before the read grant; and a Turn no cancel can end',
   'Same real stack. The tap answers the Harness rename (<code>POST /session/:id/title</code>) with a fault once; c7 replays alice\'s keys as other actors; c10 revokes <code>can_create</code> between two tool calls of a later Turn (deterministic fake-model hold).',
   `<h2>Rename after the Harness answers 4xx once, then the same key again</h2>` +
     t(['Arm', 'first rename', 'same key, fault cleared', 'fresh key'], [
       ['main <code>b3dda468</code> (unbound)', '503, row PENDING', ok('200 replay'), ok('200')],
       ['#13112 head (bound / unbound)', '503, row FAILED', ok('200 replay'), ok('200')],
-      ['this PR (bound and unbound)', '409 session_mutation_refused, row deleted', `${bad('500 internal_error')} — DuplicateKeyException on <code>managed_agent_event (tenant_id, session_id, source_key)</code> <code>control:RENAME_SESSION:&lt;key&gt;:requested</code>`, ok('200')],
-      ['this PR + C1 (5 lines)', '409, row deleted', ok('200'), ok('200')],
+      ['this PR <code>3cd09bec</code> and <code>9c0bcf41</code> (bound and unbound)', '409 session_mutation_refused, row deleted', `${bad('500 internal_error')} — DuplicateKeyException on <code>managed_agent_event (tenant_id, session_id, source_key)</code> <code>control:RENAME_SESSION:&lt;key&gt;:requested</code>`, ok('200')],
+      ['<code>9c0bcf41</code> + candidate', '409, row deleted', ok('200'), ok('200')],
     ]) +
     `<div class="note">Harness 500 / dropped connection on the same call: this PR keeps the row PENDING and the same key recovers (200 replay) — only the permanent branch breaks. The PR's own <code>AgentStateStore.abandonSessionMutation</code> javadoc says "The idempotency key stays free to re-attempt the mutation."</div>` +
     `<h2>Who can replay alice's recorded submit / rename key</h2>` +
-    t(['Caller', 'GET session', '#13112 head', 'this PR', 'this PR + C2'], [
-      ['mallory (no access)', '404', '404 / 404', `${amb('202 turn_id')} / ${amb('200 + title')}`, ok('404 / 404')],
-      ['bob (reader), carol (other creator)', '200', '409 / 409', '202 / 200', '202 / 200'],
-      ['alice after <code>can_create</code> revoked', '200', '409 / 409', ok('202 / 200 (the intended recovery)'), ok('202 / 200')],
+    t(['Caller', 'GET session', '#13112 head', '<code>3cd09bec</code>', '<code>9c0bcf41</code>', '<code>9c0bcf41</code> + candidate'], [
+      ['mallory (no access)', '404', '404 / 404', `${amb('202 turn_id')} / ${amb('200 + title')}`, `${amb('202 turn_id')} / ${ok('404')}`, ok('404 / 404')],
+      ['bob (reader), carol (other creator)', '200', '409 / 409', '202 / 200', '202 / 200', '202 / 200'],
+      ['alice after <code>can_create</code> revoked', '200', '409 / 409', ok('202 / 200 (intended recovery)'), ok('202 / 200'), ok('202 / 200')],
     ]) +
     `<h2>A tool call that collides with the revocation</h2>` +
     t(['After the first write, revoke, model\'s second write hits Broker 409', '#13112 head', 'this PR'], [
@@ -139,8 +135,8 @@ figs['05-defects'] = page(
       ['restore, then cancel', `202 → ${bad('CANCELLING')} after 70 s`, `202 → ${bad('CANCELLING')} after 70 s; next Turn 409 turn_active`],
     ]) +
     `<div class="note">Inherited from the Harness (<code>hosted-harness-session.ts</code> sets <code>session.blocked</code> and never writes the Turn result); not introduced here, but it is the common shape of "revoked while the agent is working", and this PR's re-send now repeats against it forever. Closest open issue: #13054. No second file was written in any run.</div>` +
-    `<h2>Candidate (+17 / −5, 2 files) on the same stack</h2>` +
-    `<div class="note ok">C0 authorization before Harness availability (as on main); C1 skip the <code>requested</code> event if a retired command left it; C2 read grant before replay and before title validation. Lane 448 run / ${ok('2 failed')} (only the two unbound-rename tests that need a decision); IT 2/2; on the stack mallory 404/404, rename same-key 200, headline cancel unchanged (202 → CANCELLED 271 ms, no file).</div>`,
+    `<h2>Candidate on <code>9c0bcf41</code> (+13 / −4, 2 files)</h2>` +
+    `<div class="note ok">(1) <code>requireReadGrant</code> before the submit replay, one statement, the counterpart of the <code>requireReadableSession</code> that <code>9c0bcf41</code> added to rename; (2) skip the <code>requested</code> event if a retired command of the same key left it (the guard #13112 has). Lane ${ok('448/448')}; IT ${ok('2/2')}; on the stack mallory 404 / 404, rename same-key retry 200, headline cancel unchanged (202 → CANCELLED 302 ms, no file).</div>`,
 );
 
 fs.writeFileSync(`${OUT}/figs.json`, JSON.stringify(Object.keys(figs)));

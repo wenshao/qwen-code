@@ -1,0 +1,39 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
+index dd1cdcbbb7..324cacdec3 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
+@@ -225,6 +225,9 @@ public class ManagedAgentService {
+         List<Map<String, Object>> input = input(blocks, true);
+         String requestDigest = digests.digest(Map.of(
+                 "sessionId", sessionId, "input", input));
++        // A replay is a read: it still needs the read grant, or a caller who
++        // cannot read the Session learns its Turn from a guessed key.
++        requireReadGrant(store.requireSession(tenantId, sessionId), actorId);
+         // Replay is a read of the recorded admission, not a re-admission:
+         // answer a same-key retry before the admission gate, which may now
+         // refuse on state that postdates the recorded admission (a
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+index 12323c7657..9666e74355 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+@@ -519,10 +519,16 @@ public class ManagedAgentStore implements AgentStateStore {
+         long now = clock.millis();
+         insertCommand(tenantId, operation, idempotencyKey, requestDigest,
+                 sessionId, null, "PENDING", session.status(), now);
+-        appendEvent(tenantId, sessionId, null,
+-                mutationEvent(kind, "requested"),
+-                Map.of("sessionId", sessionId), false,
+-                mutationSource(operation, idempotencyKey, "requested"), now);
++        // A retired (abandoned) command of the same key left its requested
++        // event behind; a re-attempt must not insert it twice.
++        String requestedSource = mutationSource(operation, idempotencyKey,
++                "requested");
++        if (!hasSourceEvent(tenantId, sessionId, requestedSource)) {
++            appendEvent(tenantId, sessionId, null,
++                    mutationEvent(kind, "requested"),
++                    Map.of("sessionId", sessionId), false,
++                    requestedSource, now);
++        }
+         return new SessionMutationCommand(sessionId, "PENDING", false);
+     }
+ 
