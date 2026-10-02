@@ -1,0 +1,20 @@
+# p2-edges-ws-e  db=q1  2026-10-02T14:07:37.511Z
+PASS  E1 seeded CLOSED (no close receipt, worker alive): capabilities false, archive and delete 409 workspace_unavailable  -> caps={"close":true,"archive":false,"unarchive":false,"delete":false,"lifecycle":false} archive=409/workspace_unavailable delete(web)=409/workspace_unavailable worker 999=S
+PASS  E1 seeded ARCHIVED: unarchive and delete 409, no operation or command persisted  -> unarchive(web)=409/workspace_unavailable delete=409/workspace_unavailable ops=0
+PASS  E1 the seeded Session worker was never touched  -> pid 999=S
+PASS  E2 CLOSING: archive/unarchive/delete refused 409, capabilities false  -> status=CLOSING archive=409/session_state_conflict unarchive=409/session_state_conflict delete=409/session_state_conflict caps={"close":true,"archive":false,"unarchive":false,"delete":false}
+PASS  E2 after the held close completes, archive succeeds  -> close=completed archive=202 status=ARCHIVED
+PASS  E3 delete admitted 202; completion is waiting on the held lock (op LEASED, Session DELETING)  -> op=op_73b182883b8f4bd99b135950237fea1c opState=["RUNNING","LEASED","1","0","","70cad2a8-bd8c-477f-ab5d-c32ba1687468","1790950136112"] status=DELETING lockWaits=1
+PASS  E3 DELETING: fresh archive/unarchive/delete 409; same key replays the open operation  -> archive=409/session_state_conflict unarchive=409/session_state_conflict delete=409/session_state_conflict replay=202/op_73b182883b8f4bd99b135950237fea1c replayed=true
+NOTE  E3 Session read while DELETING  -> status=200 body.status=deleting
+PASS  E3 creator read revoked while deletion is in flight: operation read 404  -> alice op read=404
+PASS  E3 accepted delete completes after the lock releases despite the ACL revocation  -> lock exit=0 op=["COMPLETED","CONFIRMED","1","0","","","0"] status=DELETED +17 ms
+PASS  E3 after completion: reader bob sees the operation; revoked creator replay hidden (404)  -> bob=200/completed alice replay=404/session_not_found
+PASS  E3 access restored: replay returns the original operation again  -> status=202 op=op_73b182883b8f4bd99b135950237fea1c
+PASS  E4 creator without current read: archive replay, op read, unarchive, delete all 404  -> 404,404,404,404
+PASS  E4 reader bob reusing the creator key is a different request: 403, not a replay  -> bob=403/session_operation_forbidden
+PASS  E4 access restored: archive replay returns the original operation  -> status=202 op=op_1364aefcd5cf4418860ee61c53f26731
+PASS  E5 malformed keys (whitespace, control, 300 chars, empty) rejected 400 on both surfaces, Session still ARCHIVED  -> " lead":n/a/400 "trail ":n/a/400 "ctl\u0001x":n/a/400 "xxxxxxxx":400/400 "":400/400
+PASS  E5 case-distinct keys are distinct commands (second unarchive mutates, not a replay)  -> u1=200/false rearchive=202 u2=200/false status=CLOSED
+NOTE  cleanup: seeded Session closed  -> status=CLOSED worker 999=gone
+== p2-edges-ws-e: 16 passed, 0 failed

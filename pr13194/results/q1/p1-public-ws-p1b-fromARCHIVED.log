@@ -1,0 +1,46 @@
+# p1-public-ws-p1b-fromARCHIVED  db=q1  2026-10-02T14:04:08.995Z
+PASS  setup: bound files Session S runs a real file Turn  -> session=02946926-5ef7-497b-82b1-345e3621c06e turn=COMPLETED file=after-b
+PASS  setup: neighbour Session N on the same storage runs a file Turn  -> session=9d0a9648-9da1-4b53-8a51-e7e87fafb80d file=after-bn
+NOTE  workers before close  -> S pid=349 (S) N pid=368 (S)
+PASS  ACTIVE Session advertises no archive/unarchive/delete  -> {"close":true,"archive":false,"unarchive":false,"delete":false,"lifecycle":false}
+PASS  ACTIVE Session: archive and delete refused 409, nothing persisted  -> archive=409/session_state_conflict delete=409/session_state_conflict ops=0
+PASS  close completes; S worker gone; binding RELEASED; fence persisted  -> op=completed pid 349=gone binding=RELEASED fence=1
+PASS  neighbour N worker still alive after S closed  -> pid 368=S
+PASS  CLOSED Session advertises archive/unarchive/delete  -> {"close":true,"archive":true,"unarchive":true,"delete":true,"lifecycle":false}
+PASS  archive: readable non-creator 403, unreadable 404, other tenant 404  -> bob=403/session_operation_forbidden mallory=404/session_not_found tenant=404/session_not_found
+PASS  creator archive: 202 and the operation is already completed  -> status=202 op=op_75ebd3e08dcd4a85878362fac81285ad body.status=completed receipt=rcpt_f74e4a818260461480214fb59c27c234
+PASS  Session is ARCHIVED, session.archived event once  -> status=ARCHIVED archived-events=1
+PASS  archive replay (same surface and other surface) returns the original operation  -> same=202/op_75ebd3e08dcd4a85878362fac81285ad replayed=true other=202/op_75ebd3e08dcd4a85878362fac81285ad
+PASS  fresh archive key on ARCHIVED Session refused 409  -> status=409 code=session_state_conflict
+PASS  ARCHIVED: public input, WebShell turn and Runtime warm all refused  -> input=409/workspace_unavailable webTurn=409/workspace_unavailable warm=409 {"error":"Workspace execution authority is unavailable.","code":"workspace_unavailable","retryable":false}
+PASS  unarchive: readable non-creator 403, unreadable 404  -> bob=403/session_operation_forbidden mallory=404/session_not_found
+PASS  creator unarchive: 200, Session CLOSED, replay header false  -> status=200 body.status=closed db=CLOSED replay=false
+PASS  unarchive replay on both surfaces: 200 replay=true, no new events, one command row  -> same=200/true other=200/true events 15->15 commands=1
+PASS  fresh unarchive key on a CLOSED Session refused 409  -> status=409 code=session_state_conflict
+PASS  after unarchive: input, WebShell turn and warm still refused (permanent close fence)  -> input=409/workspace_unavailable webTurn=409/workspace_unavailable warm=409 {"error":"Workspace execution authority is unavailable.","code":"workspace_unavailable","retryable":false}
+NOTE  fresh close key on the unarchived (CLOSED) Session  -> status=409 code=session_state_conflict op.status=
+PASS  close fence row and original close receipt unchanged  -> fence=1 receipt=rcpt_ace7040b63f542f8aa08bc57633fda5a
+PASS  unarchived Session still advertises archive/unarchive/delete  -> {"close":true,"archive":true,"unarchive":true,"delete":true,"lifecycle":false}
+PASS  old unarchive key after rearchive: 200 replay=true, returns ARCHIVED, does not unarchive  -> rearchive=202 replay=200/true body.status=archived db=ARCHIVED
+PASS  delete: readable non-creator 403, unreadable 404, nothing admitted  -> bob=403/session_operation_forbidden mallory=404/session_not_found
+PASS  creator delete from ARCHIVED: 202  -> status=202 op=op_79a47e920b914ceeb161738f11bb94f0 body.status=pending
+PASS  delete operation completes  -> status=completed 180 ms receipt=rcpt_b1be4b1995864bb389285b78e4868bd2
+PASS  operation row: COMPLETED, session_status_before matches, receipt set, one claim  -> ["DELETE","COMPLETED","CONFIRMED","ARCHIVED","rcpt_b1be4b1995864bb389285b78e4868bd2","1","0"]
+PASS  tombstone: status DELETED, exactly one session.deleted event  -> status=DELETED deleted-events=1
+PASS  retirement barrier row written by this operation  -> [["op_79a47e920b914ceeb161738f11bb94f0","1","0"]]
+NOTE  journal head after delete  -> ["DELETED","READY"]
+PASS  Session reads 404 on both surfaces; events 404  -> public=404 web=404 events=404
+PASS  retained operations still readable on both surfaces after delete  -> delete-op public=200 web=200 archive-op=200
+PASS  delete replay after tombstone (both surfaces) returns the original operation  -> same=202/op_79a47e920b914ceeb161738f11bb94f0 other=202/op_79a47e920b914ceeb161738f11bb94f0
+PASS  after tombstone: fresh delete 404, old unarchive key 404, old archive key still replays  -> delete2=404/session_not_found unarchive=404 archive-replay=202/op_75ebd3e08dcd4a85878362fac81285ad
+PASS  operation read after delete: reader 200, unreadable 404  -> bob=200 mallory=404
+PASS  L1+L2: no Spring->Harness request, no model call, S Runtime rows/registrations/workers unchanged  -> tap=15 model=16 workers=[272 368] over 952 ms
+NOTE  global Runtime-table writes in the window (any Session, e.g. neighbour heartbeats)  -> 0 
+PASS  L1+L2: zero SQL writes to Runtime/lease/drain tables for S (MySQL general log)  -> 0 writes over 952 ms
+PASS  retained bytes: S file still on shared storage, history resource rows untouched  -> file=after-b resources 48->48
+PASS  neighbour N: same worker, ACTIVE, binding not drained  -> pid 368=S status=ACTIVE binding=READY
+FAIL  neighbour N runs another file Turn after S was deleted  -> submit=409 turn=COMPLETED file=null
+PASS  a new Session on the same storage runs a file Turn after delete  -> session=fec70aa8-60c0-4f9c-9f5b-3c5acd7df6ec turn=COMPLETED
+NOTE  operations of S  -> [["CLOSE","COMPLETED","CONFIRMED","ACTIVE","rcpt_ace7040b63f542f8aa08bc57633fda5a","1","0"],["ARCHIVE","COMPLETED","CONFIRMED","CLOSED","rcpt_f74e4a818260461480214fb59c27c234","0","0"],["ARCHIVE","COMPLETED","CONFIRMED","CLOSED","rcpt_6871e802c8bf49d195005257a59e1a9c","0","0"],["DELETE","COMPLETED","CONFIRMED","ARCHIVED","rcpt_b1be4b1995864bb389285b78e4868bd2","1","0"]]
+NOTE  events of S (tail)  -> session.close.requested,session.closed,session.archived,session.unarchive.requested,session.unarchived,session.archived,session.delete.requested,session.deleted
+== p1-public-ws-p1b-fromARCHIVED: 37 passed, 1 failed

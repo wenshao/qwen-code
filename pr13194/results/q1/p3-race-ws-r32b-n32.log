@@ -1,0 +1,10 @@
+# p3-race-ws-r32b-n32  db=q1  2026-10-02T14:25:18.249Z
+PASS  R1 32 concurrent unarchives, distinct keys, both surfaces: exactly one 200, the rest 409  -> statuses={"200":1,"409":31} codes409=session_state_conflict
+PASS  R1 one command row, one requested + one unarchived event, Session CLOSED  -> commands=1 events=1/1 status=CLOSED
+PASS  R2 32 concurrent unarchives, same key, both surfaces: all 200, exactly one non-replay  -> statuses={"200":32} replay=false:1 true:31
+PASS  R2 command rows 2 in total, unarchived events 2 in total  -> commands=2 unarchived=2
+PASS  R3 32 concurrent archives, distinct keys: exactly one 202, the rest 409; one ARCHIVE operation  -> statuses={"202":1,"409":31} archiveOps=1
+PASS  R4 32 concurrent deletes, distinct keys: one admitted, one DELETE operation, one tombstone/event/retirement  -> statuses={"202":1,"409":31} deleteOps=1 events=1 retirement=1
+PASS  R5 32 concurrent deletes, same key, both surfaces: all 202 with one operation id; completes once  -> statuses={"202":32} ids=1 deleted-events=1
+PASS  R6 16 archives racing 16 deletes: at most one of each kind admitted, final state consistent  -> statuses={"202":2,"409":30} ops=[["CLOSE","COMPLETED","CONFIRMED","ACTIVE"],["ARCHIVE","COMPLETED","CONFIRMED","CLOSED"],["DELETE","COMPLETED","CONFIRMED","ARCHIVED"]] final=DELETED
+== p3-race-ws-r32b-n32: 8 passed, 0 failed

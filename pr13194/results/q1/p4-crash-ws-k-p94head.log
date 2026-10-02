@@ -1,0 +1,13 @@
+# p4-crash-ws-k-p94head  db=q1  2026-10-02T14:09:47.883Z
+NOTE  prepared CLOSED Sessions  -> X=1f554e71-ad70-4bb1-b0a7-369bbd5c984b Y=fd65c788-7f9c-418d-a0f5-3d59844341b8 Y2=0202bbd2-aefb-4f50-88e4-8d17a856daea statuses=CLOSED/CLOSED/CLOSED
+PASS  delete admitted; coordinator claimed it and is blocked inside completion  -> op=op_3b41268e10444aabbfdf933eda99f49d state=["RUNNING","LEASED","1","0","","70cad2a8-bd8c-477f-ab5d-c32ba1687468","1790950257039"] lockWaits=1
+PASS  after kill -9: nothing of the completion committed (DELETING, op still LEASED by the dead owner, no retirement/tombstone/event)  -> {"op":["RUNNING","LEASED","1","0","","70cad2a8-bd8c-477f-ab5d-c32ba1687468","1790950257039"],"status":"DELETING","retirement":0,"deleted":0,"head":"SEALED"}
+NOTE  restart  -> harness pid file=none; spring: spring pid=1254 up after 10s log=/Users/wenshao/pr13135-rig/run/lx-q1/spring-1.log
+PASS  restarted instance (no Harness, durable off, mount removed) still advertises archive/unarchive/delete for a closed Session  -> {"close":false,"archive":true,"unarchive":true,"delete":true,"lifecycle":false}
+PASS  takeover completes the delete exactly once (claim generation 2, one retirement, one event, tombstone)  -> {"op":["COMPLETED","CONFIRMED","2","0","","","0"],"status":"DELETED","retirement":[["op_3b41268e10444aabbfdf933eda99f49d","1","0"]],"deleted":1,"head":"DELETED"} completed 60.4 s after the kill
+PASS  replay after takeover returns the original operation  -> status=202 op=op_3b41268e10444aabbfdf933eda99f49d state=completed
+PASS  no Harness / no Runtime close support / no mount: archive 202, unarchive 200, delete completes  -> archive=202 unarchive=200 delete=202 ["COMPLETED","CONFIRMED","1","0","","","0"] status=DELETED in 209 ms
+PASS  same instance: archive then delete from ARCHIVED completes  -> archive=202 delete=202 status=DELETED
+NOTE  new Workspace Session on this instance (Harness down, mount removed)  -> status=409 code=workspace_unavailable
+NOTE  stack restored  -> spring pid=1403 up after 7s log=/Users/wenshao/pr13135-rig/run/lx-q1/spring-2.log | harness pid=1489 up after 4s log=/Users/wenshao/pr13135-rig/run/lx-q1/harness-1.log
+== p4-crash-ws-k-p94head: 7 passed, 0 failed

@@ -1,0 +1,50 @@
+# p1-web-ws-p1d-fromCLOSED  db=q1  2026-10-02T14:05:22.208Z
+PASS  setup: bound files Session S runs a real file Turn  -> session=7f943196-c371-4ce8-8593-6979b67c3c99 turn=COMPLETED file=after-d
+PASS  setup: neighbour Session N on the same storage runs a file Turn  -> session=30f06271-7d55-4a3d-8bdb-a5a258cc4c8b file=after-dn
+NOTE  workers before close  -> S pid=774 (S) N pid=794 (S)
+PASS  ACTIVE Session advertises no archive/unarchive/delete  -> {"close":true,"archive":false,"unarchive":false,"delete":false}
+PASS  ACTIVE Session: archive and delete refused 409, nothing persisted  -> archive=409/session_state_conflict delete=409/session_state_conflict ops=0
+PASS  close completes; S worker gone; binding RELEASED; fence persisted  -> op=completed pid 774=gone binding=RELEASED fence=1
+PASS  neighbour N worker still alive after S closed  -> pid 794=S
+PASS  CLOSED Session advertises archive/unarchive/delete  -> {"close":true,"archive":true,"unarchive":true,"delete":true}
+PASS  positive control: Runtime warm of ACTIVE neighbour N succeeds (so a warm refusal means something)  -> status=200 {"ready":true,"protocolVersion":1,"harnessSessionId":"30f06271-7d55-4a3d-8bdb-a5a258cc4c8b"}
+PASS  archive: readable non-creator 403, unreadable 404, other tenant 404  -> bob=403/session_operation_forbidden mallory=404/session_not_found tenant=404/session_not_found
+PASS  creator archive: 202 and the operation is already completed  -> status=202 op=op_b115d3c0736b4b859a9e7467c0eda8cd body.status=completed receipt=rcpt_921113259fb84b34853fa11628dcab32
+PASS  Session is ARCHIVED, session.archived event once  -> status=ARCHIVED archived-events=1
+PASS  archive replay (same surface and other surface) returns the original operation  -> same=202/op_b115d3c0736b4b859a9e7467c0eda8cd replayed=true other=202/op_b115d3c0736b4b859a9e7467c0eda8cd
+PASS  fresh archive key on ARCHIVED Session refused 409  -> status=409 code=session_state_conflict
+NOTE  ARCHIVED: public input / WebShell turn (refused for every bound Session on main, not evidence)  -> input=409/workspace_unavailable webTurn=409/workspace_unavailable
+PASS  ARCHIVED: Runtime warm refused  -> input=409/workspace_unavailable webTurn=409/workspace_unavailable warm=409 {"error":"Workspace execution authority is unavailable.","code":"workspace_unavailable","retryable":false}
+PASS  unarchive: readable non-creator 403, unreadable 404  -> bob=403/session_operation_forbidden mallory=404/session_not_found
+PASS  creator unarchive: 200, Session CLOSED, replay header false  -> status=200 body.status=closed db=CLOSED replay=false
+PASS  unarchive replay on both surfaces: 200 replay=true, no new events, one command row  -> same=200/true other=200/true events 15->15 commands=1
+PASS  fresh unarchive key on a CLOSED Session refused 409  -> status=409 code=session_state_conflict
+NOTE  after unarchive: public input / WebShell turn (not evidence, see above)  -> input=409/workspace_unavailable webTurn=409/workspace_unavailable
+PASS  after unarchive: Runtime warm still refused (permanent close fence)  -> input=409/workspace_unavailable webTurn=409/workspace_unavailable warm=409 {"error":"Workspace execution authority is unavailable.","code":"workspace_unavailable","retryable":false}
+NOTE  fresh close key on the unarchived (CLOSED) Session  -> status=409 code=session_state_conflict op.status=
+PASS  close fence row and original close receipt unchanged  -> fence=1 receipt=rcpt_43e711d4231549ce819f7fa0a13c847f
+PASS  unarchived Session still advertises archive/unarchive/delete  -> {"close":true,"archive":true,"unarchive":true,"delete":true}
+PASS  old unarchive key after rearchive: 200 replay=true, returns ARCHIVED, does not unarchive  -> rearchive=202 replay=200/true body.status=archived db=ARCHIVED
+PASS  unarchive again so delete starts from CLOSED  -> status=200 db=CLOSED
+PASS  delete: readable non-creator 403, unreadable 404, nothing admitted  -> bob=403/session_operation_forbidden mallory=404/session_not_found
+PASS  creator delete from CLOSED: 202  -> status=202 op=op_e60d449e52e04810b3d9970bc160a6ec body.status=pending
+PASS  delete operation completes  -> status=completed 171 ms receipt=rcpt_09997b929acc4871a94be8920898ebd0
+PASS  operation row: COMPLETED, session_status_before matches, receipt set, one claim  -> ["DELETE","COMPLETED","CONFIRMED","CLOSED","rcpt_09997b929acc4871a94be8920898ebd0","1","0"]
+PASS  tombstone: status DELETED, exactly one session.deleted event  -> status=DELETED deleted-events=1
+PASS  retirement barrier row written by this operation  -> [["op_e60d449e52e04810b3d9970bc160a6ec","1","0"]]
+NOTE  journal head after delete  -> ["DELETED","READY"]
+PASS  Session reads 404 on both surfaces; events 404  -> web=404 public=404 events=404
+PASS  retained operations still readable on both surfaces after delete  -> delete-op web=200 public=200 archive-op=200
+PASS  delete replay after tombstone (both surfaces) returns the original operation  -> same=202/op_e60d449e52e04810b3d9970bc160a6ec other=202/op_e60d449e52e04810b3d9970bc160a6ec
+PASS  after tombstone: fresh delete 404, old unarchive key 404, old archive key still replays  -> delete2=404/session_not_found unarchive=404 archive-replay=202/op_b115d3c0736b4b859a9e7467c0eda8cd
+PASS  operation read after delete: reader 200, unreadable 404  -> bob=200 mallory=404
+PASS  L1+L2: no Spring->Harness request, no model call, S Runtime rows/registrations/workers unchanged  -> tap=42 model=40 workers=[272 368 537 574 762 794] over 915 ms
+NOTE  global Runtime-table writes in the window (any Session, e.g. neighbour heartbeats)  -> 0 
+PASS  L1+L2: zero SQL writes to Runtime/lease/drain tables for S (MySQL general log)  -> 0 writes over 915 ms
+PASS  retained bytes: S file still on shared storage, history resource rows untouched  -> file=after-d resources 48->48
+PASS  neighbour N: same worker, ACTIVE, binding not drained  -> pid 794=S status=ACTIVE binding=READY
+PASS  neighbour N: Runtime warm still succeeds after S was deleted, same worker  -> warm=200 pid 794=S
+PASS  a new Session on the same storage runs a file Turn after delete  -> session=de0831e0-936d-42aa-ada1-d417384d24c8 turn=COMPLETED
+NOTE  operations of S  -> [["CLOSE","COMPLETED","CONFIRMED","ACTIVE","rcpt_43e711d4231549ce819f7fa0a13c847f","1","0"],["ARCHIVE","COMPLETED","CONFIRMED","CLOSED","rcpt_921113259fb84b34853fa11628dcab32","0","0"],["ARCHIVE","COMPLETED","CONFIRMED","CLOSED","rcpt_90819daeb0bf4a7aa8c68d5fd014ee03","0","0"],["DELETE","COMPLETED","CONFIRMED","CLOSED","rcpt_09997b929acc4871a94be8920898ebd0","1","0"]]
+NOTE  events of S (tail)  -> session.archived,session.unarchive.requested,session.unarchived,session.archived,session.unarchive.requested,session.unarchived,session.delete.requested,session.deleted
+== p1-web-ws-p1d-fromCLOSED: 40 passed, 0 failed

@@ -1,0 +1,230 @@
+{
+  "BASELINE": {
+    "id": "BASELINE",
+    "verdict": "BASELINE-GREEN",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [],
+    "secs": 74
+  },
+  "M1": {
+    "id": "M1",
+    "file": "store/ManagedAgentStore.java",
+    "what": "lease_until read without FOR UPDATE (the repeatable-read fix)",
+    "from": " AND operation_id = ? FOR UPDATE\", Long.class,",
+    "to": " AND operation_id = ?\", Long.class,",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionMySqlIT.expiredDeleteClaimAfterLockWaitCannotRetireAndAnotherInstanceCompletes"
+    ],
+    "secs": 69
+  },
+  "M2": {
+    "id": "M2",
+    "file": "service/SessionLifecycleCoordinator.java",
+    "what": "bound DELETE from CLOSED/ARCHIVED no longer skips Runtime/Harness",
+    "from": "if (bound && operation.kind() == OperationKind.DELETE",
+    "to": "if (false && bound && operation.kind() == OperationKind.DELETE",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.permissionsAreRecheckedForMutationsReplaysAndTombstoneOperations",
+      "WorkspaceSessionRetentionTest.metadataSurvivesRuntimeSupportRemoval",
+      "WorkspaceSessionRetentionTest.unarchiveKeysAreScopedBySessionAndCaseAndCannotReplayAfterDeletion",
+      "WorkspaceSessionRetentionTest.deletesClosedOrArchivedWithoutRuntimeAndRetiresTheJournal(boolean)[1]",
+      "WorkspaceSessionRetentionTest.deletesClosedOrArchivedWithoutRuntimeAndRetiresTheJournal(boolean)[2]"
+    ],
+    "secs": 211
+  },
+  "M3": {
+    "id": "M3",
+    "file": "service/SessionLifecycleCoordinator.java",
+    "what": "skip only from CLOSED (DELETE from ARCHIVED repeats Runtime work)",
+    "from": "(\"CLOSED\".equals(operation.sessionStatusBefore()) || \"ARCHIVED\".equals(operation.sessionStatusBefore()))",
+    "to": "(\"CLOSED\".equals(operation.sessionStatusBefore()))",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.permissionsAreRecheckedForMutationsReplaysAndTombstoneOperations",
+      "WorkspaceSessionRetentionTest.deletesClosedOrArchivedWithoutRuntimeAndRetiresTheJournal(boolean)[2]"
+    ],
+    "secs": 305
+  },
+  "M4": {
+    "id": "M4",
+    "file": "store/ManagedAgentStore.java",
+    "what": "unarchive without creator/read check",
+    "from": "        requireWorkspaceCreator(session, actorId);\n        if (\"DELETED\".equals(session.status())) {",
+    "to": "        if (\"DELETED\".equals(session.status())) {",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.permissionsAreRecheckedForMutationsReplaysAndTombstoneOperations"
+    ],
+    "secs": 138
+  },
+  "M5": {
+    "id": "M5",
+    "file": "store/ManagedAgentStore.java",
+    "what": "unarchive replay disabled",
+    "from": "findCommand(tenantId, namespace, scopedKey, true);\n        if (existing.isPresent()) {",
+    "to": "findCommand(tenantId, namespace, scopedKey, true);\n        if (false && existing.isPresent()) {",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.archivesAndUnarchivesAcrossSurfacesWithoutReopeningOrRepeatingCleanup",
+      "WorkspaceSessionRetentionMySqlIT.simultaneousUnarchiveHasOneCommandAndDigestConflictCannotChangeState"
+    ],
+    "secs": 115
+  },
+  "M6": {
+    "id": "M6",
+    "file": "store/ManagedAgentStore.java",
+    "what": "archive/delete admission without completed-close proof",
+    "from": "                if (!hasCompletedWorkspaceClose(tenantId, sessionId)) {\n                    throw workspaceExecutionUnavailable();",
+    "to": "                if (false) {\n                    throw workspaceExecutionUnavailable();",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.sourceStatesAndMissingCloseProofAreRefused"
+    ],
+    "secs": 119
+  },
+  "M7": {
+    "id": "M7",
+    "file": "store/ManagedAgentStore.java",
+    "what": "unarchive without completed-close proof",
+    "from": "        if (!hasCompletedWorkspaceClose(tenantId, sessionId)) {\n            throw workspaceExecutionUnavailable();\n        }\n        long now = lifecycleDatabaseTime();\n        insertCommand(",
+    "to": "        if (false) {\n            throw workspaceExecutionUnavailable();\n        }\n        long now = lifecycleDatabaseTime();\n        insertCommand(",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.sourceStatesAndMissingCloseProofAreRefused"
+    ],
+    "secs": 113
+  },
+  "M8": {
+    "id": "M8",
+    "file": "service/ManagedAgentService.java",
+    "what": "capabilities true for every bound Session",
+    "from": "return session.workspace() == null || store.hasCompletedWorkspaceClose(session.tenantId(), session.sessionId());",
+    "to": "return true;",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.sourceStatesAndMissingCloseProofAreRefused"
+    ],
+    "secs": 280
+  },
+  "M9": {
+    "id": "M9",
+    "file": "store/ManagedAgentStore.java",
+    "what": "unarchive replay visible after tombstone",
+    "from": "        if (\"DELETED\".equals(session.status())) {\n            throw new ApiException(HttpStatus.NOT_FOUND, \"session_not_found\", \"The Session was not found.\");\n        }\n        String namespace",
+    "to": "        if (false) {\n            throw new ApiException(HttpStatus.NOT_FOUND, \"session_not_found\", \"The Session was not found.\");\n        }\n        String namespace",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.unarchiveKeysAreScopedBySessionAndCaseAndCannotReplayAfterDeletion",
+      "WorkspaceSessionRetentionTest.deletesClosedOrArchivedWithoutRuntimeAndRetiresTheJournal(boolean)[1]",
+      "WorkspaceSessionRetentionTest.deletesClosedOrArchivedWithoutRuntimeAndRetiresTheJournal(boolean)[2]",
+      "WorkspaceSessionRetentionMySqlIT.simultaneousUnarchiveHasOneCommandAndDigestConflictCannotChangeState"
+    ],
+    "secs": 91
+  },
+  "M10": {
+    "id": "M10",
+    "file": "store/ManagedAgentStore.java",
+    "what": "unarchive without open-operation check",
+    "from": "        requireSessionStatus(session.status(), \"ARCHIVED\");\n        requireNoOpenOperation(tenantId, sessionId);",
+    "to": "        requireSessionStatus(session.status(), \"ARCHIVED\");",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.pendingStatesAndBlockedOperationsRejectFreshMetadataRequests"
+    ],
+    "secs": 79
+  },
+  "M11": {
+    "id": "M11",
+    "file": "service/ManagedAgentService.java",
+    "what": "unarchive key not scoped by actor",
+    "from": "\"actorDigest\", digests.digest(Map.of(\"actorId\", actorId)), ",
+    "to": "",
+    "verdict": "SURVIVED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [],
+    "secs": 98
+  },
+  "M12": {
+    "id": "M12",
+    "file": "store/ManagedAgentStore.java",
+    "what": "no session.unarchived event",
+    "from": "        appendEvent(tenantId, sessionId, null, \"session.unarchived\", data, false,\n                mutationSource(namespace, scopedKey, \"completed\"), now);",
+    "to": "",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionRetentionTest.unarchiveKeysAreScopedBySessionAndCaseAndCannotReplayAfterDeletion",
+      "WorkspaceSessionRetentionTest.archivesAndUnarchivesAcrossSurfacesWithoutReopeningOrRepeatingCleanup",
+      "WorkspaceSessionRetentionMySqlIT.simultaneousUnarchiveHasOneCommandAndDigestConflictCannotChangeState",
+      "WorkspaceSessionRetentionMySqlIT.unarchiveRollsBackItsCommandStateAndEvents(String)[2]"
+    ],
+    "secs": 187
+  },
+  "M13": {
+    "id": "M13",
+    "file": "store/ManagedAgentStore.java",
+    "what": "completion guard for bound DELETE before close removed",
+    "from": "if (session.workspace() != null && !List.of(\"CLOSED\", \"ARCHIVED\").contains(operation.sessionStatusBefore())) {",
+    "to": "if (false) {",
+    "verdict": "SURVIVED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [],
+    "secs": 91
+  },
+  "M14": {
+    "id": "M14",
+    "file": "store/ManagedAgentStore.java",
+    "what": "bound DELETE admission state check removed (ACTIVE/CLOSING allowed)",
+    "from": "} else if (!List.of(\"CLOSED\", \"ARCHIVED\").contains(session.status())) {",
+    "to": "} else if (false) {",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "ManagedSessionLifecycleTest.activeWorkspaceSessionsRejectRetentionAndUnsupportedClose",
+      "WorkspaceSessionRetentionTest.sourceStatesAndMissingCloseProofAreRefused"
+    ],
+    "secs": 76
+  },
+  "M15": {
+    "id": "M15",
+    "file": "store/ManagedAgentStore.java",
+    "what": "replay before the creator check (beginLifecycle)",
+    "from": "        if (session.workspace() != null) {\n            requireWorkspaceCreator(session, actorId);\n        }\n        Optional<OperationRecord> existing",
+    "to": "        Optional<OperationRecord> existing",
+    "verdict": "KILLED",
+    "unitRan": 57,
+    "itRan": 19,
+    "failed": [
+      "WorkspaceSessionCloseTest.readerCannotCloseAndActiveOrPendingApprovalTurnsRemainGated",
+      "WorkspaceSessionRetentionTest.permissionsAreRecheckedForMutationsReplaysAndTombstoneOperations"
+    ],
+    "secs": 79
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "name": "p2-edges-ws-e",
+  "pass": 16,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "E1 seeded CLOSED (no close receipt, worker alive): capabilities false, archive and delete 409 workspace_unavailable",
+      "ok": true,
+      "detail": "caps={\"close\":true,\"archive\":false,\"unarchive\":false,\"delete\":false,\"lifecycle\":false} archive=409/workspace_unavailable delete(web)=409/workspace_unavailable worker 999=S"
+    },
+    {
+      "label": "E1 seeded ARCHIVED: unarchive and delete 409, no operation or command persisted",
+      "ok": true,
+      "detail": "unarchive(web)=409/workspace_unavailable delete=409/workspace_unavailable ops=0"
+    },
+    {
+      "label": "E1 the seeded Session worker was never touched",
+      "ok": true,
+      "detail": "pid 999=S"
+    },
+    {
+      "label": "E2 CLOSING: archive/unarchive/delete refused 409, capabilities false",
+      "ok": true,
+      "detail": "status=CLOSING archive=409/session_state_conflict unarchive=409/session_state_conflict delete=409/session_state_conflict caps={\"close\":true,\"archive\":false,\"unarchive\":false,\"delete\":false}"
+    },
+    {
+      "label": "E2 after the held close completes, archive succeeds",
+      "ok": true,
+      "detail": "close=completed archive=202 status=ARCHIVED"
+    },
+    {
+      "label": "E3 delete admitted 202; completion is waiting on the held lock (op LEASED, Session DELETING)",
+      "ok": true,
+      "detail": "op=op_73b182883b8f4bd99b135950237fea1c opState=[\"RUNNING\",\"LEASED\",\"1\",\"0\",\"\",\"70cad2a8-bd8c-477f-ab5d-c32ba1687468\",\"1790950136112\"] status=DELETING lockWaits=1"
+    },
+    {
+      "label": "E3 DELETING: fresh archive/unarchive/delete 409; same key replays the open operation",
+      "ok": true,
+      "detail": "archive=409/session_state_conflict unarchive=409/session_state_conflict delete=409/session_state_conflict replay=202/op_73b182883b8f4bd99b135950237fea1c replayed=true"
+    },
+    {
+      "label": "E3 Session read while DELETING",
+      "note": true,
+      "detail": "status=200 body.status=deleting"
+    },
+    {
+      "label": "E3 creator read revoked while deletion is in flight: operation read 404",
+      "ok": true,
+      "detail": "alice op read=404"
+    },
+    {
+      "label": "E3 accepted delete completes after the lock releases despite the ACL revocation",
+      "ok": true,
+      "detail": "lock exit=0 op=[\"COMPLETED\",\"CONFIRMED\",\"1\",\"0\",\"\",\"\",\"0\"] status=DELETED +17 ms"
+    },
+    {
+      "label": "E3 after completion: reader bob sees the operation; revoked creator replay hidden (404)",
+      "ok": true,
+      "detail": "bob=200/completed alice replay=404/session_not_found"
+    },
+    {
+      "label": "E3 access restored: replay returns the original operation again",
+      "ok": true,
+      "detail": "status=202 op=op_73b182883b8f4bd99b135950237fea1c"
+    },
+    {
+      "label": "E4 creator without current read: archive replay, op read, unarchive, delete all 404",
+      "ok": true,
+      "detail": "404,404,404,404"
+    },
+    {
+      "label": "E4 reader bob reusing the creator key is a different request: 403, not a replay",
+      "ok": true,
+      "detail": "bob=403/session_operation_forbidden"
+    },
+    {
+      "label": "E4 access restored: archive replay returns the original operation",
+      "ok": true,
+      "detail": "status=202 op=op_1364aefcd5cf4418860ee61c53f26731"
+    },
+    {
+      "label": "E5 malformed keys (whitespace, control, 300 chars, empty) rejected 400 on both surfaces, Session still ARCHIVED",
+      "ok": true,
+      "detail": "\" lead\":n/a/400 \"trail \":n/a/400 \"ctl\\u0001x\":n/a/400 \"xxxxxxxx\":400/400 \"\":400/400"
+    },
+    {
+      "label": "E5 case-distinct keys are distinct commands (second unarchive mutates, not a replay)",
+      "ok": true,
+      "detail": "u1=200/false rearchive=202 u2=200/false status=CLOSED"
+    },
+    {
+      "label": "cleanup: seeded Session closed",
+      "note": true,
+      "detail": "status=CLOSED worker 999=gone"
+    }
+  ],
+  "M": "2faafb5f-704b-4fbd-8f5d-7db20ffffd14",
+  "C": "335b8604-3da3-4240-9701-e5cc5266f924",
+  "D": "278f6a65-3b60-4cb1-80f7-12a8554df542",
+  "R": "5c898a32-402e-4708-82cf-d045ada9c490",
+  "deleteOp": "op_73b182883b8f4bd99b135950237fea1c"
+}
