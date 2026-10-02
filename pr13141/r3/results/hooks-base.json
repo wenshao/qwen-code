@@ -1,0 +1,96 @@
+{
+  "tree": "/Users/wenshao/pr13141-r3/wt-base",
+  "node": "v24.18.1",
+  "pass": 6,
+  "fail": 0,
+  "results": [
+    {
+      "id": "H1",
+      "arm": "A",
+      "body": {
+        "toolProfile": "hosted-workspace-files/1",
+        "hookCatalog": {
+          "catalogId": "probe.catalog",
+          "catalogRevision": 1,
+          "definitionDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      },
+      "expect": "hosted_tool_profile_unavailable",
+      "why": "no Broker pair => no Workspace tool turn, hooks included",
+      "status": 400,
+      "code": "hosted_tool_profile_unavailable",
+      "ok": true
+    },
+    {
+      "id": "H2",
+      "arm": "A",
+      "body": {
+        "hookCatalog": {
+          "catalogId": "probe.catalog",
+          "catalogRevision": 1,
+          "definitionDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      },
+      "expect": "invalid_hosted_hook_catalog",
+      "why": "no Broker pair => hook catalog rejected outright",
+      "status": 400,
+      "code": "invalid_hosted_hook_catalog",
+      "ok": true
+    },
+    {
+      "id": "H3",
+      "arm": "B",
+      "body": {
+        "toolProfile": "hosted-workspace-files/1",
+        "hookCatalog": {
+          "catalogId": "probe.catalog",
+          "catalogRevision": 1,
+          "definitionDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      },
+      "expect": "invalid_managed_session_store",
+      "why": "Broker pair + files profile => BOTH the tool gate and the hook gate pass; only the (unconfigured) session store stops it",
+      "status": 400,
+      "code": "invalid_managed_session_store",
+      "ok": true
+    },
+    {
+      "id": "H4",
+      "arm": "B",
+      "body": {
+        "hookCatalog": {
+          "catalogId": "probe.catalog",
+          "catalogRevision": 1,
+          "definitionDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      },
+      "expect": "invalid_hosted_hook_catalog",
+      "why": "DECISIVE: Broker pair present but no Workspace tool profile => hooks still refused, so the flags are never needed outside a tool turn",
+      "status": 400,
+      "code": "invalid_hosted_hook_catalog",
+      "ok": true
+    },
+    {
+      "id": "H5",
+      "arm": "B",
+      "body": {
+        "toolProfile": "hosted-workspace-files/1"
+      },
+      "expect": "invalid_managed_session_store",
+      "why": "control: the H3 result comes from the hook gate passing, not from hooks being ignored",
+      "status": 400,
+      "code": "invalid_managed_session_store",
+      "ok": true
+    },
+    {
+      "id": "H6",
+      "arm": "B",
+      "body": {},
+      "expect": "invalid_managed_session_store",
+      "why": "control: a no-tool Session still gets past the tool gate with the Broker pair (round 1 S2)",
+      "status": 400,
+      "code": "invalid_managed_session_store",
+      "ok": true
+    }
+  ]
+}

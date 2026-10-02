@@ -1,0 +1,70 @@
+=== isolation: each arm must resolve internal deps inside itself ===
+PASS ISO/wt-base/qwen-code-core-root  wt-base: node_modules/@qwen-code/qwen-code-core realpaths inside wt-base
+PASS ISO/wt-base/qwen-code-core-cli  wt-base: packages/cli/node_modules/@qwen-code/qwen-code-core realpaths inside wt-base
+PASS ISO/wt-head/qwen-code-core-root  wt-head: node_modules/@qwen-code/qwen-code-core realpaths inside wt-head
+PASS ISO/wt-head/qwen-code-core-cli  wt-head: packages/cli/node_modules/@qwen-code/qwen-code-core realpaths inside wt-head
+PASS ISO/wt-merge/qwen-code-core-root  wt-merge: node_modules/@qwen-code/qwen-code-core realpaths inside wt-merge
+PASS ISO/wt-merge/qwen-code-core-cli  wt-merge: packages/cli/node_modules/@qwen-code/qwen-code-core realpaths inside wt-merge
+
+=== the arm under test is the arm claimed ===
+PASS OID/wt-base  wt-base HEAD is 47463b79a7
+PASS CLEAN/wt-base  wt-base working tree clean (mutate.mjs / bundle control restored every file)
+PASS OID/wt-head  wt-head HEAD is 2a702c316d
+PASS CLEAN/wt-head  wt-head working tree clean (mutate.mjs / bundle control restored every file)
+
+=== effective diff: the PR is two strings plus one test ===
+PASS DIFF/1  base..head touches exactly serve.ts and serve.test.ts
+PASS DIFF/2  serve.ts change is 4 lines touched (+2/-2), i.e. only the two description strings
+PASS DIFF/3  the PR touches no web-shell source (so the web-shell asset-hash churn in a base-vs-head bundle diff is main, not this PR)
+
+=== bundle control: head-minus-PR vs head ===
+PASS BND/1  only esbuild.json differs across the whole bundle
+PASS BND/2  exactly the two help strings are the mapped PR contribution
+PASS BND/3  bundle file census matches round 1/2 (1195 files)
+PASS BND/4  the two strings together are exactly +32 bytes (URL +17, token +15)
+PASS BND/6  exactly one chunk on each side carries the help strings
+PASS BND/7  that chunk grew by exactly +32 bytes (chunk-5RTXTG7R.js -> chunk-TDMHGISC.js)
+PASS BND/8  cli.js contains no help strings and did not change size
+PASS BND/9  esbuild.json reports the same +32 independently, on the serve.ts input side
+
+=== base-vs-head bundle diff is confounded by the merge, and we say so ===
+PASS BND/5  a naive base-vs-head bundle diff shows web-shell churn from the 20 merged main commits, not from this PR
+
+=== trial merge into CURRENT main ===
+PASS MRG/1  head merges into main fb843d6ce7 with no conflict
+PASS MRG/2  merged tree differs from current main by exactly the same two files
+PASS MRG/3  merged tree carries the corrected text
+
+=== targeted gates ===
+PASS GATE/4suites-head  head: serve + fast-path + hosted-harness-profile + run-qwen-serve = 709/709, 4/4 files
+PASS GATE/4suites-merge  merge: serve + fast-path + hosted-harness-profile + run-qwen-serve = 709/709, 4/4 files
+PASS GATE/4suites-parity  the merged tree scores identically to head (the merge regresses nothing)
+PASS GATE/tty40  serve.test.ts in a real 40-column pty: 78/78
+PASS GATE/tty250  serve.test.ts in a real 250-column pty: 78/78
+PASS GATE/tty-parity  the test is width-independent (round 1 finding stays fixed): identical 78/78 at 40 and 250 columns
+
+=== lint / format gates, each proven live ===
+PASS LINT/prettier  prettier --check clean on both changed files
+PASS LINT/prettier-live  the prettier gate is live: a planted violation exits non-zero
+PASS LINT/eslint  eslint clean on both changed files
+PASS LINT/eslint-live  the eslint gate is live: planted any + unused vars report 4 errors and exit non-zero
+
+=== carried-forward CI flakes re-measured, and the predicted fix landed ===
+PASS FLAKE/latency-head  recall-scan-latency passes on head (7/7)
+PASS FLAKE/latency-base  recall-scan-latency passes on base (7/7) — an A/A control, so a green head is not luck
+PASS FLAKE/13094  the merge picked up #13094, the hosted-lane relaxation round 2 predicted would fix the CI timing gate
+PASS FLAKE/latency-reads-lane  the gate now reads RUNNER_ENVIRONMENT to detect a GitHub-hosted lane
+PASS FLAKE/wsagents  workspace-agents passes 3/3 consecutive full-file runs on head (6/6 each)
+
+=== issue #13044 acceptance criteria ===
+PASS AC/1  criterion 1: built `qwen serve --help` describes both options and no longer calls them unimplemented
+PASS AC/2  criterion 2: help, the Managed Agent deployment README and the option consumers agree
+PASS AC/2b  the README is byte-identical on base and head — the PR needed no README change, the help text was the outlier
+PASS AC/3  criterion 3: no startup, credential or admission behaviour changed (15/15 probe cells identical)
+
+=== sibling options the issue said to leave unchanged ===
+PASS SIB/1  all five --experimental-managed-* rows still say "Reserved experimental ... not implemented and rejects startup"
+PASS SIB/2  those five rows are byte-identical base vs head
+PASS SIB/3  no OTHER option row changed between the arms
+
+gates: 47 passed, 0 failed, 47 assertions

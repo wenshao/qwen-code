@@ -1,0 +1,49 @@
+=== 1. the PR changes no runtime behaviour: base vs head, cell by cell ===
+PASS R/S1  runtime cell S1 identical on base and head (hosted-harness, no Broker options)
+PASS R/S2  runtime cell S2 identical on base and head (hosted-harness, URL + token)
+PASS R/S3  runtime cell S3 identical on base and head (hosted-harness, URL only)
+PASS R/S4  runtime cell S4 identical on base and head (hosted-harness, token only)
+PASS R/S5  runtime cell S5 identical on base and head (hosted-harness, URL + blank token)
+PASS R/S6  runtime cell S6 identical on base and head (no profile, URL + token)
+PASS R/S7  runtime cell S7 identical on base and head (hosted-harness, non-loopback http URL + token)
+PASS R/S8  runtime cell S8 identical on base and head (hosted-harness, non-loopback https URL + token)
+PASS R/S9  runtime cell S9 identical on base and head (hosted-harness, --experimental-managed-runtime-url (untouched option))
+PASS K/H1  hook cell H1 identical on base and head
+PASS K/H2  hook cell H2 identical on base and head
+PASS K/H3  hook cell H3 identical on base and head
+PASS K/H4  hook cell H4 identical on base and head
+PASS K/H5  hook cell H5 identical on base and head
+PASS K/H6  hook cell H6 identical on base and head
+
+=== 2. the OLD help text was already false on base (this is what the PR fixes) ===
+PASS T1  base S2 (Broker URL + token) LISTENS — so "rejects startup" was false at base
+PASS T2  head S2 also listens — behaviour unchanged, only the text moved
+PASS T3  base S2 reaches the tool-profile gate (so the Broker path is implemented, not stubbed)
+
+=== 3. each claim in the NEW help text, against observed behaviour ===
+PASS N1  S6: without --profile hosted-harness the pair is refused
+PASS N2/S3  S3 (URL only) is refused with the pairing error
+PASS N2/S4  S4 (token only) is refused with the pairing error
+PASS N2/S5  S5 (URL + blank token) is refused with the pairing error
+PASS N3  S1: with no Broker pair the Harness still listens (the pair is not required to start)
+PASS N4  S1: every Workspace tool profile is refused without the Broker pair
+PASS N5  S2: with the Broker pair no tool profile is refused as unavailable
+PASS N6  S1: a no-tool Session is NOT refused as tool-profile-unavailable (scope is tool turns)
+
+=== 4. round-3 scope question: is "Workspace tool turns" still complete? ===
+PASS P1  H2/H4: a hook catalog is refused without a Workspace tool profile, on both arms
+PASS P2  H4 is the decisive cell: Broker pair present, no tool profile, hooks still refused
+PASS P3  H3: with the pair AND a tool profile the hook gate passes (hooks are genuinely wired)
+PASS P4  H5 control: H3 passes because of the hook gate, not because hooks are ignored
+PASS P5  H1: without the pair, hooks are refused via the tool-profile gate
+PASS P6  no probe cell shows a Broker-dependent session that is not a tool-profile session
+
+=== 5. sibling options the issue said to leave alone ===
+PASS X1  S9: the untouched experimental Runtime option still rejects startup
+PASS X2  S9 identical on base and head (the PR did not widen scope)
+
+=== 6. non-loopback HTTPS rule is still only in the error, not the help ===
+PASS Y1  S7: a non-loopback http Broker URL is refused with the HTTPS message
+PASS Y2  S8: a non-loopback https Broker URL is accepted
+
+truth adjudication: 36 passed, 0 failed, 36 assertions; 15 cells identical base vs head
