@@ -1,0 +1,50 @@
+=== R3-1 smoke + lifecycle (head)
+Successfully applied 30 migrations to schema `o41r3a`, now at version v30 (execution time 00:01.023s)
+[turn] {"session":"abaf2433-e510-479e-a18e-e2d0d93cfac4","turn":"COMPLETED","err":"","ms":3855,"results":["READY"]}
+[pubs] [{"id":"12bd5de3-2327-4fce-85da-7bf175be2e91","state":"OPEN","phase":"REFERENCED","retention":"PINNED","writeEvidence":true,"acceptedComplete":true,"quarantined":false,"held":3255073,"used":3255073}]
+[put-attempts] 12bd5de3 RETURNED=5
+[artifact] stdout bytes=3146061 full=200 sha_ok=true range=206 bytes 1000-1999/3146061 len=1000
+[artifact] stderr bytes=102407 full=200 sha_ok=true range=206 bytes 1000-1999/102407 len=1000
+[A.closed] stderr full=200 sha_ok=true range=206 bytes 4096-8191/204803
+[A.closed] stdout full=200 sha_ok=true range=206 bytes 4096-8191/5242891
+[A.archived] stderr full=200 sha_ok=true range=206 bytes 4096-8191/204803
+[A.archived] stdout full=200 sha_ok=true range=206 bytes 4096-8191/5242891
+[B.retirement] ["op_rig_47535f875cfb8c6c","1","1790914257831","0"]
+[B.pubs] ["4ea5a510 RETIRING held=5453420 writeEvidence=true accepted=true"]
+[B.public-after] session=404/session_not_found artifacts=404/session_not_found
+[B.content-after] stdout full=404/session_not_found range=404/session_not_found
+[B.content-after] stderr full=404/session_not_found range=404/session_not_found
+[B.new-writer] 409 tool_output_session_retired {"error":{"code":"tool_output_session_retired","message":"The Session output is permanently retired.","request_id":"9052a721-aedd-4cc4-aae6-7f9d2db72849"}}
+[B.restore] 409 tool_output_session_retired
+[B.resource] 409 tool_output_session_retired
+[B.oss] objects=7 still_present=7 deletes_since_delete=0
+=== R3-2 F1 retries: after the fix (head)
+[get-500-once] {"status":200,"received":8388608,"ended":"complete","shaOk":true,"ms":1263,"victimGets":["500-injected","200"]}
+[get-drop-once] {"status":200,"received":8388608,"ended":"complete","shaOk":true,"ms":1052,"victimGets":["get-dropped-before-response","200"]}
+[get-500-persistent] {"status":200,"received":2097152,"ended":"aborted","shaOk":false,"ms":962,"victimGets":["500-injected","500-injected","500-injected","500-injected"]}
+[get-403-once] {"status":200,"received":2097152,"ended":"aborted","shaOk":false,"ms":257,"victimGets":["403-injected"]}
+[pause-then-range] ["206","206","206"]
+[put-500-once] {"turn":"COMPLETED","puts":["127f06bd66 500-injected","127f06bd66 200","b8d7518c00 200"],"attempts":"RETURNED=2 UNKNOWN=1"}
+[expiry-with-500s] {"endedAtMs":117034,"received":30408704,"ended":"aborted","getsWith500":4,"getsAfterExpiry":0,"lastGetVsExpiryMs":-2972}
+=== R3-3 F1 retries: before the fix (f288be92)
+[get-500-once] {"status":200,"received":2097152,"ended":"aborted","shaOk":false,"ms":311,"victimGets":["500-injected"]}
+[get-drop-once] {"status":200,"received":2097152,"ended":"aborted","shaOk":false,"ms":194,"victimGets":["get-dropped-before-response"]}
+[get-500-persistent] {"status":200,"received":2097152,"ended":"aborted","shaOk":false,"ms":214,"victimGets":["500-injected"]}
+[get-403-once] {"status":200,"received":2097152,"ended":"aborted","shaOk":false,"ms":189,"victimGets":["403-injected"]}
+[pause-then-range] ["503/artifact_unavailable","206","206"]
+[put-500-once] {"turn":"COMPLETED","puts":["127f06bd66 500-injected","127f06bd66 200","b8d7518c00 200"],"attempts":"RETURNED=4 UNKNOWN=1"}
+[expiry-with-500s] {"endedAtMs":116194,"received":30408704,"ended":"aborted","getsWith500":1,"getsAfterExpiry":0,"lastGetVsExpiryMs":-3828}
+=== R3-4 reads (head)
+[result] {"arm":"head-r3","mode":"expire","readTimeout":"2m","size":67108864,"status":200,"declared":67108864,"received":30408704,"ended":"aborted","lastByteMs":120106,"closeMs":120112,"shaOk":false,"ossGets":60,"lastGetStartMs":116326,"event":null,"getsAfterEvent":null,"timeline":[[7880,1097728],[15863,3194880],[23868,5283840],[31881,7389184],[39917,9478144],[47935,11583488],[55945,13680640],[63955,15769600],[71966,17874944],[80004,19931136],[87999,22061056],[96020,24166400],[104055,26263552],[112065,28360704],[120106,30408704]],"afterwards":"206","leaseRows":0}
+[result] {"arm":"head-r3","mode":"delete","readTimeout":"2m","size":67108864,"status":200,"declared":67108864,"received":2097152,"ended":"aborted","lastByteMs":11823,"closeMs":11825,"shaOk":false,"ossGets":6,"lastGetStartMs":8064,"event":{"name":"deleted","insertedAt":10169,"seenDeletedAt":10532,"bytesAtEvent":2080768,"at":10489,"retiredAt":10489,"opCompletedAt":10488},"getsAfterEvent":0,"timeline":[[7833,1040384]],"bytesAfterEvent":16384,"afterwards":"404/session_not_found","leaseRows":0}
+=== R3-5 upgrade main 47463b79 -> head
+[made-on-main] {"session":"ad646d6f-cfc7-442a-b7ad-8948f88301f4","turn":"COMPLETED","results":["READY"],"history":["27","28","29"]}
+[history] ["27 managed hook records 1","28 managed hook admission index 1","29 managed hook admission backfill 1","30 managed tool output retention 1"]
+[old-row] [{"id":"16601379-5f6d-4128-81f6-22f04d90a7c3","state":"OPEN","phase":"REFERENCED","retention":"PINNED","writeEvidence":false,"acceptedComplete":false,"quarantined":false,"held":2389289,"used":2389289}]
+[old-download] stderr full=200 sha_ok=true range=416/range_not_satisfiable
+[old-download] stdout full=200 sha_ok=true range=206 bytes 4096-8191/2097157
+[retire-old] state=COMPLETED attempts=6 session=DELETED head=DELETED writer=- retirement=op=op_rig_42a6952e6bb3f5cd gen=1 protected=0 after_ms=65836
+=== R3-6 cost (head, direct)
+[full] {"label":"full","ms":7516,"status":200,"bytes":103809031,"ended":"complete","shaOk":true,"net":{"Com_select":68548,"Com_insert":4,"Com_update":0,"Com_delete":1,"Com_commit":-1,"Com_rollback":0,"Questions":68550,"Innodb_row_lock_waits":0},"idleQuestions":205,"perMiB":692.4}
+[range] {"label":"range-1MiB","ms":184,"status":206,"bytes":1048576,"net":{"Com_select":1180,"Com_insert":2,"Com_update":0,"Com_delete":1,"Com_commit":1,"Com_rollback":0,"Questions":1186,"Innodb_row_lock_waits":0},"idleQuestions":6}
+R3-DONE

@@ -1,0 +1,32 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationRetentionStoreTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationRetentionStoreTest.java
+index cb553c7155..c8e61203ac 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationRetentionStoreTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationRetentionStoreTest.java
+@@ -155,6 +155,27 @@ public class ToolPublicationRetentionStoreTest {
+         }
+     }
+ 
++    @Test
++    void storeRetriesRecheckTheOriginalLeaseBeforeEveryAttempt() {
++        var attempts = new java.util.concurrent.atomic.AtomicInteger();
++        var objects = new MemoryObjects() {
++            @Override public InputStream open(String objectKey) {
++                return new ByteArrayInputStream(new byte[] {1});
++            }
++            @Override public InputStream open(String objectKey, Runnable guard) {
++                guard.run();
++                attempts.incrementAndGet();
++                jdbc.update("UPDATE qwen_output_read_lease SET expires_at = 0 WHERE tenant_key = ?",
++                        ToolPublicationRetentionStore.hash(tenant));
++                guard.run();
++                attempts.incrementAndGet();
++                return open(objectKey);
++            }
++        };
++        assertThatThrownBy(() -> retention.open(scope, "pub-1", "object", objects)).isInstanceOf(ApiException.class);
++        assertThat(attempts).hasValue(1);
++    }
++
+     @Test
+     void successfulRetryNeverClosesAnUnknownPhysicalPut() {
+         var objects = new MemoryObjects() {
