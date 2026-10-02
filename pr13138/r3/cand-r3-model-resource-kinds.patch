@@ -1,0 +1,51 @@
+diff --git a/packages/cli/src/serve/workspace-recovery-session.test.ts b/packages/cli/src/serve/workspace-recovery-session.test.ts
+index 02008c44b1..ffa68c3430 100644
+--- a/packages/cli/src/serve/workspace-recovery-session.test.ts
++++ b/packages/cli/src/serve/workspace-recovery-session.test.ts
+@@ -579,6 +579,32 @@ describe('verifyRecoverySession', () => {
+     );
+   });
+ 
++  it('captures the route and usage of a Hosted model attempt', async () => {
++    const f = fixture();
++    const routeRef = f.resource('managed-hosted-model-route', {
++      model: 'hosted-fixture',
++    });
++    const usageRef = f.resource('managed-hosted-model-usage', {
++      totalTokens: 1,
++    });
++    f.append([
++      f.event('message.committed', {
++        messageId: 'record-id',
++        role: 'system',
++        parentMessageId: null,
++        contentRef: f.resource(
++          'managed-message',
++          f.record('slash_command', { routeRef, usageRef }),
++        ),
++      }),
++    ]);
++    await expect(verifyRecoverySession(f.source, f.io)).resolves.toEqual({
++      fileHistory: 'not_captured',
++    });
++    expect(f.refs.has(routeRef.resourceId)).toBe(true);
++    expect(f.refs.has(usageRef.resourceId)).toBe(true);
++  });
++
+   it('streams transactions while verifying their resource closure before advancing', async () => {
+     const f = fixture();
+     let previousRecordRef: ManagedSessionDurableRef | null = null;
+diff --git a/packages/cli/src/serve/workspace-recovery-session.ts b/packages/cli/src/serve/workspace-recovery-session.ts
+index 3d87fd7f77..09f4b57ca8 100644
+--- a/packages/cli/src/serve/workspace-recovery-session.ts
++++ b/packages/cli/src/serve/workspace-recovery-session.ts
+@@ -171,6 +171,9 @@ const RESOURCE_KINDS = new Set([
+   ...DOMAINS.map((domain) => `managed-${domain}`),
+   ...Object.values(MANAGED_TOOL_RESULT_KINDS),
+   'managed-tool-terminal',
++  // H2 records the route and usage of every Hosted model attempt.
++  'managed-hosted-model-route',
++  'managed-hosted-model-usage',
+ ]);
+ 
+ function requireValue(value: unknown, message: string): asserts value {
