@@ -91,7 +91,8 @@ figs['04-tests-mutation-merge'] = page(
     t(['Tree', 'Result'], [
       ['<code>c3925ffc</code>', `${bad('test compile error')} ×3 <code>PublicSession.title()</code>; CI "Runtime Broker and Managed Agent MariaDB / Java 21" red with the same error`],
       ['<code>3cd09bec</code> (compile fixed)', `${bad('448 run, 6 failed')}: <code>requireHarness()</code> ahead of the admission gate (4 tests, incl. <code>creatorCancelsWithoutTheGrantsThatAdmitNewWork:1028</code>, which stopped before its cancel assertions) + the unbound rename fixture (2 tests)`],
-      ['<code>9c0bcf41</code> (current head)', `${ok('448 run, 0 failed')}; the reorder matches this report's earlier candidate C0 line for line; rename now checks the read grant first; the unbound fixture throws a retryable Broker error`],
+      ['<code>9c0bcf41</code> <code>-Pmysql-integration</code> lane', `${bad('CI MariaDB 10.11 job red')}: <code>WorkspaceSessionCloseMySqlIT…InspectTheSession:167</code> expects workspace_unavailable, gets session_not_active; same 4/5 locally on MySQL 8.4.7. #13112 changed this assertion in <code>b9b4da46</code>`],
+      ['<code>9c0bcf41</code> (current head), default lane', `${ok('448 run, 0 failed')}; the reorder matches this report's earlier candidate C0 line for line; rename now checks the read grant first; the unbound fixture throws a retryable Broker error`],
       ['<code>9c0bcf41</code> HostedPublicWorkspaceIT (MySQL 8.4.7)', `${ok('2 passed')} (+1 Linux-only case skipped on macOS); same on <code>3cd09bec</code>`],
       ['#13112 head <code>b9b4da46</code>', `${ok('451 run, 0 failed')}`],
       ['WebShell vitest (changed files + generated-type drift)', `${ok('53/53 + 2/2')}`],
@@ -135,8 +136,8 @@ figs['05-defects'] = page(
       ['restore, then cancel', `202 → ${bad('CANCELLING')} after 70 s`, `202 → ${bad('CANCELLING')} after 70 s; next Turn 409 turn_active`],
     ]) +
     `<div class="note">Inherited from the Harness (<code>hosted-harness-session.ts</code> sets <code>session.blocked</code> and never writes the Turn result); not introduced here, but it is the common shape of "revoked while the agent is working", and this PR's re-send now repeats against it forever. Closest open issue: #13054. No second file was written in any run.</div>` +
-    `<h2>Candidate on <code>9c0bcf41</code> (+13 / −4, 2 files)</h2>` +
-    `<div class="note ok">(1) <code>requireReadGrant</code> before the submit replay, one statement, the counterpart of the <code>requireReadableSession</code> that <code>9c0bcf41</code> added to rename; (2) skip the <code>requested</code> event if a retired command of the same key left it (the guard #13112 has). Lane ${ok('448/448')}; IT ${ok('2/2')}; on the stack mallory 404 / 404, rename same-key retry 200, headline cancel unchanged (202 → CANCELLED 302 ms, no file).</div>`,
+    `<h2>Candidate on <code>9c0bcf41</code> (+16 / −5, 3 files)</h2>` +
+    `<div class="note ok">(1) <code>requireReadGrant</code> before the submit replay, one statement, the counterpart of the <code>requireReadableSession</code> that <code>9c0bcf41</code> added to rename; (2) skip the <code>requested</code> event if a retired command of the same key left it (the guard #13112 has); (3) the <code>WorkspaceSessionCloseMySqlIT</code> assertion from #13112's <code>b9b4da46</code>. Default lane ${ok('448/448')}; HostedPublicWorkspaceIT ${ok('2/2')}; WorkspaceSessionCloseMySqlIT ${ok('5/5')}; full CI-equivalent <code>-Pmysql-integration</code> lane (MySQL 8.4.7, TZ=UTC) ${ok('35/35 IT, 0 Checkstyle violations')}; on the stack mallory 404 / 404, rename same-key retry 200, headline cancel unchanged (202 → CANCELLED 302 ms, no file).</div>`,
 );
 
 fs.writeFileSync(`${OUT}/figs.json`, JSON.stringify(Object.keys(figs)));
