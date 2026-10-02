@@ -1,0 +1,71 @@
+diff --git a/packages/core/src/agents/workspace-agents/dispatcher.test.ts b/packages/core/src/agents/workspace-agents/dispatcher.test.ts
+index afc7846..d39e185 100644
+--- a/packages/core/src/agents/workspace-agents/dispatcher.test.ts
++++ b/packages/core/src/agents/workspace-agents/dispatcher.test.ts
+@@ -655,6 +655,44 @@ describe('dispatchOnce', () => {
+     ).toHaveLength(1);
+   });
+ 
++  it('requeues a follow-up the abandoned Host attempt never read', async () => {
++    await updateWorkspaceAgents(PROJECT_ROOT, () => [
++      ALICE,
++      { ...BOB, execution: { mode: 'managed-host', hostIds: ['ho_gone'] } },
++    ]);
++    const thread = await seedQueued({
++      runs: [
++        run({
++          agentId: BOB.id,
++          status: 'running',
++          attempts: 1,
++          triggerMessageIds: ['ms_assign', 'ms_followup'],
++          acceptedMessageIds: ['ms_assign'],
++          lease: {
++            hostId: 'ho_gone',
++            leaseId: 'ls_1',
++            attempt: 1,
++            acquiredAt: 1_000,
++            expiresAt: 61_000,
++          },
++        }),
++      ],
++    });
++
++    await dispatchOnce(PROJECT_ROOT, port(), { now: 181_000 });
++    const after = (await readThread(PROJECT_ROOT, thread.id))!;
++    expect(after.runs[0]).toMatchObject({
++      status: 'failed',
++      failureStage: 'recovery',
++      triggerMessageIds: ['ms_assign'],
++    });
++    expect(after.runs[1]).toMatchObject({
++      agentId: BOB.id,
++      status: 'queued',
++      triggerMessageIds: ['ms_followup'],
++    });
++  });
++
+   it('preserves renewed and reclaimed Host work past the prior deadline', async () => {
+     const { token } = await issueAgentHostEnrollment(PROJECT_ROOT);
+     const { host } = await enrollAgentHost(PROJECT_ROOT, {
+diff --git a/packages/core/src/agents/workspace-agents/dispatcher.ts b/packages/core/src/agents/workspace-agents/dispatcher.ts
+index c3a672c..4b03b5b 100644
+--- a/packages/core/src/agents/workspace-agents/dispatcher.ts
++++ b/packages/core/src/agents/workspace-agents/dispatcher.ts
+@@ -709,6 +709,17 @@ async function settleOrphanedHostRuns(
+         if (!cancelled && !abandoned) continue;
+         const agent = agents.find((candidate) => candidate.id === run.agentId);
+         if (!agent || isAgentLocal(agent)) continue;
++        // Same as a Host-reported failure: a follow-up the dead attempt never
++        // read goes to a successor run instead of staying on the failed one.
++        if (abandoned) {
++          await rebookUndeliveredTriggersInTransaction(
++            transaction,
++            thread.id,
++            run.id,
++            run.attempts,
++            now,
++          );
++        }
+         await finishRunInTransaction(transaction, {
+           threadId: thread.id,
+           runId: run.id,
