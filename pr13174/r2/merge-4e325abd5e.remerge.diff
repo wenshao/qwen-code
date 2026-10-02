@@ -1,0 +1,108 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/hosted-harness-session.ts
+index 189f363dc0..23d84cae1d 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -1364,7 +1364,7 @@ export function registerHostedHarnessSessionRoutes(
+     }
+     // Cold loads stay inert: only an explicit takeover request may touch
+     // the Broker or settle anything.
+-    const takeover =
++    const takeoverFlags =
+       body?.['passiveManagedRuntimeRecovery'] === true ||
+       body?.['driveRuntimeRecovery'] === true;
+     const attached = sessions.get(sessionId);
+@@ -1373,7 +1373,7 @@ export function registerHostedHarnessSessionRoutes(
+       // lost after attach, so hand the same snapshot back while the parked
+       // prompt is still unsettled.
+       const snapshot = attached.recoverySnapshot;
+-      if (takeover && snapshot) {
++      if (takeoverFlags && snapshot) {
+         if (unsettledPromptId(attached) === snapshot.promptId) {
+           res.status(200).json({
+             sessionId,
+@@ -1572,16 +1572,10 @@ export function registerHostedHarnessSessionRoutes(
+       // A bare load of a parked Session keeps refusing with 409 so it never
+       // drives a Runtime by accident.
+       const unsettled = unsettledPromptId(session);
+-<<<<<<< c0aa432966 (ci: retrigger sdk-java workflow after event delivery stall)
+-=======
+       // Cold loads stay inert: only an explicit takeover request may touch
+       // the Broker or settle anything. A bare load of a parked Session keeps
+       // refusing with 409 so it never drives a Runtime by accident.
+-      const takeover =
+-        !session.hooks &&
+-        (body?.['passiveManagedRuntimeRecovery'] === true ||
+-          body?.['driveRuntimeRecovery'] === true);
+->>>>>>> 8eaaa1355c (fix(managed-hooks): bound Hook admission and cold restore cost (#13136))
++      const takeover = !session.hooks && takeoverFlags;
+       const fileHistory = await readHostedFileHistory(managed);
+       if (
+         fileHistory?.pendingUndo ||
+@@ -1654,21 +1648,15 @@ export function registerHostedHarnessSessionRoutes(
+             recoveryDeclined(res, outcome.reason);
+             return;
+           }
+-<<<<<<< c0aa432966 (ci: retrigger sdk-java workflow after event delivery stall)
+           recovery = outcome.turn.report;
+           session.recoverySnapshot = {
+             promptId: outcome.turn.promptId,
+             report: outcome.turn.report,
+           };
+           if (outcome.turn.acquiredRuntime)
+-            session.runtimeLeaseHeld = outcome.turn.promptId;
+-=======
+-          recovery = recovered.report;
+-          if (recovered.acquiredRuntime)
+             session.runtimeLeaseHeld =
+-              recovered.report.executions[0]?.runtimeSessionId ??
+-              recovered.promptId;
+->>>>>>> 8eaaa1355c (fix(managed-hooks): bound Hook admission and cold restore cost (#13136))
++              outcome.turn.report.executions[0]?.runtimeSessionId ??
++              outcome.turn.promptId;
+         } catch (cause) {
+           await managed.close();
+           writeStderrLineSafe(
+diff --git a/packages/cli/src/serve/hosted-runtime-recovery.ts b/packages/cli/src/serve/hosted-runtime-recovery.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/hosted-runtime-recovery.ts
+index f4b2fb4079..41f5689023 100644
+--- a/packages/cli/src/serve/hosted-runtime-recovery.ts
++++ b/packages/cli/src/serve/hosted-runtime-recovery.ts
+@@ -53,7 +53,6 @@ export interface HostedRecoveryTurn {
+   acquiredRuntime: boolean;
+ }
+ 
+-<<<<<<< c0aa432966 (ci: retrigger sdk-java workflow after event delivery stall)
+ /**
+  * Why a takeover load cannot continue the parked Turn. Every reason is a
+  * deterministic function of the durable journal: retrying the load will
+@@ -88,7 +87,8 @@ function declined(
+ 
+ function recovered(turn: HostedRecoveryTurn): HostedRuntimeRecoveryOutcome {
+   return { kind: 'recovered', turn };
+-=======
++}
++
+ async function originalRuntimeBroker(
+   session: ManagedSession,
+   promptId: string,
+@@ -151,7 +151,6 @@ async function originalRuntimeBroker(
+     session.authority.sessionHeader.sessionKey,
+     runtimeSessionId,
+   );
+->>>>>>> 8eaaa1355c (fix(managed-hooks): bound Hook admission and cold restore cost (#13136))
+ }
+ 
+ function toolResultParts(
+@@ -371,7 +370,10 @@ export async function recoverHostedRuntimeTurn(input: {
+       input.brokerOptions,
+     );
+   } catch (cause) {
+-    if (cause instanceof RecoveryDeclined) return undefined;
++    // The checkpoint's executions cannot be rebuilt durably (missing args,
++    // an args kind mismatch across owners, or a split ownership) — that is
++    // a deterministic function of the journal, never a retry-later.
++    if (cause instanceof RecoveryDeclined) return declined('batch_not_durable');
+     throw cause;
+   }
+   const pending = items.filter((item) => item.state === 'in_progress');
