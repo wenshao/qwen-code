@@ -1,0 +1,270 @@
+{
+  "name": "p1-public-ws-h2a-fromARCHIVED",
+  "pass": 39,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "setup: bound files Session S runs a real file Turn",
+      "ok": true,
+      "detail": "session=89e3834c-6b00-428e-a486-cf12f5c0f73c turn=COMPLETED file=after-a"
+    },
+    {
+      "label": "setup: neighbour Session N on the same storage runs a file Turn",
+      "ok": true,
+      "detail": "session=c7453ec6-434d-4e0e-aaa0-93c89ac892d4 file=after-an"
+    },
+    {
+      "label": "workers before close",
+      "note": true,
+      "detail": "S pid=2158 (S) N pid=2188 (S)"
+    },
+    {
+      "label": "ACTIVE Session advertises no archive/unarchive/delete",
+      "ok": true,
+      "detail": "{\"close\":true,\"archive\":false,\"unarchive\":false,\"delete\":false,\"lifecycle\":false}"
+    },
+    {
+      "label": "ACTIVE Session: archive and delete refused 409, nothing persisted",
+      "ok": true,
+      "detail": "archive=409/session_state_conflict delete=409/session_state_conflict ops=0"
+    },
+    {
+      "label": "close completes; S worker gone; binding RELEASED; fence persisted",
+      "ok": true,
+      "detail": "op=completed pid 2158=gone binding=RELEASED fence=1"
+    },
+    {
+      "label": "neighbour N worker still alive after S closed",
+      "ok": true,
+      "detail": "pid 2188=S"
+    },
+    {
+      "label": "CLOSED Session advertises archive/unarchive/delete",
+      "ok": true,
+      "detail": "{\"close\":true,\"archive\":true,\"unarchive\":true,\"delete\":true,\"lifecycle\":false}"
+    },
+    {
+      "label": "positive control: Runtime warm of ACTIVE neighbour N succeeds (so a warm refusal means something)",
+      "ok": true,
+      "detail": "status=200 {\"protocolVersion\":1,\"harnessSessionId\":\"c7453ec6-434d-4e0e-aaa0-93c89ac892d4\",\"ready\":true}"
+    },
+    {
+      "label": "archive: readable non-creator 403, unreadable 404, other tenant 404",
+      "ok": true,
+      "detail": "bob=403/session_operation_forbidden mallory=404/session_not_found tenant=404/session_not_found"
+    },
+    {
+      "label": "creator archive: 202 and the operation is already completed",
+      "ok": true,
+      "detail": "status=202 op=op_0f2b0cbe96ca43fabcd5e1606ff5c02a body.status=completed receipt=rcpt_a763e85c7ad44d8ca78f72ffa30c3eed"
+    },
+    {
+      "label": "Session is ARCHIVED, session.archived event once",
+      "ok": true,
+      "detail": "status=ARCHIVED archived-events=1"
+    },
+    {
+      "label": "archive replay (same surface and other surface) returns the original operation",
+      "ok": true,
+      "detail": "same=202/op_0f2b0cbe96ca43fabcd5e1606ff5c02a replayed=true other=202/op_0f2b0cbe96ca43fabcd5e1606ff5c02a"
+    },
+    {
+      "label": "fresh archive key on ARCHIVED Session refused 409",
+      "ok": true,
+      "detail": "status=409 code=session_state_conflict"
+    },
+    {
+      "label": "ARCHIVED: public input / WebShell turn (refused for every bound Session on main, not evidence)",
+      "note": true,
+      "detail": "input=409/workspace_unavailable webTurn=409/workspace_unavailable"
+    },
+    {
+      "label": "ARCHIVED: Runtime warm refused",
+      "ok": true,
+      "detail": "input=409/workspace_unavailable webTurn=409/workspace_unavailable warm=409 {\"error\":\"Workspace execution authority is unavailable.\",\"code\":\"workspace_unavailable\",\"retryable\":false}"
+    },
+    {
+      "label": "unarchive: readable non-creator 403, unreadable 404",
+      "ok": true,
+      "detail": "bob=403/session_operation_forbidden mallory=404/session_not_found"
+    },
+    {
+      "label": "creator unarchive: 200, Session CLOSED, replay header false",
+      "ok": true,
+      "detail": "status=200 body.status=closed db=CLOSED replay=false"
+    },
+    {
+      "label": "unarchive replay on both surfaces: 200 replay=true, no new events, one command row",
+      "ok": true,
+      "detail": "same=200/true other=200/true events 15->15 commands=1"
+    },
+    {
+      "label": "fresh unarchive key on a CLOSED Session refused 409",
+      "ok": true,
+      "detail": "status=409 code=session_state_conflict"
+    },
+    {
+      "label": "after unarchive: public input / WebShell turn (not evidence, see above)",
+      "note": true,
+      "detail": "input=409/workspace_unavailable webTurn=409/workspace_unavailable"
+    },
+    {
+      "label": "after unarchive: Runtime warm still refused (permanent close fence)",
+      "ok": true,
+      "detail": "input=409/workspace_unavailable webTurn=409/workspace_unavailable warm=409 {\"error\":\"Workspace execution authority is unavailable.\",\"code\":\"workspace_unavailable\",\"retryable\":false}"
+    },
+    {
+      "label": "fresh close key on the unarchived (CLOSED) Session",
+      "note": true,
+      "detail": "status=409 code=session_state_conflict op.status="
+    },
+    {
+      "label": "close fence row and original close receipt unchanged",
+      "ok": true,
+      "detail": "fence=1 receipt=rcpt_98e3c7397d6d4878b014eb106cbd7dcd"
+    },
+    {
+      "label": "unarchived Session still advertises archive/unarchive/delete",
+      "ok": true,
+      "detail": "{\"close\":true,\"archive\":true,\"unarchive\":true,\"delete\":true,\"lifecycle\":false}"
+    },
+    {
+      "label": "old unarchive key after rearchive: 200 replay=true, returns ARCHIVED, does not unarchive",
+      "ok": true,
+      "detail": "rearchive=202 replay=200/true body.status=archived db=ARCHIVED"
+    },
+    {
+      "label": "delete: readable non-creator 403, unreadable 404, nothing admitted",
+      "ok": true,
+      "detail": "bob=403/session_operation_forbidden mallory=404/session_not_found"
+    },
+    {
+      "label": "creator delete from ARCHIVED: 202",
+      "ok": true,
+      "detail": "status=202 op=op_fde3d9f577a246db8f87f3bfc8e51ed0 body.status=pending"
+    },
+    {
+      "label": "delete operation completes",
+      "ok": true,
+      "detail": "status=completed 185 ms receipt=rcpt_c58c309f7bd748e186ea2253d2e56ba8"
+    },
+    {
+      "label": "operation row: COMPLETED, session_status_before matches, receipt set, one claim",
+      "ok": true,
+      "detail": "[\"DELETE\",\"COMPLETED\",\"CONFIRMED\",\"ARCHIVED\",\"rcpt_c58c309f7bd748e186ea2253d2e56ba8\",\"1\",\"0\"]"
+    },
+    {
+      "label": "tombstone: status DELETED, exactly one session.deleted event",
+      "ok": true,
+      "detail": "status=DELETED deleted-events=1"
+    },
+    {
+      "label": "retirement barrier row written by this operation",
+      "ok": true,
+      "detail": "[[\"op_fde3d9f577a246db8f87f3bfc8e51ed0\",\"1\",\"0\"]]"
+    },
+    {
+      "label": "journal head after delete",
+      "note": true,
+      "detail": "[\"DELETED\",\"READY\"]"
+    },
+    {
+      "label": "Session reads 404 on both surfaces; events 404",
+      "ok": true,
+      "detail": "public=404 web=404 events=404"
+    },
+    {
+      "label": "retained operations still readable on both surfaces after delete",
+      "ok": true,
+      "detail": "delete-op public=200 web=200 archive-op=200"
+    },
+    {
+      "label": "delete replay after tombstone (both surfaces) returns the original operation",
+      "ok": true,
+      "detail": "same=202/op_fde3d9f577a246db8f87f3bfc8e51ed0 other=202/op_fde3d9f577a246db8f87f3bfc8e51ed0"
+    },
+    {
+      "label": "after tombstone: fresh delete 404, old unarchive key 404, old archive key still replays",
+      "ok": true,
+      "detail": "delete2=404/session_not_found unarchive=404 archive-replay=202/op_0f2b0cbe96ca43fabcd5e1606ff5c02a"
+    },
+    {
+      "label": "operation read after delete: reader 200, unreadable 404",
+      "ok": true,
+      "detail": "bob=200 mallory=404"
+    },
+    {
+      "label": "L1+L2: no Spring->Harness request, no model call, S Runtime rows/registrations/workers unchanged",
+      "ok": true,
+      "detail": "tap=4 model=8 workers=[2188] over 1069 ms"
+    },
+    {
+      "label": "global Runtime-table writes in the window (any Session, e.g. neighbour heartbeats)",
+      "note": true,
+      "detail": "0 "
+    },
+    {
+      "label": "L1+L2: zero SQL writes to Runtime/lease/drain tables for S (MySQL general log)",
+      "ok": true,
+      "detail": "0 writes over 1069 ms"
+    },
+    {
+      "label": "retained bytes: S file still on shared storage, history resource rows untouched",
+      "ok": true,
+      "detail": "file=after-a resources 48->48"
+    },
+    {
+      "label": "neighbour N: same worker, ACTIVE, binding not drained",
+      "ok": true,
+      "detail": "pid 2188=S status=ACTIVE binding=READY"
+    },
+    {
+      "label": "neighbour N: Runtime warm still succeeds after S was deleted, same worker",
+      "ok": true,
+      "detail": "warm=200 pid 2188=S"
+    },
+    {
+      "label": "a new Session on the same storage runs a file Turn after delete",
+      "ok": true,
+      "detail": "session=5cb56aa7-c36b-41f0-b373-8e9f842307d3 turn=COMPLETED"
+    },
+    {
+      "label": "operations of S",
+      "note": true,
+      "detail": "[[\"CLOSE\",\"COMPLETED\",\"CONFIRMED\",\"ACTIVE\",\"rcpt_98e3c7397d6d4878b014eb106cbd7dcd\",\"1\",\"0\"],[\"ARCHIVE\",\"COMPLETED\",\"CONFIRMED\",\"CLOSED\",\"rcpt_a763e85c7ad44d8ca78f72ffa30c3eed\",\"0\",\"0\"],[\"ARCHIVE\",\"COMPLETED\",\"CONFIRMED\",\"CLOSED\",\"rcpt_26371c00c74d499fa34bf765a3bebffc\",\"0\",\"0\"],[\"DELETE\",\"COMPLETED\",\"CONFIRMED\",\"ARCHIVED\",\"rcpt_c58c309f7bd748e186ea2253d2e56ba8\",\"1\",\"0\"]]"
+    },
+    {
+      "label": "events of S (tail)",
+      "note": true,
+      "detail": "session.close.requested,session.closed,session.archived,session.unarchive.requested,session.unarchived,session.archived,session.delete.requested,session.deleted"
+    }
+  ],
+  "S": "89e3834c-6b00-428e-a486-cf12f5c0f73c",
+  "N": "c7453ec6-434d-4e0e-aaa0-93c89ac892d4",
+  "fresh": "5cb56aa7-c36b-41f0-b373-8e9f842307d3",
+  "close": "op_2cf385b6688b4f26a2dd155945a3529b",
+  "archive": "op_0f2b0cbe96ca43fabcd5e1606ff5c02a",
+  "delete": "op_fde3d9f577a246db8f87f3bfc8e51ed0",
+  "snap0": {
+    "tap": 4,
+    "model": 8,
+    "binding": "7a052cfb63cfb366",
+    "runtimeSessions": "cbec110d658f6117",
+    "leases": "4f53cda18c2baa0c",
+    "drains": "14590b7a072e6f6c",
+    "registrations": "50b48750cc11d2c5",
+    "workers": "2188"
+  },
+  "snap1": {
+    "tap": 4,
+    "model": 8,
+    "binding": "7a052cfb63cfb366",
+    "runtimeSessions": "cbec110d658f6117",
+    "leases": "4f53cda18c2baa0c",
+    "drains": "14590b7a072e6f6c",
+    "registrations": "50b48750cc11d2c5",
+    "workers": "2188"
+  },
+  "writes": [],
+  "elapsedMs": 1069
+}

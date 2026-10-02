@@ -1,0 +1,66 @@
+{
+  "name": "p4-crash-ws-h2k-p94h2",
+  "pass": 7,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "prepared CLOSED Sessions",
+      "note": true,
+      "detail": "X=9dad4e40-178b-4062-a12d-47ab8c08e1f2 Y=9fb6d8c2-7bc4-4a18-a6c0-d0115d56a10b Y2=6255fa8d-40c3-44d4-9ec9-a084f794e101 statuses=CLOSED/CLOSED/CLOSED"
+    },
+    {
+      "label": "delete admitted; coordinator claimed it and is blocked inside completion",
+      "ok": true,
+      "detail": "op=op_a63cb4b882824b93b5a163172c4683d1 state=[\"RUNNING\",\"LEASED\",\"1\",\"0\",\"\",\"97413ade-226a-4461-82d5-32f5cbb7f08c\",\"1790958840924\"] lockWaits=1"
+    },
+    {
+      "label": "after kill -9: nothing of the completion committed (DELETING, op still LEASED by the dead owner, no retirement/tombstone/event)",
+      "ok": true,
+      "detail": "{\"op\":[\"RUNNING\",\"LEASED\",\"1\",\"0\",\"\",\"97413ade-226a-4461-82d5-32f5cbb7f08c\",\"1790958840924\"],\"status\":\"DELETING\",\"retirement\":0,\"deleted\":0,\"head\":\"SEALED\"}"
+    },
+    {
+      "label": "restart",
+      "note": true,
+      "detail": "harness pid file=none; spring: spring pid=2942 up after 7s log=/Users/wenshao/pr13135-rig/run/lx-q6/spring-1.log"
+    },
+    {
+      "label": "restarted instance (no Harness, durable off, mount removed) still advertises archive/unarchive/delete for a closed Session",
+      "ok": true,
+      "detail": "{\"close\":false,\"archive\":true,\"unarchive\":true,\"delete\":true,\"lifecycle\":false}"
+    },
+    {
+      "label": "takeover completes the delete exactly once (claim generation 2, one retirement, one event, tombstone)",
+      "ok": true,
+      "detail": "{\"op\":[\"COMPLETED\",\"CONFIRMED\",\"2\",\"0\",\"\",\"\",\"0\"],\"status\":\"DELETED\",\"retirement\":[[\"op_a63cb4b882824b93b5a163172c4683d1\",\"1\",\"0\"]],\"deleted\":1,\"head\":\"DELETED\"} completed 59.8 s after the kill"
+    },
+    {
+      "label": "replay after takeover returns the original operation",
+      "ok": true,
+      "detail": "status=202 op=op_a63cb4b882824b93b5a163172c4683d1 state=completed"
+    },
+    {
+      "label": "no Harness / no Runtime close support / no mount: archive 202, unarchive 200, delete completes",
+      "ok": true,
+      "detail": "archive=202 unarchive=200 delete=202 [\"COMPLETED\",\"CONFIRMED\",\"1\",\"0\",\"\",\"\",\"0\"] status=DELETED in 186 ms"
+    },
+    {
+      "label": "same instance: archive then delete from ARCHIVED completes",
+      "ok": true,
+      "detail": "archive=202 delete=202 status=DELETED"
+    },
+    {
+      "label": "new Workspace Session on this instance (Harness down, mount removed)",
+      "note": true,
+      "detail": "status=409 code=workspace_unavailable"
+    },
+    {
+      "label": "stack restored",
+      "note": true,
+      "detail": "spring pid=3082 up after 6s log=/Users/wenshao/pr13135-rig/run/lx-q6/spring-2.log | harness pid=3163 up after 4s log=/Users/wenshao/pr13135-rig/run/lx-q6/harness-1.log"
+    }
+  ],
+  "X": "9dad4e40-178b-4062-a12d-47ab8c08e1f2",
+  "Y": "9fb6d8c2-7bc4-4a18-a6c0-d0115d56a10b",
+  "Y2": "6255fa8d-40c3-44d4-9ec9-a084f794e101",
+  "op": "op_a63cb4b882824b93b5a163172c4683d1"
+}
