@@ -1,0 +1,36 @@
+# s1-forbidden-base  db=ui  2026-10-02T14:06:05.516Z
+PASS  alice creates Session A in ws-a (two write_file approvals in a row)  -> HTTP 202 session=3da0ac80-53c5-474e-8067-6e4dbc5881b8
+PASS  bob (reader) sees the first approval card of Session A via the stream  -> after 6369 ms
+NOTE  Action A1  -> {"id":"tool_approval_47300e1cd4b1a26e3c1403146c543c0f","tool":"write_file"}
+PASS  before any answer: every option is enabled  -> [{"id":"deny","disabled":false,"opacity":"1","cursor":"pointer"},{"id":"allow","disabled":false,"opacity":"1","cursor":"pointer"}]
+PASS  first click sends one actions/respond and the real service answers 403 action_forbidden  -> {"status":403,"body":{"error":{"code":"action_forbidden","message":"Only the Session's creator may answer its Actions.","request_id":"managed_70108499-107c-4c02-a145-f7d1b22928ae"}}}
+NOTE  options after the 403  -> [{"id":"deny","disabled":false,"opacity":"1","cursor":"pointer"},{"id":"allow","disabled":false,"opacity":"1","cursor":"pointer"}]
+NOTE  reason line / aria after the 403  -> {"lines":[{"role":"alert","id":"","text":"Only the Session creator can answer this approval.","referenced":false}],"describedby":["_r_8_","_r_9_","_r_0_"],"dangling":[],"active":"body(body)"}
+PASS  base reproduces: options stay enabled after the 403  -> [false,false]
+PASS  the creator-only reason is shown as role=alert  -> [{"role":"alert","id":"","text":"Only the Session creator can answer this approval.","referenced":false}]
+PASS  base: the reason line is not referenced by the dialog  -> {"describedby":["_r_8_","_r_9_","_r_0_"],"dangling":[]}
+NOTE  focus after the 403  -> body(body)
+PASS  base reproduces: each further click sends another request the service refuses  -> respond calls=3 [403,403,403]
+PASS  no action_response operation was admitted for bob (the 403 is decided before admission)  -> ACTION_RESPONSE operations=0
+PASS  A1 is still requested in the database  -> ["requested"]
+PASS  alice (creator) answers A1 through the WebShell adapter: 202  -> HTTP 202
+PASS  the Turn continues and raises A2 in Session A  -> after 6434 ms id=tool_approval_32c1e761f47807928af6fe164489cbd6
+PASS  bob's page now shows the A2 card  -> after 1571 ms
+NOTE  A2 options  -> [{"id":"deny","disabled":false,"opacity":"1","cursor":"pointer"},{"id":"allow","disabled":false,"opacity":"1","cursor":"pointer"}]
+NOTE  A2 reason line / aria  -> {"lines":[],"describedby":["_r_n_","_r_o_","_r_0_"],"dangling":[],"active":"body(body)"}
+PASS  base reproduces: A2 arrives enabled with no reason on screen  -> {"options":[false,false],"lines":[]}
+PASS  base reproduces: clicking A2 sends another refused request  -> [{"status":403,"code":"action_forbidden"}]
+PASS  bob creates Session B in ws-b (bob is a creator there)  -> HTTP 202 session=e9e96c8d-b316-4888-b8cc-8d4076fb4174
+PASS  Session B raises its approval  -> after 3281 ms
+PASS  the latch does not follow bob to Session B: card enabled, no reason line  -> {"ok":true,"options":[false,false],"lines":[]}
+PASS  bob answers his own Session B: 202  -> {"status":202,"body":{"operationId":"op_843ac98778c547b0801589a799d6eb52","sessionId":"e9e96c8d-b316-4888-b8cc-8d4076fb4174","type":"action_response","status":"pending","admissionStage":"java_durable","deliveryState":"pending","replayed":false}}
+PASS  Session B Turn completes and the file is written  -> turn=COMPLETED file="BOB-OWNS-THIS"
+PASS  base: back on Session A, A2 is enabled again  -> {"options":[false,false],"lines":[]}
+PASS  base reproduces: clicking after coming back sends another refused request  -> [403]
+PASS  alice answers A2: 202  -> HTTP 202
+PASS  Session A Turn completes, both files written by alice's answers  -> turn=COMPLETED executions=2
+PASS  the card leaves bob's page and no reason line is left behind  -> []
+NOTE  bob's actions/respond calls on Session A (status list)  -> [403,403,403,403,403]
+NOTE  browser console errors  -> ["Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)"]
+PASS  no uncaught page errors  -> ["Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)"]
+== s1-forbidden-base: 26 passed, 0 failed

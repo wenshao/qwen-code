@@ -1,0 +1,29 @@
+# s2-controls-base  db=ui  2026-10-02T14:08:39.750Z
+PASS  p1: alice creates Session C  -> session=9563223e-296e-4ff6-95c9-ce7a00cdb673
+PASS  p1: the approval card appears  -> after 6346 ms
+PASS  p1: after the coded 503 every option is still enabled  -> [{"id":"deny","disabled":false},{"id":"allow","disabled":false}]
+PASS  p1: the warning is the unconfirmed-answer text, not the creator-only one  -> [{"role":"alert","text":"The approval answer could not be confirmed. Retry the same option or refresh to check its status.","referenced":false}]
+PASS  p1: the second click reaches the real service: 202  -> [503,202]
+PASS  p1: the Turn completes and the file is written  -> turn=COMPLETED
+PASS  p1: card and warning leave  -> []
+NOTE  p1 console errors  -> ["Failed to load resource: the server responded with a status of 503 (Service Unavailable)"]
+PASS  p2: alice creates Session E (two approvals)  -> session=6ad43ba0-709d-4885-88ad-825b9a6f0ca7
+PASS  p2: bob sees E1  -> after 5341 ms
+NOTE  p2: bob clicked Allow on E1; the request is held in the browser  -> card count while held=0
+PASS  p2: alice answers E1 while bob's request is held: 202  -> HTTP 202
+PASS  p2: the Turn raises E2  -> after 5294 ms
+PASS  p2: bob's page shows E2 while the E1 answer is still in flight; E2 is enabled (nothing known yet)  -> [{"id":"deny","disabled":false},{"id":"allow","disabled":false}]
+PASS  p2: E1 is already decided in the database  -> ["decided","decision_9dc21f3836459d3f00e258d53efb9cee31843ffed0391a6be7365832a2407ae0","39ddbd7d1e42feeabcb0b9c7dda47fe59ed5fad53f07348183b3be5035fa6652"]
+PASS  p2: the held answer reaches the real service after E1 was decided: 403 action_forbidden (owner check precedes the state check)  -> {"status":403,"body":{"error":{"code":"action_forbidden","message":"Only the Session's creator may answer its Actions.","request_id":"managed_0ed689a9-2b51-46cf-b5d5-bb68ba87b7cf"}}}
+PASS  p2 base: E2 stays enabled with no reason  -> {"after":[{"id":"deny","disabled":false},{"id":"allow","disabled":false}],"n":[]}
+PASS  p2 base: clicking E2 sends another refused request  -> [403]
+PASS  p2: alice answers E2 and the Turn completes  -> turn=COMPLETED executions=2
+NOTE  p2 console errors  -> ["Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)"]
+PASS  p2: no uncaught page error from the late rejection  -> ["Failed to load resource: the server responded with a status of 403 (Forbidden)","Failed to load resource: the server responded with a status of 403 (Forbidden)"]
+PASS  p3: alice creates Session F  -> session=b8c64851-a0de-4a53-9ccc-c622280dfd09
+PASS  p3: bob sees F1  -> after 5364 ms
+PASS  p3 base: refused, still enabled  -> [{"id":"deny","disabled":false},{"id":"allow","disabled":false}]
+PASS  p3: after a reload the card is offered again (latch is per mount, as the PR states)  -> [{"id":"deny","disabled":false},{"id":"allow","disabled":false}]
+PASS  p3 base: every click after the reload is refused again  -> {"beforeReload":[403],"afterReload":[403,403]}
+PASS  p3: alice answers F1 and the Turn completes  -> turn=COMPLETED
+== s2-controls-base: 24 passed, 0 failed

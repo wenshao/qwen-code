@@ -1,0 +1,38 @@
+# s1-forbidden-head-zh  db=ui  2026-10-02T14:11:16.577Z
+PASS  alice creates Session A in ws-a (two write_file approvals in a row)  -> HTTP 202 session=acf81ecc-2995-4d7a-8c8e-b2b639103017
+PASS  bob (reader) sees the first approval card of Session A via the stream  -> after 5900 ms
+NOTE  Action A1  -> {"id":"tool_approval_4cd7c05255e86b26ea0dcb4a0652d582","tool":"write_file"}
+PASS  before any answer: every option is enabled  -> [{"id":"deny","disabled":false,"opacity":"1","cursor":"pointer"},{"id":"allow","disabled":false,"opacity":"1","cursor":"pointer"}]
+PASS  first click sends one actions/respond and the real service answers 403 action_forbidden  -> {"status":403,"body":{"error":{"code":"action_forbidden","message":"Only the Session's creator may answer its Actions.","request_id":"managed_cfd06607-4712-48e0-8a5c-32578d65a1c0"}}}
+NOTE  options after the 403  -> [{"id":"deny","disabled":true,"opacity":"0.5","cursor":"not-allowed"},{"id":"allow","disabled":true,"opacity":"0.5","cursor":"not-allowed"}]
+NOTE  reason line / aria after the 403  -> {"lines":[{"role":"alert","id":"_r_1_","text":"只有此会话的创建者可以回答这项审批。","referenced":true}],"describedby":["_r_9_","_r_a_","_r_0_","_r_1_"],"dangling":[],"active":"body(body)"}
+PASS  head: every option is disabled after the 403  -> [true,true]
+PASS  head: disabled options are dimmed (opacity 0.5, cursor not-allowed)  -> [{"id":"deny","disabled":true,"opacity":"0.5","cursor":"not-allowed"},{"id":"allow","disabled":true,"opacity":"0.5","cursor":"not-allowed"}]
+PASS  the creator-only reason is shown as role=alert  -> [{"role":"alert","id":"_r_1_","text":"只有此会话的创建者可以回答这项审批。","referenced":true}]
+PASS  head: the alertdialog references the reason line (aria-describedby), no dangling IDREF  -> {"describedby":["_r_9_","_r_a_","_r_0_","_r_1_"],"dangling":[]}
+NOTE  focus after the 403  -> body(body)
+PASS  head: two more clicks and 1/Enter/Space send no further request (respond stays at 1)  -> respond calls=1 [403]
+PASS  no action_response operation was admitted for bob (the 403 is decided before admission)  -> ACTION_RESPONSE operations=0
+PASS  A1 is still requested in the database  -> ["requested"]
+PASS  alice (creator) answers A1 through the WebShell adapter: 202  -> HTTP 202
+PASS  the Turn continues and raises A2 in Session A  -> after 6421 ms id=tool_approval_9a415fd43f79f144e704e829690f7f7a
+PASS  bob's page now shows the A2 card  -> after 1591 ms
+NOTE  A2 options  -> [{"id":"deny","disabled":true,"opacity":"0.5","cursor":"not-allowed"},{"id":"allow","disabled":true,"opacity":"0.5","cursor":"not-allowed"}]
+NOTE  A2 reason line / aria  -> {"lines":[{"role":"status","id":"_r_1_","text":"只有此会话的创建者可以回答这项审批。","referenced":true}],"describedby":["_r_e_","_r_f_","_r_0_","_r_1_"],"dangling":[],"active":"body(body)"}
+PASS  head: A2 arrives already disabled  -> [true,true]
+PASS  head: the reason stays on screen for A2 as role=status (not a second alert), referenced by the dialog  -> [{"role":"status","id":"_r_1_","text":"只有此会话的创建者可以回答这项审批。","referenced":true}]
+PASS  head: clicking A2 sends nothing  -> new respond calls=0
+PASS  bob creates Session B in ws-b (bob is a creator there)  -> HTTP 202 session=abe5de07-5182-4f33-904d-f0e836a8c8ce
+PASS  Session B raises its approval  -> after 3256 ms
+PASS  the latch does not follow bob to Session B: card enabled, no reason line  -> {"ok":true,"options":[false,false],"lines":[]}
+PASS  bob answers his own Session B: 202  -> {"status":202,"body":{"operationId":"op_75f4a6f8a3864ba2b10c90e5b48e6d87","sessionId":"abe5de07-5182-4f33-904d-f0e836a8c8ce","type":"action_response","status":"pending","admissionStage":"java_durable","deliveryState":"pending","replayed":false}}
+PASS  Session B Turn completes and the file is written  -> turn=COMPLETED file="BOB-OWNS-THIS"
+PASS  head: back on Session A, A2 is still disabled with the reason as role=status  -> {"options":[true,true],"lines":[{"role":"status","id":"_r_1_","text":"只有此会话的创建者可以回答这项审批。","referenced":true}]}
+PASS  head: clicking after coming back sends nothing  -> new respond calls=0
+PASS  alice answers A2: 202  -> HTTP 202
+PASS  Session A Turn completes, both files written by alice's answers  -> turn=COMPLETED executions=2
+PASS  the card leaves bob's page and no reason line is left behind  -> []
+NOTE  bob's actions/respond calls on Session A (status list)  -> [403]
+NOTE  browser console errors  -> ["Failed to load resource: the server responded with a status of 403 (Forbidden)"]
+PASS  no uncaught page errors  -> ["Failed to load resource: the server responded with a status of 403 (Forbidden)"]
+== s1-forbidden-head-zh: 28 passed, 0 failed
