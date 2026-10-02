@@ -13,7 +13,7 @@ const created = await api('POST', '/v1/agents/sessions', body, { actor: 'alice',
 const S = created.json.id;
 r.check('initial Turn COMPLETED', (await waitTurn(S, { timeoutMs: 90_000 })).status === 'COMPLETED', '');
 const tag = `drop-${KIND}-${Date.now() % 100000}`;
-const sub = await api('POST', `/v1/agents/sessions/${S}/events`, msg(`G_SLOW name=late-${KIND}.txt hold=8000 tag=${tag}`), { actor: 'alice', key: k('slow') });
+const sub = await api('POST', `/v1/agents/sessions/${S}/events`, msg(`G_SLOW name=late-${KIND}.txt hold=${process.env.HOLD ?? 8000} tag=${tag}`), { actor: 'alice', key: k('slow') });
 for (let i = 0; i < 200 && !modelEntries().some((e) => e.kind === 'SLOW' && e.tag === tag); i++) await sleep(100);
 setTapRules([{ match: `POST /session/${S}/cancel`, action: 'drop-before', times: 1 }]);
 await sleep(300);

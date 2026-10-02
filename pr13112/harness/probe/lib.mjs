@@ -11,8 +11,8 @@ const env = Object.fromEntries(
     .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
 );
 export const DB = process.env.DB ?? 'h1';
-export const RUN = `${RIG}/run/${DB}`;
-export const BASE = `http://127.0.0.1:${env.SPRING_PORT}`;
+export const RUN = process.env.RUNDIR ?? `${RIG}/run/${DB}`;
+export const BASE = process.env.BASE ?? `http://127.0.0.1:${env.SPRING_PORT}`;
 export const HARNESS = `http://127.0.0.1:${env.HARNESS_PORT}`;
 export const TENANT = process.env.TENANT ?? env.TENANT;
 export const MODEL_LOG = `${RUN}/model-requests.jsonl`;

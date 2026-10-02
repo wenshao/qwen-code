@@ -115,6 +115,29 @@ figs['08-r4'] = page(
     ['K3 on the stack (opt-in turned off after creation)', A('creator capability workspaceTurns=true while submit/cancel/rename all answer 409')],
   ]),
 );
+figs['09-r5'] = page(
+  'Round 5 — re-verified at b9b4da46 (includes main b3dda468: #13135 close, #13129 hooks, #13138, #13083 …)',
+  'macOS stack (non-durable) for the PR scenarios; a Linux colima container with the durable local-process Broker for the close interplay. Unit 451 / 451; HostedPublicWorkspaceIT 2 / 2 + 1 Linux-only (3 / 3 in CI on ubuntu); HostedWorkspaceToolTurnIT 8 / 8; web-shell clean, managed vitest 201 / 201.',
+  table(['Item', 'On the real stack'], [
+    ['Lost POST /cancel (proxy drops the first one)', P('fixed: re-sent at the next lease renewal (+19.5 s, 204), Turn CANCELLED, model aborted, nothing written')],
+    ['Rename after a post-admission refusal (Workspace generation moved)', P('fixed: 409, FAILED receipt, no PENDING block; fresh key 200, original key retried 200')],
+    ['Reader banner copy', P('fixed: “Workspace is bound. You cannot send messages in this Session.”')],
+    ['F4 / R1-3 / R1-1', P('still fixed (409 in 5–7 ms; no PENDING; contract 1.28.0)')],
+    ['Core · panel · approvals · opt-in off · real model', P('49 / 49 · 7 / 7 · 15 / 15 · 6 / 6 · 5 / 5')],
+    ['Linux durable: later Turn, then close (L1)', P('close completed in 1.2 s; worker stopped; binding RELEASED; file and history kept; next submit 409')],
+    ['Linux durable: close while a later Turn runs (L2)', P('409 turn_active → creator cancels (CANCELLED in 458 ms) → close completed in 0.4 s')],
+    ['F1 cancel while the grant is revoked / DRAINING', A('unchanged: honest 409; the running Turn still completes and writes')],
+    ['F2 worker gone (macOS)', F('unchanged: crash → LOST, 3 / 3 fail ≈0.7 s; restart → 34.7 s, then 31.7 / 30.6 s')],
+    ['R1-15', A('unchanged (declined)')],
+    ['Mutation, 29 applied', A('25 killed; J11 equivalent, S3 practically unreachable; K3 (opt-in clause) and S2 (FAILED re-attempt skips the open-operation check) untested')],
+  ]) +
+  '<h2>F5 — Linux durable: one later Turn after a worker crash turns “close” into a storage-wide outage</h2>' +
+  table(['Same stack, two fresh storages', 'binding before close', 'close', 'new Session on that storage'], [
+    ['A: kill -9 the worker, then the creator closes', 'READY', P('completed in 0.5 s, binding RELEASED'), P('COMPLETED')],
+    ['B: kill -9 the worker, the creator sends one more message (fails, hosted_turn_failed), then closes', F('LOST'), F('recovery_blocked / workspace_close_identity_unverified; Session stuck CLOSING'), F('FAILED: “An earlier runtime placement still requires physical recovery” — still after 3 min and a Spring restart')],
+  ]) +
+  '<div class="note bad">Path B needs a later Turn, which only this PR allows; on main a bound Session can only take path A. The refusal comes from <code>RuntimeBrokerService.drainBinding</code> (main, #13135): a LOST binding always answers “Original worker needs recovery”. Other storages are unaffected.</div>',
+);
 fs.writeFileSync(`${OUT}/cards.json`, JSON.stringify(Object.keys(figs)));
 export { figs, page, table, P, F, A, N, OUT };
 

@@ -136,7 +136,7 @@ r.check('a reader sees the new title', g2.json.title === 'Renamed by creator', g
 
 // 8. Lifecycle stays gated for the creator
 for (const [method, path, body, label] of [
-  ['POST', `/v1/agents/sessions/${S}/close`, {}, 'close'],
+  ...(process.env.CLOSE_OPEN ? [] : [['POST', `/v1/agents/sessions/${S}/close`, {}, 'close']]),
   ['POST', `/v1/agents/sessions/${S}/archive`, {}, 'archive'],
   ['POST', `/v1/agents/sessions/${S}/unarchive`, {}, 'unarchive'],
   ['DELETE', `/v1/agents/sessions/${S}`, undefined, 'delete'],
@@ -144,7 +144,7 @@ for (const [method, path, body, label] of [
   const x = await api(method, path, body, { actor: 'alice', key: k(label) });
   r.check(`creator ${label} (public) -> 409 workspace_unavailable`, x.status === 409 && x.json.error?.code === 'workspace_unavailable', `${x.status} ${x.json.error?.code ?? j(x.json).slice(0, 120)}`);
 }
-for (const op of ['close', 'archive', 'delete']) {
+for (const op of (process.env.CLOSE_OPEN ? ['archive', 'delete'] : ['close', 'archive', 'delete'])) {
   const x = await api('POST', `/api/agent/web-shell/v1/sessions/${op}`, { sessionId: S, idempotencyKey: k(`ws-${op}`) }, { actor: 'alice' });
   r.check(`creator ${op} (WebShell) -> 409 workspace_unavailable`, x.status === 409 && x.json.error?.code === 'workspace_unavailable', `${x.status} ${x.json.error?.code ?? j(x.json).slice(0, 120)}`);
 }
