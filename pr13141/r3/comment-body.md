@@ -1,4 +1,6 @@
-# PR 13141 verification, round 3 — `docs(cli): correct Hosted Runtime Broker option help`
+## Local verification, round 3: PR #13141 @ `2a702c316d`
+
+Follows up on [round 1](https://github.com/QwenLM/qwen-code/pull/13141#issuecomment-5929521158) (`1e1f1970b3`) and [round 2](https://github.com/QwenLM/qwen-code/pull/13141#issuecomment-5931338773) (`c7eac4daf2`). The only new commit is a merge of `main`, and it is not inert — see *What changed since round 2*.
 
 **Verdict: merge-ready** — 139/139 scripted assertions passed, 0 failed. Verified head `2a702c316d3766a54b302267cbcbfd2e8bb9565c`, base `47463b79a7dcf1559d03fd06611e39c7a2dec7d5`, trial-merged into current `main` `fb843d6ce70b774c01b0be07b64b0687082785e4` (clean, tree `25b5e8b89f78638c33ee7fb6a8dad6291d88d2ed`). Maintainer-driven local round on macOS 26.6.2 arm64, Node v24.18.1, pnpm 11.24.0 via corepack. Each arm built in its own worktree with `@qwen-code/qwen-code-core` realpath-asserted to resolve inside that arm.
 
@@ -18,6 +20,30 @@
 - **CI 独立佐证**：`Test (ubuntu-latest, Node 22.x)` 已在本 head 上**成功完成**（2026-10-02T15:27:10Z）。解析它上传的 junit 报告：`serve.test.ts` 78 个用例 0 失败，PR 新增的那个 testcase 确实在报告中且无 failure/error 子节点；四个相关套件在 CI 上是 78+114+19+498 = **709**，与我本地的 709/709 完全一致；第 2 轮的两个 flake（`routes/workspace-agents` 6/6、`recall-scan-latency` 7/7）在 CI 上也都是绿的。整个 CI 测试运行 cli 38136 / core 33983 / web-shell 10602，**0 失败 0 错误**（见 `08-ci-junit-corroboration.png`）。
 - **仍然挡着合并的**：`reviewDecision` 依旧是 `CHANGES_REQUESTED`（来自机器人在 `5703841150` 上的评审），需要维护者 dismiss。撰写时 CI 为 24 通过、1 待跑（`web-shell E2E Smoke`）。关键是 `Test (ubuntu-latest, Node 22.x)`——唯一会执行新单测的 CI job——已于 2026-10-02T15:27:10Z **成功完成**（耗时 54 分钟，第 2 次尝试），所以第 1 轮「CI 还没跑过这个测试」的保留意见在本 head 上已不成立。
 - **未覆盖**：Java 端 `HostedPublicWorkspaceIT`（本轮未跑，理由见下）、真实模型、Windows/Linux 原生运行、仓库级全量测试与 typecheck。
+
+
+![ci junit corroboration](https://raw.githubusercontent.com/wenshao/qwen-code/631cabc298419b35188a1b80eadfc17b4ec2ed47/pr13141/r3/08-ci-junit-corroboration.png)
+
+
+![gates isolation merge lint flakes](https://raw.githubusercontent.com/wenshao/qwen-code/631cabc298419b35188a1b80eadfc17b4ec2ed47/pr13141/r3/07-gates-isolation-merge-lint-flakes.png)
+
+
+![hook scope probe](https://raw.githubusercontent.com/wenshao/qwen-code/631cabc298419b35188a1b80eadfc17b4ec2ed47/pr13141/r3/06-hook-scope-probe.png)
+
+
+![mutation matrix 9of9](https://raw.githubusercontent.com/wenshao/qwen-code/631cabc298419b35188a1b80eadfc17b4ec2ed47/pr13141/r3/05-mutation-matrix-9of9.png)
+
+
+![truth matrix base vs head](https://raw.githubusercontent.com/wenshao/qwen-code/631cabc298419b35188a1b80eadfc17b4ec2ed47/pr13141/r3/04-truth-matrix-base-vs-head.png)
+
+
+![bundle control head minus pr](https://raw.githubusercontent.com/wenshao/qwen-code/631cabc298419b35188a1b80eadfc17b4ec2ed47/pr13141/r3/03-bundle-control-head-minus-pr.png)
+
+
+![help ab assertions](https://raw.githubusercontent.com/wenshao/qwen-code/631cabc298419b35188a1b80eadfc17b4ec2ed47/pr13141/r3/02-help-ab-assertions.png)
+
+
+![help before after](https://raw.githubusercontent.com/wenshao/qwen-code/631cabc298419b35188a1b80eadfc17b4ec2ed47/pr13141/r3/01-help-before-after.png)
 
 </details>
 
@@ -177,3 +203,9 @@ No blocking findings. Non-blocking, in descending order of interest:
 ## Methodology
 
 Three git worktrees outside the repo (`/Users/wenshao/pr13141-r3/`): base `47463b79a7`, head `2a702c316d`, and a trial merge of head into current `main` `fb843d6ce7` (`25b5e8b89f`). Each installed with `corepack pnpm install --frozen-lockfile` (prepare runs the workspace builds), then `pnpm run bundle`; `@qwen-code/qwen-code-core` was realpath-asserted from both the root and `packages/cli` to resolve inside that same arm, so no arm silently loaded another's code. Both arms ran the *same* harness files unmodified. Runtime probes spawned the real CLI through the shipped entrypoint with a scrubbed env and a temp `HOME`/`QWEN_RUNTIME_DIR`, waited for the real `listening on http://127.0.0.1:<port>` line, then made real `fetch` calls against `/capabilities` and `/session` with the Harness protocol version and boot-id headers; the head-minus-PR control was produced by reverting the two strings, re-bundling, and restoring (verified: the arm's working tree is clean afterwards, and `serve.ts` was byte-identical to base's before the rebuild). Width-sensitive test runs used a real pty with `TIOCSWINSZ`, validated first by confirming the child reports the forced `process.stdout.columns`. Assertion counts in `assertions.json` are summed by `aggregate.mjs` from each harness's own JSON output, not hand-tallied. Harnesses live in `harnesses/`, raw per-cell output in `logs/`, images in `evidence/`.
+
+---
+
+Evidence (harnesses, per-cell raw output, junit extracts, mutation ledger, this report): [`assets-pr13141` @ `631cabc2`, `pr13141/r3/`](https://github.com/wenshao/qwen-code/tree/631cabc298419b35188a1b80eadfc17b4ec2ed47/pr13141/r3)
+
+Advisory evidence for human reviewers — not a review, an approval, or a merge decision.
