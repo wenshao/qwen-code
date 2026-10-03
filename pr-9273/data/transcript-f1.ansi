@@ -1,0 +1,29 @@
+
+[1;36m━━ 1. freeze v0.2.2 chooses the output format from the --output extension[0m
+  --output cap.png                      → PNG image data, 607 x 332, 8-bit/c
+  --output cap.png.render-1a2b3c        → SVG XML document
+  --output cap.png.render-1a2b3c.png    → PNG image data, 607 x 332, 8-bit/c
+
+[1;36m━━ 2. PR head 5936b9f118: capture-tui stages the render at <out>.png.render-<nonce>[0m
+[2m$ grep -n 'pngStage =' capture-tui.ts[0m
+  2208:    const pngStage = `${pngPath}.render-${renderNonce}`;
+[2m$ PATH=<freeze>:$PATH qwen review capture-tui --command 'printf "HELLO DONE\n"; sleep 30' --until DONE --cols 40 --rows 6 --out head/cap[0m
+{"captured":true,"evidence":"png","manifest":"/root/verify/pr9273/e2e/f1/head/cap.json"}
+
+  manifest: {"evidence":"png","pngPath":"head/cap.png"}
+  [1;31mfile head/cap.png → SVG XML document[0m
+  first bytes: <?xml version="1.0" encoding="UTF-8"?>
+
+[1;36m━━ 3. The repo's own publish gate (review/lib/assets.ts validateAssetContent) refuses it[0m
+[2m$ validateAssetContent('cap.png', <first 16 bytes of head/cap.png>)[0m
+  [1;31m{"ok":false,"reason":"content is not a recognized image but the extension claims png — evidence is admitted by content, not by name"}[0m
+
+[1;36m━━ 4. Positive control: keep .png as the LAST extension of the stage (one line), rebuild[0m
+  -    const pngStage = `${pngPath}.render-${renderNonce}`;
+  +    const pngStage = `${pngPath}.render-${renderNonce}.png`;
+{"captured":true,"evidence":"png","manifest":"/root/verify/pr9273/e2e/f1/fix/cap.json"}
+
+  [1;32mfile fix/cap.png → PNG image data, 607 x 668, 8-bit/color RGBA, non[0m
+[2m$ git checkout -- capture-tui.ts && npm run bundle   # back to the PR head[0m
+  negative control (head again): file neg/cap.png → SVG XML document
+  worktree clean: yes

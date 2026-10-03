@@ -1,0 +1,22 @@
+
+[1;36m━━ 1. Host with no /tmp/tmux-<uid> yet (fresh container / CI box / no tmux since boot), non-root[0m
+[2m$ ls -ld /tmp/tmux-1000[0m
+  ls: cannot access '/tmp/tmux-1000': No such file or directory
+[2m$ vitest run capture-tui.test.ts -t 'visits a base once even when two candidate strings name it'[0m
+  Tests  1 passed | 181 skipped (182)
+[2m$ stat -c '%A' /tmp/tmux-1000[0m
+  [1;31mdrwxr-xr-x uid=1000[0m   ← created by the fixture's fake tmux (mkdir -p, umask 022)
+[2m$ tmux -L mine new-session -d    # the developer's own tmux, afterwards[0m
+  [1;31mdirectory /tmp/tmux-1000 has unsafe permissions
+(exit 1)[0m
+
+[1;36m━━ 2. Same file in full, dir absent at start → the cascade[0m
+[2m$ vitest run capture-tui.test.ts cleanup.test.ts lib/tui-capture.test.ts   # as uid 1000[0m
+[1;31m  Tests  67 failed | 262 passed | 1 skipped (330)[0m
+  dominant reason: tmux failed mid-capture: directory /tmp/tmux-1000 has unsafe permissions (x109)
+
+[1;36m━━ 3. Control: same run, but /tmp/tmux-1000 pre-created 0700 by real tmux[0m
+[2m$ stat -c '%A' /tmp/tmux-1000 && vitest run …   # identical file list, uid 1000[0m
+  drwx------
+[1;32m  Tests  329 passed | 1 skipped (330)[0m
+  (the 1 skip is the padding-tmux-only test; the three uid-0-gated refusal tests ran and passed)
