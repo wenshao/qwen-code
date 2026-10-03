@@ -61,6 +61,8 @@ Each row has its own expectation for each arm, and both arms pass 20/20.
 - **Result:** B's `--bg` exits 0 with "Started …", yet B's worker's shell printed A's variables. The model server received B's task with **`Authorization: Bearer sk-shellA-REVOKED`**, at **A's host**. B's key was never sent.
 - **Control:** after stopping the supervisor through its shutdown RPC, the next launch from B carries B's key, host and env. No `qwen` command can stop the supervisor, so a user cannot do this. The cause is supervisor reuse.
 
+![R14-1](./03-r14-1-env.png)
+
 **R14-2: prompt in a world-readable argv.** Reproduced, 7/7 (Fig. 4).
 
 - **Exposure:** `/proc` here is mounted without `hidepid`. As uid 65534, both `cat /proc/<worker>/cmdline` and `ps -eo args` show `INCIDENT-TOKEN-sk-secret-12345`.
@@ -68,6 +70,8 @@ Each row has its own expectation for each arm, and both arms pass 20/20.
 - **Scope:** only the worker's argv carries the prompt. The supervisor's and the host's do not.
 - **At rest:** the stored copy is `0600`, and `nobody` gets `Permission denied`. One correction to the thread: `jobs/<id>/` is created without a mode and is `755` here, not `0700`, so the files are what protect it.
 - **Prompt size cap:** the same argv channel caps prompts at **16 KiB**. A 20 KiB prompt exits 1 with `Agent View prompt is too large for argv (16384 UTF-8 bytes maximum)`, and the new docs don't mention the cap.
+
+![R14-2](./04-r14-2-argv.png)
 
 **R10-3: version word in a prompt-led launch.** Reproduced.
 
@@ -98,6 +102,8 @@ Each row has its own expectation for each arm, and both arms pass 20/20.
 - **What the control does not show:** I did not run the unit suites against that edit. The same loop also serves `connectAgentViewPtyHostProcess` (10 × 300 ms budget), where removing the cap would turn a ~0.5 s probe of a dead host into ~3 s. The fix probably belongs on the spawn path only, or should count attempts by elapsed time.
 - **When it bites:** with no injected delay, a whole cold launch takes 0.76 s here, so the cliff only matters on slow or loaded machines. The code is from #7800, but `--bg` is the first user path that depends on it.
 
+![N2](./05-n2-ladder.png)
+
 **N1: narrowed.**
 
 - **When it breaks:** deleting `QWEN_HOME` while its supervisor runs breaks the next `--bg` only when the socket has fallen back outside the home, which happens with a long home path. Here the socket was `/tmp/qwen-agent-view-0/supervisor-<digest>.sock`, and the next launch exits 1 with `supervisor exited before becoming ready with code 1`.
@@ -120,6 +126,10 @@ Each row has its own expectation for each arm, and both arms pass 20/20.
 | **Supervisor crash / restart** | After the worker went idle, the supervisor was `kill -9`'d in one run and shut down with `keepWorkers` in another, then a new launch was made. A fresh supervisor starts. The first worker keeps its pid, is not respawned, and its prompt is **not re-run** (the ledger shows 1 turn). 4/4 per mode |
 | **Concurrent cold launches** | Three `--bg` launches at once into one fresh home all exit 0 in 0.75 s. There is **one** supervisor, three sessions, and all three ran. 3/3 |
 
+![exit 2, EPIPE, SIGHUP, send_message](./06-exit2-epipe-sighup-peer.png)
+
+![restart, trigger shapes, oversize, concurrency, N1](./07-restart-edges-n1.png)
+
 **New finding N3: with folder trust on, `--bg` certifies a session that never starts (Fig. 8).**
 
 - **Setup:** `security.folderTrust.enabled: true`, with the launch directory never trusted.
@@ -128,6 +138,8 @@ Each row has its own expectation for each arm, and both arms pass 20/20.
 - **Who it affects:** folder trust is off by default, so this only hits users who opted in.
 - **Possible guard:** decline `--bg` with a sentence when folder trust is on and the directory is untrusted.
 - **Status:** the bot's round-15 review recorded this exact question as "not explored". The dialog does block the `--prompt-interactive` submission.
+
+![N3](./08-folder-trust-stall.png)
 
 **Resident cost.** A finished `--bg` session does not exit: its worker stays at the prompt. On this box an idle worker holds ~262 MB RSS and its PTY host ~56 MB. The shared supervisor adds ~160 MB. All of this stays until it is killed by hand, because no stop command exists yet.
 

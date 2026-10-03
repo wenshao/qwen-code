@@ -61,6 +61,8 @@
 - **结果：** B 的 `--bg` exit 0 并打印 "Started …"，但 B 的 worker 的 shell 打印出的仍是 A 的变量。模型服务器收到 B 这个任务时，带的是 **`Authorization: Bearer sk-shellA-REVOKED`**，发往的是 **A 的 host**，B 的 key 从未被发出。
 - **对照：** 通过 supervisor 的 shutdown RPC 停掉它之后，B 的下一次启动带上了 B 的 key、host 和环境。没有任何 `qwen` 命令能停掉 supervisor，所以用户自己做不到这一步。原因就是 supervisor 被复用。
 
+![R14-1](./03-r14-1-env.png)
+
 **R14-2：prompt 进入所有人可读的 argv。** 已复现，7/7（图 4）。
 
 - **暴露：** 这里的 `/proc` 挂载没有 `hidepid`。以 uid 65534 执行 `cat /proc/<worker>/cmdline` 和 `ps -eo args`，都能看到 `INCIDENT-TOKEN-sk-secret-12345`。
@@ -68,6 +70,8 @@
 - **范围：** 只有 worker 的 argv 带着 prompt，supervisor 和 host 的都没有。
 - **落盘副本：** 权限为 `0600`，`nobody` 读取得到 `Permission denied`。对线程的一处更正：`jobs/<id>/` 创建时没有指定 mode，这里是 `755` 而不是 `0700`，起保护作用的是文件本身的权限。
 - **长度上限：** prompt 被限制在 **16 KiB** 以内，也是这个 argv 通道造成的。20 KiB 的 prompt 会 exit 1，报 `Agent View prompt is too large for argv (16384 UTF-8 bytes maximum)`，而新文档没有提到这个上限。
+
+![R14-2](./04-r14-2-argv.png)
 
 **R10-3：prompt 开头的启动里出现 version 词。** 已复现。
 
@@ -98,6 +102,8 @@
 - **正对照没有证明的部分：** 我没有在这处改动上跑单测。同一个循环也服务 `connectAgentViewPtyHostProcess`（预算 10 × 300 ms）；在那条路径上去掉上限，探测一个已死的 host 会从约 0.5 s 变成约 3 s。所以修复可能只应作用于 spawn 路径，或者改为按已用时间计算尝试次数。
 - **影响面：** 不注入延迟时，本机一次完整的冷启动只要 0.76 s，所以只有慢机器或高负载机器才会碰到这个断崖。代码来自 #7800，但 `--bg` 是第一个依赖它的用户路径。
 
+![N2](./05-n2-ladder.png)
+
 **N1：范围收窄。**
 
 - **会出问题的情况：** 在 supervisor 运行期间删掉 `QWEN_HOME`，只有当 socket 已回退到 home 之外时，下一次 `--bg` 才会失败；这发生在 home 路径较长时。此处 socket 位于 `/tmp/qwen-agent-view-0/supervisor-<digest>.sock`，下一次启动 exit 1，报 `supervisor exited before becoming ready with code 1`。
@@ -120,6 +126,10 @@
 | **supervisor 崩溃 / 重启** | worker 空闲后，一次对 supervisor 执行 `kill -9`，另一次以 `keepWorkers` 方式 shutdown，然后再次启动。新的 supervisor 正常起来；第一个 worker 的 pid 不变，没有被重新 spawn，它的 prompt 也**没有重跑**（账本中仍只有 1 轮）。两种方式各 4/4 |
 | **并发冷启动** | 在同一个全新的 home 里同时发起 3 次 `--bg`，全部在 0.75 s 内 exit 0。结果只有**一个** supervisor 和三个会话，三个都执行了。3/3 |
 
+![exit 2、EPIPE、SIGHUP、send_message](./06-exit2-epipe-sighup-peer.png)
+
+![重启、触发形态、超长 prompt、并发、N1](./07-restart-edges-n1.png)
+
 **新发现 N3：开启 folder trust 后，`--bg` 声称已启动的会话其实永远不会开始（图 8）。**
 
 - **设置：** `security.folderTrust.enabled: true`，启动目录从未被信任过。
@@ -128,6 +138,8 @@
 - **影响面：** folder trust 默认关闭，只影响主动开启的用户。
 - **可能的防护：** folder trust 开启且目录未被信任时，`--bg` 直接用一句话拒绝。
 - **现状：** bot 第 15 轮 review 把这个问题列为「未探查」。实测表明，信任对话框确实会阻塞 `--prompt-interactive` 的提交。
+
+![N3](./08-folder-trust-stall.png)
 
 **常驻开销。** `--bg` 会话完成任务后不会退出，worker 一直停在输入提示处。本机上一个空闲 worker 约占 262 MB RSS，它的 PTY host 约 56 MB，另有共享 supervisor 约 160 MB。目前没有 stop 命令，所以这些内存会一直占着，直到手动 kill。
 
