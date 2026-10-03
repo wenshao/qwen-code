@@ -1,0 +1,47 @@
+diff --git a/packages/core/src/hooks/hook-command-cgroup.ts b/packages/core/src/hooks/hook-command-cgroup.ts
+index a5164a7f9a..4258260344 100644
+--- a/packages/core/src/hooks/hook-command-cgroup.ts
++++ b/packages/core/src/hooks/hook-command-cgroup.ts
+@@ -42,7 +42,13 @@ const child = spawn(executable, JSON.parse(args), {
+   stdio: ['inherit', 'inherit', 'inherit'],
+ });
+ child.on('error', () => process.exit(1));
+-child.on('exit', (code) => process.exit(code ?? 1));
++child.on('exit', (code, signal) => {
++  if (signal) {
++    process.removeAllListeners(signal);
++    process.kill(process.pid, signal);
++    setTimeout(() => process.exit(1), 1000);
++  } else process.exit(code ?? 1);
++});
+ `;
+ 
+ export class HookCommandCgroup {
+@@ -100,8 +106,13 @@ export class HookCommandCgroup {
+     root: string | undefined,
+     unitName: string,
+   ): HookCommandCgroup | undefined {
+-    const resolved = HookCommandCgroup.resolveRoot(root);
+-    if (unitName.includes('/') || unitName.includes('')) return undefined;
++    let resolved: string;
++    try {
++      resolved = HookCommandCgroup.resolveRoot(root);
++    } catch {
++      throw new HookCommandIsolationUnavailableError();
++    }
++    if (unitName.includes('/') || unitName.includes('\0')) return undefined;
+     let directory: string;
+     try {
+       directory = realpathSync(join(resolved, unitName));
+@@ -175,7 +186,10 @@ export class HookCommandCgroup {
+         // The member may already have exited.
+       }
+     }
+-    if (!(await this.waitForEmpty(graceMs))) this.kill();
++    if (!(await this.waitForEmpty(graceMs))) {
++      this.kill();
++      await this.waitForEmpty(1_000);
++    }
+   }
+ 
+   remove(): void {
