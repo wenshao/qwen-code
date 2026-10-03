@@ -1,0 +1,32 @@
+T02 start call may be absent  [head invalid|false -> mutant ok|true]
+    {"record":{"run":{"executionCallId":null,"execution":null}}}
+T04 dispatchId allowed  [head invalid|false -> mutant ok|true]
+    {"record":{"run":{"dispatchId":"dispatch-1"}}}
+T07 receipt before start allowed  [head invalid|false -> mutant ok|true]
+    {"record":{"startReceiptRef":"receipt-1/receipt-data","run":{"runtime":{"runtimeBindingId":"binding-1","generation":"2"}}}}
+T09 settled execution without receipt  [head invalid|false -> mutant ok|false]
+    {"record":{"run":{"execution":"settled"}}}
+T12 output version unchecked  [head invalid|false -> mutant ok|false]
+    {"record":{"startReceiptRef":"receipt-1/receipt-data","outputRef":"manifest-1/managed-tool-result-manifest/v2","run":{"execution":"running_attached","runtime":{"runtimeBindingId":"binding-1","generation":"1"}}}}
+T16 negative exitCode allowed  [head invalid|false -> mutant ok|false]
+    {"record":{"startReceiptRef":"receipt-1/receipt-data","stopReason":"exited","exitCode":-1,"run":{"state":"settled","execution":"settled","runtime":{"runtimeBindingId":"binding-1","generation":"1"}}}}
+T17 fractional exitCode allowed  [head invalid|false -> mutant ok|false]
+    {"record":{"startReceiptRef":"receipt-1/receipt-data","stopReason":"exited","exitCode":1.5,"run":{"state":"settled","execution":"settled","runtime":{"runtimeBindingId":"binding-1","generation":"1"}}}}
+T18 16-char signal limit +1  [head invalid|false -> mutant ok|false]
+    {"record":{"startReceiptRef":"receipt-1/receipt-data","stopReason":"exited","exitSignal":"AAAAAAAAAAAAAAAAA","run":{"state":"settled","execution":"settled","runtime":{"runtimeBindingId":"binding-1","generation":"1"}}}}
+T21 stopReason fits state dropped  [head invalid|false -> mutant ok|false]
+    {"record":{"stopReason":"stop_requested","run":{"state":"failed","execution":null}}}
+T24 start_failed with receipt  [head invalid|false -> mutant ok|false]
+    {"record":{"startReceiptRef":"receipt-1/receipt-data","stopReason":"start_failed","run":{"state":"failed","execution":"settled","runtime":{"runtimeBindingId":"binding-1","generation":"1"}}}}
+T25 start_failed never attempted  [head invalid|false -> mutant ok|false]
+    {"record":{"stopReason":"start_failed","run":{"state":"failed","execution":null}}}
+T26 process_failed without receipt  [head invalid|false -> mutant ok|false]
+    {"record":{"stopReason":"process_failed","run":{"state":"failed","execution":"not_started_proven"}}}
+T27 quota iff quota reason dropped  [head invalid|false -> mutant ok|false]
+    {"record":{"stopReason":"quota_exceeded","run":{"state":"failed","execution":null}}}
+T32 ownerScopeId may change  [head false -> mutant true]
+    {"before":{"ownerScopeId":"é"},"after":{"run":{"state":"running","execution":"dispatch_started","runtime":{"runtimeBindingId":"binding-1","generation":"1"}}}}
+T38 terminal not frozen  [head false -> mutant true]
+    {"before":{"startReceiptRef":"receipt-1/receipt-data","stopReason":"exited","exitCode":0,"run":{"state":"settled","execution":"settled","runtime":{"runtimeBindingId":"binding-1","generation":"1"}}},"after":{"startReceiptRef":"receipt-2/receipt-data","stopReason":"exited","exitCode":0,"run":{"state":"settled","execution":"settled","runtime":{"runtimeBindingId":"binding-1","generation":"1"}}}}
+T39 rebuild may keep receipt  [head false -> mutant true]
+    {"before":{"startReceiptRef":"receipt-2/receipt-data","run":{"state":"recovery_blocked","reason":"runtime_lost","execution":"outcome_unknown","runtime":{"runtimeBindingId":"binding-1","generation":"1"}}},"after":{"startReceiptRef":"receipt-2/receipt-data","run":{"state":"running","reason":"runtime_lost","execution":"running_attached","runtime":{"runtimeBindingId":"binding-2","generation":"2"}}}}
