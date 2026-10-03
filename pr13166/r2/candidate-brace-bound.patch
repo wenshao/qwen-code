@@ -1,0 +1,233 @@
+diff --git a/packages/cli/src/serve/hosted-glob-pattern.test.ts b/packages/cli/src/serve/hosted-glob-pattern.test.ts
+new file mode 100644
+index 0000000000..fe4ed9f3a8
+--- /dev/null
++++ b/packages/cli/src/serve/hosted-glob-pattern.test.ts
+@@ -0,0 +1,63 @@
++/**
++ * @license
++ * Copyright 2026 Qwen Team
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++import { createRequire } from 'node:module';
++import path from 'node:path';
++import { describe, expect, it } from 'vitest';
++import {
++  globBraceExpansions,
++  HOSTED_GLOB_MAX_BRACE_EXPANSIONS,
++} from './hosted-glob-pattern.js';
++
++// The minimatch that core's glob actually uses, so the count is compared
++// with the expansion glob performs rather than with a re-implementation.
++const coreRequire = createRequire(
++  createRequire(import.meta.url).resolve(
++    '@qwen-code/qwen-code-core/package.json',
++  ),
++);
++const glob = coreRequire.resolve('glob');
++const { braceExpand } = createRequire(glob)(
++  createRequire(glob).resolve('minimatch', { paths: [path.dirname(glob)] }),
++) as { braceExpand: (pattern: string) => string[] };
++
++describe('globBraceExpansions', () => {
++  it.each([
++    '**/*.ts',
++    '{a,b}/*',
++    '{a,b}{a,b}{c,d,e}/*',
++    'a{b,c}d{e,f,g}',
++    '{a,{b,c}}x',
++    '{a}',
++    '\\{a,b}',
++    '{a,b',
++    '{1..5}',
++    '{1..10..3}',
++    '{01..03}',
++    '{a..e}/*.md',
++    '{src,test}/**/*.{ts,tsx}',
++  ])('matches the expansion glob performs: %s', (pattern) => {
++    expect(globBraceExpansions(pattern)).toBe(braceExpand(pattern).length);
++  });
++
++  it('saturates without enumerating a huge range or product', () => {
++    const started = Date.now();
++    expect(globBraceExpansions('{1..1000000000}/*')).toBe(
++      HOSTED_GLOB_MAX_BRACE_EXPANSIONS + 1,
++    );
++    expect(globBraceExpansions('{a,b}'.repeat(40))).toBe(
++      HOSTED_GLOB_MAX_BRACE_EXPANSIONS + 1,
++    );
++    expect(Date.now() - started).toBeLessThan(100);
++  });
++
++  it('admits exactly the limit', () => {
++    expect(globBraceExpansions('{a,b}'.repeat(10) + '/*')).toBe(1024);
++    expect(globBraceExpansions('{a,b}'.repeat(11) + '/*')).toBe(
++      HOSTED_GLOB_MAX_BRACE_EXPANSIONS + 1,
++    );
++  });
++});
+diff --git a/packages/cli/src/serve/hosted-glob-pattern.ts b/packages/cli/src/serve/hosted-glob-pattern.ts
+new file mode 100644
+index 0000000000..07aa92d1de
+--- /dev/null
++++ b/packages/cli/src/serve/hosted-glob-pattern.ts
+@@ -0,0 +1,86 @@
++/**
++ * @license
++ * Copyright 2026 Qwen Team
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++/**
++ * Glob expands `{…}` alternatives and `{a..b}` ranges synchronously on the
++ * managed worker's event loop, and the cost grows faster than the expansion
++ * count: a 72-byte pattern stalled a worker past the Broker's status deadline
++ * and left the execution unknown. A short range (`{1..20000}`) does the same,
++ * so searches are bounded by expansion count, not by pattern length.
++ */
++export const HOSTED_GLOB_MAX_BRACE_EXPANSIONS = 1024;
++
++/**
++ * Upper bound on how many patterns brace expansion makes of `pattern`,
++ * saturating at `limit + 1` so a huge range is never enumerated. Adjacent
++ * groups multiply, alternatives add, and an escaped, unbalanced or
++ * single-alternative brace counts as a literal, as in brace-expansion.
++ */
++export function globBraceExpansions(
++  pattern: string,
++  limit: number = HOSTED_GLOB_MAX_BRACE_EXPANSIONS,
++): number {
++  const cap = limit + 1;
++  const closing = (open: number, end: number): number => {
++    let depth = 0;
++    for (let i = open; i < end; i++) {
++      const c = pattern[i];
++      if (c === '\\') i++;
++      else if (c === '{') depth++;
++      else if (c === '}' && --depth === 0) return i;
++    }
++    return -1;
++  };
++  const range = (body: string): number | undefined => {
++    const match = /^(-?\d+|[a-zA-Z])\.\.(-?\d+|[a-zA-Z])(?:\.\.(-?\d+))?$/.exec(
++      body,
++    );
++    if (!match) return undefined;
++    const numeric = /\d/.test(match[1]);
++    if (numeric !== /\d/.test(match[2])) return undefined;
++    const from = numeric ? Number(match[1]) : match[1].charCodeAt(0);
++    const to = numeric ? Number(match[2]) : match[2].charCodeAt(0);
++    const step = Math.abs(Number(match[3] ?? 1)) || 1;
++    return Math.min(cap, Math.floor(Math.abs(to - from) / step) + 1);
++  };
++  const sequence = (start: number, end: number): number => {
++    let count = 1;
++    for (let i = start; i < end; i++) {
++      const c = pattern[i];
++      if (c === '\\') {
++        i++;
++        continue;
++      }
++      if (c !== '{') continue;
++      const close = closing(i, end);
++      if (close === -1) continue;
++      count = Math.min(cap, count * group(i + 1, close));
++      i = close;
++    }
++    return count;
++  };
++  const group = (start: number, end: number): number => {
++    const ranged = range(pattern.slice(start, end));
++    if (ranged !== undefined) return ranged;
++    let total = 0;
++    let alternatives = 0;
++    let depth = 0;
++    let from = start;
++    for (let i = start; i <= end; i++) {
++      const c = pattern[i];
++      if (i < end && c === '\\') i++;
++      else if (i < end && c === '{') depth++;
++      else if (i < end && c === '}') depth--;
++      else if (i === end || (c === ',' && depth === 0)) {
++        total = Math.min(cap, total + sequence(from, i));
++        alternatives++;
++        from = i + 1;
++      }
++    }
++    return alternatives > 1 ? total : sequence(start, end);
++  };
++  return sequence(0, pattern.length);
++}
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index 4c7d18efc7..d8b5171a27 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -987,6 +987,10 @@ it.each([
+   // refusal and into a durable Runtime round trip.
+   { pattern: ' ../**/*' },
+   { pattern: '\t/etc/host*' },
++  // Brace expansion is synchronous in the worker: 72 bytes of groups, or a
++  // 12-byte range, outlast the Broker's status deadline there.
++  { pattern: '{a,b}'.repeat(14) + '/*' },
++  { pattern: '{1..20000}/*' },
+   { pattern: '**/*.ts', path: '/private/secret-host-path' },
+   { pattern: '**/*.ts', path: '../escape' },
+   { pattern: '**/*.ts', path: 'a\\b' },
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index 687bf3721c..d652733913 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -70,6 +70,10 @@ import {
+ import { hostedHookOccurrenceId } from './hosted-hook-session.js';
+ import { parseHookExecution } from '@qwen-code/qwen-code-core/managed-runtime/managed-hook-record.js';
+ import { waitForTurn } from './hosted-turn-wait.js';
++import {
++  globBraceExpansions,
++  HOSTED_GLOB_MAX_BRACE_EXPANSIONS,
++} from './hosted-glob-pattern.js';
+ import { boundedShellPreview } from './managed-shell-publisher.js';
+ import {
+   endHostedAction,
+@@ -856,6 +860,12 @@ export class HostedWorkspaceToolTurn {
+             pattern.split(/[\\/]/).includes('..')
+           ) {
+             validationError = globError;
++          } else if (
++            globBraceExpansions(pattern) > HOSTED_GLOB_MAX_BRACE_EXPANSIONS
++          ) {
++            // Brace expansion runs synchronously in the Runtime worker; refuse
++            // it here, where the refusal is correctable and costs no Runtime.
++            validationError = `Hosted glob patterns may expand to at most ${HOSTED_GLOB_MAX_BRACE_EXPANSIONS} alternatives through {…} groups and {a..b} ranges. Narrow the braces or ranges and retry.`;
+           } else {
+             input['pattern'] = pattern;
+           }
+diff --git a/packages/cli/src/serve/managed-runtime-tool-executor.ts b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+index 7bebb799e2..6617f577cc 100644
+--- a/packages/cli/src/serve/managed-runtime-tool-executor.ts
++++ b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+@@ -8,6 +8,10 @@ import path from 'node:path';
+ import { realpath } from 'node:fs/promises';
+ import { isDeepStrictEqual } from 'node:util';
+ import { ManagedRuntimeFileHistory } from './managed-runtime-file-history.js';
++import {
++  globBraceExpansions,
++  HOSTED_GLOB_MAX_BRACE_EXPANSIONS,
++} from './hosted-glob-pattern.js';
+ import type { RawFileHistoryOperation } from './hosted-file-history-protocol.js';
+ import { Config } from '@qwen-code/qwen-code-core/config/config.js';
+ import { ApprovalMode } from '@qwen-code/qwen-code-core/config/approval-mode.js';
+@@ -837,6 +841,13 @@ export class ManagedToolExecutor {
+             'Glob pattern must stay within the Session working directory.',
+           );
+         }
++        // Expansion is synchronous and blocks this worker past the Broker's
++        // status deadline, so an over-wide pattern never reaches glob.
++        if (globBraceExpansions(pattern) > HOSTED_GLOB_MAX_BRACE_EXPANSIONS) {
++          throw new Error(
++            `Glob pattern expands to more than ${HOSTED_GLOB_MAX_BRACE_EXPANSIONS} alternatives.`,
++          );
++        }
+         const resolved =
+           requested === '' || requested === '.'
+             ? root
