@@ -1,0 +1,29 @@
+diff --git packages/core/src/permissions/rule-parser.ts packages/core/src/permissions/rule-parser.ts
+index 170ab1d..a9a67c5 100644
+--- packages/core/src/permissions/rule-parser.ts
++++ packages/core/src/permissions/rule-parser.ts
+@@ -14,6 +14,7 @@ import {
+   generateLegacyMcpToolName,
+   LEGACY_REDUCTION_HEAD_LENGTH,
+   normalizeMcpToolName,
++  sanitizeToolNameForProvider,
+ } from '../utils/tool-name-utils.js';
+ import { isNodeError } from '../utils/errors.js';
+ 
+@@ -1819,7 +1820,15 @@ export function matchesMcpPattern(
+         const namesThisKey = serverSpellings.some((spelling) =>
+           `mcp__${spelling}`.startsWith(prefix),
+         );
+-        return namesThisKey ? matchesPrefixLiterally(prefix) : false;
++        const raw = `mcp__${mcpIdentity.serverName}__${mcpIdentity.serverToolName}`;
++        const separatorCutByBudget =
++          raw.length > 63 &&
++          'mcp__'.length +
++            sanitizeToolNameForProvider(mcpIdentity.serverName).length >=
++            55;
++        return namesThisKey || separatorCutByBudget
++          ? matchesPrefixLiterally(prefix)
++          : false;
+       }
+       const toolPrefix = prefix.slice(boundary.length);
+       // A prefix of pure underscores is separator continuation, not a tool
