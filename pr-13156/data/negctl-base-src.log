@@ -1,0 +1,266 @@
+
+ RUN  v3.2.7 /root/verify/pr13156/base/packages/core
+
+ ❯ src/memory/indexer.pr13156neg.test.ts (32 tests | 14 failed) 93ms
+   ✓ managed auto-memory indexer > does not create a missing compatibility root while rebuilding 5ms
+   ✓ managed auto-memory indexer > does not rebuild an index through a symlinked root 3ms
+   ✓ managed auto-memory indexer > replaces a linked project index without overwriting its target 3ms
+   ✓ managed auto-memory indexer > preserves an existing index when the root cannot be read 2ms
+   ✓ managed auto-memory indexer > refuses to persist a partial index when a subdirectory cannot be read 1ms
+   ✓ managed auto-memory indexer > does not create a missing user root while rebuilding 2ms
+   ✓ managed auto-memory indexer > replaces a linked user index without overwriting its target 2ms
+   ✓ managed auto-memory indexer > formats a compact file-based MEMORY.md index view 2ms
+   ✓ managed auto-memory indexer > rewrites MEMORY.md from topic file contents 7ms
+   ✓ managed auto-memory indexer > keeps a valid pinned document in the generated index 4ms
+   ✓ managed auto-memory indexer > sanitizes attacker-controlled title/description before embedding 2ms
+   ✓ managed auto-memory indexer > truncates an over-long frontmatter field 1ms
+   × managed auto-memory indexer > keeps the link target intact when a long title pushes the entry past 150 chars 6ms
+     → expected 150 to be greater than 150
+   × managed auto-memory indexer > keeps a relative path longer than the field cap addressable 3ms
+     → expected 'reference/ppppppppppppppppppppppppppp…' to be 'reference/ppppppppppppppppppppppppppp…' // Object.is equality
+   × managed auto-memory indexer > never cuts inside a link when one entry exceeds the size budget 6ms
+     → expected '- [Huge](reference/pppppppppppppppppp…' to contain 'WARNING: MEMORY.md is too large'
+   × managed auto-memory indexer > keeps ordinary project entries before spending spare budget on long links 3ms
+     → no link target in: "- [Long 0](%210/%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%…"
+   × managed auto-memory indexer > keeps ordinary team entries before spending spare budget on long links 3ms
+     → no link target in: "- [Long 0](%210/%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%…"
+   × managed auto-memory indexer > does not let a few long non-ASCII paths evict the rest of the index 3ms
+     → no link target in: "- [long 1](%21%E4%B8%9F%E4%B8%A2%E4%B8%A5%E4%B8%A8%E4%B8%AB%E4%B8%AE%E4%B8%B1%E4%B8%B4%E4%B8%B7%E4%B8%BA%E4%B8%BD%E4%B9%80%E4%B9%83%E4%B9%86%E4%B9%89…"
+   ✓ managed auto-memory indexer > sanitizes an attacker-controlled relativePath in the main index line 2ms
+   ✓ managed auto-memory indexer > sanitizes an attacker-controlled relativePath in the team "(also: …)" suffix 2ms
+   ✓ managed auto-memory indexer > keeps a legal-but-tricky filename addressable as the link target 1ms
+   ✓ managed auto-memory indexer > keeps a non-ASCII space in a path encoded so the link still parses 1ms
+   × managed auto-memory indexer > percent-encodes every invisible format character that may reach a path 2ms
+     → expected 'feedback/%E5%9B%A2%E9%98%9F%E8%AE%B0%…' to be 'feedback/团队记忆.md' // Object.is equality
+   × managed auto-memory indexer > drops an "(also: …)" entry whole instead of cutting its target 2ms
+     → no (also: …) suffix in: "- [Alpha](alice/a.md) — shared fact (also: bob/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md, carol/ccccccccccccccccccccccccccccccc…"
+   × managed auto-memory indexer > still lists the grouped siblings when the shared description fills the line 3ms
+     → expected '- [Alpha](alice/a.md) — A shared fact…' to contain 'enough to fill…'
+   × managed auto-memory indexer > lists a later fitting "(also: …)" sibling even when an earlier one overflows 2ms
+     → expected '- [Alpha](alice/a.md) — shared fact (…' not to contain 'bob/'
+   ✓ managed auto-memory indexer > keeps a hook that fits whole even when the leftover room is small 1ms
+   ✓ managed auto-memory indexer > does not collapse an unbroken CJK field run to its leading token 1ms
+   × managed auto-memory indexer > drops an astral character whole instead of splitting it at the cut 2ms
+     → expected '- [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…' to contain 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…'
+   × managed auto-memory indexer > drops both halves of two adjacent lone surrogates at the cut 2ms
+     → expected '- [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…' to be '- [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…' // Object.is equality
+   × managed auto-memory indexer > strips a lone surrogate from a field short enough to skip the cut 2ms
+     → expected '- [\ufffd lone high](feedback/lone-sh…' to be '- [� lone high](feedback/lone-short.m…' // Object.is equality
+   × managed auto-memory indexer > strips a lone LOW surrogate arriving through a real YAML escape 10ms
+     → expected true to be false // Object.is equality
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > keeps the link target intact when a long title pushes the entry past 150 chars
+AssertionError: expected 150 to be greater than 150
+ ❯ src/memory/indexer.pr13156neg.test.ts:371:25
+    369|     // The link alone exceeds the line budget, so the entry runs long …
+    370|     // hook is dropped rather than the target being cut.
+    371|     expect(line.length).toBeGreaterThan(150);
+       |                         ^
+    372|     expect(linkTarget(line)).toBe(relativePath);
+    373|     expect(line).not.toContain('—');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > keeps a relative path longer than the field cap addressable
+AssertionError: expected 'reference/ppppppppppppppppppppppppppp…' to be 'reference/ppppppppppppppppppppppppppp…' // Object.is equality
+
+Expected: "reference/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp.md"
+Received: "reference/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
+
+ ❯ src/memory/indexer.pr13156neg.test.ts:398:30
+    396| 
+    397|     const [line] = content.split('\n');
+    398|     expect(linkTarget(line)).toBe(relativePath);
+       |                              ^
+    399|     expect(decodeURIComponent(linkTarget(line))).toBe(relativePath);
+    400|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > never cuts inside a link when one entry exceeds the size budget
+AssertionError: expected '- [Huge](reference/pppppppppppppppppp…' to contain 'WARNING: MEMORY.md is too large'
+
+- Expected
++ Received
+
+- WARNING: MEMORY.md is too large
++ - [Huge](reference/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp) — hook
++ - [Keep](zzz/keep-me.md) — a short entry sorted after the huge one
+
+ ❯ src/memory/indexer.pr13156neg.test.ts:434:21
+    432|       }
+    433|     }
+    434|     expect(content).toContain('WARNING: MEMORY.md is too large');
+       |                     ^
+    435|     // The huge entry is dropped whole; the short one still reaches th…
+    436|     expect(body).not.toContain('Huge');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > keeps ordinary project entries before spending spare budget on long links
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > keeps ordinary team entries before spending spare budget on long links
+Error: no link target in: "- [Long 0](%210/%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%28%…"
+ ❯ linkTarget src/memory/indexer.pr13156neg.test.ts:35:17
+     33| function linkTarget(line: string): string {
+     34|   const m = line.match(/\]\(([^)]*)\)/);
+     35|   if (!m) throw new Error(`no link target in: ${JSON.stringify(line)}`…
+       |                 ^
+     36|   return m[1];
+     37| }
+ ❯ src/memory/indexer.pr13156neg.test.ts:478:43
+ ❯ src/memory/indexer.pr13156neg.test.ts:478:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > does not let a few long non-ASCII paths evict the rest of the index
+Error: no link target in: "- [long 1](%21%E4%B8%9F%E4%B8%A2%E4%B8%A5%E4%B8%A8%E4%B8%AB%E4%B8%AE%E4%B8%B1%E4%B8%B4%E4%B8%B7%E4%B8%BA%E4%B8%BD%E4%B9%80%E4%B9%83%E4%B9%86%E4%B9%89…"
+ ❯ linkTarget src/memory/indexer.pr13156neg.test.ts:35:17
+     33| function linkTarget(line: string): string {
+     34|   const m = line.match(/\]\(([^)]*)\)/);
+     35|   if (!m) throw new Error(`no link target in: ${JSON.stringify(line)}`…
+       |                 ^
+     36|   return m[1];
+     37| }
+ ❯ src/memory/indexer.pr13156neg.test.ts:538:38
+ ❯ src/memory/indexer.pr13156neg.test.ts:538:8
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > percent-encodes every invisible format character that may reach a path
+AssertionError: expected 'feedback/%E5%9B%A2%E9%98%9F%E8%AE%B0%…' to be 'feedback/团队记忆.md' // Object.is equality
+
+Expected: "feedback/团队记忆.md"
+Received: "feedback/%E5%9B%A2%E9%98%9F%E8%AE%B0%E5%BF%86.md"
+
+ ❯ src/memory/indexer.pr13156neg.test.ts:782:40
+    780|     // the rest of the index and which this PR exists to remove.
+    781|     const cjkPath = 'feedback/团队记忆.md';
+    782|     expect(linkTarget(build(cjkPath))).toBe(cjkPath);
+       |                                        ^
+    783|   });
+    784| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > drops an "(also: …)" entry whole instead of cutting its target
+Error: no (also: …) suffix in: "- [Alpha](alice/a.md) — shared fact (also: bob/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.md, carol/ccccccccccccccccccccccccccccccc…"
+ ❯ alsoTargets src/memory/indexer.pr13156neg.test.ts:43:17
+     41| function alsoTargets(line: string): string[] {
+     42|   const m = line.match(/\(also: ([^)]*)\)/);
+     43|   if (!m) throw new Error(`no (also: …) suffix in: ${JSON.stringify(li…
+       |                 ^
+     44|   return m[1].split(', ');
+     45| }
+ ❯ src/memory/indexer.pr13156neg.test.ts:840:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > still lists the grouped siblings when the shared description fills the line
+AssertionError: expected '- [Alpha](alice/a.md) — A shared fact…' to contain 'enough to fill…'
+
+Expected: "enough to fill…"
+Received: "- [Alpha](alice/a.md) — A shared fact that is long enough to fill the line A shared fact that is long enough to fill the line A shared fact tha… (als…"
+
+ ❯ src/memory/indexer.pr13156neg.test.ts:906:18
+    904|     // the budget above and every path assertion below — only the hook…
+    905|     // pins the boundary preference itself.
+    906|     expect(line).toContain('enough to fill…');
+       |                  ^
+    907|     expect(decodeURIComponent(linkTarget(line))).toBe('alice/a.md');
+    908|     expect(alsoTargets(line).map(decodeURIComponent)).toEqual([
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > lists a later fitting "(also: …)" sibling even when an earlier one overflows
+AssertionError: expected '- [Alpha](alice/a.md) — shared fact (…' not to contain 'bob/'
+
+Expected: "bob/"
+Received: "- [Alpha](alice/a.md) — shared fact (also: bob/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb…"
+
+ ❯ src/memory/indexer.pr13156neg.test.ts:944:22
+    942|     // The long sibling is dropped whole; the short one still fits and…
+    943|     // be listed.
+    944|     expect(line).not.toContain('bob/');
+       |                      ^
+    945|     expect(alsoTargets(line).map(decodeURIComponent)).toEqual(['c-shor…
+    946|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > drops an astral character whole instead of splitting it at the cut
+AssertionError: expected '- [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…' to contain 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…'
+
+Expected: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
+Received: "- [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa�…](feedback/astral.md) — d"
+
+ ❯ src/memory/indexer.pr13156neg.test.ts:1036:18
+    1034| 
+    1035|     const [line] = content.split('\n');
+    1036|     expect(line).toContain(`${'a'.repeat(118)}…`);
+       |                  ^
+    1037|     // The invariant that actually breaks: what lands on disk must be …
+    1038|     // builder returned.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > drops both halves of two adjacent lone surrogates at the cut
+AssertionError: expected '- [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…' to be '- [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…' // Object.is equality
+
+Expected: "- [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa��…](feedback/two-lone.md) — d"
+Received: "- [aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa��…](feedback/two-lone.md) — d"
+
+ ❯ src/memory/indexer.pr13156neg.test.ts:1065:56
+    1063| 
+    1064|     const [line] = content.split('\n');
+    1065|     expect(Buffer.from(line, 'utf8').toString('utf8')).toBe(line);
+       |                                                        ^
+    1066|   });
+    1067| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > strips a lone surrogate from a field short enough to skip the cut
+AssertionError: expected '- [\ufffd lone high](feedback/lone-sh…' to be '- [� lone high](feedback/lone-short.m…' // Object.is equality
+
+Expected: "- [� lone high](feedback/lone-short.md) — d"
+Received: "- [� lone high](feedback/lone-short.md) — d"
+
+ ❯ src/memory/indexer.pr13156neg.test.ts:1105:60
+    1103| 
+    1104|     const [loneLine, pairLine] = content.split('\n');
+    1105|     expect(Buffer.from(loneLine, 'utf8').toString('utf8')).toBe(loneLi…
+       |                                                            ^
+    1106|     expect(pairLine).toContain('\u{1d54f} kept whole');
+    1107|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/14]⎯
+
+ FAIL  src/memory/indexer.pr13156neg.test.ts > managed auto-memory indexer > strips a lone LOW surrogate arriving through a real YAML escape
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ src/memory/indexer.pr13156neg.test.ts:1160:7
+    1158|         index,
+    1159|       ),
+    1160|     ).toBe(false);
+       |       ^
+    1161|     expect(Buffer.from(index, 'utf8').toString('utf8')).toBe(index);
+    1162|     expect(loneLine).toMatch(/— ab$/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/14]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  14 failed | 18 passed (32)
+   Start at  16:14:17
+   Duration  510ms (transform 152ms, setup 16ms, collect 177ms, tests 93ms, environment 0ms, prepare 75ms)
+
+JUNIT report written to /root/verify/pr13156/base/packages/core/junit.xml
+EXIT=1
