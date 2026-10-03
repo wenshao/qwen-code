@@ -64,6 +64,7 @@ function imgPage(heading, imgs, note) {
 }
 
 async function shoot(browser, html, name) {
+  if (process.env.ONLY && process.env.ONLY !== name) return;
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2 });
   await page.setContent(html);
   await page.waitForFunction(() => window.__done === true, null, { timeout: 30000 });
@@ -102,5 +103,7 @@ const tx = (f, cols, title) => {
     { title: 'grid probe — default font', file: path.join(E, 'freeze-ext/grid-default.png'), width: 420 },
     { title: 'grid probe — --font.family monospace', file: path.join(E, 'freeze-ext/grid-generic-mono.png'), width: 420 },
   ], 'Default: proportional fallback font — the header box\'s right border lands at a different x on every row and `iiiiiiiiii|` vs `MMMMMMMMMM|` do not align, so a column claim read off these pixels would be wrong. With a monospace family the box is intact. In both, freeze drops reverse video (SGR 7) and background colour (SGR 44) that the .ans does carry.'), 'fig5-freeze-fidelity.png');
+  await shoot(browser, termPage(`Finding 2 — all four fixtures that create the real /tmp/tmux-<uid> (the round-25 deferred item), each run alone`,
+    [tx('transcript-f2b.ansi', 118, 'finding2b.sh — uid 1000 via user namespace; head vs. `mkdir -p -m 700` at the four sites')]), 'fig3b-four-sites.png');
   await browser.close();
 })().catch((e) => { console.error(e); process.exit(1); });

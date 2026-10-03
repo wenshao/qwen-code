@@ -1,6 +1,6 @@
 ## Maintainer verification — PR #9273 @ `5936b9f118` (real tmux + real freeze, built CLI)
 
-**Verdict: not ready to merge as-is. One blocking defect, with a one-line fix that I verified.** The `png` evidence rung writes an **SVG** file whenever a real `freeze` is installed. Everything else I exercised end to end behaves as the header contract says: tmux isolation, the refusal contract, `--until`/`--ready`/`--keys`, signal reaping, and the orphan sweep in `review cleanup`. I also recommend one test-hygiene fix before merge: a fixture that creates the host's real tmux socket dir with unsafe permissions.
+**Verdict: not ready to merge as-is. One blocking defect, with a one-line fix that I verified.** The `png` evidence rung writes an **SVG** file whenever a real `freeze` is installed. Everything else I exercised end to end behaves as the header contract says: tmux isolation, the refusal contract, `--until`/`--ready`/`--keys`, signal reaping, and the orphan sweep in `review cleanup`. I also recommend one test-hygiene fix before merge: four fixtures create the host's real tmux socket dir with unsafe permissions. Round 25 deferred this as fails-closed, but it breaks real tmux.
 
 ### Environment
 
@@ -14,11 +14,14 @@
 | # | Severity | What | Fix verified? |
 | --- | --- | --- | --- |
 | 1 | **Blocking** | With a real `freeze`, the manifest says `evidence: "png"` but `<out>.png` contains **SVG XML**, and the repo's own publish gate rejects it | ✅ one line; `capture-tui` suite unchanged (178 ✔ / 4 skip) |
-| 2 | Should-fix (test-only) | The base-alias fixture creates the host's **real** `/tmp/tmux-<uid>` as 0755. Real tmux, including the developer's own, then refuses that directory, and 67 later tests cascade-fail | ✅ `mkdir -p -m 700`; 329 pass / 1 skip |
+| 2 | Should-fix (test-only) | Four fixtures create the host's **real** `/tmp/tmux-<uid>` as 0755. Real tmux, including the developer's own, then refuses that directory, and 67 later tests cascade-fail. Round 25 deferred this as *fails-closed*; measured, it isn't | ✅ `mkdir -p -m 700` at 4 sites; 329 pass / 1 skip |
 | 3 | Suggestion | On this Linux host the default freeze font is proportional, so PNG columns don't line up. freeze also drops reverse video and background colour | ✅ `--font.family monospace` restores alignment |
 | 4 | Nit | A SIGKILLed launcher leaves its zero-byte `qwen-capture-ready-<pid>-<nonce>` in `$TMPDIR`, and `review cleanup` doesn't sweep it | — |
 
-I checked findings 1–4 against all 447 inline comments, 281 reviews and 34 issue comments on this PR and found no earlier report of any of them. Finding 2 sharpens the takeover comment's residual-risk row for the "base-alias test fixture". That row rates it fails-closed ("a regular file … is planted and unlinked"). The measured blast radius is larger, details below.
+Prior-art check: I compared these against all 447 inline comments, 281 reviews and 34 issue comments, including the round-25 `/review` posted at 14:56 UTC while this verification was running.
+
+- **Findings 1, 3 and 4:** I found no earlier report. Round 25's deferral list elides 14 entries, so I can only vouch for the visible ones.
+- **Finding 2** is round 25's deferred item `capture-tui.test.ts:1317` ("Four new probe-seam fixtures create the host's **real**…"). It is also the takeover comment's residual-risk row "base-alias test fixture". Both rate it fails-closed. **What's new here is execution evidence that it isn't fails-closed**, plus a verified fix for all four sites.
 
 ---
 
@@ -45,17 +48,26 @@ I checked findings 1–4 against all 447 inline comments, 281 reviews and 34 iss
   - Make one fake freeze honour the extension (write PNG magic only when `$5` ends in `.png`).
   - Before crediting the rung, run the existing `sniffImageFormat` over the rendered file and degrade to `ans-only` when it doesn't sniff as `png`. This also guards against any future freeze behaviour change.
 
-#### 2. Should-fix (test-only): the base-alias fixture creates the real `/tmp/tmux-<uid>` with 0755
+#### 2. Should-fix (test-only): four fixtures create the real `/tmp/tmux-<uid>` with 0755 — not fails-closed in effect
 
 ![finding 2](fig3-socket-dir-0755.png)
 
-- **Where.** `capture-tui.test.ts:822` sets `TMUX_TMPDIR='/tmp/'` ("visits a base once even when two candidate strings name it"). Its fake tmux (`:800`) runs `mkdir -p "${TMUX_TMPDIR}/tmux-$(id -u)"` with the default umask.
-- **Effect.** On a host where that directory doesn't exist yet (a fresh container, a CI box, or no tmux since boot), the test creates the **real** socket dir as `drwxr-xr-x`. From then on, every real tmux for that uid fails with `directory /tmp/tmux-1000 has unsafe permissions` (exit 1). That includes the developer's own `tmux` after a local test run, until they remove or chmod the directory.
+- **Where.** Four fake-tmux scripts run `mkdir -p` on the **real** socket dir with the default umask:
+  - `capture-tui.test.ts:800`: `"${TMUX_TMPDIR}/tmux-$(id -u)"`, with `TMUX_TMPDIR='/tmp/'` set at `:822` ("visits a base once…").
+  - `:971` and `:1064`: `"/tmp/tmux-$(id -u)"`.
+  - `:1321`: `/tmp/tmux-${uid}`.
+- **Effect.** On a host where that directory doesn't exist yet (a fresh container, a CI box, or no tmux since boot), **each of the four**, run alone, creates the **real** socket dir as `drwxr-xr-x`. From then on, every real tmux for that uid fails with `directory /tmp/tmux-1000 has unsafe permissions` (exit 1). That includes the developer's own `tmux` after a local test run, until they remove or chmod the directory.
 - **Measured as non-root.** I used a user namespace (uid 0 → 1000, no capabilities); this also un-skips the three uid-0-gated tests.
-  - Directory absent at the start: **67 failed | 262 passed | 1 skipped**, all from the unsafe-permissions refusal. 0 failures come before the alias test in file order and 67 after it.
+  - Directory absent at the start, full file: **67 failed | 262 passed | 1 skipped**, all from the unsafe-permissions refusal. In file order, 0 failures come before the first creating fixture (`:800`) and 67 after it.
   - Directory pre-created 0700 by real tmux: **329 passed | 1 skipped**.
   - CI is green presumably because the directory already exists by the time this test runs there. The absent-directory shape is never exercised.
-- **Fix, verified.** Change it to `mkdir -p -m 700 …` at `:800`. The same pattern also appears at `:883`, `:1156`, `:1412` and `:1622`, which are harmless under their mkdtemp bases. With the directory absent at the start, the run then gives **329 passed | 1 skipped** and the directory comes out `drwx------`.
+- **Fix, verified.** Use `mkdir -p -m 700 …` at all four sites.
+  - Each fixture alone now leaves `drwx------`.
+  - The full trio with the directory absent at the start gives **329 passed | 1 skipped**.
+  - The same `mkdir -p` under mkdtemp bases (`:883`, `:1156`, `:1412`, `:1622`) is harmless.
+  - The candidate diff is in `harness/candidate-fix-f2.diff`.
+
+![finding 2, four sites](fig3b-four-sites.png)
 
 #### 3. Suggestion: the PNG rung is not column-faithful on this Linux host
 
@@ -109,5 +121,5 @@ Real-product capture: qwen's own TUI (`node dist/cli.js`, fake key, isolated HOM
 Harness scripts, transcripts and the candidate diff are in [`pr-9273/`](.) on the assets branch:
 
 - `harness/run-e2e.sh` runs S1–S8.
-- `harness/finding1.sh` and `harness/finding2.sh` reproduce the two findings.
+- `harness/finding1.sh`, `harness/finding2.sh` and `harness/finding2b.sh` reproduce the findings.
 - `harness/render.cjs` renders the figures.

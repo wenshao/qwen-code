@@ -1,6 +1,6 @@
 ## 维护者验证 — PR #9273 @ `5936b9f118`（真实 tmux + 真实 freeze，构建产物 CLI）
 
-**结论：暂不宜按现状合入。有一个阻断缺陷，它的一行修复我已验证。** 只要装了真实的 `freeze`，`png` 证据档位实际写出的就是 **SVG** 文件。其余我端到端跑过的行为都与文件头契约一致：tmux 隔离、拒绝契约、`--until`/`--ready`/`--keys`、信号回收，以及 `review cleanup` 的孤儿清扫。另外建议合入前修一处测试卫生问题：有个测试夹具会以不安全权限创建宿主真实的 tmux socket 目录。
+**结论：暂不宜按现状合入。有一个阻断缺陷，它的一行修复我已验证。** 只要装了真实的 `freeze`，`png` 证据档位实际写出的就是 **SVG** 文件。其余我端到端跑过的行为都与文件头契约一致：tmux 隔离、拒绝契约、`--until`/`--ready`/`--keys`、信号回收，以及 `review cleanup` 的孤儿清扫。另外建议合入前修一处测试卫生问题：有四个测试夹具会以不安全权限创建宿主真实的 tmux socket 目录。第 25 轮把它按 fails-closed 延后了，但它实际会让真实 tmux 不可用。
 
 ### 环境
 
@@ -14,11 +14,14 @@
 | # | 级别 | 内容 | 修复已验证？ |
 | --- | --- | --- | --- |
 | 1 | **阻断** | 用真实 `freeze` 时，manifest 写着 `evidence: "png"`，`<out>.png` 实为 **SVG XML**，而且会被仓库自己的发布闸门拒收 | ✅ 一行；`capture-tui` 套件结果不变（178 ✔ / 4 skip） |
-| 2 | 建议合入前修（仅测试） | base-alias 夹具以 0755 创建宿主**真实**的 `/tmp/tmux-<uid>`。之后真实 tmux（包括开发者自己的）会拒绝该目录，并连锁导致后续 67 个测试失败 | ✅ `mkdir -p -m 700`；329 过 / 1 跳 |
+| 2 | 建议合入前修（仅测试） | 四个夹具以 0755 创建宿主**真实**的 `/tmp/tmux-<uid>`。之后真实 tmux（包括开发者自己的）会拒绝该目录，并连锁导致后续 67 个测试失败。第 25 轮把它按 *fails-closed* 延后了，但实测并非如此 | ✅ 四处 `mkdir -p -m 700`；329 过 / 1 跳 |
 | 3 | 建议 | 本 Linux 主机上 freeze 默认字体是比例字体，PNG 里的列对不齐；freeze 还会丢掉反色和背景色 | ✅ `--font.family monospace` 恢复对齐 |
 | 4 | 细节 | 被 SIGKILL 的启动进程会在 `$TMPDIR` 留下零字节的 `qwen-capture-ready-<pid>-<nonce>`，`review cleanup` 不清它 | — |
 
-我对照了本 PR 全部 447 条行内评论、281 个 review 和 34 条 issue 评论，没有找到 1–4 的任何既有报告。第 2 条是对 takeover 评论里风险表 "base-alias test fixture" 一行的补充：那一行把它评为 fails-closed（"只是放置并删除一个普通文件"），但实测影响范围更大，见下文。
+既有报告核对：我对照了全部 447 条行内评论、281 个 review 和 34 条 issue 评论，也包括本次验证进行中于 14:56 UTC 发布的第 25 轮 `/review`。
+
+- **第 1、3、4 条：** 没有找到既有报告。第 25 轮延后列表省略了 14 条，所以我只能对可见条目负责。
+- **第 2 条**就是第 25 轮延后项 `capture-tui.test.ts:1317`（"Four new probe-seam fixtures create the host's **real**…"），也是 takeover 评论风险表里的 "base-alias test fixture" 一行。两处都评为 fails-closed。**这里新增的是执行证据：它并非 fails-closed**，并附上四处都已验证的修复。
 
 ---
 
@@ -45,17 +48,26 @@
   - 让某个假 freeze 按扩展名行事（仅当 `$5` 以 `.png` 结尾时才写 PNG 魔数）。
   - 在记档前用现有的 `sniffImageFormat` 嗅探渲染结果，不是 `png` 就降级为 `ans-only`。这样也能防住 freeze 将来的行为变化。
 
-#### 2. 建议合入前修（仅测试）：base-alias 夹具以 0755 创建真实的 `/tmp/tmux-<uid>`
+#### 2. 建议合入前修（仅测试）：四个夹具以 0755 创建真实的 `/tmp/tmux-<uid>`——实际并非 fails-closed
 
 ![finding 2](fig3-socket-dir-0755.png)
 
-- **位置。** `capture-tui.test.ts:822`（"visits a base once even when two candidate strings name it"）把 `TMUX_TMPDIR` 设为 `'/tmp/'`。它的假 tmux（`:800`）用默认 umask 执行 `mkdir -p "${TMUX_TMPDIR}/tmux-$(id -u)"`。
-- **后果。** 在该目录尚不存在的主机上（全新容器、CI 机器，或开机后还没用过 tmux），这个测试会把**真实**的 socket 目录建成 `drwxr-xr-x`。此后该 uid 的所有真实 tmux 都会报 `directory /tmp/tmux-1000 has unsafe permissions`（exit 1）。这也包括开发者本地跑完测试后自己的 `tmux`，直到手动删除或 chmod 该目录。
+- **位置。** 四个假 tmux 脚本用默认 umask 对**真实** socket 目录执行 `mkdir -p`：
+  - `capture-tui.test.ts:800`：`"${TMUX_TMPDIR}/tmux-$(id -u)"`，并在 `:822` 设置 `TMUX_TMPDIR='/tmp/'`（"visits a base once…"）。
+  - `:971` 与 `:1064`：`"/tmp/tmux-$(id -u)"`。
+  - `:1321`：`/tmp/tmux-${uid}`。
+- **后果。** 在该目录尚不存在的主机上（全新容器、CI 机器，或开机后还没用过 tmux），**四个夹具中任一个单独运行**，都会把**真实**的 socket 目录建成 `drwxr-xr-x`。此后该 uid 的所有真实 tmux 都会报 `directory /tmp/tmux-1000 has unsafe permissions`（exit 1）。这也包括开发者本地跑完测试后自己的 `tmux`，直到手动删除或 chmod 该目录。
 - **以非 root 实测。** 我用 user namespace（uid 0 → 1000，无 capability）运行，这同时也解除了三个 uid-0 门控的跳过。
-  - 开始时目录不存在：**67 failed | 262 passed | 1 skipped**，全部是这个"不安全权限"拒绝。按文件顺序，alias 测试之前 0 个失败，之后 67 个。
+  - 开始时目录不存在、跑整个文件：**67 failed | 262 passed | 1 skipped**，全部是这个"不安全权限"拒绝。按文件顺序，第一个建目录的夹具（`:800`）之前 0 个失败，之后 67 个。
   - 目录由真实 tmux 预先以 0700 创建：**329 passed | 1 skipped**。
   - CI 是绿的，推测是因为在 CI 上跑到这个测试时目录已经存在；"目录不存在"这种情形从未被覆盖到。
-- **修复（已验证）。** 把 `:800` 改为 `mkdir -p -m 700 …`。同样的写法在 `:883`、`:1156`、`:1412`、`:1622` 也有，但它们用的是 mkdtemp 目录，没有危害。改后在"开始时目录不存在"的条件下跑出 **329 passed | 1 skipped**，目录为 `drwx------`。
+- **修复（已验证）。** 四处都改为 `mkdir -p -m 700 …`。
+  - 每个夹具单独运行后，目录都是 `drwx------`。
+  - 三个套件在"开始时目录不存在"的条件下跑出 **329 passed | 1 skipped**。
+  - mkdtemp 目录下的同类写法（`:883`、`:1156`、`:1412`、`:1622`）没有危害。
+  - 候选 diff 见 `harness/candidate-fix-f2.diff`。
+
+![finding 2, four sites](fig3b-four-sites.png)
 
 #### 3. 建议：本 Linux 主机上 PNG 档位的列位置不可信
 
@@ -109,5 +121,5 @@
 harness 脚本、记录和候选 diff 都在 assets 分支的 [`pr-9273/`](.) 目录：
 
 - `harness/run-e2e.sh` 跑 S1–S8。
-- `harness/finding1.sh`、`harness/finding2.sh` 复现两条发现。
+- `harness/finding1.sh`、`harness/finding2.sh`、`harness/finding2b.sh` 复现各条发现。
 - `harness/render.cjs` 渲染图片。
