@@ -1,0 +1,20 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationRecoveryMySqlIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationRecoveryMySqlIT.java
+index d2ea447227..d63aa209c0 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationRecoveryMySqlIT.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ToolPublicationRecoveryMySqlIT.java
+@@ -37,7 +37,14 @@ class ToolPublicationRecoveryMySqlIT {
+         admin = new JdbcTemplate(new DriverManagerDataSource(url, user, password));
+         schema = "publication_recovery_" + UUID.randomUUID().toString().replace("-", "");
+         admin.execute("CREATE DATABASE " + schema);
+-        return new DriverManagerDataSource(url.replaceFirst("/[^/?]+(?=\\?|$)", "/" + schema), user, password);
++        String scoped = url.replaceFirst("/[^/?]+(?=\\?|$)", "/" + schema);
++        // Decode DATETIME in a zone 8h away from the database session zone, so
++        // JDBC-local and SQL Unix epochs diverge even on a UTC runner.
++        Integer offset = admin.queryForObject(
++                "SELECT TIMESTAMPDIFF(MINUTE, UTC_TIMESTAMP(), NOW())", Integer.class);
++        String zone = offset != null && offset == 480 ? "UTC" : "Asia/Shanghai";
++        return new DriverManagerDataSource(scoped + (scoped.contains("?") ? "&" : "?")
++                + "connectionTimeZone=" + zone, user, password);
+     }
+ 
+     @ParameterizedTest

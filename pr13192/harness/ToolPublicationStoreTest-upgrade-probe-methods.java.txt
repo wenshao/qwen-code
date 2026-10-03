@@ -1,0 +1,65 @@
+
+    // ---- Local upgrade probe (not part of the PR) ----
+    void upgradeProbePhase1(Path stateFile) throws Exception {
+        reserve();
+        ObjectNode state = JSON.createObjectNode();
+        state.set("renew", request("renew"));
+        state.set("reserveReplay", request("reserve"));
+        ObjectNode second = addSecondExecution();
+        ObjectNode next = request("reserve");
+        next.set("binding", second);
+        state.set("reserveSecond", next);
+        state.put("pub1ExpiresAt", jdbc.queryForObject(
+                "SELECT expires_at FROM qwen_tool_publication WHERE publication_id = 'pub-1'", Long.class));
+        state.put("sqlEpochNow", jdbc.queryForObject(
+                "SELECT UNIX_TIMESTAMP() * 1000 + EXTRACT(MICROSECOND FROM CURRENT_TIMESTAMP(6)) DIV 1000", Long.class));
+        state.put("jvmZone", java.util.TimeZone.getDefault().getID());
+        Files.writeString(stateFile, state.toString());
+    }
+
+    static void upgradeProbePhase2(javax.sql.DataSource source, Path stateFile, String order, Path outFile)
+            throws Exception {
+        JdbcTemplate jdbc = new JdbcTemplate(source);
+        DataSourceTransactionManager manager = new DataSourceTransactionManager(source);
+        ManagedSessionStore sessions = new ManagedSessionStore(jdbc);
+        var bindings = new JdbcRuntimeBindingRepository(source, new AesGcmSecretProtector("key", new byte[32]),
+                () -> "binding-1");
+        var executions = new JdbcToolExecutionRepository(source);
+        var store = new ToolPublicationStore(jdbc, manager, sessions, executions, bindings,
+                new ToolPublicationStore.Capacity(CAPTURE_BYTES * 2, 10 * ALLOCATION, 10 * ALLOCATION, 10));
+        JsonNode state = JSON.readTree(Files.readString(stateFile));
+        ObjectNode out = JSON.createObjectNode();
+        out.put("jvmZone", java.util.TimeZone.getDefault().getID());
+        out.set("phase1", state.deepCopy().without(java.util.List.of("renew", "reserveReplay", "reserveSecond")));
+        var steps = out.putArray("steps");
+        for (String op : order.split(",")) {
+            ObjectNode step = steps.addObject().put("op", op);
+            try {
+                JsonNode result = switch (op) {
+                    case "dispatch" -> store.verifyDispatch(executions.findByExecutionCallId("execution-1"),
+                            "pub-1", PUBLICATION_TOKEN);
+                    case "replay" -> store.apply(state.get("reserveReplay"), WRITER_TOKEN, PUBLICATION_TOKEN);
+                    case "reserve2" -> store.apply(state.get("reserveSecond"), WRITER_TOKEN, PUBLICATION_TOKEN);
+                    case "renew" -> store.apply(state.get("renew"), WRITER_TOKEN, PUBLICATION_TOKEN);
+                    default -> throw new IllegalArgumentException(op);
+                };
+                step.put("result", "ok");
+                if (result.has("state")) {
+                    step.put("grantState", result.path("state").asText());
+                }
+            } catch (RuntimeException error) {
+                step.put("result", "refused").put("message", String.valueOf(error.getMessage()));
+            }
+            var pub1 = jdbc.queryForMap("SELECT state, expires_at, capture_held_bytes FROM qwen_tool_publication"
+                    + " WHERE publication_id = 'pub-1'");
+            step.put("pub1State", (String) pub1.get("state"));
+            step.put("pub1ExpiresAt", pub1.get("expires_at") == null ? null
+                    : ((Number) pub1.get("expires_at")).longValue());
+            step.put("sqlEpochNow", jdbc.queryForObject(
+                    "SELECT UNIX_TIMESTAMP() * 1000 + EXTRACT(MICROSECOND FROM CURRENT_TIMESTAMP(6)) DIV 1000",
+                    Long.class));
+        }
+        Files.writeString(outFile, out.toPrettyString());
+        System.out.println("UPGRADE_PROBE " + out);
+    }
+}
