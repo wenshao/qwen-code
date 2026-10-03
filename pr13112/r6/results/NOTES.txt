@@ -1,0 +1,17 @@
+Round 6 (head d20a1895) - how to read the scenario logs
+
+lx6/   Linux durable container, head d20a1895: s16 (F5 arms A/B/C/E), s16b (after Spring restart), s15 (L1-L3), s17 (#13194 retention interplay)
+lx5c/  Linux durable container, previous head b9b4da46: s16 arm B only (negative control; reproduces F5)
+t6/    macOS stack, head d20a1895
+real6/ macOS stack with qwen3.8-max
+
+Rig notes (not product findings):
+- t6/s1 ws-a: its 5 FAILs are archive/unarchive/delete of an ACTIVE Session answering 409 session_state_conflict
+  (main #13194) where the round-5 probe expected 409 workspace_unavailable. Probe updated to accept either 409;
+  rerun on ws-b: 50 PASS + 1 FAIL that is a rig miscount (both runs reuse tag t2 in one model log; the ws-b
+  run's own 4 requests all carry the history: userTurns=2, msgs 10..16).
+- t6/s3 ws-i: storage st-i is not mounted on the macOS stack (rig mistake). s3 ws-d is the valid run (approval mode, 15/15).
+- t6/s6 revoke 1/3: same as round 5; the 3 FAILs are the F1 assertions (cancel 409, Turn still completes).
+- t6/s7-ui-head-oldsession-F2: the panel ran on a Session created before three Spring restarts; on the non-durable
+  macOS stack its later Turn hit F2 (FAILED hosted_harness_unavailable after 33 s). s7-ui-head is the rerun on a
+  fresh Session (7/7). The probe now waits for the new Turn row before waiting for its outcome.

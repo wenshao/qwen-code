@@ -32,6 +32,7 @@ if (ARM === 'head' && hasComposer) {
   const before = turnRow(S).length;
   await composer(a.page).fill('G_FILES name=ui.txt tag=ui1');
   await a.page.getByRole('button', { name: /^Send$/ }).click();
+  for (let i = 0; i < 200 && turnRow(S).length === before; i++) await sleep(100); // round 6: wait for the new Turn row first
   const t = await waitTurn(S, { timeoutMs: 90_000 });
   r.check('creator sends a later Turn from the panel -> COMPLETED, ui.txt written', turnRow(S).length === before + 1 && t.status === 'COMPLETED' && readWs(ST, 'child/ui.txt') === 'after-ui1', `${j(t)} ${readWs(ST, 'child/ui.txt')}`);
   const submit = calls(a.net, '/turns/submit').at(-1);

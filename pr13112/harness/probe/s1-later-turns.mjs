@@ -142,11 +142,11 @@ for (const [method, path, body, label] of [
   ['DELETE', `/v1/agents/sessions/${S}`, undefined, 'delete'],
 ]) {
   const x = await api(method, path, body, { actor: 'alice', key: k(label) });
-  r.check(`creator ${label} (public) -> 409 workspace_unavailable`, x.status === 409 && x.json.error?.code === 'workspace_unavailable', `${x.status} ${x.json.error?.code ?? j(x.json).slice(0, 120)}`);
+  r.check(`creator ${label} (public) -> 409 (${label === 'close' ? 'workspace_unavailable' : 'workspace_unavailable|session_state_conflict'})`, x.status === 409 && (x.json.error?.code === 'workspace_unavailable' || (label !== 'close' && x.json.error?.code === 'session_state_conflict')), `${x.status} ${x.json.error?.code ?? j(x.json).slice(0, 120)}`);
 }
 for (const op of (process.env.CLOSE_OPEN ? ['archive', 'delete'] : ['close', 'archive', 'delete'])) {
   const x = await api('POST', `/api/agent/web-shell/v1/sessions/${op}`, { sessionId: S, idempotencyKey: k(`ws-${op}`) }, { actor: 'alice' });
-  r.check(`creator ${op} (WebShell) -> 409 workspace_unavailable`, x.status === 409 && x.json.error?.code === 'workspace_unavailable', `${x.status} ${x.json.error?.code ?? j(x.json).slice(0, 120)}`);
+  r.check(`creator ${op} (WebShell) -> 409 (${op === 'close' ? 'workspace_unavailable' : 'workspace_unavailable|session_state_conflict'})`, x.status === 409 && (x.json.error?.code === 'workspace_unavailable' || (op !== 'close' && x.json.error?.code === 'session_state_conflict')), `${x.status} ${x.json.error?.code ?? j(x.json).slice(0, 120)}`);
 }
 r.check('Session still ACTIVE', one(`SELECT status FROM managed_agent_session WHERE session_id='${S}'`) === 'ACTIVE', '');
 r.note('Turn history', j(turnRow(S)));

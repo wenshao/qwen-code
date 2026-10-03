@@ -138,6 +138,27 @@ figs['09-r5'] = page(
   ]) +
   '<div class="note bad">Path B needs a later Turn, which only this PR allows; on main a bound Session can only take path A. The refusal comes from <code>RuntimeBrokerService.drainBinding</code> (main, #13135): a LOST binding always answers “Original worker needs recovery”. Other storages are unaffected.</div>',
 );
+figs['10-r6'] = page(
+  'Round 6 — re-verified at d20a1895 (F5 fix 8953b8ff + main 623cfc67: #13194 archive/delete, #13142, #12582 …)',
+  'Linux colima container with the durable local-process Broker for F5 and the close/retention interplay; macOS stack for the PR scenarios. Same probes as round 5; the round-5 head is the control.',
+  '<h2>F5 on Linux durable — same probe, previous head vs this head</h2>' +
+  table(['Arm (fresh storage each)', 'b9b4da46 (round 5)', 'd20a1895 (this round)'], [
+    ['A  kill -9 worker → close', P('completed'), P('completed 449 ms · storage OK')],
+    ['B  kill -9 worker → 1 later Turn (LOST) → close', F('recovery_blocked · CLOSING · new Session FAILED'), P('completed 427 ms · binding RELEASED with drain receipt · new Session COMPLETED')],
+    ['C  SIGSTOP worker (alive, frozen) → later Turn → close', '—', P('Turn failed at 30 s · close completed 5.5 s · frozen worker gone · storage OK')],
+    ['E  kill -9 worker → 3 later Turns → close', '—', P('completed 444 ms · one LOST binding, released · storage OK')],
+    ['Spring restart, then a new Session on every F5 storage', F('still FAILED'), P('4 / 4 COMPLETED')],
+  ]) +
+  table(['Also re-checked on this head', 'Result'], [
+    ['Linux L1–L3 (later Turn then close · close while a Turn runs · dead worker)', P('9 / 9')],
+    ['main #13194 on a bound Session: close → archive → unarchive → delete', P('5 / 5: later Turn / WebShell submit / rename refused at every stage (409), no Turn added; a later Turn racing an accepted close → 409; unarchive response capabilities = sessions/get')],
+    ['macOS PR scenarios', P('core 51 / 51 · lost cancel re-sent 1 / 1 · rename receipt 1 / 1 · approvals 15 / 15 · opt-in off 6 / 6 · panel 7 / 7 · real model 5 / 5')],
+    ['Mutation (4 F5 mutants + round-5 survivors S2, K3)', P('6 / 6 killed — S2 and K3 by the new assertions')],
+    ['Unit · CI', P('managed-agent 478 / 478 · broker 596 (2 skipped) · CI HostedPublicWorkspaceIT 4 / 4, ToolTurnIT 8 / 8, HostedProcessCrashIT 1 / 1')],
+    ['F1 cancel while the grant is revoked', A('unchanged: honest 409; the running Turn still completes')],
+    ['F2 worker gone (macOS, non-durable)', F('unchanged: after a Spring restart an older Session’s later Turn fails at 33 s (hosted_harness_unavailable)')],
+  ]),
+);
 fs.writeFileSync(`${OUT}/cards.json`, JSON.stringify(Object.keys(figs)));
 export { figs, page, table, P, F, A, N, OUT };
 
