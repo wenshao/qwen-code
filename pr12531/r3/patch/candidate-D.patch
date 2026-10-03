@@ -1,0 +1,165 @@
+diff --git packages/core/src/permissions/mcp-cut-registration.test.ts packages/core/src/permissions/mcp-cut-registration.test.ts
+index 568a760..4510401 100644
+--- packages/core/src/permissions/mcp-cut-registration.test.ts
++++ packages/core/src/permissions/mcp-cut-registration.test.ts
+@@ -89,6 +89,16 @@ describe('wildcards copied from a budget-cut registration (R18-1)', () => {
+     }
+   });
+ 
++  it('restricts a sibling key that shares the cut (fail-closed, as on main)', async () => {
++    const own = prodTool(URL52, 'deploy');
++    const sibling = prodTool(URL60, 'deploy');
++    const deny = new PermissionManager(
++      makeConfig({ permissionsDeny: [own.name.slice(0, 56) + '*'] }),
++    );
++    deny.initialize();
++    expect(await deny.evaluate(ctxOf(sibling))).toBe('deny');
++  });
++
+   it('never grants: allow on a cut prefix reaches neither the tool nor a sibling key', async () => {
+     const own = prodTool(URL52, 'deploy');
+     const sibling = prodTool(URL60, 'deploy');
+@@ -132,6 +142,8 @@ describe('wildcards copied from a budget-cut registration (R18-1)', () => {
+     ['a bare `*`', () => '*'],
+     // An exact entry for a different hash suffix is not a prefix rule.
+     ['an exact foreign suffix', (name: string) => name.slice(0, -1) + 'Z'],
++    // A wildcard that is not a literal prefix of this registration.
++    ['an unrelated server wildcard', () => 'mcp__github__*'],
+   ])('%s does not enter the fallback for a cut registration', (_, rule) => {
+     const tool = prodTool(URL52, 'deploy');
+     expect(
+@@ -144,3 +156,73 @@ describe('wildcards copied from a budget-cut registration (R18-1)', () => {
+     ).toBe(false);
+   });
+ });
++
++// The split reads `mcp__foo____*` as server `foo` and `mcp__a__b___*` as
++// server `a`, so an identity-threaded wildcard whose tool side is pure
++// underscores loses the key it was copied from when that key ends in `_` or
++// contains `__` (sandbox F13, R17-1). Grants keep the split's reading.
++describe('pure-underscore prefixes the split misreads (F13 / R17-1)', () => {
++  it.each([
++    ['foo_', '__x', 'mcp__foo_____*'],
++    ['foo_', '_internal', 'mcp__foo____*'],
++    ['foo__', '_internal', 'mcp__foo_____*'],
++    ['foo__', '__x', 'mcp__foo______*'],
++    ['a_', '_b', 'mcp__a____*'],
++    ['a__b', '_hidden', 'mcp__a__b___*'],
++    ['my__svc', '_internal', 'mcp__my__svc___*'],
++  ])(
++    'restrictive rules keep covering %s / %s under %s, grants do not',
++    async (server, name, rule) => {
++      const tool = prodTool(server, name);
++      // The rule is a literal prefix of the tool's own registered name.
++      expect(tool.name.startsWith(rule.slice(0, -1))).toBe(true);
++      const ctx = ctxOf(tool);
++      expect(
++        matchesToolPattern(
++          rule,
++          tool.name,
++          tool.permissionAliases,
++          ctx.mcpIdentity,
++        ),
++      ).toBe(true);
++      const deny = new PermissionManager(
++        makeConfig({ permissionsDeny: [rule] }),
++      );
++      deny.initialize();
++      expect(await deny.evaluate(ctx)).toBe('deny');
++      expect(
++        await deny.isToolEnabled(
++          tool.name,
++          tool.permissionAliases,
++          ctx.mcpIdentity,
++        ),
++      ).toBe(false);
++      const ask = new PermissionManager(makeConfig({ permissionsAsk: [rule] }));
++      ask.initialize();
++      expect(await ask.evaluate(ctx)).toBe('ask');
++      const allow = new PermissionManager(
++        makeConfig({ permissionsAllow: [rule] }),
++      );
++      allow.initialize();
++      expect(await allow.evaluate(ctx)).toBe('default');
++    },
++  );
++
++  it('a foreign tool prefix at the key own boundary stays unmatched', async () => {
++    const tool = prodTool('foo_', '_internal');
++    const ctx = ctxOf(tool);
++    expect(
++      matchesToolPattern(
++        'mcp__foo___zz*',
++        tool.name,
++        tool.permissionAliases,
++        ctx.mcpIdentity,
++      ),
++    ).toBe(false);
++    const deny = new PermissionManager(
++      makeConfig({ permissionsDeny: ['mcp__foo___zz*'] }),
++    );
++    deny.initialize();
++    expect(await deny.evaluate(ctx)).toBe('default');
++  });
++});
+diff --git packages/core/src/permissions/rule-parser.ts packages/core/src/permissions/rule-parser.ts
+index fd16948..63312a6 100644
+--- packages/core/src/permissions/rule-parser.ts
++++ packages/core/src/permissions/rule-parser.ts
+@@ -2000,12 +2000,17 @@ function matchesRestrictiveMcpName(
+   );
+ }
+ 
+-// `normalizeToolNameForProvider` keeps 55 characters + `_<hash>`, so a long
+-// or unsafe key loses its `__` separator in the registered name and the
+-// identity wildcard arm has no boundary to place a rule copied from it.
+-// Restrictive rules keep main's literal prefix match on that registered name;
+-// like the exact fallback above, this must never grant permission (R18-1).
+-function matchesRestrictiveCutRegistration(
++// A restrictive wildcard that is a literal prefix of the tool's registered
++// name keeps main's match wherever the identity arm cannot place it:
++// - `normalizeToolNameForProvider` keeps 55 characters + `_<hash>`, so a long
++//   or unsafe key loses its `__` separator and a rule copied from the
++//   registered name has no boundary at all (R18-1);
++// - a rule that starts at this key's own boundary with a pure-underscore tool
++//   side (`mcp__foo____*` for key `foo_`, `mcp__a__b___*` for key `a__b`) is
++//   read as the split's server (`foo`, `a`), so an `allow` written for that
++//   other key never reaches this one (R17-1).
++// Like the exact fallback above, this must never grant permission.
++function matchesRestrictiveRegisteredPrefix(
+   pattern: string,
+   toolName: string,
+   identity: McpToolIdentity | undefined,
+@@ -2017,10 +2022,12 @@ function matchesRestrictiveCutRegistration(
+   ) {
+     return false;
+   }
++  const prefix = pattern.slice(0, -1);
+   const registeredServerPrefix = `mcp__${identity.serverName.replace(/[^A-Za-z0-9_-]/g, '_')}__`;
+   return (
+-    !toolName.startsWith(registeredServerPrefix) &&
+-    toolName.startsWith(pattern.slice(0, -1))
++    toolName.startsWith(prefix) &&
++    (!toolName.startsWith(registeredServerPrefix) ||
++      prefix.startsWith(registeredServerPrefix))
+   );
+ }
+ 
+@@ -2060,7 +2067,7 @@ export function matchesToolPattern(
+     ) ||
+     matchesAdvertisedExactName(pattern, toolAliases, rawMcpToolName) ||
+     matchesRestrictiveMcpName(pattern, mcpIdentity) ||
+-    matchesRestrictiveCutRegistration(pattern, toolName, mcpIdentity)
++    matchesRestrictiveRegisteredPrefix(pattern, toolName, mcpIdentity)
+   );
+ }
+ 
+@@ -2147,7 +2154,7 @@ export function matchesRule(
+       (restrictive &&
+         canonicalCtxToolName.startsWith('mcp__') &&
+         (matchesRestrictiveMcpName(rule.toolName, mcpIdentity) ||
+-          matchesRestrictiveCutRegistration(
++          matchesRestrictiveRegisteredPrefix(
+             rule.toolName,
+             canonicalCtxToolName,
+             mcpIdentity,
