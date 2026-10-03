@@ -1,0 +1,20 @@
+scenario	stimulus	result	evidence
+S1 cold start (as PR)	README order: launcher, then 2nd terminal (mvn installs, source spring.env, spring-boot:run)	daemon +6.0s, harness +15.6s, [java] healthy +38.7s, Vite + auto-open +39.6s	out/s1/launcher.log, out/s1/spring.log
+S1 Managed Turn (as PR)	UI send x2	turn.failed hosted_harness_rejected 2/2; Harness POST /session 400 (invalid_managed_session_store)	out/s1/ui.json, out/s1-as-pr/turn.json
+S1' + 3 Session Store exports	same launcher, Spring restarted	turn.completed 7.4s, qwen3.8-max	out/s1-candidate-store/turn.json
+S6 stale Spring	relaunch launcher only	reuse warning x2; Turn failed hosted_harness_rejected (Harness 401)	out/s6-stale-spring/turn.json
+S6 Spring restarted from new spring.env	-	turn.completed 5.9s	out/s6-after-spring-restart/turn.json
+S7 candidate launcher, recipe only	fresh DB, cold	[java] healthy +9.1s; turn.completed 6.4s qwen3.8-max; ordinary panel turn 5s	out/s7-candidate-turn/turn.json
+S4 Ctrl-C (SIGINT)	tmux C-c	15/15 processes gone 4.5s, 4170/4270/5174 free	out/teardown/sigint-full.before
+S4 close tab (SIGHUP)	tmux kill-window	12/12 gone 1.0s	
+S4 Ctrl-\ (SIGQUIT)	tmux C-\	12/12 gone 1.0s	
+S4 SIGTERM	kill -TERM launcher	12/12 gone 1.0s	
+S4 harness/daemon/Vite crash	kill -KILL child	12/12 gone 1.0s each ([harness]/[daemon] exited 137, [web-shell] SIGKILL)	
+S4 Ctrl-C with Turn in flight	model request open	12/12 gone 5.5s (past 5s grace)	out/teardown/midturn2.before
+S4 SIGKILL launcher (documented gap)	kill -KILL launcher	10 survive; daemon+harness+ACP child outlive terminal close; next run 4171/4271	out/teardown/sigkill-launcher.before
+S2 invalid args x10	--bogus, ports 0/70000/abc/equal, tenant, java-url, flag=value	exit 1 in 74-81ms each	out/s2/*.log
+S2 pinned busy ports	--daemon-port busy / --harness-port busy	exit 1 in 86ms / 3.9s (daemon reaped)	out/s2/pinned-*.log
+S3 Java gate	non-Spring 200 / MySQL down / padded URL	waits, no browser / healthy 23s after MySQL back / ERR_INVALID_URL dead wait	out/s3/*/launcher.log
+S5 credentials	stat, live auth, argv scan, planted paths	0600 in 0700 under TMPDIR; token+digest match live harness; no token in argv; symlink dir / 0755 dir / dangling symlink refused	out/s5/*.log
+N2 --java-url port	recipe without SERVER_PORT	Spring binds 8080 regardless (here: Port 8080 was already in use)	out/n2/spring.log
+unit	scripts suite	launcher 78/78 (81/81 with candidate; 3 new fail on PR code); full test:scripts 2762 pass, 2 unrelated load flakes pass alone 469/469; vite-config 20/20; eslint+prettier clean	out/unit-*.log
