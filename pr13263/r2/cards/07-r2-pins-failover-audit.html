@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+#card{width:1240px;padding:28px 32px 26px;box-sizing:border-box;background:#0d1117}
+h1{font-size:25px;margin:0 0 4px;font-weight:650}
+.sub{color:#8b949e;font-size:14.5px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.box{border:1px solid #30363d;border-radius:8px;padding:12px 14px;background:#161b22;min-width:0}
+.box h2{font-size:15.5px;margin:0 0 8px;font-weight:600}
+.bad h2{color:#ff7b72}.good h2{color:#3fb950}.neu h2{color:#79c0ff}.warn h2{color:#d29922}
+pre{margin:0;font:12.6px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;overflow:hidden;color:#c9d1d9}
+table{border-collapse:collapse;width:100%;font-size:13.2px}
+td,th{border-bottom:1px solid #21262d;padding:6px 8px;text-align:left;vertical-align:top}
+th{color:#8b949e;font-weight:600}
+code{font:12.4px ui-monospace,SFMono-Regular,Menlo,monospace;color:#e6edf3}
+.ok{color:#3fb950;font-weight:600}.no{color:#ff7b72;font-weight:600}.am{color:#d29922;font-weight:600}
+.note{margin-top:16px;border-left:3px solid #388bfd;padding:6px 12px;color:#c9d1d9;font-size:14px;line-height:1.5}
+.full{grid-column:1 / span 2}</style></head><body><div id="card"><h1>Pin test mutants, session-failover shape, new audit message</h1><div class="sub">Pin mutants run in a mirror directory (copied scripts/, symlinked node_modules) with only the runner file swapped.</div><div class="grid">
+  <div class="box neu"><h2>"pins the G0 workspace admission" — 7/8 mutants killed</h2><table>
+  <tr><th>runner variant</th><th>pin test</th></tr>
+  <tr><td>P0 head (control)</td><td class="ok">pass (control)</td></tr><tr><td>P1 merge-base runner</td><td class="ok">killed</td></tr><tr><td>P2 first PR commit 8e1375c380</td><td class="ok">killed</td></tr><tr><td>P3 re-gate actor header (first Spring)</td><td class="ok">killed</td></tr><tr><td>P4 re-gate workspace files (replacement Spring)</td><td class="ok">killed</td></tr><tr><td>P5 re-gate broker flags (replacement Harness)</td><td class="ok">killed</td></tr><tr><td>P6 re-gate mount-root mkdir</td><td class="ok">killed</td></tr><tr><td>P7 re-gate registry/access seeding</td><td class="ok">killed</td></tr><tr><td>P8 re-gate Spring mount arguments</td><td class="am">SURVIVES</td></tr>
+  </table><div style="color:#8b949e;font-size:13px;margin-top:8px">P8 at runtime: <code>--session-failover</code> → <code>Spring Managed Agent Server exited early</code> (Hosted Workspace files require a supported Harness, Session …), so the new CI step catches what the pin misses.</div></div>
+  <div class="box neu"><h2>--session-failover: same shape, run-to-run count noise</h2><table>
+  <tr><th>arm</th><th>journal rev</th><th>committed seq</th><th>gen / terminals / ctx</th></tr>
+  <tr><td>R1 head 8e1375</td><td>10 -&gt; 19</td><td>11 -&gt; 22</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R1 head 8e1375</td><td>10 -&gt; 18</td><td>11 -&gt; 21</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R1 base</td><td>10 -&gt; 19</td><td>11 -&gt; 22</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R1 base</td><td>11 -&gt; 20</td><td>12 -&gt; 23</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R2 head 9f0da8</td><td>11 -&gt; 21</td><td>12 -&gt; 24</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R2 head 9f0da8</td><td>11 -&gt; 20</td><td>12 -&gt; 23</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R2 head 9f0da8</td><td>11 -&gt; 20</td><td>12 -&gt; 23</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R2 base</td><td>11 -&gt; 20</td><td>12 -&gt; 23</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R2 base</td><td>11 -&gt; 20</td><td>12 -&gt; 23</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R2 head 8e1375</td><td>11 -&gt; 20</td><td>12 -&gt; 23</td><td>1 -&gt; 2 / 2 / true</td></tr><tr><td>R2 head 9f0da8</td><td>11 -&gt; 20</td><td>12 -&gt; 23</td><td>1 -&gt; 2 / 2 / true</td></tr>
+  </table><div style="color:#8b949e;font-size:13px;margin-top:8px">Journal operation sets identical on base, 8e1375c380 and 9f0da8a14b; Session unbound (workspace_id NULL) on all three. Counts move ±1–2 with <code>renewActivation</code> timing (1 s writer lease) within each arm.</div></div>
+  <div class="box warn full"><h2>New audit failure message (prompt invites a listing; model calls write_file(managed-agent-real-e2e.txt) + read_file(.))</h2><pre>Error: Tool execution audit failed: 2,SETTLED
+  18a643b1-9ec4-4dcf-8d32-9bb99c2e5f2a	598c3969-8b3a-4450-a7ae-708225468911	SETTLED
+  dea6fc8d-268b-4c2b-a8c7-bc18ca486f13	a4410fa2-e200-49fb-a418-cfe1068528e0	SETTLED
+
+two tool_call_ids -&gt; "another tool call", but not which tool, and not that one row is execution_status=error</pre></div></div></div></body></html>
