@@ -1,0 +1,42 @@
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -2461,6 +2461,31 @@
+           );
+         },
+       );
++  };
++
++  // A handback that failed after the cancellation was answered has no later
++  // route to retry it: the coordinator saw 200 and sends nothing more, and
++  // the Workspace stays pinned until the Session closes. Retry it here with
++  // backoff until the release is confirmed or the Session is gone.
++  const retryOwedHandback = (
++    sessionId: string,
++    session: HostedSession,
++    attempt = 0,
++  ): void => {
++    if (attempt >= 10) return;
++    const timer = setTimeout(
++      () => {
++        if (
++          sessions.get(sessionId) !== session ||
++          session.runtimeLeaseHeld === undefined
++        )
++          return;
++        if (!session.active) releaseRecoveredRuntime(session);
++        retryOwedHandback(sessionId, session, attempt + 1);
++      },
++      Math.min(30_000, 1_000 * 2 ** attempt),
++    );
++    timer.unref();
+   };
+ 
+   // Awaited variant for exits after which no route can retry the handback
+@@ -2882,6 +2907,7 @@
+           // The release discharged the lease the load adopted, or it never
+           // existed; the teardown skips what is now a redundant handback.
+           session.runtimeLeaseHeld = undefined;
++        else retryOwedHandback(sessionId, session);
+         // Answer at the admission watermark: the cancelled turn_result
+         // streams in from there, and a replayed cancel replays it exactly.
+         res.status(200).json({
