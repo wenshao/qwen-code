@@ -1,0 +1,36 @@
+[1mPR #10916 · round 3 · headless A/B @ 72f3d0ae04 merged with main bfb32c780d[0m
+[2mscripted fake model; real shell, git, file tools, stdio MCP server, background agents; every run: qwen -p --approval-mode yolo[0m
+[2mrequests = main-conversation model requests (a normal finish includes one trailing memory-extraction request)[0m
+
+[32m[1mClosed in round 2, re-run at the new head[0m
+[36m[1mS9-distinct[0m R11-1 · MCP gateway: 3 DIFFERENT upstream failures, all ending '... with response: 502 Bad Gateway'
+   main                   requests=8   exit=[32m0[0m  [2mSUMMARY: orders, inventory and checkout each failed upstream; reported the three failures.[0m
+   pr                     requests=8   exit=[32m0[0m  [2mSUMMARY: orders, inventory and checkout each failed upstream; reported the three failures.[0m
+[36m[1mS13[0m R11-2 · background agent: 2 identical errors -> answers -> send_message starts a new prompt -> 1 more
+   main                   background agent: [32mcompleted[0m  [2mBG-DONE: no repository, no tags.[0m
+   pr                     background agent: [32mcompleted[0m  [2mBG-DONE: no repository, no tags.[0m
+
+[32m[1mStill fires where it should (positive controls)[0m
+[36m[1mS1[0m issue shape: varied git commands, the same exit-128 error, reads in between
+   main                   requests=14  exit=[32m0[0m  [2mDONE: I could not read the git history of this directory.[0m
+   pr (rep2)              requests=5   exit=[31m1[0m  [2mLoop detection halted the run (repeated_tool_error ...) — no answer[0m
+   pr (rep3)              requests=5   exit=[31m1[0m  [2mLoop detection halted the run (repeated_tool_error ...) — no answer[0m
+   pr (rep4)              requests=5   exit=[31m1[0m  [2mLoop detection halted the run (repeated_tool_error ...) — no answer[0m
+   [2mfirst pr run: the 'Output: (empty)' glitch hit the 3rd git call, which reset the streak (14 requests, same as main)[0m
+[36m[1mS9-same[0m MCP dead end: varied args, one byte-identical upstream error
+   main                   requests=8   exit=[32m0[0m  [2mSUMMARY: orders, inventory and checkout each failed upstream; reported the three failures.[0m
+   pr                     requests=5   exit=[31m1[0m  [2mLoop detection halted the run (repeated_tool_error ...) — no answer[0m
+
+[33m[1mStill open: productive headless runs end with exit 1 and no answer (round-1 item 2)[0m
+[36m[1mS3b[0m user deny rule run_shell_command(npm *): 3 denials spread over a run
+   main                   requests=9   exit=[32m0[0m  [2mSUMMARY: package.json defines test/build/lint scripts; I could not run them in this mode, but src...[0m
+   pr                     requests=6   exit=[31m1[0m  [2mLoop detection halted the run (repeated_tool_error ...) — no answer[0m
+[36m[1mS8[0m review in a git repo: 3 silent exit-1 probes (git diff --quiet x2, command -v yq)
+   main                   requests=9   exit=[32m0[0m  [2mREVIEW: src/a.js and src/b.js both changed (a: new mul export, b: renamed helper); yq is not inst...[0m
+   pr                     requests=6   exit=[31m1[0m  [2mLoop detection halted the run (repeated_tool_error ...) — no answer[0m
+[36m[1mS4[0m edit -> re-run loop: 2 unsuccessful edits, the 3rd would fix
+   main                   requests=10  exit=[32m0[0m  [2mDONE: config.port is now the number 8080 and `node check.js` passes.[0m
+   pr                     requests=6   exit=[31m1[0m  [2mLoop detection halted the run (repeated_tool_error ...) — no answer[0m
+[36m[1mS10[0m 3 DIFFERENT commands, each hits the same 3000 ms shell timeout
+   main                   requests=8   exit=[32m0[0m  [2mSUMMARY: build, tests and audit each exceed 3s here, so I skipped them; README describes the proj...[0m
+   pr                     requests=5   exit=[31m1[0m  [2mLoop detection halted the run (repeated_tool_error ...) — no answer[0m
