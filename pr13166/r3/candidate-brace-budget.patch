@@ -1,0 +1,352 @@
+diff --git a/packages/cli/src/serve/hosted-glob-budget.test.ts b/packages/cli/src/serve/hosted-glob-budget.test.ts
+new file mode 100644
+index 0000000000..265a22228a
+--- /dev/null
++++ b/packages/cli/src/serve/hosted-glob-budget.test.ts
+@@ -0,0 +1,63 @@
++/**
++ * @license
++ * Copyright 2026 Qwen Team
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++import { createRequire } from 'node:module';
++import path from 'node:path';
++import { describe, expect, it } from 'vitest';
++import {
++  globBraceExpansions,
++  GLOB_PATTERN_MAX_EXPANSIONS,
++} from './hosted-glob-budget.js';
++
++// The minimatch that core's glob actually uses, so the count is compared
++// with the expansion glob performs rather than with a re-implementation.
++const coreRequire = createRequire(
++  createRequire(import.meta.url).resolve(
++    '@qwen-code/qwen-code-core/package.json',
++  ),
++);
++const glob = coreRequire.resolve('glob');
++const { braceExpand } = createRequire(glob)(
++  createRequire(glob).resolve('minimatch', { paths: [path.dirname(glob)] }),
++) as { braceExpand: (pattern: string) => string[] };
++
++describe('globBraceExpansions', () => {
++  it.each([
++    '**/*.ts',
++    '{a,b}/*',
++    '{a,b}{a,b}{c,d,e}/*',
++    'a{b,c}d{e,f,g}',
++    '{a,{b,c}}x',
++    '{a}',
++    '\\{a,b}',
++    '{a,b',
++    '{1..5}',
++    '{1..10..3}',
++    '{01..03}',
++    '{a..e}/*.md',
++    '{src,test}/**/*.{ts,tsx}',
++  ])('matches the expansion glob performs: %s', (pattern) => {
++    expect(globBraceExpansions(pattern)).toBe(braceExpand(pattern).length);
++  });
++
++  it('saturates without enumerating a huge range or product', () => {
++    const started = Date.now();
++    expect(globBraceExpansions('{1..1000000000}/*')).toBe(
++      GLOB_PATTERN_MAX_EXPANSIONS + 1,
++    );
++    expect(globBraceExpansions('{a,b}'.repeat(40))).toBe(
++      GLOB_PATTERN_MAX_EXPANSIONS + 1,
++    );
++    expect(Date.now() - started).toBeLessThan(100);
++  });
++
++  it('admits exactly the limit', () => {
++    expect(globBraceExpansions('{a,b}'.repeat(12) + '/*')).toBe(4096);
++    expect(globBraceExpansions('{a,b}'.repeat(13) + '/*')).toBe(
++      GLOB_PATTERN_MAX_EXPANSIONS + 1,
++    );
++  });
++});
+diff --git a/packages/cli/src/serve/hosted-glob-budget.ts b/packages/cli/src/serve/hosted-glob-budget.ts
+new file mode 100644
+index 0000000000..705c06622b
+--- /dev/null
++++ b/packages/cli/src/serve/hosted-glob-budget.ts
+@@ -0,0 +1,91 @@
++/**
++ * @license
++ * Copyright 2026 Qwen Team
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++/**
++ * Glob expands `{…}` alternatives and `{a..b}` ranges synchronously on the
++ * managed worker's event loop, and the cost grows faster than the expansion
++ * count; past the Broker's status deadline the execution is left unknown.
++ * Both gates bound the expansion count before minimatch materializes it.
++ */
++export const GLOB_PATTERN_MAX_EXPANSIONS = 4096;
++
++/**
++ * Upper bound on how many patterns brace expansion makes of `pattern`,
++ * saturating at `limit + 1` so a huge range is never enumerated. Adjacent
++ * groups multiply, alternatives add (nested groups included), a
++ * `{a..b[..step]}` range counts its members, and an escaped, unbalanced or
++ * single-alternative brace counts as a literal, as in brace-expansion.
++ */
++export function globBraceExpansions(
++  pattern: string,
++  limit: number = GLOB_PATTERN_MAX_EXPANSIONS,
++): number {
++  const cap = limit + 1;
++  const closing = (open: number, end: number): number => {
++    let depth = 0;
++    for (let i = open; i < end; i++) {
++      const c = pattern[i];
++      if (c === '\\') i++;
++      else if (c === '{') depth++;
++      else if (c === '}' && --depth === 0) return i;
++    }
++    return -1;
++  };
++  const range = (body: string): number | undefined => {
++    const match = /^(-?\d+|[a-zA-Z])\.\.(-?\d+|[a-zA-Z])(?:\.\.(-?\d+))?$/.exec(
++      body,
++    );
++    if (!match) return undefined;
++    const numeric = /\d/.test(match[1]);
++    if (numeric !== /\d/.test(match[2])) return undefined;
++    const from = numeric ? Number(match[1]) : match[1].charCodeAt(0);
++    const to = numeric ? Number(match[2]) : match[2].charCodeAt(0);
++    const step = Math.abs(Number(match[3] ?? 1)) || 1;
++    return Math.min(cap, Math.floor(Math.abs(to - from) / step) + 1);
++  };
++  const sequence = (start: number, end: number): number => {
++    let count = 1;
++    for (let i = start; i < end; i++) {
++      const c = pattern[i];
++      if (c === '\\') {
++        i++;
++        continue;
++      }
++      if (c !== '{') continue;
++      const close = closing(i, end);
++      if (close === -1) continue;
++      count = Math.min(cap, count * group(i + 1, close));
++      i = close;
++    }
++    return count;
++  };
++  const group = (start: number, end: number): number => {
++    const ranged = range(pattern.slice(start, end));
++    if (ranged !== undefined) return ranged;
++    let total = 0;
++    let alternatives = 0;
++    let depth = 0;
++    let from = start;
++    for (let i = start; i <= end; i++) {
++      const c = pattern[i];
++      if (i < end && c === '\\') i++;
++      else if (i < end && c === '{') depth++;
++      else if (i < end && c === '}') depth--;
++      else if (i === end || (c === ',' && depth === 0)) {
++        total = Math.min(cap, total + sequence(from, i));
++        alternatives++;
++        from = i + 1;
++      }
++    }
++    return alternatives > 1 ? total : sequence(start, end);
++  };
++  return sequence(0, pattern.length);
++}
++
++/** Whether `pattern` expands to at most the shared alternative budget. */
++export function globPatternWithinBudget(pattern: string): boolean {
++  return globBraceExpansions(pattern) <= GLOB_PATTERN_MAX_EXPANSIONS;
++}
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index f7514dc8a9..3da094a873 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -992,6 +992,10 @@ it.each([
+   { pattern: '{/etc,/zz-nonexistent}/host*' },
+   { pattern: '{.,..}/**/*' },
+   { pattern: '{a,b}'.repeat(20) + '/*' },
++  // A comma-free range and groups nested in one outer group expand just
++  // as far; both wedged the Runtime on the real stack when uncounted.
++  { pattern: '{1..20000}/*' },
++  { pattern: '{' + '{a,b}'.repeat(14) + ',c}/*' },
+   { pattern: '**/*.ts', path: '/private/secret-host-path' },
+   { pattern: '**/*.ts', path: '../escape' },
+   { pattern: '**/*.ts', path: 'a\\b' },
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index aa0ac5e152..a0778280a8 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -71,6 +71,10 @@ import {
+ import { hostedHookOccurrenceId } from './hosted-hook-session.js';
+ import { parseHookExecution } from '@qwen-code/qwen-code-core/managed-runtime/managed-hook-record.js';
+ import { waitForTurn } from './hosted-turn-wait.js';
++import {
++  GLOB_PATTERN_MAX_EXPANSIONS,
++  globPatternWithinBudget,
++} from './hosted-glob-budget.js';
+ import { boundedShellPreview } from './managed-shell-publisher.js';
+ import {
+   endHostedAction,
+@@ -146,48 +150,6 @@ function shellHistoryId(executionCallId: string): string {
+   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+ }
+ 
+-/**
+- * A glob pattern's brace-expansion cost, as a saturating product over the
+- * groups' alternative counts — computed by a left-to-right scan, never by
+- * expanding. The worker re-checks the same rule after dispatch; refusing
+- * here keeps the walk (and its seconds of event-loop block) off the shared
+- * worker entirely. Over-counting nested or escaped braces is the safe
+- * direction.
+- */
+-const GLOB_PATTERN_MAX_EXPANSIONS = 4096;
+-
+-function globPatternWithinBudget(pattern: string): boolean {
+-  let product = 1;
+-  for (let i = 0; i < pattern.length; i++) {
+-    const c = pattern[i];
+-    if (c === '\\') {
+-      i++;
+-      continue;
+-    }
+-    if (c !== '{') continue;
+-    let depth = 1;
+-    let alternatives = 1;
+-    let j = i + 1;
+-    for (; j < pattern.length; j++) {
+-      const g = pattern[j];
+-      if (g === '\\') {
+-        j++;
+-        continue;
+-      }
+-      if (g === '{') depth++;
+-      else if (g === '}') {
+-        depth--;
+-        if (depth === 0) break;
+-      } else if (g === ',' && depth === 1) alternatives++;
+-    }
+-    if (depth !== 0) break; // unbalanced: minimatch treats it as literal
+-    product *= alternatives;
+-    if (product > GLOB_PATTERN_MAX_EXPANSIONS) return false;
+-    i = j;
+-  }
+-  return true;
+-}
+-
+ export interface HostedApprovalTurnOptions {
+   settings: HostedApprovalSettings;
+   waiters: HostedApprovalWaiters;
+@@ -888,6 +850,13 @@ export class HostedWorkspaceToolTurn {
+               ? requestedPattern.trim()
+               : requestedPattern;
+           if (
++            typeof pattern === 'string' &&
++            !globPatternWithinBudget(pattern)
++          ) {
++            // Counted before braceExpand below materializes anything: ranges
++            // and nested groups included.
++            validationError = `Hosted glob patterns may expand to at most ${GLOB_PATTERN_MAX_EXPANSIONS} alternatives through {…} groups and {a..b} ranges. Narrow the braces or ranges and retry.`;
++          } else if (
+             typeof pattern !== 'string' ||
+             !pattern ||
+             // A pattern is a second search root: refuse the absolute/`..`
+@@ -900,7 +869,6 @@ export class HostedWorkspaceToolTurn {
+             // `*.{ts,tsx}` expands to ordinary input. The budget bounds the
+             // expansion COST first — a ~70-byte brace pattern otherwise
+             // blocks the shared worker's event loop for seconds.
+-            !globPatternWithinBudget(pattern) ||
+             braceExpand(pattern).some(
+               (alternative) =>
+                 path.isAbsolute(alternative) ||
+diff --git a/packages/cli/src/serve/managed-context-worker.test.ts b/packages/cli/src/serve/managed-context-worker.test.ts
+index 26123258ed..2ed96b3330 100644
+--- a/packages/cli/src/serve/managed-context-worker.test.ts
++++ b/packages/cli/src/serve/managed-context-worker.test.ts
+@@ -1375,6 +1375,16 @@ describe('Managed context tool gate', () => {
+     ).json();
+     expect(costly.result.executionStatus).toBe('error');
+     expect(JSON.stringify(costly)).toContain('budget');
++    // A comma-free range costs the same per expansion and must count too.
++    const ranged = await (
++      await post(origin, EXECUTE, {
++        ...shell('session-1', 'call-3', ''),
++        toolName: 'glob',
++        input: { pattern: '{1..4100}/*' },
++      })
++    ).json();
++    expect(ranged.result.executionStatus).toBe('error');
++    expect(JSON.stringify(ranged)).toContain('budget');
+     // An ordinary brace pattern stays admitted.
+     const fine = await (
+       await post(origin, EXECUTE, {
+diff --git a/packages/cli/src/serve/managed-runtime-tool-executor.ts b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+index 33f362bcc4..562bea0591 100644
+--- a/packages/cli/src/serve/managed-runtime-tool-executor.ts
++++ b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+@@ -9,6 +9,10 @@ import { realpath } from 'node:fs/promises';
+ import { isDeepStrictEqual } from 'node:util';
+ import { braceExpand } from 'minimatch';
+ import { ManagedRuntimeFileHistory } from './managed-runtime-file-history.js';
++import {
++  GLOB_PATTERN_MAX_EXPANSIONS,
++  globPatternWithinBudget,
++} from './hosted-glob-budget.js';
+ import type { RawFileHistoryOperation } from './hosted-file-history-protocol.js';
+ import { Config } from '@qwen-code/qwen-code-core/config/config.js';
+ import { ApprovalMode } from '@qwen-code/qwen-code-core/config/approval-mode.js';
+@@ -1330,48 +1334,6 @@ async function realpathDeepestExisting(candidate: string): Promise<string> {
+   }
+ }
+ 
+-/**
+- * A glob pattern's brace-expansion cost, as a saturating product over the
+- * groups' alternative counts — computed by a left-to-right scan, never by
+- * expanding. `{a,b}` repeated twenty times is 96 bytes that block this
+- * shared worker's event loop for seconds; the budget refuses it before
+- * minimatch materializes anything. Over-counting nested or escaped braces
+- * is the safe direction.
+- */
+-const GLOB_PATTERN_MAX_EXPANSIONS = 4096;
+-
+-function globPatternWithinBudget(pattern: string): boolean {
+-  let product = 1;
+-  for (let i = 0; i < pattern.length; i++) {
+-    const c = pattern[i];
+-    if (c === '\\') {
+-      i++;
+-      continue;
+-    }
+-    if (c !== '{') continue;
+-    let depth = 1;
+-    let alternatives = 1;
+-    let j = i + 1;
+-    for (; j < pattern.length; j++) {
+-      const g = pattern[j];
+-      if (g === '\\') {
+-        j++;
+-        continue;
+-      }
+-      if (g === '{') depth++;
+-      else if (g === '}') {
+-        depth--;
+-        if (depth === 0) break;
+-      } else if (g === ',' && depth === 1) alternatives++;
+-    }
+-    if (depth !== 0) break; // unbalanced: minimatch treats it as literal
+-    product *= alternatives;
+-    if (product > GLOB_PATTERN_MAX_EXPANSIONS) return false;
+-    i = j;
+-  }
+-  return true;
+-}
+-
+ function toPayload(
+   result: ToolResult,
+   cancelRequested: boolean,
