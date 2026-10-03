@@ -1,0 +1,81 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index 5afef9a189..d22920da98 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -3440,6 +3440,15 @@ public final class RuntimeBrokerService implements AutoCloseable {
+         for (int attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+             if (current.getState()
+                     == RuntimeSessionRecord.State.RELEASING) {
++                // A RELEASING row this transition did not write (an older
++                // peer's check-then-act, or a retry after a failed transport
++                // release) must still refuse a live execution.
++                if (executionRepository.hasActiveByRuntimeSession(
++                        current.getBindingId(), current.getRuntimeGeneration(),
++                        current.getRuntimeSessionId())) {
++                    throw conflict("runtime_session_busy",
++                            "Runtime Session has an active operation");
++                }
+                 return current;
+             }
+             if (current.getState()
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/Issue13183RegressionTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/Issue13183RegressionTest.java
+index 172c677674..087f648aba 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/Issue13183RegressionTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/Issue13183RegressionTest.java
+@@ -685,6 +685,56 @@ class Issue13183RegressionTest {
+         }
+     }
+ 
++    /**
++     * R3-1: a Session row already RELEASING with a live execution on it (the
++     * row a pre-fix or older-version peer's check-then-act leaves) must not
++     * be released over that execution by a retry.
++     */
++    @Test
++    void releaseRetryOverAPersistedReleasingRowRefusesALiveExecution()
++            throws Exception {
++        DataSource dataSource = dataSource("releasing-retry");
++        JdbcRuntimeSessionRepository sessions = new JdbcRuntimeSessionRepository(
++                dataSource);
++        JdbcToolExecutionRepository executions = new JdbcToolExecutionRepository(
++                dataSource);
++        JdbcRuntimeBindingRepository bindings = new JdbcRuntimeBindingRepository(
++                dataSource, protector("releasing-retry"));
++        RuntimeBrokerService service = new RuntimeBrokerService(
++                harnessId -> CompletableFuture.completedFuture(SCOPE),
++                new StaticRuntimeProvisioner(new RuntimeLease("instance",
++                        URI.create("http://127.0.0.1:1234"), "token", "lease",
++                        1)),
++                new NoopTransport(), bindings, sessions, executions,
++                "broker", Duration.ofMinutes(1), Duration.ofMinutes(1));
++        try {
++            service.acquire("harness", "retry-session", "bootstrap")
++                    .toCompletableFuture().get(10, TimeUnit.SECONDS);
++            RuntimeSessionRecord ready = sessions.findById(SCOPE,
++                    "retry-session");
++            bindings.admitExecution(sessions, executions,
++                    ToolExecutionRecord.prepared("live-execution", "live-key",
++                            ready.getBindingId(), ready.getRuntimeGeneration(),
++                            "harness", "retry-session", "turn", "call",
++                            "digest", Map.of("sessionId", "retry-session",
++                                    "promptId", "turn", "callId", "call",
++                                    "argsDigest", "digest")));
++            assertNotNull(sessions.compareAndSet(ready, ready.withState(
++                    RuntimeSessionRecord.State.RELEASING, Instant.now())));
++            CompletionException failure = assertThrows(
++                    CompletionException.class,
++                    () -> service.release("harness", "retry-session")
++                            .toCompletableFuture().join());
++            assertTrue(failure.getCause() instanceof RuntimeBrokerException);
++            assertEquals("runtime_session_busy",
++                    ((RuntimeBrokerException) failure.getCause()).getCode());
++            assertEquals(RuntimeSessionRecord.State.RELEASING, sessions
++                    .findById(SCOPE, "retry-session").getState());
++        } finally {
++            service.close();
++        }
++    }
++
+     /**
+      * Finding 2 (v3 polling): result polling backs off exponentially from
+      * 100ms instead of pinning two repository reads and one worker call at
