@@ -25,6 +25,21 @@ if (PHASE === 'start') {
   process.exit(0);
 }
 const st = JSON.parse(fs.readFileSync(STATE, 'utf8'));
+if (PHASE === 'wait') {
+  const rw = new Report(`c14-restart-nocancel-${WS}`);
+  const ex0 = Number(one(`SELECT COUNT(*) FROM qwen_tool_execution WHERE harness_session_id='${st.S}'`));
+  rw.note('Turn after the Spring restart (no cancel)', j(turnRow(st.S).at(-1)));
+  const end = await waitTurn(st.S, { timeoutMs: 150_000 });
+  await sleep(2000);
+  const calls = tapEntries().filter((e) => e.path?.startsWith(`/session/${st.S}`) && !e.path.endsWith('/events') && !e.path.endsWith('/heartbeat')).map((e) => `${e.method} ${e.path.replace(st.S, ':id')} ${e.status ?? '-'}`);
+  const model = modelEntries().filter((e) => e.tag === st.tag).map((e) => e.kind);
+  rw.note('Turn end', `${end.status} ${end.error} ${end.timeout ? '(not terminal)' : 'at +' + end.ms + ' ms'}`);
+  rw.note('model requests for the Turn', j(model));
+  rw.note('Harness calls for the Session', j(calls));
+  rw.note('Workspace file / tool executions (whole Session)', `${readWs(ST, `child/${st.file}`)} / ${one(`SELECT COUNT(*) FROM qwen_tool_execution WHERE harness_session_id='${st.S}'`)}`);
+  rw.done({ ...st, end, model, calls, file: readWs(ST, `child/${st.file}`) });
+  process.exit(0);
+}
 const r = new Report(`c14-cold-cache-${MODE}-${WS}`);
 r.note('Turn before the cancel (after the Spring restart)', j(turnRow(st.S).at(-1)));
 const t0 = Date.now();

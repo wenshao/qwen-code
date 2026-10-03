@@ -18,6 +18,8 @@ const C = `${SRC}/service/HarnessCoordinator.java`;
 const S = `${SRC}/service/ManagedAgentService.java`;
 const ST = `${SRC}/store/ManagedAgentStore.java`;
 const R = `${SRC}/store/ManagedWorkspaceRegistry.java`;
+const CN = `${SRC}/harness/QwenHostedHarnessConnector.java`;
+const WX = `${SRC}/store/WorkspaceExecutionStore.java`;
 
 const MUTANTS = [
   ['N1', C, 'drop the lease-renewal cancel dispatch', `} else if (!leaseLost.get()) {
@@ -114,6 +116,10 @@ const MUTANTS = [
   ['N20', S, 'rename: drop requireBoundCreator', `        requireBoundCreator(tenantId, actorId, sessionId);
         String effectiveTitle = validRenameTitle(title);`, `        String effectiveTitle = validRenameTitle(title);`],
   ['N21', ST, 'store: disable the late-rename supersession guard', `if ("FAILED".equals(command.status()) && supersededByLaterMutation(`, `if (false && supersededByLaterMutation(`],
+  ['N22', CN, 'cold-cache cancel uses the passive (grant-checking) authority again', `workspaceExecution.authorizeCancellation(session);`, `workspaceExecution.authorizePassiveAttachment(session);`],
+  ['N23', WX, 'cancellation authority drops the CANCELLING Turn condition', `AND t.session_id = s.session_id AND t.status = 'CANCELLING'"`, `AND t.session_id = s.session_id"`],
+  ['N24', WX, 'cancellation authority drops the submitted-Turn condition', `+ " AND (t.submission_attempted = TRUE OR t.harness_event_epoch IS NOT NULL)"`, `+ ""`],
+  ['N25', CN, 'cancel goes back through the new-work attachment', `client().cancelTurn(cancellationAttachment(tenantId, sessionId));`, `client().cancelTurn(attachment(tenantId, sessionId, false));`],
   ['N13', S, 'rename: drop the COMPLETED-record answer before the gate', `            if ("COMPLETED".equals(existing.status())) {
                 return new SessionMutationResult<>(getPublicSession(tenantId,
                         sessionId), true);
