@@ -1,0 +1,22 @@
+# s5-durability  db=h1  2026-10-03T01:16:42.566Z
+## A. transient commit failure → retried with backoff, completes once
+PASS  after the first injected failure the operation is open (pending/installing) and the Session refuses another change  -> row={"state":"RUNNING","delivery":"PENDING","error":"","target":"trap-fail-2567","expected":"1","result":"","attempts":1,"gen":1} read=installing other=409 session_context_busy
+PASS  completes after two injected failures (attempt_count=2), rev 1→2, exactly one event  -> 2783 ms row={"state":"COMPLETED","delivery":"CONFIRMED","error":"","target":"trap-fail-2567","expected":"1","result":"2","attempts":2,"gen":3,"receipt":"rcpt_53d4afcb94904c32b75cf8e566b0e277"} events=1
+## B. kill -9 Spring inside the commit transaction (after the probe passed)
+PASS  while the commit is held: operation reads "installing", Session still reads the old (cwd, revision)  -> op=installing binding={"cwd":"child","rev":1,"version":10,"status":"ACTIVE"}
+NOTE  Spring kill -9 + restart  -> spring up after 4s in 3546 ms
+PASS  reclaimed after the lease and committed exactly once (claim generation 2, one event, rev 2)  -> completed 59.6 s after the kill row={"state":"COMPLETED","delivery":"CONFIRMED","error":"","target":"trap-slow-2567","expected":"1","result":"2","attempts":0,"gen":2,"receipt":"rcpt_32765564821944d38f6cdcc267c9a910"} events=1
+## C. kill -9 Spring inside the claim (before the probe)
+NOTE  Spring kill -9 + restart  -> row before kill {"state":"PENDING","delivery":"PENDING","error":"","target":"trap-claim-c-2567","expected":"1","result":"","attempts":0,"gen":0}; spring up after 5s in 4655 ms
+PASS  PENDING row survives the crash and completes once after restart  -> completed 8.0 s after the kill row={"state":"COMPLETED","delivery":"CONFIRMED","error":"","target":"trap-claim-c-2567","expected":"1","result":"2","attempts":0,"gen":1,"receipt":"rcpt_4439fd1bbba843aeaa5bacb174aec678"}
+NOTE  Harness restart (Spring restarted twice)  -> harness pid=55053 up after 2s log=/Users/wenshao/pr13247-rig/run/h1/harness-1.log
+## D. facts move between claim and commit (claim held 4 s)
+PASS  creator loses can_create → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3253 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+FAIL  creator loses can_read → failed undefined; Session keeps (cwd, rev); a later change still works  -> 20010 ms undefined/undefined binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+PASS  registry → DRAINING → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3253 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+PASS  registry generation bump → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3300 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+PASS  target directory removed → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3251 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+PASS  target directory replaced by a symlink to outside → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3247 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+## E. directory swapped for a symlink AFTER the probe, inside the commit (commit held 15 s)
+NOTE  commit does not re-probe: the swapped path is committed (the next turn’s acquire is the guard)  -> completed rev=2 cwd=trap-slow-e-2567 isSymlink=true
+== s5-durability: 10 passed, 1 failed

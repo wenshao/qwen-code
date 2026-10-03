@@ -1,0 +1,81 @@
+From f14b4dd461ceba7aa55311ec512b565f43edbef3 Mon Sep 17 00:00:00 2001
+From: wenshao <szujobs@gmail.com>
+Date: Sat, 3 Oct 2026 09:28:27 +0800
+Subject: [PATCH] rig candidate: refuse directories the worker cannot read or
+ search
+
+---
+ .../service/WorkspaceRuntimeResolver.java     |  7 +++-
+ .../WorkspaceRuntimeInstallProbeTest.java     | 33 +++++++++++++++++++
+ 2 files changed, 39 insertions(+), 1 deletion(-)
+
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeResolver.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeResolver.java
+index 9e4f9dc18f..35c5578085 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeResolver.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeResolver.java
+@@ -103,12 +103,17 @@ final class WorkspaceRuntimeResolver {
+         }
+     }
+ 
++    // The worker installs only a directory it can read and search
++    // (managed-context-worker.ts: access(R_OK | X_OK)); refusing anything
++    // else here keeps the settlement probe's verdict equal to the worker's
++    // and rejects it before acquire() claims storage ownership.
+     static void requireDirectory(String root, String cwdRelative) {
+         try {
+             Path base = Path.of(root);
+             Path directory = base.resolve(cwdRelative).normalize();
+             if (!directory.startsWith(base) || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)
+-                    || !directory.toRealPath().equals(directory)) {
++                    || !directory.toRealPath().equals(directory)
++                    || !Files.isReadable(directory) || !Files.isExecutable(directory)) {
+                 throw WorkspaceExecutionStore.unavailable();
+             }
+         } catch (IOException error) {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeInstallProbeTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeInstallProbeTest.java
+index acb8b8c3dc..716b229c18 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeInstallProbeTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeInstallProbeTest.java
+@@ -59,6 +59,39 @@ class WorkspaceRuntimeInstallProbeTest {
+         assertProbeRefused(resolver, "..");
+     }
+ 
++    // The worker refuses a directory it cannot read and search; committing
++    // one would hand the next tool turn a binding it can never install.
++    @Test
++    @org.junit.jupiter.api.condition.DisabledOnOs(
++            org.junit.jupiter.api.condition.OS.WINDOWS)
++    void refusesADirectoryTheWorkerCannotReadOrSearch() throws Exception {
++        Path root = Files.createDirectory(temporary.resolve("mount"))
++                .toRealPath();
++        Path locked = Files.createDirectories(root.resolve("locked"));
++        Path listOnly = Files.createDirectories(root.resolve("list-only"));
++        WorkspaceRuntimeResolver resolver = resolver(root);
++        try {
++            Files.setPosixFilePermissions(locked,
++                    java.nio.file.attribute.PosixFilePermissions.fromString(
++                            "---------"));
++            Files.setPosixFilePermissions(listOnly,
++                    java.nio.file.attribute.PosixFilePermissions.fromString(
++                            "r--r--r--"));
++            org.junit.jupiter.api.Assumptions.assumeFalse(
++                    Files.isReadable(locked),
++                    "permission bits are not enforced for this user");
++            assertProbeRefused(resolver, "locked");
++            assertProbeRefused(resolver, "list-only");
++        } finally {
++            Files.setPosixFilePermissions(locked,
++                    java.nio.file.attribute.PosixFilePermissions.fromString(
++                            "rwx------"));
++            Files.setPosixFilePermissions(listOnly,
++                    java.nio.file.attribute.PosixFilePermissions.fromString(
++                            "rwx------"));
++        }
++    }
++
+     @Test
+     void refusesUnknownStorageAndAMountWhoseIdentityMoved() throws Exception {
+         Path root = Files.createDirectory(temporary.resolve("mount"))
+-- 
+2.55.0
+
