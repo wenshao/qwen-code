@@ -1,0 +1,37 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+#card{width:1240px;padding:28px 32px 26px;box-sizing:border-box;background:#0d1117}
+h1{font-size:25px;margin:0 0 4px;font-weight:650}
+.sub{color:#8b949e;font-size:14.5px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.box{border:1px solid #30363d;border-radius:8px;padding:12px 14px;background:#161b22;min-width:0}
+.box h2{font-size:15.5px;margin:0 0 8px;font-weight:600}
+.bad h2{color:#ff7b72}.good h2{color:#3fb950}.neu h2{color:#79c0ff}.warn h2{color:#d29922}
+pre{margin:0;font:12.6px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;overflow:hidden;color:#c9d1d9}
+table{border-collapse:collapse;width:100%;font-size:13.2px}
+td,th{border-bottom:1px solid #21262d;padding:6px 8px;text-align:left;vertical-align:top}
+th{color:#8b949e;font-weight:600}
+code{font:12.4px ui-monospace,SFMono-Regular,Menlo,monospace;color:#e6edf3}
+.ok{color:#3fb950;font-weight:600}.no{color:#ff7b72;font-weight:600}.am{color:#d29922;font-weight:600}
+.note{margin-top:16px;border-left:3px solid #388bfd;padding:6px 12px;color:#c9d1d9;font-size:14px;line-height:1.5}
+.full{grid-column:1 / span 2}</style></head><body><div id="card"><h1>Exactly-one audit, cross-tenant probe, and the unbound --session-failover mode</h1><div class="sub">Diagnostic variant = PR runner + read-only prints after the assertions (tool calls read from the Session Store managed-message resources).</div><div class="grid">
+  <div class="box warn"><h2>Audit discriminates, but model deviations look like product failures</h2><pre>natural failures, unmodified PR runner (1 of 31 runs):
+  005: Tool execution audit failed: 2,SETTLED
+
+prompt asks for two writes (A1):
+  Tool execution audit failed: 2,SETTLED
+
+prompt asks for a directory listing first (A2, 2 runs):
+  run 1: Tool execution audit failed: 2,SETTLED
+    calls: write_file(managed-agent-real-e2e.txt), read_file(.)
+    qwen_tool_execution: SETTLED/success, SETTLED/error
+  run 2: Managed Turn ended with turn.failed
+    Harness: Hosted Workspace profile refused a tool call.</pre></div>
+  <div class="box warn"><h2>Cross-tenant 404 cannot tell tenant from actor</h2>
+  <table><tr><th>GET /v1/agents/sessions/{id}</th><th>status</th></tr>
+  <tr><td><code>sameTenant+actor</code></td><td class="ok">200 </td></tr><tr><td><code>sameTenant-noActor</code></td><td class="no">404 session_not_found</td></tr><tr><td><code>otherTenant+actor</code></td><td class="no">404 session_not_found</td></tr><tr><td><code>otherTenant-noActor</code></td><td class="no">404 session_not_found</td></tr>
+  </table><div style="color:#8b949e;font-size:13px;margin-top:8px">Same pattern in all 26 diagnostic runs. A same-tenant request without the actor header returns the identical 404 body, so the runner's existing cross-tenant assertion alone would also pass if tenant scoping leaked.</div></div>
+  <div class="box good full"><h2>--session-failover (the only mode whose wiring this diff changes; no CI job runs it): head 2/2, base 2/2, identical durable shape</h2>
+  <table><tr><th>field</th><th>merge-base</th><th>PR head</th></tr>
+  <tr><td><code>writerGeneration</code></td><td>1 -&gt; 2</td><td>1 -&gt; 2</td></tr><tr><td><code>journalRevision</code></td><td>10 -&gt; 19</td><td>10 -&gt; 19</td></tr><tr><td><code>committedSequence</code></td><td>11 -&gt; 22</td><td>11 -&gt; 22</td></tr><tr><td><code>terminalTurns</code></td><td>2</td><td>2</td></tr><tr><td><code>restoredFirstTurnContext</code></td><td>true</td><td>true</td></tr><tr><td><code>oldHarnessDiskDeleted</code></td><td>true</td><td>true</td></tr>
+  </table></div></div></div></body></html>

@@ -1,0 +1,54 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+#card{width:1240px;padding:28px 32px 26px;box-sizing:border-box;background:#0d1117}
+h1{font-size:25px;margin:0 0 4px;font-weight:650}
+.sub{color:#8b949e;font-size:14.5px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.box{border:1px solid #30363d;border-radius:8px;padding:12px 14px;background:#161b22;min-width:0}
+.box h2{font-size:15.5px;margin:0 0 8px;font-weight:600}
+.bad h2{color:#ff7b72}.good h2{color:#3fb950}.neu h2{color:#79c0ff}.warn h2{color:#d29922}
+pre{margin:0;font:12.6px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;overflow:hidden;color:#c9d1d9}
+table{border-collapse:collapse;width:100%;font-size:13.2px}
+td,th{border-bottom:1px solid #21262d;padding:6px 8px;text-align:left;vertical-align:top}
+th{color:#8b949e;font-weight:600}
+code{font:12.4px ui-monospace,SFMono-Regular,Menlo,monospace;color:#e6edf3}
+.ok{color:#3fb950;font-weight:600}.no{color:#ff7b72;font-weight:600}.am{color:#d29922;font-weight:600}
+.note{margin-top:16px;border-left:3px solid #388bfd;padding:6px 12px;color:#c9d1d9;font-size:14px;line-height:1.5}
+.full{grid-column:1 / span 2}</style></head><body><div id="card"><h1>Real-model mode: main fails deterministically, PR passes</h1><div class="sub">macOS arm64 · MySQL 8.4.7 · JDK 21.0.12 · Node 22.23.2 · model qwen3.8-max · PR head 8e1375c380 vs merge-base 5130c1a734</div><div class="grid">
+  <div class="box bad"><h2>merge-base runner — 3/3 fail</h2><pre>npm run test:e2e:managed-agent-server -- --model qwen3.8-max
+
+Error: Expected model, Runtime, tool, and terminal events;
+  got session.created, turn.accepted, environment.provisioning,
+      turn.failed
+
+Spring -&gt; Harness wire (recording proxy):
+  GET /capabilities 200
+  POST /session 400
+      {"error":"invalid_managed_session_store",
+      "code":"invalid_managed_session_store"}
+
+managed_agent_turn:
+  turn_b6242697b68d4a059110fd1c6cb004f5  FAILED  hosted_harness_rejected</pre></div>
+  <div class="box good"><h2>PR head runner — 30/31 pass</h2><pre>npm run test:e2e:managed-agent-server -- --model qwen3.8-max
+
+{
+  "model": "qwen3.8-max",
+  "sessionId": "6c36b57e-e241-48b9-80b9-67e3db9f61a7",
+  "createAdmissionMs": 233,
+  "firstModelEventMs": 4297,
+  "runtimeReadyMs": 933,
+  "terminalMs": 7625,
+  "modelBeforeRuntimeReady": false,
+  "toolSideEffect": true,
+  "idempotentReplay": true,
+  "crossTenantStatus": 404,
+  "durableEventCount": 9
+}</pre></div>
+  <div class="box neu full"><h2>Run matrix (each row = a full stack: fresh mysqld + Spring + embedded Broker + Hosted Harness + worker)</h2>
+  <table><tr><th>arm</th><th>result</th><th>notes</th></tr>
+  <tr><td>merge-base, qwen3.8-max</td><td class="no">0/3</td><td>identical failure every time, ~10 s</td></tr>
+  <tr><td>PR head, qwen3.8-max (delay 0)</td><td class="ok">30/31</td><td>the 1 failure: <code>Tool execution audit failed: 2,SETTLED</code> (model deviation, see card 3)</td></tr>
+  <tr><td>PR head, kimi-k3</td><td class="ok">3/3</td><td>DashScope OpenAI-compatible provider</td></tr>
+  <tr><td>PR head, author's toolchain</td><td class="ok">1/1</td><td><code>node=v24.18.1 jdk=26.0.2 mysql=26.7.0</code></td></tr>
+  <tr><td>CI Hosted MySQL job (Linux)</td><td class="ok">pass</td><td><code>--inflight-failover</code> and <code>--continuation-failover</code> on this head</td></tr>
+  </table></div></div></div></body></html>
