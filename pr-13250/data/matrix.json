@@ -1,0 +1,370 @@
+[
+  {
+    "id": "m00",
+    "gate": "control (unmutated copy)",
+    "tests": 540,
+    "failed": 0,
+    "killed": false,
+    "files": [],
+    "examples": []
+  },
+  {
+    "id": "m01",
+    "gate": "routing: plugin default scope (defaultSessionScope: thread) removed",
+    "tests": 540,
+    "failed": 2,
+    "killed": true,
+    "files": [
+      "send.test.ts"
+    ],
+    "examples": [
+      "groupAllPolicy session-scope warning (no forcing) declares thread as defaultSessionScope, so zero-config defaults get per-group shared context",
+      "groupAllPolicy session-scope warning (no forcing) emits NO warning for groupAllPolicy=all when sessionScope is the CLI-filled default (thread)"
+    ]
+  },
+  {
+    "id": "m02",
+    "gate": "routing: constructor forces sessionScope single again (the removed override)",
+    "tests": 540,
+    "failed": 2,
+    "killed": true,
+    "files": [
+      "send.test.ts"
+    ],
+    "examples": [
+      "groupAllPolicy session-scope warning (no forcing) does NOT force sessionScope when groupAllPolicy=all and scope is not thread; emits warning",
+      "groupAllPolicy session-scope warning (no forcing) does NOT force sessionScope when groupAllPolicy=keyword and scope is not thread; emits warning"
+    ]
+  },
+  {
+    "id": "m03",
+    "gate": "startup warning: operators-empty check inverted",
+    "tests": 540,
+    "failed": 3,
+    "killed": true,
+    "files": [
+      "send.test.ts"
+    ],
+    "examples": [
+      "shared-session operator warning (R7-3) warns when group access is enabled on a shared scope with no operators",
+      "shared-session operator warning (R7-3) warns for chat_thread and single shared scopes too",
+      "shared-session operator warning (R7-3) emits NO operator warning when operators are configured"
+    ]
+  },
+  {
+    "id": "m04",
+    "gate": "anchor: onPromptStart no longer captures envelope.messageId",
+    "tests": 540,
+    "failed": 47,
+    "killed": true,
+    "files": [
+      "send.test.ts",
+      "stream.test.ts"
+    ],
+    "examples": [
+      "lifecycle status hooks sets the reply anchor at prompt start and releases it at prompt end",
+      "onResponseChunk snaps the onPromptStart anchor into the streamState entry on creation",
+      "onResponseChunk drops stale state from a previous turn and clears its parking flags"
+    ]
+  },
+  {
+    "id": "m05",
+    "gate": "generation: onPromptStart does not bump turnCounter",
+    "tests": 540,
+    "failed": 55,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "onResponseChunk drops stale state from a previous turn and clears its parking flags",
+      "onResponseComplete a fast turn whose chunks were dropped by the stale guard delivers its own text (not the previous turn's residual)",
+      "error recovery paths a superseded turn's permanent failure keeps the successor anchor and does not orphan its msg_seq"
+    ]
+  },
+  {
+    "id": "m06",
+    "gate": "completedTurns: onPromptStart keeps the previous turn's completion record",
+    "tests": 540,
+    "failed": 0,
+    "killed": false,
+    "files": [],
+    "examples": []
+  },
+  {
+    "id": "m07",
+    "gate": "orphan stash: onPromptStart keeps a dead stash (no dropOrphanStash)",
+    "tests": 540,
+    "failed": 0,
+    "killed": false,
+    "files": [],
+    "examples": []
+  },
+  {
+    "id": "m08",
+    "gate": "anchor release: expectedMsgId identity gate removed",
+    "tests": 540,
+    "failed": 9,
+    "killed": true,
+    "files": [
+      "events.test.ts",
+      "stream.test.ts"
+    ],
+    "examples": [
+      "\u7fa4\u7ba1\u7406\u4e8b\u4ef6 handleGroupDelRobot does not delete the shared single-scope session's newer anchor or turn state (R9-5)",
+      "onResponseChunk drops stale state from a previous turn and clears its parking flags",
+      "pendingStreamDelete coordination pendingStreamDelete failure re-buffers and retries (no leak)"
+    ]
+  },
+  {
+    "id": "m09",
+    "gate": "msg_seq reclaim: in-flight anchored sends not counted as holders",
+    "tests": 540,
+    "failed": 0,
+    "killed": false,
+    "files": [],
+    "examples": []
+  },
+  {
+    "id": "m10",
+    "gate": "msg_seq reclaim: routing-map holder dropped (return false)",
+    "tests": 540,
+    "failed": 4,
+    "killed": true,
+    "files": [
+      "send.test.ts",
+      "stream.test.ts"
+    ],
+    "examples": [
+      "replyMsgId cleanup timer keeps a msg_seq counter named only by replyContextByMessageId (R12-1b)",
+      "onResponseComplete final segment keeps the captured per-session msgId even after replyMsgId is overwritten",
+      "error recovery paths a superseded turn's permanent failure keeps the successor anchor and does not orphan its msg_seq"
+    ]
+  },
+  {
+    "id": "m11",
+    "gate": "ownership: ownsLiveTurn always true",
+    "tests": 540,
+    "failed": 7,
+    "killed": true,
+    "files": [
+      "send.test.ts",
+      "stream.test.ts"
+    ],
+    "examples": [
+      "replyMsgId cleanup timer flushAndTrack transient errors flushAndTrack permanent errors deletes streamState and releases anchor on RETRY_EXHAUSTED",
+      "replyMsgId cleanup timer flushAndTrack transient errors flushAndTrack permanent errors deletes streamState and releases anchor on ACTIVE_MSG_DISABLED",
+      "replyMsgId cleanup timer flushAndTrack transient errors flushAndTrack permanent errors deletes streamState and releases anchor on FALLBACK_FAILED"
+    ]
+  },
+  {
+    "id": "m12",
+    "gate": "flushingSessions: superseded chain may release the successor's marker",
+    "tests": 540,
+    "failed": 0,
+    "killed": false,
+    "files": [],
+    "examples": []
+  },
+  {
+    "id": "m13",
+    "gate": "flushingSessions: hand-off guard removed (double delivery path)",
+    "tests": 540,
+    "failed": 6,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "stash ownership regressions keeps the superseded turn's sealed head with its in-flight flush owner (self-review D2, R12-2)",
+      "stash ownership regressions re-stashes the sealed head when a superseded in-flight send fails permanently (R12-2b)",
+      "stash ownership regressions re-stashes the sealed head when a superseded in-flight send fails transiently (R12-2c)"
+    ]
+  },
+  {
+    "id": "m14",
+    "gate": "completedTurns: onResponseComplete no longer records the completion",
+    "tests": 540,
+    "failed": 6,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "pendingStreamDelete coordination defers cleanup when idle-flush in flight, cleans up on resolve",
+      "R15-1 acceptance: tail hand-off must not stash under an ended turn delivers the sealed head instead of re-stashing it under a finished successor",
+      "R19-2 acceptance: a superseded head must keep its own reply anchor delivers a superseded turn's head on its own anchor, not the successor's"
+    ]
+  },
+  {
+    "id": "m15",
+    "gate": "completedTurns: completionAlreadyRan forced false",
+    "tests": 540,
+    "failed": 4,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "R15-1 acceptance: tail hand-off must not stash under an ended turn delivers the sealed head instead of re-stashing it under a finished successor",
+      "R19-2 acceptance: a superseded head must keep its own reply anchor delivers a superseded turn's head on its own anchor, not the successor's",
+      "R19-2 acceptance: a superseded head must keep its own reply anchor delivers a superseded head unanchored when its own turn had no anchor"
+    ]
+  },
+  {
+    "id": "m16",
+    "gate": "boundary: never upgrades to 'residual'",
+    "tests": 540,
+    "failed": 8,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "R14-1 acceptance: an in-flight flush must not clear a newer seal recovers a head an in-flight send carried when a later boundary re-sealed",
+      "R14-1 acceptance: an in-flight flush must not clear a newer seal widens the carried seal when a transient failure re-buffers the payload",
+      "R14-1 acceptance: an in-flight flush must not clear a newer seal widens the carried seal when a parked turn re-buffers a transient failure"
+    ]
+  },
+  {
+    "id": "m17",
+    "gate": "boundary: cleared-in-flight seal skipped in the permanent-failure arm",
+    "tests": 540,
+    "failed": 1,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "R14-1 acceptance: an in-flight flush must not clear a newer seal re-seals the whole payload a boundary cleared before a permanent failure"
+    ]
+  },
+  {
+    "id": "m18",
+    "gate": "pendingStreamDelete: onPromptEnd tears down under a parked deferred chain",
+    "tests": 540,
+    "failed": 1,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "idle-flush timer onPromptEnd leaves a deferred (in-flight flush) session for its promise chain to finish"
+    ]
+  },
+  {
+    "id": "m19",
+    "gate": "cancel: onPromptEnd drops a parked turn's stash instead of delivering it",
+    "tests": 540,
+    "failed": 10,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "cancel/flush coordination cancelled turn's orphaned head does not leak into the next turn's reply (wenshao blocking 2)",
+      "stash ownership regressions delivers a cancelled turn's stashed head before the park early-return (R10-1)",
+      "stash ownership regressions deliverCancelledStash's anchored send is protected by the in-flight guard (R11-2)"
+    ]
+  },
+  {
+    "id": "m20",
+    "gate": "cancel: onPromptEnd ignores the stashed HEAD of a cancelled turn",
+    "tests": 540,
+    "failed": 1,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "stash ownership regressions a cancelled turn still delivers its stashed head at onPromptEnd (R8-6)"
+    ]
+  },
+  {
+    "id": "m21",
+    "gate": "cancel: onPromptEnd does not defer to an in-flight send",
+    "tests": 540,
+    "failed": 7,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "cancel/flush coordination onPromptEnd defers a cancelled turn whose send is in flight so the tail keeps its anchor",
+      "stash ownership regressions tags a re-stashed sealed head with the live turn so a successor can consume it (self-review D1)",
+      "stash ownership regressions reclaims the parked anchor in the empty-buffer hand-off teardown (R9-2/R9-5)"
+    ]
+  },
+  {
+    "id": "m22",
+    "gate": "bridge boundary seal listener is a no-op",
+    "tests": 540,
+    "failed": 4,
+    "killed": true,
+    "files": [
+      "stream.test.ts"
+    ],
+    "examples": [
+      "R14-1 acceptance: an in-flight flush must not clear a newer seal seals the residual a hook-suppressed boundary stripped from a flush in flight",
+      "boundary suppressed from the adapter hook still seals the stash seals the stash on the bridge boundary the hook never saw (stale-entry reader)",
+      "boundary suppressed from the adapter hook still seals the stash seals the stash on the bridge boundary the hook never saw (normal reader)"
+    ]
+  },
+  {
+    "id": "m23",
+    "gate": "purge: opt-in gate removed (purges by default)",
+    "tests": 540,
+    "failed": 1,
+    "killed": true,
+    "files": [
+      "send.test.ts"
+    ],
+    "examples": [
+      "purgeSingleScopeOrphans leaves every doomed route in place by default, with no rescue file"
+    ]
+  },
+  {
+    "id": "m24",
+    "gate": "purge: knownScope fail-closed guard removed",
+    "tests": 540,
+    "failed": 2,
+    "killed": true,
+    "files": [
+      "send.test.ts"
+    ],
+    "examples": [
+      "purgeSingleScopeOrphans does NOT purge live user-shaped routes when sessionScope is unrecognized",
+      "purgeSingleScopeOrphans leaves single-scope routes alone when sessionScope is unrecognized"
+    ]
+  },
+  {
+    "id": "m25",
+    "gate": "purge: sibling-channel ownership check removed",
+    "tests": 540,
+    "failed": 6,
+    "killed": true,
+    "files": [
+      "send.test.ts"
+    ],
+    "examples": [
+      "purgeSingleScopeOrphans leaves every doomed route in place by default, with no rescue file",
+      "purgeSingleScopeOrphans writes the rescue copy of the doomed routes before deleting any of them",
+      "purgeSingleScopeOrphans releases the daemon-side session for each purged orphan (bridge.discardSession)"
+    ]
+  },
+  {
+    "id": "m26",
+    "gate": "purge: rescue-write failure no longer fails closed",
+    "tests": 540,
+    "failed": 3,
+    "killed": true,
+    "files": [
+      "send.test.ts"
+    ],
+    "examples": [
+      "purgeSingleScopeOrphans deletes nothing when the rescue copy cannot be written (fail closed)",
+      "purgeSingleScopeOrphans keeps the earlier records when a torn rescue write fails mid-way (R17-2)",
+      "purgeSingleScopeOrphans removes the sibling temp file when the rescue write fails (R17-2)"
+    ]
+  }
+]
