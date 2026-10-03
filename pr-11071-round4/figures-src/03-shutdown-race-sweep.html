@@ -1,0 +1,42 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box} body{margin:0;background:#0d1117;color:#e6edf3;font:14px/1.45 -apple-system,"Segoe UI","DejaVu Sans",sans-serif}
+.card{width:1240px;padding:22px 26px;background:#0d1117}
+h1{font-size:19px;margin:0 0 4px} .sub{color:#8b949e;margin:0 0 14px;font-size:13px}
+h2{font-size:15px;margin:16px 0 8px;color:#e6edf3}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid #30363d;padding:6px 8px;vertical-align:top;text-align:left}
+th{background:#161b22;color:#8b949e;font-weight:600}
+code,.mono{font-family:"DejaVu Sans Mono","Liberation Mono",monospace;font-size:12.5px}
+.bad{background:#3d1418;color:#ffa198} .good{background:#0f2d1a;color:#7ee787} .same{background:#161b22;color:#c9d1d9}
+.note{color:#8b949e;font-size:12.5px;margin-top:10px}
+.legend{display:flex;gap:18px;color:#c9d1d9;font-size:13px;margin:4px 0 6px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+</style></head><body><div class="card"><h1>Config-loss DELETE racing daemon shutdown</h1><p class="sub">real daemon SIGTERM at controlled offsets, then restart on the same files · base <code>1abccdb26a</code> vs head <code>32a1756193</code></p><table><tr><th style="width:19%">interleaving</th><th style="width:27%">base</th><th style="width:36%">head: DELETE outcome (timing from the daemon's own log)</th><th>head: after restart on the same files</th></tr><tr><td class="mono">SIGTERM, then DELETE +0 ms</td>
+<td class="bad">connection reset/closed (<code>ECONNRESET</code>); disk <code>["botA"]</code>; after restart retry → 404</td>
+<td class="good">connection reset/closed (<code>ECONNRESET</code>); disk <code>["botA"]</code><br><span class="note">request never reached a handler (no <code>route=DELETE</code> line)</span></td>
+<td class="good">retry → 200; disk <code>[]</code></td></tr><tr><td class="mono">SIGTERM, then DELETE +1 ms</td>
+<td class="bad">connection reset/closed (<code>ECONNRESET</code>); disk <code>["botA"]</code>; after restart retry → 404</td>
+<td class="good">connection reset/closed (<code>ECONNRESET</code>); disk <code>["botA"]</code><br><span class="note">request never reached a handler (no <code>route=DELETE</code> line)</span></td>
+<td class="good">retry → 200; disk <code>[]</code></td></tr><tr><td class="mono">SIGTERM, then DELETE +3 ms</td>
+<td class="bad">connection reset/closed (<code>UND_ERR_SOCKET</code>); disk <code>["botA"]</code>; after restart retry → 404</td>
+<td class="good">connection reset/closed (<code>UND_ERR_SOCKET</code>); disk <code>["botA"]</code><br><span class="note">request never reached a handler (no <code>route=DELETE</code> line)</span></td>
+<td class="good">retry → 200; disk <code>[]</code></td></tr><tr><td class="mono">DELETE, then SIGTERM +0 ms</td>
+<td class="bad">connection reset/closed (<code>ECONNRESET</code>); disk <code>["botA"]</code>; after restart retry → 404</td>
+<td class="good">connection reset/closed (<code>ECONNRESET</code>); disk <code>["botA"]</code><br><span class="note">request never reached a handler (no <code>route=DELETE</code> line)</span></td>
+<td class="good">retry → 200; disk <code>[]</code></td></tr><tr><td class="mono">DELETE, then SIGTERM +2 ms</td>
+<td class="bad">404 channel_instance_not_found; disk <code>["botA"]</code>; after restart retry → 404</td>
+<td class="good">200; disk <code>[]</code><br><span class="note">SIGTERM received 16 ms <b>before</b> the DELETE handler finished</span></td>
+<td class="good">retry → 200; disk <code>[]</code></td></tr><tr><td class="mono">DELETE, then SIGTERM +5 ms</td>
+<td class="bad">404 channel_instance_not_found; disk <code>["botA"]</code>; after restart retry → 404</td>
+<td class="good">200; disk <code>[]</code><br><span class="note">SIGTERM received 16 ms <b>before</b> the DELETE handler finished</span></td>
+<td class="good">retry → 200; disk <code>[]</code></td></tr><tr><td class="mono">DELETE, then SIGTERM +10 ms</td>
+<td class="bad">404 channel_instance_not_found; disk <code>["botA"]</code>; after restart retry → 404</td>
+<td class="good">200; disk <code>[]</code><br><span class="note">SIGTERM received 12 ms <b>before</b> the DELETE handler finished</span></td>
+<td class="good">retry → 200; disk <code>[]</code></td></tr><tr><td class="mono">DELETE, then SIGTERM +20 ms</td>
+<td class="bad">404 channel_instance_not_found; disk <code>["botA"]</code>; after restart retry → 404</td>
+<td class="good">200; disk <code>[]</code><br><span class="note">SIGTERM and DELETE completion in the same ms</span></td>
+<td class="good">retry → 200; disk <code>[]</code></td></tr><tr><td class="mono">DELETE, then SIGTERM +40 ms</td>
+<td class="bad">404 channel_instance_not_found; disk <code>["botA"]</code>; after restart retry → 404</td>
+<td class="good">200; disk <code>[]</code><br><span class="note">DELETE finished 16 ms before SIGTERM</span></td>
+<td class="good">retry → 200; disk <code>[]</code></td></tr></table>
+<p class="note">The 18 daemons SIGTERM'd mid-race: exit code 0 = true; no <code>daemon-worker</code> outlived its daemon = true; <code>503 daemon_draining</code> observed = false (at these offsets a late request got a connection reset/close instead). On head each run ended either “200 + selection removed on disk” or “request never handled + selection untouched”, never a half state, and the retry after restart converges. On base the stale selection survives every restart.</p></div></body></html>

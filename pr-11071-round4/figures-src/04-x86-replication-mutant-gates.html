@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box} body{margin:0;background:#0d1117;color:#e6edf3;font:14px/1.45 -apple-system,"Segoe UI","DejaVu Sans",sans-serif}
+.card{width:1240px;padding:22px 26px;background:#0d1117}
+h1{font-size:19px;margin:0 0 4px} .sub{color:#8b949e;margin:0 0 14px;font-size:13px}
+h2{font-size:15px;margin:16px 0 8px;color:#e6edf3}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid #30363d;padding:6px 8px;vertical-align:top;text-align:left}
+th{background:#161b22;color:#8b949e;font-weight:600}
+code,.mono{font-family:"DejaVu Sans Mono","Liberation Mono",monospace;font-size:12.5px}
+.bad{background:#3d1418;color:#ffa198} .good{background:#0f2d1a;color:#7ee787} .same{background:#161b22;color:#c9d1d9}
+.note{color:#8b949e;font-size:12.5px;margin-top:10px}
+.legend{display:flex;gap:18px;color:#c9d1d9;font-size:13px;margin:4px 0 6px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+</style></head><body><div class="card"><h1>x86_64 replication, real-daemon mutant, gates</h1><p class="sub">Linux x86_64 (round 3 measured aarch64) · base <code>1abccdb26a</code> vs head <code>32a1756193</code></p><h2>Round-1/3 core cells re-run on this box (same harness, real daemons)</h2>
+<table><tr><th style="width:24%">cell</th><th style="width:36%">base</th><th>head (this PR)</th></tr><tr><td><b>loss</b><br><span class="note">central: config lost, owned worker running</span></td><td class="same">404 channel_instance_not_found (7 ms); worker alive; repeat 404</td><td class="good">200 (24 ms); worker exited; repeat 200</td></tr><tr><td><b>stale</b><br><span class="note">config lost + stale revision</span></td><td class="same">404 channel_instance_not_found (14 ms); file unchanged true</td><td class="good">409 channel_settings_conflict (17 ms); file unchanged true</td></tr><tr><td><b>normal</b><br><span class="note">ordinary configured delete</span></td><td class="same">200 (27 ms); worker exited</td><td class="good">200 (25 ms); worker exited</td></tr><tr><td><b>busy</b><br><span class="note">running channel, unrelated transition</span></td><td class="same">200 (29.5 s)</td><td class="good">200 (29.5 s)</td></tr><tr><td><b>busy-loss</b><br><span class="note">config lost, unrelated transition</span></td><td class="same">404 channel_instance_not_found (5 ms) → retry 404</td><td class="good">409 channel_service_conflict (6 ms) → retry 200</td></tr><tr><td><b>poison</b><br><span class="note">lost config blocks other starts</span></td><td class="same">start 400 → DELETE 404 → start 400</td><td class="good">start 400 → DELETE 200 → start 200</td></tr><tr><td><b>inflight</b><br><span class="note">DELETE mid same-channel restore</span></td><td class="same">200 (8 ms); once settled: listed [], botA connected 1; next DELETE 404; finally botA connected 1</td><td class="good">409 channel_service_conflict (8 ms); once settled: listed [botA], botA connected 1; next DELETE 200; finally botA connected 0</td></tr><tr><td><b>all-reload</b><br><span class="note">DELETE during --channel all reload</span></td><td class="same">200 (9 ms); once settled: botN connected 1, config on disk gone</td><td class="good">409 channel_service_conflict (4 ms); once settled: botN connected 1, config on disk present; retry 200; finally botN connected 0</td></tr><tr><td><b>samename</b><br><span class="note">name in another workspace's pending start</span></td><td class="same">200 (8 ms)</td><td class="good">409 channel_service_conflict (10 ms) → retry 200</td></tr></table>
+<h2>Is the merged-view guard load-bearing through the real wiring?</h2>
+<table><tr><th style="width:24%">arm</th><th>userscope-guard: DELETE a running channel whose config lives in user settings</th></tr>
+<tr><td>head</td><td class="good">404 channel_instance_not_found; worker alive; wsA <code>serve.channels</code> = <code>["botU"]</code></td></tr>
+<tr><td>head bundle, <code>opts.loadChannelsConfig(…)</code> read replaced by <code>{}</code></td><td class="bad">200; worker STOPPED (peer closes 1); wsA <code>serve.channels</code> = <code>[]</code> — phantom delete</td></tr></table>
+<h2>Gates</h2>
+<table><tr><th style="width:52%">gate</th><th>result</th></tr>
+<tr><td>5 changed/related test files at head (vitest, <code>packages/cli</code>)</td><td class="good">2137 passed (2137)</td></tr>
+<tr><td><code>integration-tests/cli/qwen-serve-routes.test.ts</code> on the head bundle</td><td class="good">42 passed (42)</td></tr>
+<tr><td>negative control: head's copy of that test against the base bundle</td><td class="bad">1 failed | 41 passed (42) — fails only “qwen serve — capabilities envelope &gt; advertises all baseline capabilities” (tag absent)</td></tr>
+<tr><td>scripted assertions, this round (judge)</td><td class="good">base 190/190 · head 185/185</td></tr></table></div></body></html>

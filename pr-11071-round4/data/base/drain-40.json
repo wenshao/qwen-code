@@ -1,0 +1,697 @@
+{
+  "scenario": "drain-40",
+  "arm": "base",
+  "steps": [
+    {
+      "t": 2960,
+      "label": "boot",
+      "control": {
+        "enabled": true,
+        "selection": {
+          "mode": "names",
+          "names": [
+            "botA",
+            "botB"
+          ]
+        },
+        "transition": "idle",
+        "workers": [
+          {
+            "ws": "wsA",
+            "state": "running",
+            "channels": [
+              "botA"
+            ],
+            "pid": 1167734,
+            "alive": true
+          },
+          {
+            "ws": "wsB",
+            "state": "running",
+            "channels": [
+              "botB"
+            ],
+            "pid": 1167775,
+            "alive": true
+          }
+        ]
+      },
+      "pidA": 1167734,
+      "pidB": 1167775
+    },
+    {
+      "t": 3583,
+      "label": "DELETE vs SIGTERM",
+      "order": "delete-first",
+      "delay": 40,
+      "sigtermAt": 3010,
+      "delete": {
+        "status": 404,
+        "ms": 8,
+        "code": "channel_instance_not_found",
+        "error": "Channel \"botA\" is not configured in this workspace."
+      },
+      "daemonExit": {
+        "code": 0,
+        "sig": null
+      },
+      "fixtureWorkersAfterExit": [],
+      "settingsA": {
+        "serve": {
+          "channels": [
+            "botA"
+          ]
+        },
+        "$version": 4
+      }
+    },
+    {
+      "t": 6138,
+      "label": "after restart",
+      "control": {
+        "enabled": true,
+        "selection": {
+          "mode": "names",
+          "names": [
+            "botB"
+          ]
+        },
+        "transition": "idle",
+        "workers": [
+          {
+            "ws": "wsB",
+            "state": "running",
+            "channels": [
+              "botB"
+            ],
+            "pid": 1167818,
+            "alive": true
+          }
+        ]
+      },
+      "fixtureWorkers": [
+        1167818
+      ],
+      "listA": {
+        "status": 200,
+        "instances": []
+      },
+      "peers": {
+        "botA": {
+          "connects": 1,
+          "closes": 1,
+          "open": 0
+        },
+        "botB": {
+          "connects": 2,
+          "closes": 1,
+          "open": 1
+        }
+      }
+    },
+    {
+      "t": 6144,
+      "label": "retry DELETE botA after restart",
+      "status": 404,
+      "ms": 6,
+      "code": "channel_instance_not_found",
+      "error": "Channel \"botA\" is not configured in this workspace."
+    },
+    {
+      "t": 7665,
+      "label": "final",
+      "control": {
+        "enabled": true,
+        "selection": {
+          "mode": "names",
+          "names": [
+            "botB"
+          ]
+        },
+        "transition": "idle",
+        "workers": [
+          {
+            "ws": "wsB",
+            "state": "running",
+            "channels": [
+              "botB"
+            ],
+            "pid": 1167818,
+            "alive": true
+          }
+        ]
+      },
+      "settingsA": {
+        "serve": {
+          "channels": [
+            "botA"
+          ]
+        },
+        "$version": 4
+      },
+      "peers": {
+        "botA": {
+          "connects": 1,
+          "closes": 1,
+          "open": 0
+        },
+        "botB": {
+          "connects": 2,
+          "closes": 1,
+          "open": 1
+        }
+      },
+      "fixtureWorkers": [
+        1167818
+      ]
+    }
+  ],
+  "leakedWorkers": [],
+  "events": [
+    {
+      "t": 569,
+      "what": "daemon_ready",
+      "pid": 1167716
+    },
+    {
+      "t": 972,
+      "what": "peer_connect",
+      "channel": "botA",
+      "connects": 1
+    },
+    {
+      "t": 1394,
+      "what": "peer_connect",
+      "channel": "botB",
+      "connects": 1
+    },
+    {
+      "t": 1424,
+      "what": "wait_ok",
+      "label": "botA + botB connected"
+    },
+    {
+      "t": 1431,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 7
+    },
+    {
+      "t": 1537,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 5
+    },
+    {
+      "t": 1639,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 1740,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 1841,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 1943,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 2045,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 2146,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2248,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2350,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2451,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2552,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2654,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2755,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2857,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 2958,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2959,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 2969,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspaces/3d5591db5d700b23/channels",
+      "status": 200,
+      "ms": 9
+    },
+    {
+      "t": 2977,
+      "what": "api",
+      "method": "DELETE",
+      "route": "/workspaces/3d5591db5d700b23/channels/botA",
+      "status": 404,
+      "ms": 8,
+      "body": {
+        "error": "Channel \"botA\" is not configured in this workspace.",
+        "code": "channel_instance_not_found"
+      }
+    },
+    {
+      "t": 3028,
+      "what": "peer_close",
+      "channel": "botB",
+      "closes": 1
+    },
+    {
+      "t": 3028,
+      "what": "peer_close",
+      "channel": "botA",
+      "closes": 1
+    },
+    {
+      "t": 4148,
+      "what": "daemon_ready",
+      "pid": 1167800
+    },
+    {
+      "t": 4572,
+      "what": "peer_connect",
+      "channel": "botB",
+      "connects": 2
+    },
+    {
+      "t": 4600,
+      "what": "wait_ok",
+      "label": "botB reconnected"
+    },
+    {
+      "t": 4606,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 6
+    },
+    {
+      "t": 4711,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 4
+    },
+    {
+      "t": 4813,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 4914,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 5016,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 5117,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 5218,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 5320,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 5421,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 5522,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 5623,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 5724,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 5824,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 0
+    },
+    {
+      "t": 5926,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6027,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6128,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6129,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6137,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspaces/3d5591db5d700b23/channels",
+      "status": 200,
+      "ms": 8
+    },
+    {
+      "t": 6144,
+      "what": "api",
+      "method": "DELETE",
+      "route": "/workspaces/3d5591db5d700b23/channels/botA",
+      "status": 404,
+      "ms": 6,
+      "body": {
+        "error": "Channel \"botA\" is not configured in this workspace.",
+        "code": "channel_instance_not_found"
+      }
+    },
+    {
+      "t": 6145,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6246,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6347,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6448,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6549,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6650,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6751,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6852,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 6953,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 7054,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 7156,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "t": 7257,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 7358,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 7459,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 7560,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 0
+    },
+    {
+      "t": 7662,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 7663,
+      "what": "api",
+      "method": "GET",
+      "route": "/workspace/channel",
+      "status": 200,
+      "ms": 1
+    },
+    {
+      "t": 7685,
+      "what": "peer_close",
+      "channel": "botB",
+      "closes": 2
+    }
+  ],
+  "modelCalls": [],
+  "daemons": [
+    {
+      "pid": 1167716,
+      "startedAt": 8,
+      "exit": {
+        "code": 0,
+        "sig": null,
+        "t": 3081
+      }
+    },
+    {
+      "pid": 1167800,
+      "startedAt": 3585,
+      "exit": {
+        "code": 0,
+        "sig": null,
+        "t": 7736
+      }
+    }
+  ]
+}

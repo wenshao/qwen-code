@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box} body{margin:0;background:#0d1117;color:#e6edf3;font:14px/1.45 -apple-system,"Segoe UI","DejaVu Sans",sans-serif}
+.card{width:1240px;padding:22px 26px;background:#0d1117}
+h1{font-size:19px;margin:0 0 4px} .sub{color:#8b949e;margin:0 0 14px;font-size:13px}
+h2{font-size:15px;margin:16px 0 8px;color:#e6edf3}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid #30363d;padding:6px 8px;vertical-align:top;text-align:left}
+th{background:#161b22;color:#8b949e;font-weight:600}
+code,.mono{font-family:"DejaVu Sans Mono","Liberation Mono",monospace;font-size:12.5px}
+.bad{background:#3d1418;color:#ffa198} .good{background:#0f2d1a;color:#7ee787} .same{background:#161b22;color:#c9d1d9}
+.note{color:#8b949e;font-size:12.5px;margin-top:10px}
+.legend{display:flex;gap:18px;color:#c9d1d9;font-size:13px;margin:4px 0 6px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+</style></head><body><div class="card"><h1>Settings-scope and trust edges, real daemon</h1><p class="sub">cells no earlier round measured · base <code>1abccdb26a</code> vs head <code>32a1756193</code></p><table><tr><th style="width:27%">cell</th><th style="width:31%">base</th><th>head (this PR)</th></tr><tr><td><b>home</b><br><span class="note">workspace = <code>$HOME</code>, <code>QWEN_HOME=$HOME/.qwen</code>; botH configured in the user file, running; config removed from that file</span></td>
+<td class="bad">DELETE → 404 channel_instance_not_found<br>worker alive; user file <code>serve.channels</code> = <code>["botH"]</code><br>after restart: <code>["botH"]</code></td>
+<td class="good">DELETE → 200 (19 ms)<br>worker exited; user file <code>serve.channels</code> = <code>[]</code><br>after restart: <code>[]</code></td></tr><tr><td><b>home-redirect</b><br><span class="note">workspace = <code>$HOME</code>, <code>QWEN_HOME</code> redirected elsewhere; botH configured in the user file, running; config removed from that file</span></td>
+<td class="bad">DELETE → 404 channel_instance_not_found<br>worker alive; user file <code>serve.channels</code> = <code>["botH"]</code><br>after restart: <code>["botH"]</code></td>
+<td class="good">DELETE → 200 (20 ms)<br>worker exited; user file <code>serve.channels</code> = <code>[]</code><br>after restart: <code>[]</code><br>stray <code>$HOME/.qwen/settings.json</code>: not created</td></tr><tr><td><b>userscope-guard</b><br><span class="note">botU configured in <i>user</i> settings, started by wsA's <code>serve.channels</code>; DELETE from wsA (the phantom-delete guard)</span></td>
+<td class="same">DELETE → 404 channel_instance_not_found<br>worker alive, peer closes 0</td>
+<td class="good">DELETE → 404 channel_instance_not_found: “Channel "botU" is not configured in this workspace's settings scope, but its runtime is resolved from another scope (user or system settings); it cannot be deleted from here.”<br>worker alive, peer closes 0; wsA selection and user config untouched</td></tr><tr><td><b>untrusted</b><br><span class="note">workspace registered at runtime without trust; config already lost</span></td>
+<td class="same">DELETE → 403 untrusted_workspace; file byte-identical: true</td>
+<td class="same">DELETE → 403 untrusted_workspace; file byte-identical: true<br><span class="note">the route's trust gate answers before the service, so the new <code>skipWorkspaceSettings: !trusted</code> read is not reached from HTTP</span></td></tr></table>
+<p class="note">Pre-existing, not this PR: boot restore reads only the workspace scope's <code>serve.channels</code>, which is disabled when the workspace is <code>$HOME</code>, so botH was started through <code>POST …/channels/botH/start</code> on both arms.</p></div></body></html>
