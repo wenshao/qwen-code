@@ -1,0 +1,108 @@
+name: 'CodeQL'
+
+# PROBE for QwenLM/qwen-code#13270 — not a real scan. The `codeql` matrix keeps
+# the PR's job name template, fail-fast and per-leg `timeout-minutes` expression;
+# the analysis steps are replaced by a sleep that overruns the javascript cap.
+on:
+  push:
+    branches: ['probe/pr13270-codeql']
+
+permissions:
+  actions: 'read'
+  contents: 'read'
+  security-events: 'write'
+
+concurrency:
+  group: 'codeql-green'
+  cancel-in-progress: false
+
+jobs:
+  codeql:
+    name: 'CodeQL (${{ matrix.language }})'
+    runs-on: 'ubuntu-latest'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: 'javascript'
+            timeout: 1
+          - language: 'java'
+            timeout: 15
+    timeout-minutes: '${{ matrix.timeout }}'
+    steps:
+      - name: 'Stand-in for Perform CodeQL Analysis'
+        run: |-
+          if [ '${{ matrix.language }}' = 'javascript' ]; then sleep 0; fi
+          echo 'leg finished'
+
+  report_failure:
+    name: 'Report a CodeQL scan that did not finish'
+    needs: ['codeql']
+    if: "${{ always() && github.repository == 'wenshao/qwen-code' && github.event_name == 'push' && needs.codeql.result != 'success' }}"
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 5
+    permissions:
+      # A job-level block replaces the workflow's, so checkout needs contents
+      # spelled out here even though the job only files an issue.
+      contents: 'read'
+      # Read this run's per-leg job conclusions.
+      actions: 'read'
+      issues: 'write'
+    steps:
+      - name: 'Checkout'
+        uses: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10' # v6.0.3
+        with:
+          persist-credentials: false
+
+      # --- probe only: record what GitHub handed this job -------------------
+      - name: 'PROBE: needs as seen by this job'
+        run: |-
+          echo 'needs.codeql.result=${{ needs.codeql.result }}'
+          echo '${{ toJSON(needs) }}'
+      # --- probe only: keep issue WRITES off the fork; reads stay real -------
+      - name: 'PROBE: intercept gh issue create/comment'
+        run: |-
+          real="$(command -v gh)"
+          mkdir -p "${RUNNER_TEMP}/ghshim"
+          cat > "${RUNNER_TEMP}/ghshim/gh" <<EOF
+          #!/usr/bin/env bash
+          if [ "\$1" = issue ] && { [ "\$2" = create ] || [ "\$2" = comment ]; }; then
+            echo "INTERCEPTED gh \$*" >> "${RUNNER_TEMP}/intercepted.log"
+            prev=''
+            for a in "\$@"; do
+              if [ "\$prev" = --body-file ]; then cp "\$a" "${RUNNER_TEMP}/intercepted-body.md"; fi
+              prev="\$a"
+            done
+            exit 0
+          fi
+          exec "$real" "\$@"
+          EOF
+          chmod +x "${RUNNER_TEMP}/ghshim/gh"
+          echo "${RUNNER_TEMP}/ghshim" >> "$GITHUB_PATH"
+          "$real" --version | head -1
+      - name: 'File or update the CodeQL failure issue'
+        env:
+          GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          REPO: '${{ github.repository }}'
+          RUN_ID: '${{ github.run_id }}'
+          RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          DEDUP_LABEL: 'scope/ci-cd'
+        run: 'bash .github/scripts/codeql-failure-issue.sh'
+
+      - name: 'PROBE: what the reporter tried to write'
+        if: '${{ always() }}'
+        run: |-
+          echo '--- intercepted calls'; cat "${RUNNER_TEMP}/intercepted.log" || true
+          echo '--- body'; cat "${RUNNER_TEMP}/intercepted-body.md" || true
+          echo '--- jobs as the reporter read them (same call, real gh, real token)'
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" --jq '.jobs[] | "\(.name) | \(.status) | \(.conclusion)"'
+        env:
+          GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+
+  report_failure_verbatim_gate:
+    name: 'PROBE: PR gate verbatim (expect skipped off-schedule/off-upstream)'
+    needs: ['codeql']
+    if: "${{ always() && github.repository == 'QwenLM/qwen-code' && github.event_name == 'schedule' && needs.codeql.result != 'success' }}"
+    runs-on: 'ubuntu-latest'
+    steps:
+      - run: 'echo this must not run on a fork push'
