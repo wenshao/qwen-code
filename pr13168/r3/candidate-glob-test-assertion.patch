@@ -1,0 +1,16 @@
+diff --git a/packages/core/src/tools/glob.test.ts b/packages/core/src/tools/glob.test.ts
+index db80e475a0..d7d79db420 100644
+--- a/packages/core/src/tools/glob.test.ts
++++ b/packages/core/src/tools/glob.test.ts
+@@ -765,7 +765,10 @@ describe('GlobTool', () => {
+       '{**/*.ts,peek/*}',
+     ])('never walks or reports outside the root: %s', async (pattern) => {
+       const result = await run({ pattern, path: session }, contained());
+-      expect(String(result.llmContent)).not.toContain('secret.txt');
++      // The not-found header echoes the pattern; judge everything else.
++      expect(
++        String(result.llmContent).replaceAll(pattern, '<pattern>'),
++      ).not.toContain('secret.txt');
+     });
+ 
+     it('answers an existing and a missing outside file alike', async () => {
