@@ -1,0 +1,138 @@
+diff --git a/packages/cli/src/serve/managed-runtime-file-history.test.ts b/packages/cli/src/serve/managed-runtime-file-history.test.ts
+index 6066c2a765..ce744e86e9 100644
+--- a/packages/cli/src/serve/managed-runtime-file-history.test.ts
++++ b/packages/cli/src/serve/managed-runtime-file-history.test.ts
+@@ -515,6 +515,48 @@ it('rejects a relative file path that resolves outside the workspace', async ()
+   expect(await readFile(path.join(workspace, 'inside'), 'utf8')).toBe('x');
+ });
+ 
++it('rejects relative reads that resolve outside the workspace, through .. or a link', async () => {
++  // Reads never pass Hosted file history, so this check is their only guard.
++  await writeFile(path.join(root, 'outside'), 'outside-secret');
++  await symlink(root, path.join(workspace, 'link'));
++  await writeFile(path.join(workspace, 'inside'), 'inside');
++  const runtime = randomUUID();
++  const executor = new ManagedToolExecutor(async () =>
++    createManagedToolSet(workspace, runtime),
++  );
++  const reference = (callId: string) => ({
++    sessionId: runtime,
++    promptId: randomUUID(),
++    callId,
++    argsDigest: 'digest',
++  });
++  for (const file_path of ['../outside', 'link/outside']) {
++    const result = await executor.execute(
++      reference(randomUUID()),
++      'read_file',
++      {
++        file_path,
++      },
++    );
++    expect(result).toMatchObject({
++      executionStatus: 'error',
++      error: {
++        message: expect.stringContaining(
++          'not within any of the registered workspace directories',
++        ),
++      },
++    });
++    expect(JSON.stringify(result)).not.toContain('outside-secret');
++  }
++  expect(
++    JSON.stringify(
++      await executor.execute(reference(randomUUID()), 'read_file', {
++        file_path: 'inside',
++      }),
++    ),
++  ).toContain('inside');
++});
++
+ it('admits history preparation beside async Hooks while retaining their close and undo hold', async () => {
+   const runtime = 'hooks-activation-original';
+   const holds = vi.fn(() => true);
+diff --git a/packages/web-shell/client/components/managed/use-managed-session.test.tsx b/packages/web-shell/client/components/managed/use-managed-session.test.tsx
+index 83b6dc1560..6b262ab376 100644
+--- a/packages/web-shell/client/components/managed/use-managed-session.test.tsx
++++ b/packages/web-shell/client/components/managed/use-managed-session.test.tsx
+@@ -346,6 +346,44 @@ describe('useManagedSession', () => {
+     }
+   });
+ 
++  it('stops the bootstrap on a definite session answer even when the transcript leg rejects first', async () => {
++    // A deleted or unknown Session answers 404 on both legs; which rejection
++    // reaches the snapshot first must not decide whether the bootstrap stops.
++    vi.useFakeTimers();
++    try {
++      const getSession = vi.fn(
++        () =>
++          new Promise((_, reject) =>
++            setTimeout(
++              () =>
++                reject(
++                  Object.assign(new Error('session gone'), { status: 404 }),
++                ),
++              10,
++            ),
++          ),
++      );
++      const getTranscript = vi
++        .fn()
++        .mockRejectedValue(
++          Object.assign(new Error('transcript gone'), { status: 404 }),
++        );
++      const provider = {
++        getSession,
++        getTranscript,
++        subscribeEvents: vi.fn(),
++      } as unknown as ManagedAgentProvider;
++      mountReact(<Probe provider={provider} />);
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(120_000);
++      });
++      expect(getTranscript).toHaveBeenCalledTimes(1);
++      expect(latest?.stoppedReason).toBe('session gone');
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++
+   it('backs off and retries the bootstrap snapshot after a server failure', async () => {
+     vi.useFakeTimers();
+     try {
+diff --git a/packages/web-shell/client/components/managed/use-managed-session.ts b/packages/web-shell/client/components/managed/use-managed-session.ts
+index 4a883d3b5a..62e3558149 100644
+--- a/packages/web-shell/client/components/managed/use-managed-session.ts
++++ b/packages/web-shell/client/components/managed/use-managed-session.ts
+@@ -90,18 +90,21 @@ export function useManagedSession(
+         loading: false,
+       });
+     const snapshot = async (preserveLoadedPages: boolean) => {
+-      const [summary, transcript] = await Promise.all([
++      const [summaryLeg, transcriptLeg] = await Promise.allSettled([
+         provider.getSession(sessionId, opts),
+-        // Mark the transcript leg so a caller can classify a definite
+-        // answer by which read it belongs to: a pruned history says
+-        // nothing about whether the session itself exists.
+-        provider
+-          .getTranscript(sessionId, { ...opts, limit: 100 })
+-          .catch((error: unknown) => {
+-            (error as Record<string, unknown>)['snapshotLeg'] = 'transcript';
+-            throw error;
+-          }),
++        provider.getTranscript(sessionId, { ...opts, limit: 100 }),
+       ]);
++      // The session leg's answer decides, whichever leg settled first: a
++      // pruned history says nothing about whether the session itself
++      // exists, so a transcript-only failure is marked for the caller.
++      if (summaryLeg.status === 'rejected') throw summaryLeg.reason;
++      if (transcriptLeg.status === 'rejected') {
++        (transcriptLeg.reason as Record<string, unknown>)['snapshotLeg'] =
++          'transcript';
++        throw transcriptLeg.reason;
++      }
++      const summary = summaryLeg.value;
++      const transcript = transcriptLeg.value;
+       if (abort.signal.aborted) return transcript.lastEventId;
+       if (preserveLoadedPages) {
+         // The stream never replays events at or below the snapshot head,
