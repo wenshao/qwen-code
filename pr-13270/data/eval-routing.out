@@ -1,0 +1,39 @@
+┌─────────┬──────────────────────────────────┬───────────────────────┬─────┬────────┐
+│ (index) │ lane                             │ laneEvent             │ ECS │ HOSTED │
+├─────────┼──────────────────────────────────┼───────────────────────┼─────┼────────┤
+│ 0       │ 'tui-parity.yml:parity'          │ 'pull_request'        │ 93  │ 267    │
+│ 1       │ 'tui-parity.yml:noflicker'       │ 'pull_request'        │ 93  │ 267    │
+│ 2       │ 'sdk-java.yml:flyway-migrations' │ 'pull_request'        │ 93  │ 267    │
+│ 3       │ 'assign-pr-owner.yml:assign'     │ 'pull_request_target' │ 93  │ 267    │
+└─────────┴──────────────────────────────────┴───────────────────────┴─────┴────────┘
+runs-on: 1440 contexts evaluated, 0 mismatches against the stated policy
+
+spot checks (official evaluator):
+  tui-parity.yml:parity ev=pull_request sameRepo=true assoc=NONE -> ["self-hosted","linux","x64","ecs-qwen"]
+  tui-parity.yml:parity ev=pull_request sameRepo=false assoc=FIRST_TIME_CONTRIBUTOR -> ["ubuntu-latest"]
+  tui-parity.yml:noflicker ev=pull_request sameRepo=false assoc=COLLABORATOR -> ["self-hosted","linux","x64","ecs-qwen"]
+  tui-parity.yml:noflicker ev=workflow_dispatch -> ["self-hosted","linux","x64","ecs-qwen"]
+  sdk-java.yml:flyway-migrations ev=push -> ["self-hosted","linux","x64","ecs-qwen"]
+  sdk-java.yml:flyway-migrations ev=pull_request sameRepo=false assoc=CONTRIBUTOR -> ["ubuntu-latest"]
+  assign-pr-owner.yml:assign ev=pull_request_target sameRepo=false assoc=NONE -> ["ubuntu-latest"]
+  assign-pr-owner.yml:assign ev=pull_request_target sameRepo=false assoc=MEMBER -> ["self-hosted","linux","x64","ecs-qwen"]
+  assign-pr-owner.yml:assign ev=pull_request_target sameRepo=true assoc=OWNER kill=true -> ["ubuntu-latest"]
+
+report_failure if: always() && github.repository == 'QwenLM/qwen-code' && github.event_name == 'schedule' && needs.codeql.result != 'success'
+┌─────────┬─────────────────────┬─────────────────────┬───────┐
+│ (index) │ event               │ needs.codeql.result │ runs  │
+├─────────┼─────────────────────┼─────────────────────┼───────┤
+│ 0       │ 'schedule'          │ 'success'           │ false │
+│ 1       │ 'schedule'          │ 'failure'           │ true  │
+│ 2       │ 'schedule'          │ 'cancelled'         │ true  │
+│ 3       │ 'schedule'          │ 'skipped'           │ true  │
+│ 4       │ 'workflow_dispatch' │ 'success'           │ false │
+│ 5       │ 'workflow_dispatch' │ 'failure'           │ false │
+│ 6       │ 'workflow_dispatch' │ 'cancelled'         │ false │
+│ 7       │ 'workflow_dispatch' │ 'skipped'           │ false │
+│ 8       │ 'push'              │ 'success'           │ false │
+│ 9       │ 'push'              │ 'failure'           │ false │
+│ 10      │ 'push'              │ 'cancelled'         │ false │
+│ 11      │ 'push'              │ 'skipped'           │ false │
+└─────────┴─────────────────────┴─────────────────────┴───────┘
+report_failure: 24 contexts evaluated, 0 mismatches
