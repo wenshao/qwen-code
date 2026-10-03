@@ -5,6 +5,9 @@ import { spawnSync } from 'node:child_process';
 const T = process.env.TS_TREE; if (!T) { console.error('TS_TREE required'); process.exit(2); }
 const F = `${T}/packages/cli/src/serve/hosted-harness-session.ts`;
 const MUT = [
+  ['T4', 'passive reload of a parked Turn no longer records the adopted Runtime lease', `          if (recovered?.acquiredRuntime)
+            resident.runtimeLeaseHeld =`, `          if (false && recovered?.acquiredRuntime)
+            resident.runtimeLeaseHeld =`],
   ['T1', 'passive load of a resident Session answers 409 again', `      (resident && (create || body?.['passiveManagedRuntimeRecovery'] !== true))`, `      resident`],
   ['T2', 'resident passive load skips the tenant / Workspace / store URL check', `        key.tenantId !== store.tenantId ||
         key.workspaceId !== store.workspaceId ||
