@@ -1,0 +1,28 @@
+// S11 — a --bg launch with security.folderTrust.enabled in an untrusted directory.
+import * as L from './lib.mjs';
+const C = new L.Checks('s11-folder-trust');
+const T = new L.Transcript('s11-folder-trust');
+const UUID = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/;
+const sc = L.scenario('head', 's11', { settings: { security: { auth: { selectedType: 'openai' }, folderTrust: { enabled: true } } } });
+const out = L.path.join(sc.cwd, 'trust.txt');
+const led0 = L.ledgerLen();
+T.title('folderTrust.enabled=true, launch directory never trusted (head b8387983)');
+T.cmd(`qwen --bg "BGWRITE:${out}"`);
+const r = L.qwen(sc, ['--bg', `BGWRITE:${out}`]);
+T.out(r.stdout.split('\n')[0]); T.err(r.stderr); T.exit(r.code, r.ms);
+const sid = UUID.exec(r.stdout)?.[1];
+const wrote = await L.waitFor(() => L.existsSync(out), { timeout: 25_000 });
+const turns = L.ledgerSince(led0).filter((l) => l.lastUser.includes(out)).length;
+const client = await L.supervisorClient(sc);
+const strip = (t) => t.replace(/\x1b\][^\x07]*\x07/g, '').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/\r/g, '');
+const screen = sid ? strip((await client.logs(sid).catch(() => ({ output: '' }))).output ?? '') : '';
+const tail = screen.split('\n').filter((l) => l.trim()).slice(-14).join('\n');
+const st = sid ? L.sessionFiles(sc, sid).state : undefined;
+T.note(`after 25 s: file written=${!!wrote}; model requests for the task=${turns}; state ${st?.sessionState}/${st?.processState}`);
+T.note('worker screen (logs RPC), last lines:');
+T.out(tail);
+C.check('launch.exit0', r.code === 0);
+C.check('worker-ran-task', !!wrote, `written=${!!wrote} turns=${turns}`);
+C.save({ sid, wrote: !!wrote, turns, state: st, screenTail: tail });
+L.killScenario(sc);
+process.exit(0);

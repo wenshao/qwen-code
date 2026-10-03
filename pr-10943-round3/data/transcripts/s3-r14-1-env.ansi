@@ -1,0 +1,24 @@
+[1;35m# R14-1 — shell B's --bg runs with shell A's environment (real build, head b8387983)[0m
+[36mshell A: OPENAI_API_KEY=sk-shellA-REVOKED PR10943_MARK=shellA OPENAI_BASE_URL=http://127.0.0.1:38521/v1[0m
+[36mshell B: OPENAI_API_KEY=sk-shellB-CURRENT PR10943_MARK=shellB OPENAI_BASE_URL=http://localhost:38521/v1[0m
+
+[1;32mshellA$[0m [1mqwen --bg "ENVPROBE:a.txt"[0m
+Started background session 70acaf69-699e-4254-bb90-09cd3928acfb
+[2m[exit 0, 0.75 s][0m
+[36m  worker shell saw: MARK=shellA  KEY=sk-shellA-REVOKED[0m
+[36m  model requests for this task: 2, Authorization=Bearer sk-shellA-REVOKED Host=127.0.0.1:38521[0m
+
+[1;32mshellB$[0m [1mqwen --bg "ENVPROBE:b.txt"[0m
+Started background session ff002c39-9eb7-4179-8642-716eee96648d
+[2m[exit 0, 0.33 s][0m
+[36m  worker shell saw: MARK=shellA  KEY=sk-shellA-REVOKED[0m
+[36m  model requests for this task: 2, Authorization=Bearer sk-shellA-REVOKED Host=127.0.0.1:38521[0m
+[1;31m✘ shell B got exit 0 and "Started", but its task ran with shell A's key, endpoint and env[0m
+
+[36mcontrol: stop the supervisor via its shutdown RPC (no `qwen` command does this), then launch from B again[0m
+[1;32mshellB$[0m [1mqwen --bg "ENVPROBE:c.txt"[0m
+Started background session d6a7b5aa-16e7-4a7b-8c5c-03b5c695590b
+[2m[exit 0, 0.74 s][0m
+[36m  worker shell saw: MARK=shellB  KEY=sk-shellB-CURRENT[0m
+[36m  model requests for this task: 2, Authorization=Bearer sk-shellB-CURRENT Host=localhost:38521[0m
+[1;32m✔ a fresh supervisor started from shell B carries B's key/endpoint/env[0m
