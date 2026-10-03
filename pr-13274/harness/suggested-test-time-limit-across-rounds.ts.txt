@@ -1,0 +1,59 @@
+// Suggested addition to packages/core/src/agents/runtime/agent-headless.test.ts,
+// inside describe('agent time limit during a wait', ...) — it reuses that
+// file's setupListFiles / call / callsChunk / backoff / signalOf / doneChunk
+// helpers.
+//
+// The existing "measures the limit from the original start and shares it
+// across waits" case runs a single round, where the retry-wait scope is
+// created at startTime, so it cannot tell "deadline = agent start + limit"
+// from "deadline = round start + limit". This two-round case can:
+//   PR 28eaa47 as written:                       passes (TIMEOUT at 60 000 ms)
+//   deadline computed from Date.now() per round: fails ("expected 110000 to be
+//                                                 less than or equal to 60001")
+it('counts time spent in earlier rounds toward the in-wait limit', async () => {
+  vi.useFakeTimers();
+  try {
+    const { config, toolConfig } = await setupListFiles();
+    let round = 0;
+    mockSendMessageStream.mockImplementation(async (_m, params) => {
+      round++;
+      if (round === 1) {
+        // Round 1 spends 50s of the 1-minute budget, then calls a tool.
+        await new Promise((r) => setTimeout(r, 50_000));
+        return (async function* () {
+          yield callsChunk([call('list_files', { path: '.' }, 'c1')]);
+        })();
+      }
+      // Round 2 parks in a 2h announced backoff.
+      return (async function* () {
+        await backoff(7_200_000, signalOf(params));
+        yield doneChunk;
+      })();
+    });
+    const scope = await AgentHeadless.create(
+      'test-agent',
+      config,
+      promptConfig,
+      defaultModelConfig,
+      { max_turns: 5, max_time_minutes: 1 },
+      toolConfig,
+      new AgentEventEmitter(),
+    );
+    let settledAt: number | undefined;
+    const t0 = Date.now();
+    const run = scope
+      .execute(new ContextState(), undefined, {
+        enforceTimeLimitDuringRetryWait: true,
+      })
+      .finally(() => (settledAt = Date.now() - t0));
+    await vi.advanceTimersByTimeAsync(60_001);
+    await vi.advanceTimersByTimeAsync(120_000);
+    await run;
+    expect(round).toBe(2);
+    expect(scope.getTerminateMode()).toBe(AgentTerminateMode.TIMEOUT);
+    // The limit is 60s from the agent's start, not from round 2's start.
+    expect(settledAt).toBeLessThanOrEqual(60_001);
+  } finally {
+    vi.useRealTimers();
+  }
+});
