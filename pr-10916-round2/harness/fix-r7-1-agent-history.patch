@@ -1,0 +1,95 @@
+diff --git a/packages/core/src/agents/runtime/agent-core.ts b/packages/core/src/agents/runtime/agent-core.ts
+index 254e7caaaa..c10ca7624d 100644
+--- a/packages/core/src/agents/runtime/agent-core.ts
++++ b/packages/core/src/agents/runtime/agent-core.ts
+@@ -1352,6 +1352,17 @@ export class AgentCore {
+             }
+           }
+           if (terminateMode === AgentTerminateMode.LOOP_DETECTED) {
++            // This round's calls already executed — files were written,
++            // commands ran — but breaking here skips the send that would put
++            // their results into history. Record them, as the client-side
++            // halt does (client.ts), so the model's functionCall turn stays
++            // paired: left dangling, a later send on this chat (a blocking
++            // SubagentStop hook continues it) runs the orphan repair, which
++            // tells the model those calls were lost to a crash and should be
++            // retried — including the ones in this batch that succeeded.
++            for (const content of toolCallResult.messages) {
++              chat.addHistory(content);
++            }
+             break;
+           }
+           currentMessages = toolCallResult.messages;
+diff --git a/packages/core/src/agents/runtime/agent-headless.test.ts b/packages/core/src/agents/runtime/agent-headless.test.ts
+index 33ce3bcd36..21b0d2d297 100644
+--- a/packages/core/src/agents/runtime/agent-headless.test.ts
++++ b/packages/core/src/agents/runtime/agent-headless.test.ts
+@@ -423,6 +423,7 @@ describe('subagent.ts', () => {
+   describe('AgentHeadless', () => {
+     let mockSendMessageStream: Mock;
+     let mockGetHistoryToolCallFingerprints: Mock;
++    let mockAddHistory: Mock;
+ 
+     const defaultModelConfig: ModelConfig = { model: 'qwen3-coder-plus' };
+     const defaultRunConfig: RunConfig = { max_time_minutes: 5, max_turns: 10 };
+@@ -451,12 +452,14 @@ describe('subagent.ts', () => {
+       mockGetHistoryToolCallFingerprints = vi.fn(
+         () => new Map<string, string>(),
+       );
++      mockAddHistory = vi.fn();
+       vi.mocked(LlmChat).mockImplementation(
+         () =>
+           ({
+             sendMessageStream: mockSendMessageStream,
+             setLastPromptTokenCount: vi.fn(),
+             getHistoryToolCallFingerprints: mockGetHistoryToolCallFingerprints,
++            addHistory: mockAddHistory,
+           }) as unknown as LlmChat,
+       );
+ 
+@@ -1674,6 +1677,45 @@ describe('subagent.ts', () => {
+         expect(finishEvents[0].loopType).toBe('repeated_tool_error');
+       });
+ 
++      it('records the halting round results in history so the calls stay paired (issue #10887)', async () => {
++        // The halting round's calls already executed. If its results are not
++        // written to the chat, a later send on the same chat (a blocking
++        // SubagentStop hook continues the run) repairs the dangling calls
++        // with "not recorded ... retry", including calls that succeeded.
++        const failing = vi.fn().mockResolvedValue({
++          llmContent: 'fatal: not a git repository',
++          returnDisplay: 'fatal: not a git repository',
++          error: {
++            message: 'fatal: not a git repository',
++            type: ToolErrorType.SHELL_EXECUTE_ERROR,
++          },
++        });
++        const { config, toolConfig } = await setupReadTool(
++          decl('run_shell_command', 'Runs a shell command'),
++          invocation({ command: 'git status' }, 'Run shell', failing),
++          'Shell',
++          'Runs shell commands',
++        );
++        respond(
++          [call('run_shell_command', { command: 'git status' }, 'err_1')],
++          [call('run_shell_command', { command: 'git status -s' }, 'err_2')],
++          [call('run_shell_command', { command: 'git -C r status' }, 'err_3')],
++          'stop',
++        );
++        const scope = await runAgent(config, { tools: toolConfig });
++
++        expect(scope.getTerminateMode()).toBe(AgentTerminateMode.LOOP_DETECTED);
++        expect(mockAddHistory).toHaveBeenCalledTimes(1);
++        const recorded = mockAddHistory.mock.calls[0][0] as {
++          role: string;
++          parts: Part[];
++        };
++        expect(recorded.role).toBe('user');
++        expect(recorded.parts.map((p) => p.functionResponse?.id)).toEqual([
++          'err_3',
++        ]);
++      });
++
+       it('bounds the error streak to the prompt when an external message starts a new one (issue #10887)', async () => {
+         // The reasoning loop outlives a prompt while external messages keep
+         // it alive: two failures in an early task plus one much later must
