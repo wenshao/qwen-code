@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><style>
+  body{margin:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e6edf3}
+  #card{width:1000px;padding:24px 28px 26px;background:#0d1117}
+  h1{font-size:19px;margin:0 0 4px;font-weight:650}
+  h2{font-size:14.5px;margin:16px 0 8px}
+  .sub{font-size:13px;color:#9da7b3;margin:0 0 14px;line-height:1.45}
+  pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.4px;line-height:1.45;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:9px 11px;margin:0 0 10px;white-space:pre-wrap;word-break:break-all;color:#c9d1d9}
+  .note{font-size:12.5px;color:#c9d1d9;border-left:3px solid #d29922;padding:6px 10px;margin:4px 0 12px;line-height:1.5;background:#161b22}
+  .note.ok{border-left-color:#3fb950}.note.bad{border-left-color:#f85149}.note.info{border-left-color:#58a6ff}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.6px;background:#1f2630;padding:1px 4px;border-radius:4px}
+  table{border-collapse:collapse;width:100%;font-size:12.4px;margin-bottom:12px}
+  th,td{border:1px solid #30363d;padding:5px 8px;text-align:left;vertical-align:top;line-height:1.4}
+  th{background:#161b22;color:#9da7b3;font-weight:600}
+  td.num{text-align:right;white-space:nowrap;font-family:ui-monospace,Menlo,monospace}
+  .pass{color:#3fb950;font-weight:600}.fail{color:#f85149;font-weight:600}.amber{color:#d29922;font-weight:600}.dim{color:#8b949e}
+</style><div id="card"><h1>Workspace context A/B on the real stack — stack base <code>d452f5c</code> vs head <code>47017f3</code></h1><p class="sub">Real stack: MySQL 8.4.7 + Spring server jar (Session Store, embedded Java Runtime Broker, local-process Runtime workers spawned from the arm’s bundle) + packaged Hosted Harness (<code>dist/cli.js serve --profile hosted-harness</code>). Scripted loopback model unless noted. Session cwd <code>services/api</code> holds QWEN.md + AGENTS.md; the Workspace root also holds a QWEN.md that must not load. Turns: tool, plain, tool; then detach and load on a second Harness.</p><table><tr><th>Model request</th><th>base</th><th>head</th><th>workspace-context controls in the turn</th></tr><tr><td>T1 tool · request #1</td><td class="dim">—</td><td class="dim">—</td><td class="num">1</td></tr><tr><td>T1 tool · request #2</td><td class="dim">—</td><td class="pass">QWEN.md + AGENTS.md</td><td class="num"></td></tr><tr><td>T2 plain · request #1</td><td class="dim">—</td><td class="pass">QWEN.md + AGENTS.md</td><td class="num">0</td></tr><tr><td>T3 tool · request #1</td><td class="dim">—</td><td class="pass">QWEN.md + AGENTS.md</td><td class="num">0</td></tr><tr><td>T3 tool · request #2</td><td class="dim">—</td><td class="pass">QWEN.md + AGENTS.md</td><td class="num"></td></tr><tr><td>B1 tool (cold) · request #1</td><td class="dim">—</td><td class="dim">—</td><td class="num">1</td></tr><tr><td>B1 tool (cold) · request #2</td><td class="dim">—</td><td class="pass">QWEN.md + AGENTS.md</td><td class="num"></td></tr></table><h2>Head, Turn 1 — Harness → Runtime Broker ledger</h2><pre>POST /runtimes:warm -&gt; 200
+POST /tool-sessions:acquire -&gt; 200
+POST /tool-sessions/&lt;id&gt;/control{raw-file-history} -&gt; 200
+POST /tool-sessions/&lt;id&gt;/control{workspace-context} -&gt; 200
+POST /executions:prepare -&gt; 200
+POST /executions/713a5d3d-9a95-4d34-9987-8ba1f14ae125:start -&gt; 200
+GET /executions/713a5d3d-9a95-4d34-9987-8ba1f14ae125 -&gt; 200
+POST /tool-sessions/&lt;id&gt;:release -&gt; 200</pre><h2>Assembled section on the wire (head, system instruction)</h2><pre>--- Context from: QWEN.md ---
+R2-QWEN-MARKER: project rule from services/api/QWEN.md
+--- End of Context from: QWEN.md ---
+
+--- Context from: AGENTS.md ---
+R2-AGENTS-MARKER: agent note from services/api/AGENTS.md
+--- End of Context from: AGENTS.md ---</pre><table><tr><th>Check (head)</th><th>Result</th></tr><tr><td>qwen_tool_execution rows after 2 tool turns</td><td class="pass">0 → 2 (= model tool calls; the read is not an execution)</td></tr><tr><td>Workspace-root QWEN.md (ancestor) in any request</td><td class="pass">never</td></tr><tr><td>Probe checks: files/1 · files/2 (glob) · shell/1</td><td class="pass">12/12 · 12/12 · 12/12 (base arm: 2/2)</td></tr><tr><td>Real model qwen3.8-max — QWEN.md rule followed: tool-turn answer / next plain turn</td><td class="pass">head 2/2 / 2/2</td></tr><tr><td>…same on base</td><td class="dim">base 0/2 / 0/2</td></tr></table><pre>head rep0 tool-turn answer: "I'll read the file.\n\nThe deployment region is `cn-hangzhou-k`, per the single line in `proof.txt`.\n\n-- checked ZEBRA-7731"
+base rep0 tool-turn answer: "I'll read the file.\n\nThe deployment region is **`cn-hangzhou-k`** (from `proof.txt`)."</pre><div class="note ok">Central claim holds end to end through the Java broker: the first request never waits, one <code>workspace-context</code> control rides the first acquisition (after <code>raw-file-history</code>, before <code>executions:prepare</code>), every later request on the attachment carries both files, and a cold attachment refetches once. Shell/1 tool list on the wire: <code>read_file, write_file, edit, run_shell_command</code>.</div></div>

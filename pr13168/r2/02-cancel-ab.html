@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><style>
+  body{margin:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e6edf3}
+  #card{width:1000px;padding:24px 28px 26px;background:#0d1117}
+  h1{font-size:19px;margin:0 0 4px;font-weight:650}
+  h2{font-size:14.5px;margin:16px 0 8px}
+  .sub{font-size:13px;color:#9da7b3;margin:0 0 14px;line-height:1.45}
+  pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.4px;line-height:1.45;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:9px 11px;margin:0 0 10px;white-space:pre-wrap;word-break:break-all;color:#c9d1d9}
+  .note{font-size:12.5px;color:#c9d1d9;border-left:3px solid #d29922;padding:6px 10px;margin:4px 0 12px;line-height:1.5;background:#161b22}
+  .note.ok{border-left-color:#3fb950}.note.bad{border-left-color:#f85149}.note.info{border-left-color:#58a6ff}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.6px;background:#1f2630;padding:1px 4px;border-radius:4px}
+  table{border-collapse:collapse;width:100%;font-size:12.4px;margin-bottom:12px}
+  th,td{border:1px solid #30363d;padding:5px 8px;text-align:left;vertical-align:top;line-height:1.4}
+  th{background:#161b22;color:#9da7b3;font-weight:600}
+  td.num{text-align:right;white-space:nowrap;font-family:ui-monospace,Menlo,monospace}
+  .pass{color:#3fb950;font-weight:600}.fail{color:#f85149;font-weight:600}.amber{color:#d29922;font-weight:600}.dim{color:#8b949e}
+</style><div id="card"><h1>Cancel while the context read is stalled — round-1 head <code>b847d1f</code> vs head <code>47017f3</code></h1><p class="sub">Real stack: MySQL 8.4.7 + Spring server jar (Session Store, embedded Java Runtime Broker, local-process Runtime workers spawned from the arm’s bundle) + packaged Hosted Harness (<code>dist/cli.js serve --profile hosted-harness</code>). Scripted loopback model unless noted. Same Spring, worker and jar for both arms; only the Harness bundle differs. A proxy between Harness and Broker holds the <code>workspace-context</code> control; the client cancels 1 s after it arrives; the held request is forwarded to the real broker 8 s after the cancel.</p><table><tr><th></th><th>round-1 head b847d1f</th><th>head 47017f3</th></tr><tr><td>Cancel → Session idle</td><td class="fail">8272 ms (waited for the held read)</td><td class="pass">111 ms</td></tr><tr><td>Turn terminal</td><td>turn_complete(cancelled)</td><td>turn_complete(cancelled)</td></tr><tr><td>Broker calls after the cancel</td><td class="fail">POST /executions:prepare -> 200<br>POST /executions/771648b1-6a7c-400c-9bdc-f5ec05590af2:cancel -> 200</td><td class="pass">—</td></tr><tr><td>qwen_tool_execution rows for the cancelled Turn</td><td class="fail">1</td><td class="pass">0</td></tr><tr><td>Lease released / holders empty</td><td class="pass">yes</td><td class="pass">yes</td></tr><tr><td>Next tool turn re-reads and carries context (slot not latched)</td><td class="pass">1 read, request #2 has it</td><td class="pass">1 read, request #2 has it</td></tr></table><h2>Head, Turn 1 ledger (the held read answered 404 after the release — nothing consumed it)</h2><pre>POST /runtimes:warm -&gt; 200
+POST /tool-sessions:acquire -&gt; 200
+POST /tool-sessions/&lt;id&gt;/control{raw-file-history} -&gt; 200
+POST /tool-sessions/&lt;id&gt;/control{workspace-context} -&gt; 404 runtime_session_not_found [held]
+POST /tool-sessions/&lt;id&gt;:release -&gt; 200</pre><h2>Round-1 head, Turn 1 ledger</h2><pre>POST /runtimes:warm -&gt; 200
+POST /tool-sessions:acquire -&gt; 200
+POST /tool-sessions/&lt;id&gt;/control{raw-file-history} -&gt; 200
+POST /tool-sessions/&lt;id&gt;/control{workspace-context} -&gt; 200 [held]
+POST /executions:prepare -&gt; 200
+POST /executions/771648b1-6a7c-400c-9bdc-f5ec05590af2:cancel -&gt; 200
+POST /tool-sessions/&lt;id&gt;:release -&gt; 200</pre><h2>Same stall, no cancel (head): the Harness’s generic 30 s broker timeout decides</h2><pre>turn wall time 30852 ms; tool still ran (rows +1); stderr: Hosted Workspace context read failed: TimeoutError: The operation was aborted due to timeout
+next tool turn: admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 584ms; workspace-context reads=1</pre><div class="note ok">The cancellation fix (<code>75213f4</code>) is real and load-bearing on the full stack: the round-1 code kept the cancelled Turn alive until the stalled read returned and then still prepared a tool execution; the head settles in ~0.1 s with no dispatch.</div><div class="note">Observation (low): without a cancel, a stalled read holds the first tool dispatch for the full 30 s generic broker request timeout; the slot stays unset, so the next tool turn reads again (measured: it did, and succeeded). A persistently stalled broker would therefore charge every tool turn up to 30 s (inferred) — a short dedicated budget for this best-effort read would bound that.</div></div>

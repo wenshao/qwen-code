@@ -1,0 +1,22 @@
+diff --git a/packages/cli/src/serve/managed-runtime-tool-executor.ts b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+index 1af2c3a0b9..6b081638f1 100644
+--- a/packages/cli/src/serve/managed-runtime-tool-executor.ts
++++ b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+@@ -310,13 +310,14 @@ export class ManagedToolExecutor {
+       throw new ManagedToolUnavailableError(
+         'Workspace context is unavailable.',
+       );
+-    const boundary = await fs.realpath(tools.workspaceRoot ?? tools.directory);
++    // The boundary read_file and glob use: a link that leaves the Session
++    // directory (a sibling Session on the same mount, or the host) must not
++    // promote that file into this Session's system instruction.
++    const boundary = await fs.realpath(tools.directory);
+     const files: ManagedWorkspaceContextFile[] = [];
+     for (const name of MANAGED_WORKSPACE_CONTEXT_FILES) {
+       let text: string;
+       try {
+-        // A symlink planted in the Workspace (git preserves them) must not
+-        // promote a host file into the system instruction.
+         const real = await fs.realpath(path.join(tools.directory, name));
+         const rel = path.relative(boundary, real);
+         if (

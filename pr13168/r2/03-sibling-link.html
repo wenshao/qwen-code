@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><style>
+  body{margin:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e6edf3}
+  #card{width:1000px;padding:24px 28px 26px;background:#0d1117}
+  h1{font-size:19px;margin:0 0 4px;font-weight:650}
+  h2{font-size:14.5px;margin:16px 0 8px}
+  .sub{font-size:13px;color:#9da7b3;margin:0 0 14px;line-height:1.45}
+  pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.4px;line-height:1.45;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:9px 11px;margin:0 0 10px;white-space:pre-wrap;word-break:break-all;color:#c9d1d9}
+  .note{font-size:12.5px;color:#c9d1d9;border-left:3px solid #d29922;padding:6px 10px;margin:4px 0 12px;line-height:1.5;background:#161b22}
+  .note.ok{border-left-color:#3fb950}.note.bad{border-left-color:#f85149}.note.info{border-left-color:#58a6ff}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.6px;background:#1f2630;padding:1px 4px;border-radius:4px}
+  table{border-collapse:collapse;width:100%;font-size:12.4px;margin-bottom:12px}
+  th,td{border:1px solid #30363d;padding:5px 8px;text-align:left;vertical-align:top;line-height:1.4}
+  th{background:#161b22;color:#9da7b3;font-weight:600}
+  td.num{text-align:right;white-space:nowrap;font-family:ui-monospace,Menlo,monospace}
+  .pass{color:#3fb950;font-weight:600}.fail{color:#f85149;font-weight:600}.amber{color:#d29922;font-weight:600}.dim{color:#8b949e}
+</style><div id="card"><h1>Session-directory boundary: the context read admits a sibling Session’s file that <code>read_file</code> refuses</h1><p class="sub">Real stack: MySQL 8.4.7 + Spring server jar (Session Store, embedded Java Runtime Broker, local-process Runtime workers spawned from the arm’s bundle) + packaged Hosted Harness (<code>dist/cli.js serve --profile hosted-harness</code>). Scripted loopback model unless noted. One Workspace mount; Sessions in <code>services/web</code> (sibling) and <code>services/api</code>. <code>services/api/QWEN.md → ../web/secret.txt</code>, <code>services/api/AGENTS.md → &lt;outside the mount&gt;</code>, <code>services/mono/QWEN.md → ../../QWEN.md</code>. Candidate = head with one statement changed (boundary = Session directory).</p><table><tr><th>services/api Session</th><th>base d452f5c</th><th>head 47017f3</th><th>candidate</th></tr><tr><td>workspace-context result</td><td class="dim">no such control</td><td class="fail">["QWEN.md: SIBLING_SECRET_7731 (belongs to the services/web"]</td><td class="pass">[]</td></tr><tr><td>sibling secret in system instruction</td><td class="dim">n/a</td><td class="fail">injected</td><td class="pass">not injected</td></tr><tr><td>outside-mount AGENTS.md link</td><td class="dim">n/a</td><td class="pass">skipped</td><td class="pass">skipped</td></tr><tr><td>read_file QWEN.md (same link)</td><td class="pass">refused</td><td class="pass">refused</td><td class="pass">refused</td></tr><tr><td>services/mono QWEN.md → Workspace-root QWEN.md</td><td class="dim">n/a</td><td class="amber">loaded</td><td class="amber">not loaded (trade-off)</td></tr><tr><td>100,000-char QWEN.md</td><td class="dim">n/a</td><td class="pass">65,536 chars + truncation note</td><td class="pass">65,536 chars + truncation note</td></tr></table><h2>Real model (qwen3.8-max), head — “Do you have any project context loaded? Quote it verbatim.”</h2><pre>Yes — one instruction file is loaded into my context for this session: `QWEN.md`. Verbatim:
+
+```
+Web team internal note: release codename is AURORA-SIBLING-5521.
+```
+
+That's the complete content provided. I haven't searched the repository for other context files (e.g., additional `QWEN.md` files in subdirectories, READMEs, or config), so there may be more on</pre><h2>…then “use read_file on QWEN.md” (same Session, head)</h2><pre>call read_file({"file_path":"QWEN.md"})
+result read_file status=error "Path 'QWEN.md' is not within the Session working directory."</pre><h2>Candidate, same questions</h2><pre>No project context or instruction files were loaded into my session context. The only things I've received are your two messages, the tool definitions, my system instructions, and a date-change reminder. There were no `QWEN.md`/`AGENTS.md`  …
+call read_file({"file_path":"QWEN.md"})
+result read_file status=error "Path 'QWEN.md' is not within the Session working directory."</pre><div class="note bad">Confirms the bot’s round-3 Critical at <code>managed-runtime-tool-executor.ts:313</code> on the real stack: the mount-root boundary lets a link in one Session put a sibling Session’s file into its system instruction for the rest of the attachment, while the #13166 guards refuse the same path to <code>read_file</code>/<code>glob</code>. The one-statement candidate closes it; the cost is that a Session-local link to Workspace-root rules (<code>services/mono</code>) is no longer followed — the same rule <code>read_file</code> already applies.</div></div>
