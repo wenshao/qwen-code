@@ -130,8 +130,8 @@ There is still no headless off-switch and no threshold setting. My round-1 recom
 **3. Unchanged; follow-ups, not re-argued here:**
 - **ACP:** I replayed S1 through a real `qwen --acp` session. It runs 14 requests and ends with `end_turn`, the same as `main`. The guard is still not wired into ACP or the daemon.
 - **R4-2 (quoted digest):**
-  - S7 has three **different** failures that each quote a digest line. One of four `pr` runs halted after three requests.
-  - The other three runs hit the intermittent `Output: (empty)` shell glitch from round 1. In those runs, 6 of 15 commands came back empty under load, and an empty result resets the streak. The glitch was also seen on `main` and is not caused by this PR.
+  - S7 runs **different** failures (exit codes 1–4) whose output each quotes a digest line. One of four `pr` runs halted after three requests.
+  - The other three runs hit the intermittent `Output: (empty)` shell glitch from round 1. Across the four runs, 5 of 15 commands came back empty under load, and an empty result resets the streak. The glitch was also seen on `main` and is not caused by this PR.
 - **Visible change:** the `Full output sha256:` line on every failed shell result is still visible and still undisclosed.
 
 ### Gates

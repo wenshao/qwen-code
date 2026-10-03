@@ -28,5 +28,5 @@ New scenarios:
   the immediate-drain branch (R11-2).
 
 Known noise (pre-existing, also on main, see round 1): fast-failing shell commands intermittently report
-`Output: (empty)`. It hit S7 here in 3 of 4 pr runs (6 of 15 commands, under load) and resets the error streak;
+`Output: (empty)`. It hit S7 here in 3 of 4 pr runs (5 of 15 commands, under load) and one S12 pr run (s12-stophook-r71__pr-telemetry) and resets the error streak;
 only `s7-quoted-digest__pr-rep3` is clean.
