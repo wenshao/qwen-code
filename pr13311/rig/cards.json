@@ -1,0 +1,594 @@
+[
+  {
+    "id": "01-validator-dag-ab",
+    "title": "R4-1 (validator half): shared-reference DAG validation, base vs PR",
+    "subtitle": "parseManagedSessionEvent(cancel.requested, target = N levels of t = {a: t, b: t}) · built packages/core/dist of each arm · Node 24.18.1 · macOS arm64",
+    "blocks": [
+      {
+        "kind": "table",
+        "head": [
+          "N",
+          "distinct objects",
+          "paths",
+          "base 5ddfacc9",
+          "PR 8daf1f67"
+        ],
+        "rows": [
+          [
+            "16",
+            "17",
+            "2^16",
+            "163.8 ms",
+            "ACCEPT 0.7 ms"
+          ],
+          [
+            "18",
+            "19",
+            "2^18",
+            "664.1 ms",
+            "n/a (not run)"
+          ],
+          [
+            "20",
+            "21",
+            "2^20",
+            "2,640 ms",
+            "ACCEPT 0.7 ms"
+          ],
+          [
+            "22",
+            "23",
+            "2^22",
+            "10,682 ms",
+            "n/a (not run)"
+          ],
+          [
+            "24",
+            "25",
+            "2^24",
+            "43,962 ms",
+            "ACCEPT 0.7 ms"
+          ],
+          [
+            "28",
+            "29",
+            "2^28",
+            "n/a (not run)",
+            "ACCEPT 0.7 ms"
+          ],
+          [
+            "32",
+            "33",
+            "2^32",
+            "n/a (not run)",
+            "ACCEPT 0.8 ms"
+          ],
+          {
+            "hl": true,
+            "cells": [
+              "40",
+              "41",
+              "2^40",
+              "KILLED-after-150 s (~33 days at 4x per +2 levels)",
+              "ACCEPT 0.8 ms"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "note",
+        "tone": "good",
+        "text": "Base grows exactly 4x per two levels (one visit per path). The PR's height memo makes the validator O(distinct objects): flat under 1 ms up to 2^40 paths. This half of R4-1 is fixed."
+      }
+    ]
+  },
+  {
+    "id": "02-append-path-still-hangs",
+    "title": "R4-1 (append half): the real append still hangs, now in commit()'s JSON.stringify",
+    "subtitle": "LocalManagedSessionAuthority.appendExecution on a real writer lease + on-disk JSONL journal (same event as card 1) · candidate = memo also bounds expanded JSON size",
+    "blocks": [
+      {
+        "kind": "table",
+        "head": [
+          "N",
+          "PR validate",
+          "PR JSON.stringify(event)",
+          "PR appendExecution",
+          "candidate appendExecution"
+        ],
+        "rows": [
+          [
+            "15",
+            "—",
+            "—",
+            "COMMITTED 59 ms, 690 KB written, read back OK",
+            "COMMITTED 42 ms, read back OK"
+          ],
+          [
+            "16",
+            "—",
+            "—",
+            "[m] REFUSED 'exceeds 1048576 bytes' 6 ms",
+            "[m] REFUSED 'exceeds 1048576 bytes' 6 ms"
+          ],
+          [
+            "24",
+            "1.1 ms",
+            "1,660 ms (352 MB string)",
+            "REFUSED 'exceeds 1048576 bytes' 1,561 ms, maxRSS 1,249 MB",
+            "[g] REFUSED typed 0.2 ms, maxRSS 65 MB"
+          ],
+          [
+            "25",
+            "—",
+            "2,664 ms RangeError",
+            "REFUSED RangeError: Invalid string length 2,792 ms, 1,089 MB",
+            "[g] REFUSED typed 0.2 ms"
+          ],
+          [
+            "26",
+            "1.5 ms",
+            "6,368 ms RangeError",
+            "REFUSED RangeError 5,566 ms",
+            "n/a (not run)"
+          ],
+          [
+            "28",
+            "1.1 ms",
+            "25,043 ms RangeError",
+            "REFUSED RangeError 21,318 ms, 1,088 MB",
+            "n/a (not run)"
+          ],
+          {
+            "hl": true,
+            "cells": [
+              "40",
+              "0.8 ms",
+              "KILLED-at 60 s (N=30 too)",
+              "KILLED-after 300 s: no return, nothing written",
+              "[g] REFUSED typed 0.3 ms, 64 MB, 0 B written"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "pre",
+        "text": "commit():  parseManagedSessionEvent(value)        // PR: linear now\n           const encoded = events.map((event) => JSON.stringify(event));   // walks every path\n           ... byteLength(line) > maxEventBytes -> refuse                  // reached only after the walk\n\nV8 keeps walking after the string-length limit trips and throws only at the end:\ncost doubles per level (N=26 5.6 s, N=28 21.3 s) -> N=40 ~ 21 s x 2^12 ~ one day of a blocked event loop."
+      },
+      {
+        "kind": "note",
+        "tone": "bad",
+        "text": "The PR moves the exponential walk from assertJsonValue into commit(). For N >= ~27 the append the R4-1 thread describes still blocks the process, and below that it fails as an untyped RangeError after seconds and ~1 GB RSS instead of a ManagedSessionRecordError."
+      },
+      {
+        "kind": "note",
+        "tone": "good",
+        "text": "Candidate (attached patch): the memo also carries a lower bound on the expanded JSON size; a subgraph that shares references and expands past maxTransactionBytes (8 MiB) is refused during validation, before stringify. Trees (everything parsed from text) are never held to it."
+      }
+    ]
+  },
+  {
+    "id": "03-real-stack",
+    "title": "Real stack: Spring Managed Agent Server + MySQL 8.4.7 + qwen serve hosted harness",
+    "subtitle": "scripts/run-managed-agent-server-e2e.ts (variant keeps the tmp dir on success) · jar built offline from PR head (JDK 21.0.12) · Node 22.23.2 · each arm's own dist/cli.js",
+    "blocks": [
+      {
+        "kind": "table",
+        "caption": "Runs (all exit 0)",
+        "head": [
+          "run",
+          "arm",
+          "mode",
+          "wall",
+          "runner summary"
+        ],
+        "rows": [
+          [
+            "001",
+            "PR",
+            "--session-failover (fake model)",
+            "19 s",
+            "writer 1->2, journal 11->20, committed 12->23, restoredFirstTurnContext"
+          ],
+          [
+            "002",
+            "base",
+            "--session-failover",
+            "17 s",
+            "writer 1->2, journal 11->20, committed 12->23, restoredFirstTurnContext"
+          ],
+          [
+            "003",
+            "PR",
+            "--session-failover",
+            "20 s",
+            "writer 1->2, journal 10->19, committed 11->22, restoredFirstTurnContext"
+          ],
+          [
+            "004",
+            "PR",
+            "--model qwen3.8-max",
+            "18 s",
+            "toolSideEffect, idempotentReplay, crossTenant 404, 10 durable events"
+          ],
+          [
+            "005",
+            "PR",
+            "--model qwen3.8-max",
+            "16 s",
+            "toolSideEffect, idempotentReplay, crossTenant 404, 9 durable events"
+          ],
+          [
+            "006",
+            "base",
+            "--model qwen3.8-max",
+            "16 s",
+            "toolSideEffect, idempotentReplay, crossTenant 404, 10 durable events"
+          ]
+        ]
+      },
+      {
+        "kind": "table",
+        "caption": "Session Store replay: qwen_managed_session_journal_tx.record_bytes -> describeTransaction() (the HTTP store's read path)",
+        "head": [
+          "journal (writer)",
+          "tx",
+          "read by base",
+          "read by PR",
+          "read by candidate"
+        ],
+        "rows": [
+          [
+            "001 PR sf",
+            "20",
+            "OK 20/20",
+            "OK 20/20",
+            "OK 20/20"
+          ],
+          [
+            "002 base sf",
+            "20",
+            "OK 20/20",
+            "OK 20/20",
+            "OK 20/20"
+          ],
+          [
+            "003 PR sf",
+            "20",
+            "OK 20/20",
+            "OK 20/20",
+            "OK 20/20"
+          ],
+          [
+            "004 PR real model",
+            "24",
+            "OK 24/24",
+            "OK 24/24",
+            "OK 24/24"
+          ],
+          [
+            "005 PR real model",
+            "23",
+            "OK 23/23",
+            "OK 23/23",
+            "OK 23/23"
+          ],
+          [
+            "006 base real model",
+            "24",
+            "OK 24/24",
+            "OK 24/24",
+            "OK 24/24"
+          ]
+        ]
+      },
+      {
+        "kind": "table",
+        "caption": "What the new guards saw in those 131 real transactions",
+        "head": [
+          "guard input",
+          "count",
+          "tripped"
+        ],
+        "rows": [
+          [
+            "activation.changed with an activation payload subject (R3-3 id/epoch check)",
+            "21",
+            "[g] no"
+          ],
+          [
+            "message.committed with a non-null parentMessageId (R3-4)",
+            "18",
+            "[g] no"
+          ],
+          [
+            "checkpoint.committed with a non-null previousCheckpointId (R3-4)",
+            "21",
+            "[g] no"
+          ],
+          [
+            "wake.requested / activation.changed with an envelope subject (R3-3 match)",
+            "0",
+            "— (none in these runs)"
+          ],
+          [
+            "config.bound with a non-null previousRevision (R3-4)",
+            "0",
+            "— (not in these flows)"
+          ]
+        ]
+      }
+    ]
+  },
+  {
+    "id": "04-shared-depth-off-by-one",
+    "title": "Shared-reference depth bound is one level stricter than the record it serializes to",
+    "subtitle": "target = { first: chain, shell: { second: chain } } · chain of L objects ending in null · second path's deepest object at depth 4 + L · maxJsonDepth = 64",
+    "blocks": [
+      {
+        "kind": "table",
+        "head": [
+          "value",
+          "base",
+          "PR",
+          "candidate"
+        ],
+        "rows": [
+          [
+            "L = 59 shared (deepest object 63)",
+            "ACCEPT",
+            "ACCEPT",
+            "ACCEPT"
+          ],
+          {
+            "hl": true,
+            "cells": [
+              "L = 60 shared, same object on both paths (deepest 64)",
+              "ACCEPT",
+              "[a] REJECT 'maximum JSON depth'",
+              "ACCEPT"
+            ]
+          },
+          [
+            "L = 60 as two unshared copies",
+            "ACCEPT",
+            "ACCEPT",
+            "ACCEPT"
+          ],
+          [
+            "L = 60 after JSON.parse(JSON.stringify(shared))",
+            "ACCEPT",
+            "ACCEPT",
+            "ACCEPT"
+          ],
+          {
+            "hl": true,
+            "cells": [
+              "L = 60 after structuredClone(shared) (keeps sharing)",
+              "ACCEPT",
+              "[a] REJECT",
+              "ACCEPT"
+            ]
+          },
+          {
+            "hl": true,
+            "cells": [
+              "{a: 1} shared at depth 64",
+              "ACCEPT",
+              "[a] REJECT",
+              "ACCEPT"
+            ]
+          },
+          [
+            "L = 61, any form (deepest 65)",
+            "[m] REJECT",
+            "[m] REJECT",
+            "[m] REJECT"
+          ]
+        ]
+      },
+      {
+        "kind": "pre",
+        "text": "noteChild(): a primitive child counts as height 1, so {nested: null} stores height 2 and a chain of 60 stores 61.\nmemo hit at depth 5: 5 + 61 - 1 = 65 > 64 -> reject, although the deepest object sits at 64 (the limit).\n\nM11 'primitive height 0' (exact object depth) is KILLED by the PR's own 60-chain assertion:\nthe new test pins the stricter behaviour (triage said it could not tell the two semantics apart).\nCandidate: primitive height 0, chain 60 -> 61, plus 'chain 60 shared is accepted'  -> 85/85;\nchain 61 still kills 'memo skips the depth check' and 'primitive height 1'."
+      },
+      {
+        "kind": "note",
+        "tone": "warn",
+        "text": "Fail-closed and it needs a >= 60-deep shared payload, so it is not blocking on its own. But it is a PR-introduced difference from main, the description calls the accounting exact, and the fix is two lines."
+      }
+    ]
+  },
+  {
+    "id": "05-r3-guards-real-authority",
+    "title": "R3-3 / R3-4 through the real authority: base persists contradictions, PR refuses before any write",
+    "subtitle": "LocalManagedSessionAuthority.appendExecution on one on-disk session per arm · log bytes = JSONL growth caused by the call",
+    "blocks": [
+      {
+        "kind": "table",
+        "head": [
+          "append",
+          "base 5ddfacc9",
+          "PR 8daf1f67"
+        ],
+        "rows": [
+          [
+            "legal: one 7-level DAG mounted twice in cancel.requested.target",
+            "COMMITTED +4,237 B",
+            "COMMITTED +4,233 B"
+          ],
+          [
+            "R3-3 activation.changed payload act-1/1, subject act-9/7",
+            "[r] COMMITTED +1,910 B",
+            "[g] REFUSED 'payload.subject must identify the activation it changes.' +0 B"
+          ],
+          [
+            "R3-3 wake.requested envelope turn-9, payload turn-1",
+            "[r] COMMITTED +1,664 B",
+            "[g] REFUSED 'requires event.subject to match payload.subject.' +0 B"
+          ],
+          [
+            "R3-4 message.committed parentMessageId = messageId",
+            "[r] COMMITTED +1,835 B",
+            "[g] REFUSED 'parentMessageId must not name itself.' +0 B"
+          ],
+          [
+            "R3-4 config.bound previousRevision 1 -> revision 1",
+            "[r] COMMITTED +1,869 B",
+            "[g] REFUSED 'previousRevision must precede payload.revision.' +0 B"
+          ],
+          [
+            "R3-4 checkpoint.committed previous = self",
+            "[m] REFUSED earlier: probe's fake state ref",
+            "[g] REFUSED 'previousCheckpointId must not name itself.' +0 B"
+          ],
+          [
+            "control: well-formed message.committed afterwards",
+            "COMMITTED",
+            "COMMITTED"
+          ],
+          [
+            "readManagedSessionLog, same build",
+            "OK, 7 events",
+            "OK, 3 events"
+          ]
+        ]
+      },
+      {
+        "kind": "table",
+        "caption": "Cross-read (what happens to a log that already holds one of these records)",
+        "head": [
+          "reader",
+          "log written by",
+          "result"
+        ],
+        "rows": [
+          [
+            "PR",
+            "base (contains the records above)",
+            "[a] FAILED 'payload.subject must identify the activation it changes.'"
+          ],
+          [
+            "base",
+            "PR",
+            "OK, 3 events"
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "text": "The authority derives activation state from the payload (managedSessionActivationStateFrom), so on base the act-9/7 subject is ignored by the fence yet persisted for any reader that trusts it. A log already holding such a record becomes unreadable under the PR: none among the 131 real Session Store transactions, and no local managed logs on this host."
+      }
+    ]
+  },
+  {
+    "id": "06-test-strength",
+    "title": "Test strength: mutation witnesses, control-character equivalence, timing",
+    "subtitle": "records suite = 85 tests; every mutant run must execute all 85 or it is INVALID; tree restored with git checkout and asserted clean after each",
+    "blocks": [
+      {
+        "kind": "table",
+        "caption": "PR head 8daf1f67 (claims in the PR description)",
+        "head": [
+          "mutant",
+          "result",
+          "killing test"
+        ],
+        "rows": [
+          [
+            "M1 drop the height memo",
+            "[g] KILLED (62.9 s)",
+            "shared-graph test: by the 60-chain assertion, not the timeout"
+          ],
+          [
+            "M2 memo hit skips the depth check",
+            "[g] KILLED",
+            "shared-graph test (60-chain)"
+          ],
+          [
+            "M3 drop activation payload-identity check",
+            "[g] KILLED",
+            "requires the payload subject to identify the activation"
+          ],
+          [
+            "M4 drop envelope/payload subject match",
+            "[g] KILLED",
+            "requires the envelope subject to match the payload subject"
+          ],
+          [
+            "M5/M6 drop self-parent / self-checkpoint guard",
+            "[g] KILLED",
+            "rejects a predecessor reference that cannot hold"
+          ],
+          [
+            "M7 config.bound >= -> >",
+            "[g] KILLED",
+            "rejects a predecessor reference that cannot hold"
+          ],
+          [
+            "M8 reader grammar -> (\\d+)",
+            "[g] KILLED",
+            "refuses a malformed minimum-reader token"
+          ],
+          [
+            "M9/M10 narrow recovery_blocked branch / row",
+            "[g] KILLED",
+            "blocks every state except deleted and restores a legal stage"
+          ],
+          {
+            "hl": true,
+            "cells": [
+              "M11 exact object depth (primitive height 0)",
+              "[g] KILLED",
+              "60-chain assertion -> pins the off-by-one (card 4)"
+            ]
+          },
+          [
+            "M12 R3-5 back to the inlined regex",
+            "[a] SURVIVED (equivalent)",
+            "expected: detection-equivalent, see fuzz below"
+          ]
+        ]
+      },
+      {
+        "kind": "table",
+        "caption": "Candidate patch",
+        "head": [
+          "mutant",
+          "result",
+          "note"
+        ],
+        "rows": [
+          [
+            "C1 drop the expansion bound",
+            "[g] KILLED",
+            "2^24-path DAG must be refused"
+          ],
+          [
+            "C2 primitive height back to 1",
+            "[g] KILLED",
+            "chain-60 shared must be accepted"
+          ],
+          [
+            "C3 memo hit skips the depth check",
+            "[g] KILLED",
+            "chain-61 shared must be refused"
+          ],
+          [
+            "C5 direct memo hit not marked shared",
+            "[g] KILLED",
+            "2^24-path DAG must be refused"
+          ],
+          [
+            "C4 drop the memo",
+            "[a] SURVIVED",
+            "the bound alone caps the walk near 8 MiB of expansion; memo is now a constant-factor win"
+          ]
+        ]
+      },
+      {
+        "kind": "pre",
+        "text": "R3-5 differential: every code point U+0000..U+10FFFF (1,114,112) + 20,018 ANSI/C1/lone-surrogate strings in a text field\n  base vs PR accept/reject bitmaps: byte-identical; rejected = U+0000-U+001F, U+007F-U+009F; 7.0 s vs 7.2 s.\nTiming, 3 interleaved reps per arm, testTimeout 120 s (host load 12-42 on 10 cores):\n  hook-scale 'admits a Hook execution...'  base 24.1/22.1/27.8 s   PR 21.2/27.9/24.4 s   candidate 22.3/25.0/24.5 s\n  -> no regression: base needs just as long (> 15 s on this host), so the 15 s full-suite timeouts are not from the PR;\n     all arms 81/81 with the longer timeout."
+      }
+    ]
+  }
+]

@@ -1,0 +1,173 @@
+diff --git a/packages/core/src/managed-runtime/managed-session-records.test.ts b/packages/core/src/managed-runtime/managed-session-records.test.ts
+index 9a3564ec6a..708d2a5b49 100644
+--- a/packages/core/src/managed-runtime/managed-session-records.test.ts
++++ b/packages/core/src/managed-runtime/managed-session-records.test.ts
+@@ -456,21 +456,29 @@ describe('managed session shared field rules', () => {
+     for (let level = 0; level < 24; level++) {
+       shared = { a: shared, b: shared };
+     }
+-    // 25 distinct objects holding ~2^24 paths: the path-scoped ancestor walk
+-    // needs a minute-scale run here, so this pin can only pass when the
+-    // per-object height memo walks each object once.
++    // 25 distinct objects holding ~2^24 paths serialize to ~350 MB, and
++    // commit() stringifies before its byte check, so the expansion has to be
++    // refused here; a small shared graph stays legal.
++    expectEventError(
++      envelope('cancel.requested', 2, cancelPayload(shared)),
++      /expands past 8388608 bytes through shared references/,
++    );
++    let small: Record<string, unknown> = { leaf: 1 };
++    for (let level = 0; level < 8; level++) {
++      small = { a: small, b: small };
++    }
+     expect(() =>
+       parseManagedSessionEvent(
+-        envelope('cancel.requested', 2, cancelPayload(shared)),
++        envelope('cancel.requested', 2, cancelPayload(small)),
+       ),
+     ).not.toThrow();
+ 
+     let chain: unknown = null;
+-    for (let depth = 0; depth < 60; depth++) {
++    for (let depth = 0; depth < 61; depth++) {
+       chain = { nested: chain };
+     }
+-    // The second visit to the shared chain is one level deeper, so the memo
+-    // must not short-circuit the depth bound.
++    // The second path to the shared chain ends one level past the bound, so
++    // the memo must not short-circuit the depth check.
+     expectEventError(
+       envelope(
+         'cancel.requested',
+@@ -479,6 +487,19 @@ describe('managed session shared field rules', () => {
+       ),
+       /maximum JSON depth/,
+     );
++
++    // One object shorter, the second path ends exactly at the bound: the
++    // shared value must be accepted, as its unshared copy is.
++    const fits = (chain as { nested: unknown }).nested;
++    expect(() =>
++      parseManagedSessionEvent(
++        envelope(
++          'cancel.requested',
++          2,
++          cancelPayload({ first: fits, shell: { second: fits } }),
++        ),
++      ),
++    ).not.toThrow();
+   });
+ });
+ 
+diff --git a/packages/core/src/managed-runtime/managed-session-records.ts b/packages/core/src/managed-runtime/managed-session-records.ts
+index 3849736a15..c12da180ff 100644
+--- a/packages/core/src/managed-runtime/managed-session-records.ts
++++ b/packages/core/src/managed-runtime/managed-session-records.ts
+@@ -271,12 +271,21 @@ function object(
+   return value as Record<string, ManagedSessionJsonValue>;
+ }
+ 
++interface JsonShape {
++  /** Object levels from this object down; a primitive leaf adds none. */
++  readonly height: number;
++  /** A lower bound on the serialized size of the expanded subtree. */
++  readonly bytes: number;
++  /** Whether some object below is reached through more than one path. */
++  readonly shared: boolean;
++}
++
+ function assertJsonValue(
+   value: unknown,
+   label: string,
+   ancestors = new Set<object>(),
+   depth = 1,
+-  heights = new Map<object, number>(),
++  shapes = new Map<object, JsonShape>(),
+ ): asserts value is ManagedSessionJsonValue {
+   if (
+     value === null ||
+@@ -302,9 +311,9 @@ function assertJsonValue(
+   // shared DAG would be walked once per path — exponentially. Memo the
+   // subtree height so each distinct object is walked once per call while
+   // the depth bound still accounts for the visiting path.
+-  const seen = heights.get(value);
++  const seen = shapes.get(value);
+   if (seen !== undefined) {
+-    if (depth + seen - 1 > MANAGED_SESSION_LIMITS.maxJsonDepth) {
++    if (depth + seen.height - 1 > MANAGED_SESSION_LIMITS.maxJsonDepth) {
+       fail(
+         `${label} exceeds the maximum JSON depth of ${MANAGED_SESSION_LIMITS.maxJsonDepth}.`,
+       );
+@@ -318,12 +327,27 @@ function assertJsonValue(
+     const keys = Reflect.ownKeys(descriptors);
+     const prototype = Object.getPrototypeOf(value) as object | null;
+     let height = 1;
+-    const noteChild = (child: unknown): void => {
+-      const childHeight =
+-        typeof child === 'object' && child !== null
+-          ? (heights.get(child) ?? 1)
+-          : 1;
+-      height = Math.max(height, childHeight + 1);
++    let bytes = 2;
++    let shared = false;
++    // JSON.stringify expands every path of a shared graph, so the expanded
++    // size is what serialization will cost. A tree never reaches this bound
++    // through sharing (its size is its own), so only shared subgraphs are
++    // held to the largest budget any caller serializes into.
++    const visit = (child: unknown, childLabel: string, keyBytes: number) => {
++      const isObject = typeof child === 'object' && child !== null;
++      const reached = isObject && shapes.has(child);
++      assertJsonValue(child, childLabel, ancestors, depth + 1, shapes);
++      const shape = isObject ? shapes.get(child) : undefined;
++      height = Math.max(height, (shape?.height ?? 0) + 1);
++      bytes +=
++        keyBytes +
++        (shape?.bytes ?? (typeof child === 'string' ? child.length + 2 : 1));
++      shared = shared || reached || shape?.shared === true;
++      if (shared && bytes > MANAGED_SESSION_LIMITS.maxTransactionBytes) {
++        fail(
++          `${label} expands past ${MANAGED_SESSION_LIMITS.maxTransactionBytes} bytes through shared references.`,
++        );
++      }
+     };
+     if (Array.isArray(value)) {
+       if (prototype !== Array.prototype) {
+@@ -344,17 +368,9 @@ function assertJsonValue(
+         fail(`${label} must be a dense JSON array.`);
+       }
+       for (let index = 0; index < value.length; index++) {
+-        const child = descriptors[String(index)].value;
+-        assertJsonValue(
+-          child,
+-          `${label}[${index}]`,
+-          ancestors,
+-          depth + 1,
+-          heights,
+-        );
+-        noteChild(child);
++        visit(descriptors[String(index)].value, `${label}[${index}]`, 0);
+       }
+-      heights.set(value, height);
++      shapes.set(value, { height, bytes, shared });
+       return;
+     }
+ 
+@@ -370,16 +386,9 @@ function assertJsonValue(
+       if (!descriptor.enumerable || !('value' in descriptor)) {
+         fail(`${keyLabel} must be an enumerable data property.`);
+       }
+-      assertJsonValue(
+-        descriptor.value,
+-        keyLabel,
+-        ancestors,
+-        depth + 1,
+-        heights,
+-      );
+-      noteChild(descriptor.value);
++      visit(descriptor.value, keyLabel, key.length + 3);
+     }
+-    heights.set(value, height);
++    shapes.set(value, { height, bytes, shared });
+   } finally {
+     ancestors.delete(value);
+   }
