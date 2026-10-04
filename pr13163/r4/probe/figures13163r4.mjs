@@ -57,7 +57,7 @@ figs['r4-01-results'] = page(
     ]) +
     `<h2>Still true at 30f092d0</h2>` +
     t(['Scenario', 'main aca4d03c', 'this PR 30f092d0'], [
-      ['creator cancels under revoke / DRAINING / re-registration / storage change', `revoke and DRAINING: ${bad('409')}, then the Turn runs on (FAILED or COMPLETED after ~30 s)`, `${ok('202')} in 5–7 ms → ${ok('CANCELLED')} in 248–265 ms (early restore: 1.08 s), model aborted, 0 tool executions`],
+      ['creator cancels under revoke / DRAINING / re-registration / storage change', `revoke and DRAINING: ${bad('409')}, then the Turn runs on (FAILED or COMPLETED after ~30 s)`, `${ok('202')} in 5–7 ms → ${ok('CANCELLED')} in 259–265 ms (early restore: 1.08 s), model aborted, 0 tool executions`],
       ['bob / carol / mallory; creator without read', dim('—'), `${ok('409 / 409 / 404; 404')}. The Turn is not stopped.`],
       ['Spring restarted under a running bound Turn, then the creator cancels', `revoke: ${bad('409')}, RUNNING after 150 s. Grants intact: 202 → ${bad('CANCELLING')} after 150 s.`, `passive ${c('load 200')} → ${c('POST /cancel 204')} → ${ok('CANCELLED')} at 3.07 s (revoke) / 2.84 s (grants intact)`],
       ['real model (qwen3.8-max): revoke after step-02, Cancel clicked in the WebShell', dim('no Cancel shown'), `${ok('2 / 2 CANCELLED')} in 1.17 s / 1.20 s; step files 2 → 2`],
@@ -94,7 +94,7 @@ figs['r4-03-triage-and-suites'] = page(
       ['CI-equivalent lane (<code>-Pmysql-integration verify checkstyle:check</code>, MySQL 8.4.7, TZ=UTC)', ok('646 unit (1 skipped) + 52 IT, 0 failures, 0 Checkstyle violations')],
       ['Harness tests (session + runtime-recovery)', `${ok('219 / 219')} on a quiet host (216 / 219 under mutation load, the 3 failures all in recovery/takeover tests, as in round 3)`],
       ['WebShell (managed page + provider)', ok('62 / 62')],
-      ['Java mutants (10)', `${ok('killed 7')}: N6 (canRead), N9 (singular bindingCurrent), N10 (its storage_id), N11 (its generation), N26, N27, N28 (page twin). ${amb('survive 2')}: N17b (submit read check), N24 (submitted-Turn condition), same as round 3. BASE 646 / 0`],
+      ['Java mutants (9)', `${ok('killed 7')}: N6 (canRead), N9 (singular bindingCurrent), N10 (its storage_id), N11 (its generation), N26, N27, N28 (page twin). ${amb('survive 2')}: N17b (submit read check), N24 (submitted-Turn condition), same as round 3. BASE 646 / 0`],
       ['Harness mutants (9)', `${ok('killed 7')}: T1–T4, T7–T9. ${amb('survive 2')}: T5, T6 (= F2, F3)`],
       ['CI at 30f092d0', `${ok('26 green')} (Hosted MySQL, MariaDB, web-shell E2E Smoke and visuals included), <code>review-pr</code> pending. The triage bot approved this head; its verify run reports findings (F1–F5).`],
       ['inherited wedge #13054 (tool call hits the refusal)', `still present: "recovery blocked" at +6 s, then cancel 202 → ${bad('CANCELLING')} after 70 s, then 409 turn_active`],
