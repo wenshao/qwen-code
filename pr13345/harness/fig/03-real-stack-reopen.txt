@@ -1,0 +1,23 @@
+# PR #13345 - reopening across a later slice (R3-12), on the real stack
+== Write with today's dist: 3 goal_state envelopes + a 2-revision monitor_run chain, then close.
+== Reopen with "dist-future" = the same arm plus what Decision 7 tells the next slice to ship:
+== a goal_state record body registered, and goal_state removed from MANAGED_SESSION_ENVELOPE_DOMAINS.
+
+## R3  reopen after the body lands                base 2c591ecc                    head d3b8ddd1
+  HTTP store -> Spring -> MariaDB                {r:refuses to open (closed keys)}    {g:opens, views unchanged}
+  local journal + resource files                 {r:refuses to open (closed keys)}    {g:opens, views unchanged}
+  head: goal_state materialised / resource GETs                                   {g:no / 5 = 3 envelopes + 2 revisions}
+  {d:base error: monitorRun must have exactly the keys commandRef, debounceMs, ...}
+
+## R5  same, but one envelope's bytes edited in MariaDB (same length, digest broken)
+  head reopen                                                                     {g:fails: resource failed verification}
+  {d:Both stores check length + sha256 in read() before the skip, so a skipped envelope is still digest-checked.}
+
+## Load-time tripwire: body registered for goal_state but goal_state left in the envelope list
+  import managed-session-authority.js            {r:loads silently}                   {g:throws: record bodies stay out}
+                                                                                  {g:of the envelope domains: goal_state}
+
+## R4  bypass writer plants an envelope-shaped body in monitor_run (a domain that always had a body)
+  HTTP store                                     {g:Java refuses commit (closed keys)}    {g:Java refuses commit (closed keys)}
+  local journal + resource files, reopen         {g:refuses to open (closed keys)}    {a:opens; record silently back at rev 1}
+  {a:The skip tests the body's shape in every bodied domain, not only domains that were once envelope domains.}

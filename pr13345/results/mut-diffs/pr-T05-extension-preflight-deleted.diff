@@ -1,0 +1,30 @@
+diff --git a/packages/core/src/managed-runtime/managed-session-authority.ts b/packages/core/src/managed-runtime/managed-session-authority.ts
+index cb57df1ebb..93ecf8b8c4 100644
+--- a/packages/core/src/managed-runtime/managed-session-authority.ts
++++ b/packages/core/src/managed-runtime/managed-session-authority.ts
+@@ -1391,25 +1391,6 @@ export class LocalManagedSessionAuthority {
+       // since.
+       const replayed = this.replayedExtension(command);
+       if (replayed !== undefined) return replayed;
+-      // Every refusal the caller decides runs before any body publishes.
+-      assertExtensionActor(actor.class);
+-      if (request.input !== undefined) {
+-        const preflight = inputEvents(
+-          command,
+-          request.input,
+-          this.committed + 2,
+-          this.now(),
+-        );
+-        preflight.forEach((event, index) => {
+-          const parsed = parseManagedSessionEvent(event);
+-          assertManagedSessionEventActor(parsed, INPUT_ACTORS[index]!.class);
+-          if (this.eventIds.has(parsed.eventId)) {
+-            throw new ManagedSessionConflictError(
+-              `event id ${parsed.eventId} is already committed.`,
+-            );
+-          }
+-        });
+-      }
+       assertManagedSessionDomainEnabled(request.domain);
+       const parsed = body.parse(request.record);
+       await this.verifyExtensionResources(request.domain, parsed.record);

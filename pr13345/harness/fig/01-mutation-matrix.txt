@@ -1,0 +1,34 @@
+# PR #13345 - mutation witnesses, base 2c591ecc vs head d3b8ddd1
+== 46 runs. Lanes: all of core/src/managed-runtime (vitest, hook-scale excluded), full managed-agent-server unit
+== suite for Java mutants, Broker contract test for the shared fixture. Totals checked against each arm's baseline.
+== Unrelated load-timing failures (record-sink branch points, ToolPublicationStore claim expiry) are set aside.
+
+## finding  mutant                                         base                     head
+  R2-1   T01 delete terminal block (TS)               {a:red: record pair case}    {g:+ refuses: changes-after-it-ended}
+  R2-1   J01 delete terminal block (Java)             {a:red: same pair case}      {g:+ refusesTheSharedRejectedChains}
+  R2-2   T02 assertExtensionRevision after publish    {r:survives}                 {g:11 red (10/12 rejects + restart)}
+  R3-4   D01 projection contractVersion 2             {a:red: TS pin}              {g:+ Java store + Broker}
+  R3-4   D02 7th field in a history view              {a:red: TS toEqual}          {g:+ Java projectsHistories keys}
+  R3-4   D03 rename a taskKinds fixture entry         {d:n/a}                      {g:TS + Java pins}
+  R3-4   T03 rename MANAGED_TASK_KINDS entry          {r:survives}                 {g:TS pin}
+  R3-4   T04 rename MANAGED_TASK_RUNTIME_STATES       {r:survives}                 {g:TS pin}
+  R3-4   D04 10th key in store limits                 {r:survives}                 {g:TS + Java}
+  R3-4   D05 3rd key in store headers                 {r:survives}                 {g:TS + Java}
+  R3-4   D06 historyCases emptied                     {r:survives}                 {g:TS + Java (empty list)}
+  R3-4   D07 journal golden contractVersion 2         {d:n/a}                      {g:TS HTTP store + Java IT}
+  R3-5   T05 delete preflight, commitExtensionRecord  {d:n/a}                      {g:refuses the actor or the input}
+  R3-5   T06 delete preflight, commitDomainRecord     {d:n/a}                      {g:refuses the actor or the input}
+  R3-7   T07 swap unbound/ready clauses (TS)          {r:survives}                 {g:attached-but-unbound}
+  R3-7   J02 swap unbound/ready clauses (Java)        {r:survives}                 {g:attached-but-unbound}
+  R3-7   T08 drop clamp startedAt (TS)                {r:survives}                 {g:settled-clock-behind-start}
+  R3-7   J03 drop clamp startedAt (Java)              {r:survives}                 {g:settled-clock-behind-start}
+  R3-8   T09 revoke accepts MAX_SAFE_INTEGER          {d:n/a (base code)}          {g:refuses a malformed revocation}
+  R3-8   T10 replacement keeps the phase union        {r:survives}                 {g:withdraws the phases ...}
+  R3-8   T11 same-revision renewal keeps old lease    {r:survives}                 {g:renews a grant in place}
+  R3-8   T12 install writes before validating         {a:red: bounds next grant}   {g:+ keeps the incumbent ...}
+  R3-8   T13 gate key drops workspaceId               {r:survives}                 {g:keeps the grants of Workspaces apart}
+  R3-8   T14 admits reads a grantless entry           {r:survives}                 {g:keeps a revocation ... before its grant}
+  R3-12  T15 delete the envelope skip                 {d:n/a}                      {g:reopens over a record ... before body}
+  R3-12  T16 register a goal_state body               {a:red: 2 existing tests}    {g:module refuses to load (19 files)}
+
+++ head: 26/26 killed.   base: 14 survive, 6 already caught by existing tests, 6 mutants exist only at head.

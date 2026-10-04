@@ -1,0 +1,30 @@
+diff --git a/packages/core/src/managed-runtime/managed-session-authority.ts b/packages/core/src/managed-runtime/managed-session-authority.ts
+index cb57df1ebb..552db3a2e5 100644
+--- a/packages/core/src/managed-runtime/managed-session-authority.ts
++++ b/packages/core/src/managed-runtime/managed-session-authority.ts
+@@ -1413,6 +1413,12 @@ export class LocalManagedSessionAuthority {
+       assertManagedSessionDomainEnabled(request.domain);
+       const parsed = body.parse(request.record);
+       await this.verifyExtensionResources(request.domain, parsed.record);
++      this.assertCommandWritable(command);
++      this.assertExpectedSequence(command);
++      const recordRef = await store.publish(
++        `managed-${request.domain}`,
++        Buffer.from(JSON.stringify(parsed.record), 'utf8'),
++      );
+       this.assertExtensionRevision(
+         request.domain,
+         body,
+@@ -1423,12 +1429,6 @@ export class LocalManagedSessionAuthority {
+         },
+       );
+       // Refused before publishing, so a retry loop leaves no body behind.
+-      this.assertCommandWritable(command);
+-      this.assertExpectedSequence(command);
+-      const recordRef = await store.publish(
+-        `managed-${request.domain}`,
+-        Buffer.from(JSON.stringify(parsed.record), 'utf8'),
+-      );
+       const sequence = this.committed + 1;
+       const occurredAt = this.now();
+       const eventId = `${request.domain}:${

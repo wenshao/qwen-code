@@ -1,0 +1,22 @@
+# PR #13345 - full suites, both arms, plus the #13336 trial merge
+== base 2c591ecc (= main today, the PR's merge base)  vs  head d3b8ddd1.  macOS arm64, Node 22.23.2, JDK 21, Maven 3.9.
+
+## Suites                                          base 2c591ecc            head d3b8ddd1
+  core src/managed-runtime (vitest)                1927/1931                {g:1929/1933}
+    the same 4 load-timing cases fail on both arms {d:(hook-scale x2, metadata long log, record-sink branch points)}
+    test names: +10 added, -8 removed             {d:the 8 removed rows exist byte-identical in brokerExecutionCases}
+  managed-agent-server unit (run / failed)         551 / 0                  {g:552 / 0}  {d:(1 skipped each; + settlesEvery...)}
+  checkstyle / SpotBugs (managed-agent-server)     0 / 0                    {g:0 violations / 0 BugInstance}
+  runtime-broker verify                                                     {g:600 run / 0 failed (1 skipped), SpotBugs 0}
+  *MySqlIT on colima MariaDB 10.11.18              51/52                    {a:51/52}
+    same case on both arms: admitsHookExecutionsWithoutReadingTheirHistoryOnMySql ran 60.1-60.7 s > its 60 s writer lease
+  ManagedAgentMySqlIT on native MySQL 8.4.7                                 {g:19/19}  {d:(that case: 28.5 s)}
+  web-shell generated API client, regenerated                               {g:byte-identical (sha256 c859870d...)}
+  GitHub CI on d3b8ddd1                                                     {g:all completed checks green}
+
+## Trial merge with #13336 (head 6ee195aa, still open)
+  git merge-tree                                   {g:all code auto-merges}   {a:2 conflicts: both design-doc twins}
+  merged tree, TS managed-session-store-contract   {r:pins headers, limits, bytes, and digests}
+  merged tree, Java store contract fixture         {r:consumesSharedHeadersAndLimits}
+  {d:#13336 adds maxHeaderBytes / maxEventBytes / maxCommitMarkerBytes; this PR's closed limits list names 9 keys.}
+  {d:Whichever lands second adds those 3 names to both closed lists and resolves the two doc conflicts.}

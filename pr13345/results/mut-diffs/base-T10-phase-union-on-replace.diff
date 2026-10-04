@@ -1,0 +1,27 @@
+diff --git a/packages/core/src/managed-runtime/managed-operation-grant-gate.ts b/packages/core/src/managed-runtime/managed-operation-grant-gate.ts
+index a6e5afd825..2a853046a8 100644
+--- a/packages/core/src/managed-runtime/managed-operation-grant-gate.ts
++++ b/packages/core/src/managed-runtime/managed-operation-grant-gate.ts
+@@ -76,7 +76,21 @@ export class ManagedOperationGrantGate {
+       }
+     }
+     this.entries.set(key, {
+-      grant,
++      grant:
++        current === undefined
++          ? grant
++          : {
++              ...grant,
++              resourceScope: {
++                ...grant.resourceScope,
++                phases: [
++                  ...new Set([
++                    ...current.resourceScope.phases,
++                    ...grant.resourceScope.phases,
++                  ]),
++                ],
++              },
++            },
+       revokedThrough: entry?.revokedThrough ?? 0,
+     });
+     return 'installed';

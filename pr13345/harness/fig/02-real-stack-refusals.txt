@@ -1,0 +1,22 @@
+# PR #13345 - refused commits, retried 20x, on the real stack
+== HTTP rows: each arm's packages/core/dist -> HttpManagedSessionStore -> Spring server (head jar) -> MariaDB 10.11.18
+== local rows: the same dist on the local JSONL journal + resource files (the daemon/CLI path)
+== One Session per run; afterwards one trusted commit is the positive control.
+
+## R1  envelope path, live today: commitDomainRecord(goal_state), actor authority|harness, x20
+                                     base 2c591ecc             head d3b8ddd1
+  local store: orphan body files     {r:20}                        {g:0}
+  HTTP store:  rows in MariaDB       {d:0}                         {d:0}
+  HTTP store:  staged in memory      {r:20 (held until seal)}      {g:0}
+  refusal (identical on both arms)   {d:domain.committed must not be requested by authority|harness.}
+
+## R2  Stage H path: commitExtensionRecord(monitor_run), 10 bad actor + 10 bad input (inputId '')
+  local store: orphan body files     {r:20}                        {g:0}
+  HTTP store:  rows in MariaDB       {d:0}                         {d:0}
+  HTTP store:  staged in memory      {r:+20 (43 total)}            {g:+0 (3 = the rig's own refs)}
+  positive control (both arms)       {g:committed: 1 body, 1 Java extension row}
+
+>> The HTTP store stages a publish in memory and uploads it only with the commit that references it,
+>> so on Managed the old leak was in-process (cleared at writer seal), never a database orphan.
+>> The durable orphan the PR describes is the local-store (daemon/CLI) path. All 8 production call sites
+>> pass trusted_entry and no input today, so neither refusal is reachable in production yet: this is H3 hardening.
