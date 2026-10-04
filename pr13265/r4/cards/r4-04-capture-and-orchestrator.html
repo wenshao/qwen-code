@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box} body{margin:0;background:#0d1117;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+#card{width:1360px;padding:28px 34px 30px;background:#0d1117}
+h1{font-size:25px;margin:0 0 4px;font-weight:650} .sub{color:#8b949e;font-size:14.5px;margin-bottom:18px}
+h2{font-size:16px;margin:20px 0 8px;color:#79c0ff;font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:13.5px} th{color:#8b949e;text-align:left;font-weight:600;padding:6px 8px;border-bottom:1px solid #30363d}
+td{padding:6px 8px;border-bottom:1px solid #21262d;vertical-align:top} td.mono,span.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.ok{color:#3fb950} .bad{color:#f85149} .warn{color:#d29922} .mut{color:#8b949e} .b{font-weight:650}
+pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.45;white-space:pre;overflow:hidden;margin:6px 0}
+.note{border-left:4px solid #d29922;background:#161b22;padding:10px 14px;margin-top:16px;font-size:14px;line-height:1.5}
+.note.ok{border-color:#3fb950;color:#e6edf3} .note.bad{border-color:#f85149;color:#e6edf3}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.foot{color:#8b949e;font-size:12px;margin-top:14px}
+</style></head><body><div id="card"><h1>Capture is wired now: no backpressure, and the record sees no live output</h1><div class="sub">L9/L10 on 192.168.0.75 · S6 on the macOS real stack with the round-4 jar</div>
+<h2>Stream capture, now wired by 151d765a81 (hosted-shell-publisher → LocalShellStreamResultSession → LocalShellStreamCapture)</h2>
+<pre>local-shell-stream-result-session.ts:146  new LocalShellStreamCapture(store, resources, identity, assertWritable)   // default: 1 MiB segments, 512 per page
+as wired   256 MiB → peak RSS 315 MiB, process done 0.4 s, capture done 14.4 s, digest ok true
+paused     256 MiB → peak RSS 92 MiB, process paced to 15.1 s, digest ok true     (192.168.0.75, store at 20 MiB/s)
+ 1759 ms  pipe=332B  reader sees: rev 1 pending stdout=0B/open
+ 2011 ms  pipe=370B  reader sees: rev 1 pending stdout=0B/open
+ 2266 ms  exited; reader sees: rev 3 complete stdout=370B/sealed</pre>
+<div class="note">The publisher forwards "the newest manifest revision" to outputRef, but at the production page size the manifest only advances every 512 MiB or at exit, so for an ordinary background Shell outputRef stays on the empty open manifest until it ends. The new background test asserts the outputRef kind and the final manifest, not live advancement at production cadence.</div>
+<h2>HostedChildRunSession (unchanged since round 3, re-run on the new jar)</h2>
+<pre>stop requested before start → settleStopRequested refused ("startReceiptRef must be set once the process started"); only settleFailed(start_failed) ends it
+attach() twice with identical content → refused ("cannot follow its revision 3"); acceptBackgroundShell still calls attach() before its replay check</pre><div class="foot">PR #13265 round 4 · head 151d765a81 · Linux: real hosts 192.168.0.75 (Orange Pi, kernel 6.6.89, cgroup v2, delegated root /sys/fs/cgroup/qwen-h3-pr13265) and 192.168.0.54 (rk3588, kernel 5.10.110) running the head's core/cli dist · macOS: Spring jar + native MySQL 8.4.7</div></div></body></html>

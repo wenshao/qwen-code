@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box} body{margin:0;background:#0d1117;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+#card{width:1360px;padding:28px 34px 30px;background:#0d1117}
+h1{font-size:25px;margin:0 0 4px;font-weight:650} .sub{color:#8b949e;font-size:14.5px;margin-bottom:18px}
+h2{font-size:16px;margin:20px 0 8px;color:#79c0ff;font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:13.5px} th{color:#8b949e;text-align:left;font-weight:600;padding:6px 8px;border-bottom:1px solid #30363d}
+td{padding:6px 8px;border-bottom:1px solid #21262d;vertical-align:top} td.mono,span.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.ok{color:#3fb950} .bad{color:#f85149} .warn{color:#d29922} .mut{color:#8b949e} .b{font-weight:650}
+pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.45;white-space:pre;overflow:hidden;margin:6px 0}
+.note{border-left:4px solid #d29922;background:#161b22;padding:10px 14px;margin-top:16px;font-size:14px;line-height:1.5}
+.note.ok{border-color:#3fb950;color:#e6edf3} .note.bad{border-color:#f85149;color:#e6edf3}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.foot{color:#8b949e;font-size:12px;margin-top:14px}
+</style></head><body><div id="card"><h1>The Broker can never learn that a background Shell exited</h1><div class="sub">RuntimeBrokerService.observeBackgroundProcess vs the worker's shell route, measured on 192.168.0.75</div>
+<pre>RuntimeBrokerService.java:1384  observeBackgroundProcess(): send shell-status; settle the ":process" row only if state == "exited"
+                                (no production caller — grep finds only the definition and RuntimeBrokerServiceTest)
+managed-shell-runtime.ts        shell-status → "running" while the unit is registered, otherwise "unknown"
+                                shell-terminate → registry.terminate(); "exited" only with proven evidence, else "unknown"
+managed-background-shell-registry.ts  complete() deletes the entry when the Shell ends — its evidence is not kept
+RuntimeBrokerServiceTest.java:1220    the transport double answers shell-status with state "exited"</pre>
+<table><tr><th>worker route on 192.168.0.75 (real cgroup v2)</th><th>NUL fix only</th><th>candidate-r3.patch</th></tr><tr><td>status while running</td><td class="ok">running</td><td class="ok">running</td></tr><tr><td>terminate a TERM-obeying Shell</td><td class="ok">exited (SIGTERM)</td><td class="ok">exited (SIGTERM)</td></tr><tr><td>natural exit (exit 3): the registry's own receipt</td><td class="ok">exitCode 3</td><td class="ok">exitCode 3</td></tr><tr><td>…then shell-status / shell-terminate</td><td class="bad">unknown / unknown</td><td class="bad">unknown / unknown</td></tr><tr><td>terminate with one TERM-ignoring member ×10</td><td class="bad">exited 0, unknown 10</td><td class="ok">exited 10</td></tr><tr><td>…then shell-status</td><td class="bad">unknown 10/10</td><td class="warn">unknown 10/10</td></tr></table>
+<div class="note bad">No sequence of real worker answers lets the Broker settle a Shell that ended on its own: shell-status can only say "running" or "unknown", and the Broker never asks: neither shell-status nor shell-terminate has a production sender. Once child_run is enabled, every background start would leave a PREPARED ":process" row — and with it the Runtime hold (hasActiveBy*) — that nothing in this PR settles; after the Shell exits, workspace close (workspace_close_execution_unsettled) and Session release would stay blocked. The Java test passes because its double answers a state the worker never sends.</div><div class="foot">PR #13265 round 4 · head 151d765a81 · Linux: real hosts 192.168.0.75 (Orange Pi, kernel 6.6.89, cgroup v2, delegated root /sys/fs/cgroup/qwen-h3-pr13265) and 192.168.0.54 (rk3588, kernel 5.10.110) running the head's core/cli dist · macOS: Spring jar + native MySQL 8.4.7</div></div></body></html>
