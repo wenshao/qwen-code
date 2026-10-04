@@ -1,0 +1,18 @@
+#!/bin/bash
+# VERIFICATION RIG ONLY: serve one arm's Web Shell sources with vite; the adapter goes through that arm's wire to the rig's Java server.
+# usage: vite.sh <head|base> <db>
+. /Users/wenshao/pr13179-rig/rig.env
+ARM=$1; DB=${2:-ui}
+case "$ARM" in head) W=$RIG/wt; PORT=$VITE_HEAD_PORT; WP=$WIRE_HEAD_PORT;; base) W=$RIG/wt-base; PORT=$VITE_BASE_PORT; WP=$WIRE_BASE_PORT;; cand) W=$RIG/wt-cand; PORT=5181; WP=$WIRE_CAND_PORT;; prev) W=$RIG/wt-prev; PORT=$VITE_PREV_PORT; WP=$WIRE_PREV_PORT;; *) echo "arm?"; exit 1;; esac
+mkdir -p $RIG/run/vite
+cp $RIG/fixture/rig-13179.html $RIG/fixture/rig-13179.tsx $W/packages/web-shell/client/e2e/fixtures/
+cd $W/packages/web-shell
+NO_PROXY=127.0.0.1,localhost QWEN_MANAGED_AGENT_JAVA_URL=http://127.0.0.1:$WP nohup $NODE $W/node_modules/vite/bin/vite.js --port $PORT --strictPort > $RIG/run/vite/$ARM.log 2>&1 &
+echo $! > $RIG/run/vite/$ARM.pid
+for i in $(seq 1 90); do
+  code=$(curl -s --noproxy '*' -o /dev/null -w '%{http_code}' -m 3 http://localhost:$PORT/e2e/fixtures/rig-13179.html 2>/dev/null)
+  [ "$code" = 200 ] && { echo "vite $ARM pid=$(cat $RIG/run/vite/$ARM.pid) port=$PORT wire=$WP up after ${i}s tree=$(git -C $W rev-parse --short HEAD)"; exit 0; }
+  kill -0 $(cat $RIG/run/vite/$ARM.pid) 2>/dev/null || { echo "vite $ARM DIED"; tail -20 $RIG/run/vite/$ARM.log; exit 1; }
+  sleep 1
+done
+echo "vite $ARM TIMEOUT"; tail -20 $RIG/run/vite/$ARM.log; exit 1

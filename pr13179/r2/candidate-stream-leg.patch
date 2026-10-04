@@ -1,0 +1,134 @@
+diff --git a/packages/web-shell/client/components/managed/use-managed-session.test.tsx b/packages/web-shell/client/components/managed/use-managed-session.test.tsx
+index ad319a0ec6..c154916d24 100644
+--- a/packages/web-shell/client/components/managed/use-managed-session.test.tsx
++++ b/packages/web-shell/client/components/managed/use-managed-session.test.tsx
+@@ -273,6 +273,43 @@ describe('useManagedSession', () => {
+     }
+   });
+ 
++  it('retires a one-off definite stream answer once the stream delivers again', async () => {
++    // A proxy or failover can answer one reconnect with a definite 4xx; when
++    // the very next connection delivers new events, the red line must go.
++    vi.useFakeTimers();
++    try {
++      let calls = 0;
++      const provider = {
++        getSession: vi.fn().mockResolvedValue({ sessionId: 'session-1' }),
++        getTranscript: vi.fn().mockResolvedValue(transcript(1)),
++        subscribeEvents: vi.fn(async function* (
++          _sessionId: string,
++          request: { signal?: AbortSignal },
++        ) {
++          calls++;
++          if (calls === 1)
++            throw Object.assign(new Error('session gone'), { status: 404 });
++          yield event(2);
++          yield event(3);
++          await new Promise((resolve) =>
++            request.signal?.addEventListener('abort', resolve),
++          );
++        }),
++      } as unknown as ManagedAgentProvider;
++      mountReact(<Probe provider={provider} />);
++      await flushReact();
++      expect(latest?.stoppedReason).toBe('session gone');
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(10_000);
++      });
++      expect(latest?.events.map((item) => item.id)).toEqual([1, 2, 3]);
++      expect(latest?.error).toBeUndefined();
++      expect(latest?.stoppedReason).toBeUndefined();
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++
+   it('records a definite stream answer and keeps resubscribing behind its ladder', async () => {
+     vi.useFakeTimers();
+     try {
+@@ -293,7 +330,7 @@ describe('useManagedSession', () => {
+       });
+       expect(subscribeEvents).toHaveBeenCalledTimes(2);
+       expect(latest?.stoppedReason).toBe('session gone');
+-      expect(latest?.stoppedLeg).toBe('transcript');
++      expect(latest?.stoppedLeg).toBe('stream');
+       await act(async () => {
+         await vi.advanceTimersByTimeAsync(120_000);
+       });
+diff --git a/packages/web-shell/client/components/managed/use-managed-session.ts b/packages/web-shell/client/components/managed/use-managed-session.ts
+index b78a4fcde0..dc141c08fe 100644
+--- a/packages/web-shell/client/components/managed/use-managed-session.ts
++++ b/packages/web-shell/client/components/managed/use-managed-session.ts
+@@ -49,8 +49,8 @@ interface ManagedSessionState {
+   stoppedReason?: string;
+   // Which authority answered the stop: only a later success by that same
+   // leg retires it — a live stream cannot certify history, and a summary
+-  // read cannot certify the event log.
+-  stoppedLeg?: 'session' | 'transcript';
++  // read cannot certify the event log; the stream retires only its own.
++  stoppedLeg?: 'session' | 'transcript' | 'stream';
+ }
+ 
+ export function useManagedSession(
+@@ -101,7 +101,7 @@ export function useManagedSession(
+     // A successful read retires its own leg's verdict (transient error and
+     // sticky reason), and a session-leg success also restarts loops that
+     // ended terminally.
+-    const retire = (leg: 'session' | 'transcript' | 'both') => {
++    const retire = (leg: 'session' | 'transcript' | 'stream' | 'both') => {
+       if (abort.signal.aborted) return;
+       setState((current) => ({
+         ...current,
+@@ -218,7 +218,10 @@ export function useManagedSession(
+       }
+       return transcript.lastEventId;
+     };
+-    const stop = (error: unknown, leg: 'session' | 'transcript' = 'session') =>
++    const stop = (
++      error: unknown,
++      leg: 'session' | 'transcript' | 'stream' = 'session',
++    ) =>
+       update({
+         stoppedReason: error instanceof Error ? error.message : String(error),
+         stoppedLeg: leg,
+@@ -228,7 +231,7 @@ export function useManagedSession(
+     // retryable-in-principle retry that must outlive the classification.
+     const failed = (
+       error: unknown,
+-      leg: 'session' | 'transcript' = 'session',
++      leg: 'session' | 'transcript' | 'stream' = 'session',
+     ): boolean => {
+       fail(error);
+       if (isAuthFailure(error) || !isNonRetryableClientError(error))
+@@ -271,6 +274,7 @@ export function useManagedSession(
+         let delayMs = 0;
+         let delivered = false;
+         const connectedAt = Date.now();
++        const connectedFrom = lastEventId;
+         try {
+           for await (const event of provider.subscribeEvents(sessionId, {
+             ...opts,
+@@ -283,6 +287,8 @@ export function useManagedSession(
+               break;
+             }
+             if (event.id <= lastEventId) continue;
++            // A new event is the stream's own answer that it is healthy.
++            if (lastEventId === connectedFrom) retire('stream');
+             lastEventId = event.id;
+             gapStalls = 0;
+             setState((current) => ({
+@@ -342,10 +348,10 @@ export function useManagedSession(
+           }
+           failures = 0;
+         } catch (error) {
+-          // The event log's own answer is a transcript-leg verdict and is
+-          // recorded rather than killing the loop outright: reconnects keep
+-          // coming on the ladder.
+-          failed(error, 'transcript');
++          // The stream's own answer is recorded rather than killing the loop
++          // outright: reconnects keep coming on the ladder, and the first new
++          // event a later connection delivers retires it.
++          failed(error, 'stream');
+           // Any delivered frame, or a connection that simply lived long
+           // enough, proves the path healthy; only back-to-back failures
+           // with nothing delivered should stretch the ladder.

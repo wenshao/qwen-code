@@ -1,0 +1,53 @@
+diff --git a/packages/cli/src/serve/managed-runtime-file-history.test.ts b/packages/cli/src/serve/managed-runtime-file-history.test.ts
+index 6066c2a765..ce744e86e9 100644
+--- a/packages/cli/src/serve/managed-runtime-file-history.test.ts
++++ b/packages/cli/src/serve/managed-runtime-file-history.test.ts
+@@ -515,6 +515,48 @@ it('rejects a relative file path that resolves outside the workspace', async ()
+   expect(await readFile(path.join(workspace, 'inside'), 'utf8')).toBe('x');
+ });
+ 
++it('rejects relative reads that resolve outside the workspace, through .. or a link', async () => {
++  // Reads never pass Hosted file history, so this check is their only guard.
++  await writeFile(path.join(root, 'outside'), 'outside-secret');
++  await symlink(root, path.join(workspace, 'link'));
++  await writeFile(path.join(workspace, 'inside'), 'inside');
++  const runtime = randomUUID();
++  const executor = new ManagedToolExecutor(async () =>
++    createManagedToolSet(workspace, runtime),
++  );
++  const reference = (callId: string) => ({
++    sessionId: runtime,
++    promptId: randomUUID(),
++    callId,
++    argsDigest: 'digest',
++  });
++  for (const file_path of ['../outside', 'link/outside']) {
++    const result = await executor.execute(
++      reference(randomUUID()),
++      'read_file',
++      {
++        file_path,
++      },
++    );
++    expect(result).toMatchObject({
++      executionStatus: 'error',
++      error: {
++        message: expect.stringContaining(
++          'not within any of the registered workspace directories',
++        ),
++      },
++    });
++    expect(JSON.stringify(result)).not.toContain('outside-secret');
++  }
++  expect(
++    JSON.stringify(
++      await executor.execute(reference(randomUUID()), 'read_file', {
++        file_path: 'inside',
++      }),
++    ),
++  ).toContain('inside');
++});
++
+ it('admits history preparation beside async Hooks while retaining their close and undo hold', async () => {
+   const runtime = 'hooks-activation-original';
+   const holds = vi.fn(() => true);
