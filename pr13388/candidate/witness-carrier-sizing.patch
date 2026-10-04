@@ -1,0 +1,51 @@
+diff --git a/packages/sdk-java/qwencode/src/test/java/com/alibaba/qwen/code/daemon/HarnessEventStreamPinningTest.java b/packages/sdk-java/qwencode/src/test/java/com/alibaba/qwen/code/daemon/HarnessEventStreamPinningTest.java
+index 7a58d48a3b..337b53c220 100644
+--- a/packages/sdk-java/qwencode/src/test/java/com/alibaba/qwen/code/daemon/HarnessEventStreamPinningTest.java
++++ b/packages/sdk-java/qwencode/src/test/java/com/alibaba/qwen/code/daemon/HarnessEventStreamPinningTest.java
+@@ -12,7 +12,6 @@ import java.util.List;
+ import java.util.concurrent.CountDownLatch;
+ import java.util.concurrent.ExecutorService;
+ import java.util.concurrent.Executors;
+-import java.util.concurrent.ForkJoinPool;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import org.junit.jupiter.api.AfterEach;
+ import org.junit.jupiter.api.BeforeEach;
+@@ -125,7 +124,7 @@ class HarnessEventStreamPinningTest {
+             throws Exception {
+         assumeTrue(virtualThreadsAvailable(),
+                 "virtual threads unavailable on this JDK");
+-        int carriers = ForkJoinPool.getCommonPoolParallelism();
++        int carriers = Integer.getInteger("jdk.virtualThreadScheduler.parallelism", Runtime.getRuntime().availableProcessors());
+         int streamCount = carriers + 2;
+         List<HarnessEventStream> streams = new ArrayList<>();
+         List<Thread> readers = new ArrayList<>();
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerVirtualThreadPinningTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerVirtualThreadPinningTest.java
+index c5e810d003..404e22b0a3 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerVirtualThreadPinningTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerVirtualThreadPinningTest.java
+@@ -15,7 +15,6 @@ import java.util.concurrent.CompletableFuture;
+ import java.util.concurrent.CompletionStage;
+ import java.util.concurrent.CountDownLatch;
+ import java.util.concurrent.ExecutionException;
+-import java.util.concurrent.ForkJoinPool;
+ import java.util.concurrent.TimeUnit;
+ import java.util.concurrent.TimeoutException;
+ import java.util.concurrent.atomic.AtomicBoolean;
+@@ -73,7 +72,7 @@ class BrokerVirtualThreadPinningTest {
+                 new InMemoryToolExecutionRepository(clock),
+                 "broker-pinning", Duration.ofMinutes(1),
+                 Duration.ofSeconds(1), clock, () -> "execution");
+-        int carriers = ForkJoinPool.getCommonPoolParallelism();
++        int carriers = Integer.getInteger("jdk.virtualThreadScheduler.parallelism", Runtime.getRuntime().availableProcessors());
+         int callerCount = carriers + 2;
+         // One Session per caller, so each parks inside its own
+         // SessionContext guard — sharing one Session would serialize the
+@@ -145,7 +144,7 @@ class BrokerVirtualThreadPinningTest {
+         LatchedSessionRepository(InMemoryRuntimeSessionRepository delegate) {
+             this.delegate = delegate;
+             arrived = new CountDownLatch(
+-                    ForkJoinPool.getCommonPoolParallelism() + 2);
++                    Integer.getInteger("jdk.virtualThreadScheduler.parallelism", Runtime.getRuntime().availableProcessors()) + 2);
+             open = new CountDownLatch(1);
+         }
+ 
