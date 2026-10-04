@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box} body{margin:0;background:#0d1117;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+#card{width:1360px;padding:28px 34px 30px;background:#0d1117}
+h1{font-size:25px;margin:0 0 4px;font-weight:650} .sub{color:#8b949e;font-size:14.5px;margin-bottom:18px}
+h2{font-size:16px;margin:20px 0 8px;color:#79c0ff;font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:13.5px} th{color:#8b949e;text-align:left;font-weight:600;padding:6px 8px;border-bottom:1px solid #30363d}
+td{padding:6px 8px;border-bottom:1px solid #21262d;vertical-align:top} td.mono,span.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.ok{color:#3fb950} .bad{color:#f85149} .warn{color:#d29922} .mut{color:#8b949e} .b{font-weight:650}
+pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.45;white-space:pre;overflow:hidden;margin:6px 0}
+.note{border-left:4px solid #d29922;background:#161b22;padding:10px 14px;margin-top:16px;font-size:14px;line-height:1.5}
+.note.ok{border-color:#3fb950;color:#e6edf3} .note.bad{border-color:#f85149;color:#e6edf3}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.foot{color:#8b949e;font-size:12px;margin-top:14px}
+</style></head><body><div id="card"><h1>The turn that starts a background Shell now terminates it when it finishes</h1><div class="sub">Three links, each measured in the PR's own fixtures or on real cgroup v2</div>
+<pre>HostedWorkspaceToolTurn                     new HostedWorkspaceBroker(options, sessionKey, promptId)   ← one Runtime Session per turn
+  finish()  (hosted-workspace-tool-turn.ts:2773)   if (!this.mcp && !this.hooks) await this.broker.release()
+RuntimeBrokerService.releaseSessionAfterSweep    only this Session's background rows busy → drainBackgroundSession → transport.release
+WorkspaceRuntimeTransport.release               provider "release" (worker closes the Runtime Session's admission) → activation release
+WorkspaceActivations (worker)                   hasActiveSession → executor.stopBackgroundSession(runtimeSessionId)   ← TERM, escalate, wait</pre>
+<table><tr><th>link</th><th>probe</th><th>result</th></tr><tr><td>1. a turn that admitted a background Shell releases its Runtime Session</td><td>the PR's backgroundTurnRig, run past execute() to consumeResults() + finish()</td><td class="bad">orchestrator admit → dispatchStarted → attach; finish ok; broker.release ×1</td></tr><tr><td>2. that release now drains instead of refusing</td><td>the PR's RuntimeBrokerServiceTest fixture (J1), worker answering running</td><td class="bad">worker release ×1, then runtime_session_busy</td></tr><tr><td>3. the drain stops every Shell of that Runtime Session</td><td>stopBackgroundSession on 192.168.0.75 (TERM-obeying, TERM-ignoring, wait-ing)</td><td class="bad">5030 ms; all three exited/exited/exited; units gone</td></tr></table>
+<div class="note bad">Put together: a background Shell started in a turn is terminated when that same turn finishes — "keeps running after this result" lasts until the turn's own release, seconds later. Before 04ea968dc8 the Broker refused that release busy, and by code finish() turns a failed release into HostedToolRecoveryRequiredError, so neither version lets the turn end normally with the Shell alive. The Runtime Session is per turn while the Shell is meant to outlive it.</div>
+<div class="note">Also: the drain goes through the full transport.release, whose provider "release" closes the worker's admission for that Runtime Session before the activation drain runs. If the drain cannot prove its stops (409, swallowed), the Broker still answers busy but the worker side is already closed.</div><div class="foot">PR #13265 round 6 · head 0485bd74e2 (main 98b0255f9d merged in) · Linux: 192.168.0.75 (kernel 6.6.89, cgroup v2), the real executor/registry/route/watcher bundled per build · macOS: Spring jar + native MySQL 8.4.7 · Broker and turn probes run inside the PR's own test fixtures</div></div></body></html>
