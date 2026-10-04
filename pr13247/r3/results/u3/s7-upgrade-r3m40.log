@@ -1,0 +1,28 @@
+# s7-upgrade-r3m40  db=u3  2026-10-04T16:48:06.230Z
+## 1. base jar (merge base a011f669): routes do not exist
+NOTE  start base  -> spring up after 9s
+PASS  base: bound Session created, initial Turn completes  -> {"status":"COMPLETED","error":"","ms":989}
+NOTE  base: POST /v1/agents/sessions/{id}/cwd  -> 404 not_found
+NOTE  base: POST /api/agent/web-shell/v1/sessions/cwd/change  -> 404 not_found
+PASS  base: neither cwd route is mapped (no 202)  -> 404/404
+PASS  base schema at V39  -> flyway=39
+## 2. upgrade to head jar on the same database
+NOTE  start head  -> spring up after 5s
+NOTE  traps installed  -> 0
+PASS  head applied V40 on the base database  -> flyway=40
+PASS  pre-upgrade Session changes directory on head (rev 1→2, one event)  -> 202 completed {"cwd":"child2","rev":2,"version":14,"status":"ACTIVE"}
+NOTE  non-cwd operation rows carried over  -> 0
+## 3. roll back to the base jar after a COMPLETED change
+NOTE  start base again  -> spring up after 4s
+PASS  base starts on the V40 database (future migration ignored)  -> flyway=40
+NOTE  base: Session read after rollback  -> 200 workspace={"workspace_id":"ws-up","cwd_relative":"child2","context_revision":2,"state":"ready"}
+NOTE  base: GET the completed cwd operation (public / WebShell)  -> 400 invalid_request / 400 invalid_request
+## 4. roll back to the base jar while a cwd change is OPEN (head crashed inside the claim)
+NOTE  start head  -> spring up after 5s
+NOTE  open operation after head crash  -> {"state":"PENDING","delivery":"PENDING","error":"","target":"trap-claim-s7","expected":"2","result":"","attempts":0,"gen":0}
+NOTE  start base  -> spring up after 5s
+NOTE  base, 8 s later: operation row / log  -> row={"state":"PENDING","delivery":"PENDING","error":"","target":"trap-claim-s7","expected":"2","result":"","attempts":0,"gen":0} "No enum constant …CWD_CHANGE" lines=1 GET=400 invalid_request
+PASS  base leaves the open cwd operation open (no settlement) while it runs  -> PENDING rev=2
+NOTE  start head again  -> spring up after 5s
+PASS  head picks it up again and completes once (rev 3, two events total)  -> 3434 ms completed {"state":"COMPLETED","delivery":"CONFIRMED","error":"","target":"trap-claim-s7","expected":"2","result":"3","attempts":0,"gen":1,"receipt":"rcpt_4f6c14d658694cd3abeeea5acfa9bfef"}
+== s7-upgrade-r3m40: 8 passed, 0 failed
