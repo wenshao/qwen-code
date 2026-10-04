@@ -1,0 +1,746 @@
+{
+  "springBoot": {
+    "ms": 2516,
+    "flyway": [
+      "INFO 19624 --- [qwen-managed-agent-server] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:mysql://127.0.0.1:13217/r13217_upg2?useSSL=false&allowPublicKeyRetrieval=true (MySQL 8.4)",
+      "WARN 19624 --- [qwen-managed-agent-server] [           main] o.f.c.internal.database.base.Database    : Flyway upgrade recommended: MySQL 8.4 is newer than this version of Flyway and support has not been tested. The latest supported version of MySQL is 8.1.",
+      "INFO 19624 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 39 migrations (execution time 00:00.025s)"
+    ]
+  },
+  "list": {
+    "idleDigests": [
+      "SELECT `s` . `tenant_id` , `s` . `session_id` FROM `managed_agent_session` `s` JOIN `managed_agent_consumer_progress` `p` ON `p` . `tenant_id` = `s` . `tenant_id` AND `p` . `session_id` = `s` . `sessi",
+      "SELECT `tenant_id` , `session_id` , `turn_id` FROM `managed_agent_turn` WHERE STATUS IN (...) AND ( `dispatch_lease_until` IS NULL OR `dispatch_lease_until` < ? ) AND ( `retry_after` IS NULL OR `retry",
+      "SELECT `tenant_id` , `session_id` , `operation_id` FROM `managed_agent_operation` WHERE `operation_kind` = ? AND ( ( `delivery_state` = ? AND `available_at` <= ? ) OR ( `delivery_state` = ? AND `lease",
+      "SELECT `UNIX_TIMESTAMP` ( ) , EXTRACT ( MICROSECOND FROM NOW (?) )",
+      "SELECT `tenant_id` , `session_id` , `operation_id` FROM `managed_agent_operation` WHERE `operation_kind` != ? AND ( `delivery_state` = ? OR ( `delivery_state` = ? AND ( `operation_kind` = ? OR ( `oper",
+      "SELECT `tenant_id` , `session_id` , `operation_id` FROM `managed_agent_operation` WHERE `operation_kind` != ? AND `delivery_state` = ? AND `lease_until` < ? ORDER BY `lease_until` LIMIT ?"
+    ],
+    "public-list-unbound": {
+      "status": 200,
+      "rows": 20,
+      "statementsPerCall": 41,
+      "rowsExaminedPerCall": 62,
+      "p50ms": 17,
+      "digests": [
+        {
+          "perCall": 20,
+          "examinedPerCall": 21,
+          "text": "SELECT * FROM `managed_agent_turn` WHERE `tenant_id` = ? AND `session_id` = ? AND STATUS IN (...) ORDER BY `created_at` DESC LIMIT ?"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 20,
+          "text": "SELECT `covered_sequence` FROM `managed_agent_snapshot` WHERE `tenant_id` = ? AND `session_id` = ?"
+        },
+        {
+          "perCall": 1,
+          "examinedPerCall": 21,
+          "text": "SELECT * FROM `managed_agent_session` WHERE `tenant_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND STATUS != ? AND ( `workspace_id` IS NULL OR EXISTS ( SELECT ? FROM `managed_workspace_access` `wa` WHERE `wa` . `tenant_id` = `managed_agent_session` . `tenant_id` AND `wa` . `workspace_id` = `managed_agent_session` . `workspace_id` AND CAS"
+        }
+      ]
+    },
+    "public-list-bound": {
+      "status": 200,
+      "rows": 20,
+      "statementsPerCall": 81,
+      "rowsExaminedPerCall": 100,
+      "p50ms": 20,
+      "digests": [
+        {
+          "perCall": 20,
+          "examinedPerCall": 18,
+          "text": "SELECT * FROM `managed_agent_turn` WHERE `tenant_id` = ? AND `session_id` = ? AND STATUS IN (...) ORDER BY `created_at` DESC LIMIT ?"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 20,
+          "text": "SELECT `covered_sequence` FROM `managed_agent_snapshot` WHERE `tenant_id` = ? AND `session_id` = ?"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 0,
+          "text": "SELECT COUNT ( * ) FROM `managed_agent_operation` WHERE `tenant_id` = ? AND `session_id` = ? AND `operation_kind` = ? AND `state` = ? AND `receipt_id` IS NOT NULL"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 20,
+          "text": "SELECT `approval_mode` FROM `managed_agent_session` WHERE `tenant_id` = ? AND `session_id` = ?"
+        },
+        {
+          "perCall": 1,
+          "examinedPerCall": 42,
+          "text": "SELECT * FROM `managed_agent_session` WHERE `tenant_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND STATUS != ? AND ( `workspace_id` IS NULL OR EXISTS ( SELECT ? FROM `managed_workspace_access` `wa` WHERE `wa` . `tenant_id` = `managed_agent_session` . `tenant_id` AND `wa` . `workspace_id` = `managed_agent_session` . `workspace_id` AND CAS"
+        }
+      ]
+    },
+    "webshell-list-unbound": {
+      "status": 200,
+      "rows": 20,
+      "statementsPerCall": 61,
+      "rowsExaminedPerCall": 118,
+      "p50ms": 22,
+      "digests": [
+        {
+          "perCall": 20,
+          "examinedPerCall": 20,
+          "text": "SELECT * FROM `managed_agent_session` WHERE `tenant_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND `session_id` = ?"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 35,
+          "text": "SELECT * FROM `managed_agent_turn` WHERE `tenant_id` = ? AND `session_id` = ? AND `turn_id` = ( SELECT `turn_id` FROM `managed_agent_event` WHERE `tenant_id` = ? AND `session_id` = ? AND `event_type` = ? ORDER BY `sequence_id` DESC LIMIT ? )"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 42,
+          "text": "SELECT EVENT . * FROM `managed_agent_event` EVENT JOIN `managed_agent_turn` `turn_record` ON `turn_record` . `tenant_id` = `event` . `tenant_id` AND `turn_record` . `session_id` = `event` . `session_id` AND `turn_record` . `turn_id` = `event` . `turn_id` WHERE `event` . `tenant_id` = ? AND `event` . `session_id` = ? AND `event` . `event_type` IN (...) AND `turn_record` . `turn_id` = ( SELECT `turn"
+        },
+        {
+          "perCall": 1,
+          "examinedPerCall": 21,
+          "text": "SELECT * FROM `managed_agent_session` WHERE `tenant_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND STATUS != ? AND ( `workspace_id` IS NULL OR EXISTS ( SELECT ? FROM `managed_workspace_access` `wa` WHERE `wa` . `tenant_id` = `managed_agent_session` . `tenant_id` AND `wa` . `workspace_id` = `managed_agent_session` . `workspace_id` AND CAS"
+        }
+      ]
+    },
+    "webshell-list-bound": {
+      "status": 200,
+      "rows": 20,
+      "statementsPerCall": 141,
+      "rowsExaminedPerCall": 230,
+      "p50ms": 30,
+      "digests": [
+        {
+          "perCall": 20,
+          "examinedPerCall": 20,
+          "text": "SELECT * FROM `managed_agent_session` WHERE `tenant_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND `session_id` = ?"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 0,
+          "text": "SELECT COUNT ( * ) FROM `managed_agent_operation` WHERE `tenant_id` = ? AND `session_id` = ? AND `operation_kind` = ? AND `state` = ? AND `receipt_id` IS NOT NULL"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 20,
+          "text": "SELECT `approval_mode` FROM `managed_agent_session` WHERE `tenant_id` = ? AND `session_id` = ?"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 20,
+          "text": "SELECT ? FROM `managed_workspace_create_command` WHERE `tenant_id` = ? AND `session_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND `actor_id` = ?"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 20,
+          "text": "SELECT `r` . `workspace_id` , `r` . `display_name` , `r` . `state` , `a` . `can_create` FROM `managed_workspace_registry` `r` JOIN `managed_workspace_access` `a` ON `a` . `tenant_id` = `r` . `tenant_id` AND `a` . `workspace_id` = `r` . `workspace_id` AND CAST ( `CONCAT` ( `a` . `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` ( `r` . `tenant_id` , ? ) AS BINARY (?) ) AND CAST ( `CONCAT` ( `a` ."
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 36,
+          "text": "SELECT * FROM `managed_agent_turn` WHERE `tenant_id` = ? AND `session_id` = ? AND `turn_id` = ( SELECT `turn_id` FROM `managed_agent_event` WHERE `tenant_id` = ? AND `session_id` = ? AND `event_type` = ? ORDER BY `sequence_id` DESC LIMIT ? )"
+        },
+        {
+          "perCall": 20,
+          "examinedPerCall": 72,
+          "text": "SELECT EVENT . * FROM `managed_agent_event` EVENT JOIN `managed_agent_turn` `turn_record` ON `turn_record` . `tenant_id` = `event` . `tenant_id` AND `turn_record` . `session_id` = `event` . `session_id` AND `turn_record` . `turn_id` = `event` . `turn_id` WHERE `event` . `tenant_id` = ? AND `event` . `session_id` = ? AND `event` . `event_type` IN (...) AND `turn_record` . `turn_id` = ( SELECT `turn"
+        },
+        {
+          "perCall": 1,
+          "examinedPerCall": 42,
+          "text": "SELECT * FROM `managed_agent_session` WHERE `tenant_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND STATUS != ? AND ( `workspace_id` IS NULL OR EXISTS ( SELECT ? FROM `managed_workspace_access` `wa` WHERE `wa` . `tenant_id` = `managed_agent_session` . `tenant_id` AND `wa` . `workspace_id` = `managed_agent_session` . `workspace_id` AND CAS"
+        }
+      ]
+    },
+    "public-get": {
+      "status": 200,
+      "rows": null,
+      "statementsPerCall": 3,
+      "rowsExaminedPerCall": 4,
+      "p50ms": 4,
+      "digests": [
+        {
+          "perCall": 1,
+          "examinedPerCall": 1,
+          "text": "SELECT * FROM `managed_agent_session` WHERE `tenant_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND `session_id` = ?"
+        },
+        {
+          "perCall": 1,
+          "examinedPerCall": 2,
+          "text": "SELECT * FROM `managed_agent_turn` WHERE `tenant_id` = ? AND `session_id` = ? AND STATUS IN (...) ORDER BY `created_at` DESC LIMIT ?"
+        },
+        {
+          "perCall": 1,
+          "examinedPerCall": 1,
+          "text": "SELECT `covered_sequence` FROM `managed_agent_snapshot` WHERE `tenant_id` = ? AND `session_id` = ?"
+        }
+      ]
+    },
+    "webshell-get": {
+      "status": 200,
+      "rows": null,
+      "statementsPerCall": 4,
+      "rowsExaminedPerCall": 9,
+      "p50ms": 5,
+      "digests": [
+        {
+          "perCall": 2,
+          "examinedPerCall": 2,
+          "text": "SELECT * FROM `managed_agent_session` WHERE `tenant_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND `session_id` = ?"
+        },
+        {
+          "perCall": 1,
+          "examinedPerCall": 2,
+          "text": "SELECT * FROM `managed_agent_turn` WHERE `tenant_id` = ? AND `session_id` = ? AND `turn_id` = ( SELECT `turn_id` FROM `managed_agent_event` WHERE `tenant_id` = ? AND `session_id` = ? AND `event_type` = ? ORDER BY `sequence_id` DESC LIMIT ? )"
+        },
+        {
+          "perCall": 1,
+          "examinedPerCall": 5,
+          "text": "SELECT EVENT . * FROM `managed_agent_event` EVENT JOIN `managed_agent_turn` `turn_record` ON `turn_record` . `tenant_id` = `event` . `tenant_id` AND `turn_record` . `session_id` = `event` . `session_id` AND `turn_record` . `turn_id` = `event` . `turn_id` WHERE `event` . `tenant_id` = ? AND `event` . `session_id` = ? AND `event` . `event_type` IN (...) AND `turn_record` . `turn_id` = ( SELECT `turn"
+        }
+      ]
+    }
+  },
+  "continue": [
+    {
+      "id": "572145af-0f65-4882-8962-9578ee1ccffe",
+      "ws": false,
+      "turnMs": 33245,
+      "status": "COMPLETED",
+      "error": "",
+      "materialized": true,
+      "items": 6,
+      "hasCont": true
+    },
+    {
+      "id": "99f2c224-4ee5-4237-91c4-9ae31296912f",
+      "ws": false,
+      "turnMs": 557,
+      "status": "COMPLETED",
+      "error": "",
+      "materialized": true,
+      "items": 6,
+      "hasCont": true
+    },
+    {
+      "id": "a7111030-60f9-4dc0-a592-eea4788348d5",
+      "ws": false,
+      "turnMs": 549,
+      "status": "COMPLETED",
+      "error": "",
+      "materialized": true,
+      "items": 6,
+      "hasCont": true
+    },
+    {
+      "id": "e372048b-2ab2-4d57-811a-966b849c70d8",
+      "ws": false,
+      "turnMs": 906,
+      "status": "COMPLETED",
+      "error": "",
+      "materialized": true,
+      "items": 6,
+      "hasCont": true
+    },
+    {
+      "id": "510415c5-04f2-48a8-be61-e4cc041e9a5c",
+      "ws": false,
+      "turnMs": 394,
+      "status": "COMPLETED",
+      "error": "",
+      "materialized": true,
+      "items": 6,
+      "hasCont": true
+    },
+    {
+      "id": "29e2b98b-04a5-401d-bee9-32c851673e4d",
+      "ws": false,
+      "turnMs": 369,
+      "status": "COMPLETED",
+      "error": "",
+      "materialized": true,
+      "items": 6,
+      "hasCont": true
+    },
+    {
+      "id": "a9bbc2f8-762e-49e0-bc49-0a6407b366b0",
+      "fresh": true,
+      "turnMs": 367,
+      "status": "COMPLETED",
+      "error": ""
+    }
+  ],
+  "long": {
+    "sessionId": "ffb0093f-12d6-4341-9f8a-3e0edcc63735",
+    "historyPhase": {
+      "turns": 0,
+      "events": 0,
+      "snapshotUpdates": 0,
+      "snapshotBinlog": null,
+      "snapshotStatementMs": 0,
+      "turnMs": []
+    },
+    "itemsJsonBytesBefore": 1184,
+    "itemsJsonBytesAfter": 4085,
+    "turn": {
+      "turnMs": 4727,
+      "status": "COMPLETED",
+      "error": ""
+    },
+    "newEvents": 205,
+    "eventTypes": {
+      "turn.accepted": 1,
+      "environment.provisioning": 1,
+      "environment.ready": 1,
+      "turn.started": 1,
+      "item.output_text.delta": 200,
+      "turn.completed": 1
+    },
+    "materialized": {
+      "last": 214,
+      "progress": 214,
+      "snapshot": 214,
+      "staleSince": null,
+      "ms": 15
+    },
+    "snapshot": {
+      "updates": 19,
+      "statementMs": 3,
+      "binlog": {
+        "bytes": 121863,
+        "events": 19,
+        "kinds": {
+          "Update_rows": 19
+        }
+      }
+    },
+    "materializerSessionLocks": 47,
+    "progressUpdates": 19,
+    "lag": {
+      "maxEventsBehind": 12,
+      "longestBehindMs": 1062,
+      "samples": 23,
+      "markerSeen": false
+    },
+    "sse": {
+      "subscribers": 2,
+      "workspaceAccessStatements": 451,
+      "perSubscriberPerEvent": 1.1,
+      "delivered": [
+        {
+          "label": "public-0",
+          "status": 200,
+          "events": 205,
+          "complete": true
+        },
+        {
+          "label": "webshell-1",
+          "status": 200,
+          "events": 205,
+          "complete": true
+        }
+      ]
+    },
+    "binlogTotalBytes": 1738012,
+    "topDigests": [
+      {
+        "count": 523,
+        "ms": 21,
+        "text": "SET `autocommit` = ?"
+      },
+      {
+        "count": 450,
+        "ms": 28,
+        "text": "SELECT ? FROM `managed_workspace_access` WHERE `tenant_id` = ? AND `workspace_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND CAST ( `CONCAT` ( `workspace_id` ,"
+      },
+      {
+        "count": 261,
+        "ms": 94,
+        "text": "COMMIT"
+      },
+      {
+        "count": 220,
+        "ms": 9,
+        "text": "SELECT `generation` FROM `qwen_output_session_retirement` WHERE `tenant_key` = ? AND `session_key` = ?"
+      },
+      {
+        "count": 220,
+        "ms": 5,
+        "text": "SELECT NOW (?)"
+      },
+      {
+        "count": 213,
+        "ms": 17,
+        "text": "INSERT INTO `qwen_tool_publication_tenant` ( `tenant_key` , `tenant_id` ) VALUES (...) ON DUPLICATE KEY UPDATE `tenant_key` = `tenant_key`"
+      },
+      {
+        "count": 213,
+        "ms": 14,
+        "text": "SELECT `tenant_id` FROM `qwen_tool_publication_tenant` WHERE `tenant_key` = ? FOR UPDATE"
+      },
+      {
+        "count": 213,
+        "ms": 11,
+        "text": "SELECT `state` FROM `qwen_managed_session_journal_head` WHERE `tenant_id` = ? AND `session_id` = ? FOR UPDATE"
+      },
+      {
+        "count": 206,
+        "ms": 14,
+        "text": "SELECT * FROM `qwen_managed_session_journal_head` WHERE `tenant_id` = ? AND `session_id` = ? FOR UPDATE"
+      },
+      {
+        "count": 206,
+        "ms": 12,
+        "text": "SELECT * FROM `qwen_managed_session_journal_tx` WHERE `tenant_id` = ? AND `session_id` = ? AND `command_key_hash` = ?"
+      },
+      {
+        "count": 206,
+        "ms": 31,
+        "text": "INSERT INTO `qwen_managed_session_journal_tx` ( `tenant_id` , `workspace_id` , `session_id` , `journal_revision` , `command_key_hash` , `transaction_id` , `operation` , `command_id` , `content_digest` , `first_sequence` "
+      },
+      {
+        "count": 206,
+        "ms": 23,
+        "text": "UPDATE `qwen_managed_session_journal_head` SET `journal_revision` = ? , `committed_sequence` = ? , `last_commit_digest` = ? , `activation_epoch` = ? , `latest_checkpoint_resource_id` = COALESCE ( ? , `latest_checkpoint_r"
+      },
+      {
+        "count": 205,
+        "ms": 17,
+        "text": "INSERT INTO `managed_agent_event` ( `tenant_id` , `session_id` , `sequence_id` , `event_id` , `turn_id` , `event_type` , `data_json` , `terminal` , `source_key` , `created_at` , `schema_version` , `projection_version` , "
+      },
+      {
+        "count": 201,
+        "ms": 15,
+        "text": "UPDATE `managed_agent_item` SET `item_status` = ? , `attributes_json` = ? , `last_sequence` = ? , `updated_at` = ? , `revision` = `revision` + ? WHERE `tenant_id` = ? AND `session_id` = ? AND `item_id` = ?"
+      },
+      {
+        "count": 200,
+        "ms": 12,
+        "text": "SELECT `part_id` FROM `managed_agent_item_part` WHERE `tenant_id` = ? AND `session_id` = ? AND `item_id` = ? AND `part_type` = ? AND `last_sequence` = ?"
+      },
+      {
+        "count": 200,
+        "ms": 16,
+        "text": "UPDATE `managed_agent_item_part` SET `part_text` = `CONCAT` ( `part_text` , ? ) , `last_sequence` = ? , `updated_at` = ? , `revision` = `revision` + ? WHERE `tenant_id` = ? AND `session_id` = ? AND `item_id` = ? AND `par"
+      },
+      {
+        "count": 59,
+        "ms": 13,
+        "text": "SELECT `s` . `tenant_id` , `s` . `session_id` FROM `managed_agent_session` `s` JOIN `managed_agent_consumer_progress` `p` ON `p` . `tenant_id` = `s` . `tenant_id` AND `p` . `session_id` = `s` . `session_id` AND `p` . `co"
+      },
+      {
+        "count": 54,
+        "ms": 3,
+        "text": "SELECT @@`version_comment` LIMIT ?"
+      },
+      {
+        "count": 43,
+        "ms": 5,
+        "text": "SELECT * FROM `managed_agent_session` WHERE `tenant_id` = ? AND CAST ( `CONCAT` ( `tenant_id` , ? ) AS BINARY (?) ) = CAST ( `CONCAT` (...) AS BINARY (?) ) AND `session_id` = ? FOR UPDATE"
+      },
+      {
+        "count": 30,
+        "ms": 4,
+        "text": "SELECT COUNT ( * ) FROM `managed_agent_turn` WHERE `tenant_id` = ? AND `session_id` = ? AND STATUS IN (...)"
+      },
+      {
+        "count": 24,
+        "ms": 2,
+        "text": "SELECT `s` . `last_sequence` , COALESCE ( `p` . `covered_sequence` , ? ) , COALESCE ( `n` . `covered_sequence` , ? ) , `p` . `snapshot_stale_since` FROM `managed_agent_session` `s` LEFT JOIN `managed_agent_consumer_progr"
+      },
+      {
+        "count": 21,
+        "ms": 0,
+        "text": "SELECT @@SESSION . `transaction_read_only`"
+      },
+      {
+        "count": 21,
+        "ms": 2,
+        "text": "SELECT * FROM `managed_agent_turn` WHERE `tenant_id` = ? AND `session_id` = ? AND `turn_id` = ? FOR UPDATE"
+      },
+      {
+        "count": 20,
+        "ms": 3,
+        "text": "UPDATE `managed_agent_session` SET `harness_event_epoch` = ? , `harness_last_event_id` = ? , `last_sequence` = ? , `updated_at` = ? , `version` = `version` + ? WHERE `tenant_id` = ? AND `session_id` = ?"
+      },
+      {
+        "count": 19,
+        "ms": 1,
+        "text": "SELECT `covered_sequence` FROM `managed_agent_consumer_progress` WHERE `tenant_id` = ? AND `session_id` = ? AND `consumer_name` = ? FOR UPDATE"
+      },
+      {
+        "count": 19,
+        "ms": 2,
+        "text": "SELECT * FROM `managed_agent_event` WHERE `tenant_id` = ? AND `session_id` = ? AND `sequence_id` > ? ORDER BY `sequence_id` ASC LIMIT ?"
+      },
+      {
+        "count": 19,
+        "ms": 1,
+        "text": "UPDATE `managed_agent_consumer_progress` SET `covered_sequence` = ? , `updated_at` = ? WHERE `tenant_id` = ? AND `session_id` = ? AND `consumer_name` = ?"
+      },
+      {
+        "count": 19,
+        "ms": 2,
+        "text": "SELECT * FROM `managed_agent_item` WHERE `tenant_id` = ? AND `session_id` = ? ORDER BY `first_sequence` ASC"
+      },
+      {
+        "count": 19,
+        "ms": 1,
+        "text": "SELECT `snapshot_version` FROM `managed_agent_snapshot` WHERE `tenant_id` = ? AND `session_id` = ? FOR UPDATE"
+      },
+      {
+        "count": 19,
+        "ms": 1,
+        "text": "SELECT * FROM `managed_agent_item_part` WHERE `tenant_id` = ? AND `session_id` = ? AND `item_id` IN (...) ORDER BY `first_sequence` ASC"
+      }
+    ]
+  },
+  "journalHeadsAfterOld": {
+    "columns": "tenant_id,workspace_id,session_id,storage_version,state,writer_generation,writer_id,writer_lease_until,lease_token_hash,journal_revision,committed_sequence,last_commit_digest,activation_epoch,latest_checkpoint_resource_id,compacted_through_revision,recovery_status,recovery_detail_code,created_at,updated_at,o3_backfill_revision,o3_backfill_through,o3_backfill_error,o3_backfill_pending,activation_id,activation_phase,activation_event_epoch,activation_expires_at,activation_head_revision",
+    "heads": 33,
+    "withActivation": "8",
+    "stampCurrent": "2",
+    "stampLagging": "6",
+    "listSessionStamps": {
+      "null": 22,
+      "lagging": 6
+    },
+    "perSession": [
+      {
+        "sid": "1bb32f28",
+        "rev": 10,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "29e2b98b",
+        "rev": 25,
+        "stamp": 18,
+        "phase": "active",
+        "activationTx": 5,
+        "state": "lagging"
+      },
+      {
+        "sid": "473f0a2a",
+        "rev": 10,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "510415c5",
+        "rev": 25,
+        "stamp": 18,
+        "phase": "active",
+        "activationTx": 5,
+        "state": "lagging"
+      },
+      {
+        "sid": "537ba8fd",
+        "rev": 10,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "572145af",
+        "rev": 25,
+        "stamp": 18,
+        "phase": "active",
+        "activationTx": 5,
+        "state": "lagging"
+      },
+      {
+        "sid": "800807b2",
+        "rev": 10,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "99f2c224",
+        "rev": 25,
+        "stamp": 18,
+        "phase": "active",
+        "activationTx": 5,
+        "state": "lagging"
+      },
+      {
+        "sid": "9cd3be9e",
+        "rev": 10,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "a7111030",
+        "rev": 25,
+        "stamp": 18,
+        "phase": "active",
+        "activationTx": 5,
+        "state": "lagging"
+      },
+      {
+        "sid": "c628439a",
+        "rev": 10,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "d3070d6b",
+        "rev": 10,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "e372048b",
+        "rev": 25,
+        "stamp": 18,
+        "phase": "active",
+        "activationTx": 5,
+        "state": "lagging"
+      },
+      {
+        "sid": "ef9a2801",
+        "rev": 10,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "062fb278",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "144efdd5",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "364a3255",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "76bd847e",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "7835a50e",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "81e57a72",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "869beeb3",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "9ee9b4e6",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "a7472695",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "daee4071",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "de0c316f",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "e7976fb3",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "ebf701ec",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      },
+      {
+        "sid": "fe2b7388",
+        "rev": 40,
+        "stamp": -1,
+        "phase": "",
+        "activationTx": 2,
+        "state": "null"
+      }
+    ]
+  },
+  "summary": {
+    "name": "upg-3-main",
+    "arm": "main",
+    "db": "r13217_upg2",
+    "jar": "/Users/wenshao/pr13217-rig/server/main-server.jar",
+    "jarSha": "d83c254ea1e6d05c",
+    "error": null,
+    "modelCalls": 9,
+    "springErrors": 0,
+    "springExceptions": []
+  }
+}

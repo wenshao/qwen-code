@@ -1,0 +1,226 @@
+{
+  "springBoot": {
+    "ms": 3564,
+    "flyway": [
+      "INFO 38959 --- [qwen-managed-agent-server] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:mysql://127.0.0.1:13217/r13217_mig?useSSL=false&allowPublicKeyRetrieval=true (MySQL 8.4)",
+      "WARN 38959 --- [qwen-managed-agent-server] [           main] o.f.c.internal.database.base.Database    : Flyway upgrade recommended: MySQL 8.4 is newer than this version of Flyway and support has not been tested. The latest supported version of MySQL is 8.1.",
+      "INFO 38959 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 39 migrations (execution time 00:00.040s)"
+    ]
+  },
+  "explain": {
+    "public-list-unbound": {
+      "wallMs": 38,
+      "statements": 41,
+      "examined": 40,
+      "dbUs": 7060,
+      "plans": [
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 2258,
+          "examined": 20,
+          "sent": 20,
+          "sql": "SELECT covered_sequence FROM managed_agent_snapshot WHERE tenant_id = 'tt' AND session_id = 'tt-5'",
+          "plan": "-> Rows fetched before execution  (cost=0..0 rows=1) (actual time=0..0 rows=1 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 4420,
+          "examined": 0,
+          "sent": 0,
+          "sql": "SELECT * FROM managed_agent_turn WHERE tenant_id = 'tt' AND session_id = 'tt-4' AND status IN ('ACCEPTED', 'RUNNING', 'CANCELLING') ORDER BY created_at DESC LIMIT 1",
+          "plan": "-> Limit: 1 row(s)  (cost=2.91 rows=1) (actual time=0.0162..0.0162 rows=0 loops=1)\n    -> Sort row IDs: managed_agent_turn.created_at DESC, limit input to 1 row(s) per chunk  (cost=2.91 rows=3) (actual time=0.0161..0.0161 rows=0 loops=1)\n        -> Index range scan on managed_agent_turn using managed_agent_turn_dispatch_idx over (status = 'ACCEPTED') OR (status = 'CANCELLING') OR (status = 'RUNNING'), with index condition: ((managed_agent_turn.session_id = 'tt-4') and (managed_agent_turn.tenant_id = 'tt') and (managed_agent_turn.`status` in ('ACCEPTED','RUNNING','CANCELLING')))  (cost=2.91 rows=3) (actual time=0.0118..0.0118 rows=0 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 1,
+          "totalUs": 382,
+          "examined": 20,
+          "sent": 20,
+          "sql": "SELECT * FROM managed_agent_session WHERE tenant_id = 'tt' AND CAST(CONCAT(tenant_id, '!') AS BINARY(513)) = CAST(CONCAT('tt', '!') AS BINARY(513)) AND status <> 'DELETED' AND (workspace_id IS NULL OR EXISTS (SELECT 1 FROM managed_workspace_access wa WHERE wa.tenant_id = managed_agent_session.tenant_id AND wa.workspace_id = managed_agent_session.workspace_id AND CAST(CONCAT(wa.tenant_id, '!') AS BINARY(513)) = CAST(CONCAT(managed_agent_session.tenant_id, '!') AS BINARY(513)) AND CAST(CONCAT(wa.workspace_id, '!') AS BINARY(513)) = CAST(CONCAT(managed_agent_session.workspace_id, '!') AS BINARY(513)) AND wa.actor_id = x'7269672d6163746f72' AND wa.can_read = TRUE)) ORDER BY updated_at DESC, session_id DESC LIMIT 21",
+          "plan": "-> Limit: 21 row(s)  (cost=2.07 rows=18) (actual time=0.0225..0.068 rows=20 loops=1)\n    -> Filter: ((cast(concat(managed_agent_session.tenant_id,'!') as char(513) charset binary) = 'tt!\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0') and (managed_agent_session.`status` <> 'DELETED') and ((managed_agent_session.workspace_id is null) or exists(select #2)))  (cost=2.07 rows=18) (actual time=0.0221..0.0669 rows=20 loops=1)\n        -> Index lookup on managed_agent_session using managed_agent_session_list_idx (tenant_id='tt') (reverse)  (cost=2.07 rows=20) (actual time=0.0207..0.0626 rows=20 loops=1)\n        -> Select #2 (subquery in condition; dependent)\n            -> Limit: 1 row(s)  (cost=0.35 rows=1) (never executed)\n                -> Filter: ((wa.can_read = true) and (wa.actor_id = 0x7269672d6163746f72) and (cast(concat(wa.tenant_id,'!') as char(513) charset binary) = cast(concat(managed_agent_session.tenant_id,'!') as char(513) charset binary)) and (cast(concat(wa.workspace_id,'!') as char(513) charset binary) = cast(concat(managed_agent_session.workspace_id,'!') as char(513) charset binary)))  (cost=0.35 rows=1) (never executed)\n                    -> Single-row index lookup on wa using PRIMARY (tenant_id=managed_agent_session.tenant_id, workspace_id=managed_agent_session.workspace_id, actor_id=0x7269672d6163746f72)  (cost=0.35 rows=1) (never executed)\n"
+        }
+      ]
+    },
+    "public-list-bound": {
+      "wallMs": 63,
+      "statements": 81,
+      "examined": 121,
+      "dbUs": 11334,
+      "plans": [
+        {
+          "recovered": null,
+          "n": 1,
+          "totalUs": 456,
+          "examined": 42,
+          "sent": 21,
+          "sql": "SELECT * FROM managed_agent_session WHERE tenant_id = 'ws-tenant' AND CAST(CONCAT(tenant_id, '!') AS BINARY(513)) = CAST(CONCAT('ws-tenant', '!') AS BINARY(513)) AND status <> 'DELETED' AND (workspace_id IS NULL OR EXISTS (SELECT 1 FROM managed_workspace_access wa WHERE wa.tenant_id = managed_agent_session.tenant_id AND wa.workspace_id = managed_agent_session.workspace_id AND CAST(CONCAT(wa.tenant_id, '!') AS BINARY(513)) = CAST(CONCAT(managed_agent_session.tenant_id, '!') AS BINARY(513)) AND CAST(CONCAT(wa.workspace_id, '!') AS BINARY(513)) = CAST(CONCAT(managed_agent_session.workspace_id, '!') AS BINARY(513)) AND wa.actor_id = x'7269672d6163746f72' AND wa.can_read = TRUE)) ORDER BY updated_at DESC, session_id DESC LIMIT 21",
+          "plan": "-> Limit: 21 row(s)  (cost=164 rows=21) (actual time=0.0839..0.25 rows=21 loops=1)\n    -> Filter: ((cast(concat(managed_agent_session.tenant_id,'!') as char(513) charset binary) = 'ws-tenant!\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0') and (managed_agent_session.`status` <> 'DELETED') and ((managed_agent_session.workspace_id is null) or exists(select #2)))  (cost=164 rows=1621) (actual time=0.0834..0.248 rows=21 loops=1)\n        -> Index lookup on managed_agent_session using managed_agent_session_list_idx (tenant_id='ws-tenant') (reverse)  (cost=164 rows=1801) (actual time=0.0666..0.138 rows=21 loops=1)\n        -> Select #2 (subquery in condition; dependent)\n            -> Limit: 1 row(s)  (cost=0.35 rows=1) (actual time=0.00402..0.00404 rows=1 loops=21)\n                -> Filter: ((wa.can_read = true) and (wa.actor_id = 0x7269672d6163746f72) and (cast(concat(wa.tenant_id,'!') as char(513) charset binary) = cast(concat(managed_agent_session.tenant_id,'!') as char(513) charset binary)) and (cast(concat(wa.workspace_id,'!') as char(513) charset binary) = cast(concat(managed_agent_session.workspace_id,'!') as char(513) charset binary)))  (cost=0.35 rows=1) (actual time=0.00388..0.00388 rows=1 loops=21)\n                    -> Single-row index lookup on wa using PRIMARY (tenant_id=managed_agent_session.tenant_id, workspace_id=managed_agent_session.workspace_id, actor_id=0x7269672d6163746f72)  (cost=0.35 rows=1) (actual time=0.00266..0.00266 rows=1 loops=21)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 3607,
+          "examined": 39,
+          "sent": 0,
+          "sql": "SELECT * FROM managed_agent_turn WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND status IN ('ACCEPTED', 'RUNNING', 'CANCELLING') ORDER BY created_at DESC LIMIT 1",
+          "plan": "-> Limit: 1 row(s)  (cost=0.772 rows=1) (actual time=0.0209..0.0209 rows=0 loops=1)\n    -> Sort row IDs: managed_agent_turn.created_at DESC, limit input to 1 row(s) per chunk  (cost=0.772 rows=2) (actual time=0.0206..0.0206 rows=0 loops=1)\n        -> Filter: (managed_agent_turn.`status` in ('ACCEPTED','RUNNING','CANCELLING'))  (cost=0.772 rows=2) (actual time=0.0172..0.0172 rows=0 loops=1)\n            -> Index lookup on managed_agent_turn using PRIMARY (tenant_id='ws-tenant', session_id='fb8567f5-1d91-47c9-a9b1-b92b558685b5-1')  (cost=0.772 rows=2) (actual time=0.0124..0.016 rows=2 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 2626,
+          "examined": 0,
+          "sent": 20,
+          "sql": "SELECT COUNT(*) FROM managed_agent_operation WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND operation_kind = 'CLOSE' AND state = 'COMPLETED' AND receipt_id IS NOT NULL",
+          "plan": "-> Aggregate: count(0)  (cost=0.45 rows=1) (actual time=0.00662..0.00667 rows=1 loops=1)\n    -> Filter: ((managed_agent_operation.state = 'COMPLETED') and (managed_agent_operation.operation_kind = 'CLOSE') and (managed_agent_operation.receipt_id is not null))  (cost=0.35 rows=1) (actual time=0.00558..0.00558 rows=0 loops=1)\n        -> Index lookup on managed_agent_operation using PRIMARY (tenant_id='ws-tenant', session_id='fb8567f5-1d91-47c9-a9b1-b92b558685b5-1')  (cost=0.35 rows=1) (actual time=0.00533..0.00533 rows=0 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 2552,
+          "examined": 20,
+          "sent": 20,
+          "sql": "SELECT covered_sequence FROM managed_agent_snapshot WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1'",
+          "plan": "-> Rows fetched before execution  (cost=0..0 rows=1) (actual time=41e-6..41e-6 rows=1 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 2093,
+          "examined": 20,
+          "sent": 20,
+          "sql": "SELECT approval_mode FROM managed_agent_session WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1'",
+          "plan": "-> Rows fetched before execution  (cost=0..0 rows=1) (actual time=41e-6..41e-6 rows=1 loops=1)\n"
+        }
+      ]
+    },
+    "webshell-list-unbound": {
+      "wallMs": 68,
+      "statements": 61,
+      "examined": 340,
+      "dbUs": 25693,
+      "plans": [
+        {
+          "recovered": null,
+          "n": 1,
+          "totalUs": 371,
+          "examined": 20,
+          "sent": 20,
+          "sql": "SELECT * FROM managed_agent_session WHERE tenant_id = 'tt' AND CAST(CONCAT(tenant_id, '!') AS BINARY(513)) = CAST(CONCAT('tt', '!') AS BINARY(513)) AND status <> 'DELETED' AND (workspace_id IS NULL OR EXISTS (SELECT 1 FROM managed_workspace_access wa WHERE wa.tenant_id = managed_agent_session.tenant_id AND wa.workspace_id = managed_agent_session.workspace_id AND CAST(CONCAT(wa.tenant_id, '!') AS BINARY(513)) = CAST(CONCAT(managed_agent_session.tenant_id, '!') AS BINARY(513)) AND CAST(CONCAT(wa.workspace_id, '!') AS BINARY(513)) = CAST(CONCAT(managed_agent_session.workspace_id, '!') AS BINARY(513)) AND wa.actor_id = x'7269672d6163746f72' AND wa.can_read = TRUE)) ORDER BY updated_at DESC, session_id DESC LIMIT 21",
+          "plan": "-> Limit: 21 row(s)  (cost=2.07 rows=18) (actual time=0.0222..0.0658 rows=20 loops=1)\n    -> Filter: ((cast(concat(managed_agent_session.tenant_id,'!') as char(513) charset binary) = 'tt!\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0') and (managed_agent_session.`status` <> 'DELETED') and ((managed_agent_session.workspace_id is null) or exists(select #2)))  (cost=2.07 rows=18) (actual time=0.0218..0.0645 rows=20 loops=1)\n        -> Index lookup on managed_agent_session using managed_agent_session_list_idx (tenant_id='tt') (reverse)  (cost=2.07 rows=20) (actual time=0.0202..0.0597 rows=20 loops=1)\n        -> Select #2 (subquery in condition; dependent)\n            -> Limit: 1 row(s)  (cost=0.35 rows=1) (never executed)\n                -> Filter: ((wa.can_read = true) and (wa.actor_id = 0x7269672d6163746f72) and (cast(concat(wa.tenant_id,'!') as char(513) charset binary) = cast(concat(managed_agent_session.tenant_id,'!') as char(513) charset binary)) and (cast(concat(wa.workspace_id,'!') as char(513) charset binary) = cast(concat(managed_agent_session.workspace_id,'!') as char(513) charset binary)))  (cost=0.35 rows=1) (never executed)\n                    -> Single-row index lookup on wa using PRIMARY (tenant_id=managed_agent_session.tenant_id, workspace_id=managed_agent_session.workspace_id, actor_id=0x7269672d6163746f72)  (cost=0.35 rows=1) (never executed)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 9346,
+          "examined": 40,
+          "sent": 20,
+          "sql": "SELECT * FROM managed_agent_turn WHERE tenant_id = 'tt' AND session_id = 'tt-20' AND turn_id = (SELECT turn_id FROM managed_agent_event WHERE tenant_id = 'tt' AND session_id = 'tt-20' AND event_type = 'turn.accepted' ORDER BY sequence_id DESC LIMIT 1)",
+          "plan": "-> Rows fetched before execution  (cost=0..0 rows=1) (actual time=0..0 rows=1 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 4680,
+          "examined": 20,
+          "sent": 20,
+          "sql": "SELECT * FROM managed_agent_session WHERE tenant_id = 'tt' AND CAST(CONCAT(tenant_id, '!') AS BINARY(513)) = CAST(CONCAT('tt', '!') AS BINARY(513)) AND session_id = 'tt-20'",
+          "plan": "-> Rows fetched before execution  (cost=0..0 rows=1) (actual time=84e-6..126e-6 rows=1 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 11296,
+          "examined": 260,
+          "sent": 20,
+          "sql": "SELECT event.* FROM managed_agent_event event JOIN managed_agent_turn turn_record ON turn_record.tenant_id = event.tenant_id AND turn_record.session_id = event.session_id AND turn_record.turn_id = event.turn_id WHERE event.tenant_id = 'tt' AND event.session_id = 'tt-20' AND event.event_type IN ('environment.provisioning', 'environment.ready', 'environment.failed') AND turn_record.turn_id = (SELECT turn_id FROM managed_agent_event WHERE tenant_id = 'tt' AND session_id = 'tt-20' AND event_type = 'turn.accepted' ORDER BY sequence_id DESC LIMIT 1) ORDER BY event.sequence_id DESC LIMIT 1",
+          "plan": "-> Limit: 1 row(s)  (cost=11.5 rows=1) (actual time=0.0337..0.0337 rows=1 loops=1)\n    -> Filter: (`event`.event_type in ('environment.provisioning','environment.ready','environment.failed'))  (cost=11.5 rows=4.2) (actual time=0.0333..0.0333 rows=1 loops=1)\n        -> Index lookup on event using managed_agent_event_turn_idx (tenant_id='tt', session_id='tt-20', turn_id=(select #2)) (reverse)  (cost=11.5 rows=14) (actual time=0.00779..0.0321 rows=12 loops=1)\n"
+        }
+      ]
+    },
+    "webshell-list-bound": {
+      "wallMs": 84,
+      "statements": 121,
+      "examined": 240,
+      "dbUs": 27732,
+      "plans": [
+        {
+          "recovered": null,
+          "n": 1,
+          "totalUs": 738,
+          "examined": 42,
+          "sent": 21,
+          "sql": "SELECT * FROM managed_agent_session WHERE tenant_id = 'ws-tenant' AND CAST(CONCAT(tenant_id, '!') AS BINARY(513)) = CAST(CONCAT('ws-tenant', '!') AS BINARY(513)) AND status <> 'DELETED' AND (workspace_id IS NULL OR EXISTS (SELECT 1 FROM managed_workspace_access wa WHERE wa.tenant_id = managed_agent_session.tenant_id AND wa.workspace_id = managed_agent_session.workspace_id AND CAST(CONCAT(wa.tenant_id, '!') AS BINARY(513)) = CAST(CONCAT(managed_agent_session.tenant_id, '!') AS BINARY(513)) AND CAST(CONCAT(wa.workspace_id, '!') AS BINARY(513)) = CAST(CONCAT(managed_agent_session.workspace_id, '!') AS BINARY(513)) AND wa.actor_id = x'7269672d6163746f72' AND wa.can_read = TRUE)) ORDER BY updated_at DESC, session_id DESC LIMIT 21",
+          "plan": "-> Limit: 21 row(s)  (cost=164 rows=21) (actual time=0.0335..0.0962 rows=21 loops=1)\n    -> Filter: ((cast(concat(managed_agent_session.tenant_id,'!') as char(513) charset binary) = 'ws-tenant!\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0') and (managed_agent_session.`status` <> 'DELETED') and ((managed_agent_session.workspace_id is null) or exists(select #2)))  (cost=164 rows=1621) (actual time=0.0333..0.0951 rows=21 loops=1)\n        -> Index lookup on managed_agent_session using managed_agent_session_list_idx (tenant_id='ws-tenant') (reverse)  (cost=164 rows=1801) (actual time=0.025..0.0542 rows=21 loops=1)\n        -> Select #2 (subquery in condition; dependent)\n            -> Limit: 1 row(s)  (cost=0.35 rows=1) (actual time=0.00149..0.0015 rows=1 loops=21)\n                -> Filter: ((wa.can_read = true) and (wa.actor_id = 0x7269672d6163746f72) and (cast(concat(wa.tenant_id,'!') as char(513) charset binary) = cast(concat(managed_agent_session.tenant_id,'!') as char(513) charset binary)) and (cast(concat(wa.workspace_id,'!') as char(513) charset binary) = cast(concat(managed_agent_session.workspace_id,'!') as char(513) charset binary)))  (cost=0.35 rows=1) (actual time=0.00141..0.00141 rows=1 loops=21)\n                    -> Single-row index lookup on wa using PRIMARY (tenant_id=managed_agent_session.tenant_id, workspace_id=managed_agent_session.workspace_id, actor_id=0x7269672d6163746f72)  (cost=0.35 rows=1) (actual time=915e-6..915e-6 rows=1 loops=21)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 4361,
+          "examined": 40,
+          "sent": 20,
+          "sql": "SELECT * FROM managed_agent_turn WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND turn_id = (SELECT turn_id FROM managed_agent_event WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND event_type = 'turn.accepted' ORDER BY sequence_id DESC LIMIT 1)",
+          "plan": "-> Rows fetched before execution  (cost=0..0 rows=1) (actual time=84e-6..126e-6 rows=1 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 4450,
+          "examined": 20,
+          "sent": 20,
+          "sql": "SELECT * FROM managed_agent_session WHERE tenant_id = 'ws-tenant' AND CAST(CONCAT(tenant_id, '!') AS BINARY(513)) = CAST(CONCAT('ws-tenant', '!') AS BINARY(513)) AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1'",
+          "plan": "-> Rows fetched before execution  (cost=0..0 rows=1) (actual time=42e-6..42e-6 rows=1 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 6560,
+          "examined": 118,
+          "sent": 20,
+          "sql": "SELECT event.* FROM managed_agent_event event JOIN managed_agent_turn turn_record ON turn_record.tenant_id = event.tenant_id AND turn_record.session_id = event.session_id AND turn_record.turn_id = event.turn_id WHERE event.tenant_id = 'ws-tenant' AND event.session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND event.event_type IN ('environment.provisioning', 'environment.ready', 'environment.failed') AND turn_record.turn_id = (SELECT turn_id FROM managed_agent_event WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND event_type = 'turn.accepted' ORDER BY sequence_id DESC LIMIT 1) ORDER BY event.sequence_id DESC LIMIT 1",
+          "plan": "-> Limit: 1 row(s)  (cost=7.36 rows=1) (actual time=0.0329..0.0329 rows=1 loops=1)\n    -> Sort row IDs: `event`.sequence_id DESC, limit input to 1 row(s) per chunk  (cost=7.36 rows=5) (actual time=0.0328..0.0328 rows=1 loops=1)\n        -> Filter: (`event`.turn_id = (select #2))  (cost=7.36 rows=5) (actual time=0.0165..0.0244 rows=2 loops=1)\n            -> Index range scan on event using managed_agent_event_type_idx over (tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND event_type = 'environment.failed') OR (tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND event_type = 'environment.provisioning') OR (tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND event_type = 'environment.ready'), with index condition: ((`event`.session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1') and (`event`.tenant_id = 'ws-tenant') and (`event`.event_type in ('environment.provisioning','environment.ready','environment.failed')))  (cost=7.36 rows=5) (actual time=0.0126..0.0235 rows=4 loops=1)\n            -> Select #2 (subquery in condition; run only once)\n                -> Limit: 1 row(s)  (cost=1.79 rows=1) (actual time=0.015..0.015 rows=1 loops=1)\n                    -> Index lookup on managed_agent_event using managed_agent_event_type_idx (tenant_id='ws-tenant', session_id='fb8567f5-1d91-47c9-a9b1-b92b558685b5-1', event_type='turn.accepted') (reverse)  (cost=1.79 rows=2) (actual time=0.0145..0.0145 rows=1 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 3618,
+          "examined": 0,
+          "sent": 20,
+          "sql": "SELECT COUNT(*) FROM managed_agent_operation WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND operation_kind = 'CLOSE' AND state = 'COMPLETED' AND receipt_id IS NOT NULL",
+          "plan": "-> Aggregate: count(0)  (cost=0.45 rows=1) (actual time=0.00637..0.00646 rows=1 loops=1)\n    -> Filter: ((managed_agent_operation.state = 'COMPLETED') and (managed_agent_operation.operation_kind = 'CLOSE') and (managed_agent_operation.receipt_id is not null))  (cost=0.35 rows=1) (actual time=0.00542..0.00542 rows=0 loops=1)\n        -> Index lookup on managed_agent_operation using PRIMARY (tenant_id='ws-tenant', session_id='fb8567f5-1d91-47c9-a9b1-b92b558685b5-1')  (cost=0.35 rows=1) (actual time=0.00508..0.00508 rows=0 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 3322,
+          "examined": 20,
+          "sent": 20,
+          "sql": "SELECT approval_mode FROM managed_agent_session WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1'",
+          "plan": "-> Rows fetched before execution  (cost=0..0 rows=1) (actual time=83e-6..125e-6 rows=1 loops=1)\n"
+        },
+        {
+          "recovered": null,
+          "n": 20,
+          "totalUs": 4683,
+          "examined": 0,
+          "sent": 0,
+          "sql": "SELECT 1 FROM managed_workspace_create_command WHERE tenant_id = 'ws-tenant' AND session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1' AND CAST(CONCAT(tenant_id, '!') AS BINARY(513)) = CAST(CONCAT('ws-tenant', '!') AS BINARY(513)) AND actor_id = x'7269672d6163746f72'",
+          "plan": "-> Filter: ((managed_workspace_create_command.actor_id = 0x7269672d6163746f72) and (managed_workspace_create_command.session_id = 'fb8567f5-1d91-47c9-a9b1-b92b558685b5-1') and (cast(concat(managed_workspace_create_command.tenant_id,'!') as char(513) charset binary) = 'ws-tenant!\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0'))  (cost=0.35 rows=1) (actual time=0.00354..0.00354 rows=0 loops=1)\n    -> Index lookup on managed_workspace_create_command using PRIMARY (tenant_id='ws-tenant', actor_id=0x7269672d6163746f72)  (cost=0.35 rows=1) (actual time=0.00308..0.00308 rows=0 loops=1)\n"
+        }
+      ]
+    }
+  },
+  "summary": {
+    "name": "tt-main",
+    "arm": "main",
+    "db": "r13217_mig",
+    "jar": "/Users/wenshao/pr13217-rig/server/main-server.jar",
+    "jarSha": "d83c254ea1e6d05c",
+    "error": null,
+    "modelCalls": 0,
+    "springErrors": 0,
+    "springExceptions": []
+  }
+}

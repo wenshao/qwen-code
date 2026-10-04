@@ -1,0 +1,36 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/Issue13181QueryBudgetTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/Issue13181QueryBudgetTest.java
+index c223e2d073..8cf1ed4f74 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/Issue13181QueryBudgetTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/Issue13181QueryBudgetTest.java
+@@ -1669,10 +1669,27 @@ class Issue13181QueryBudgetTest {
+         }
+ 
+         Fixture(Clock clock) {
+-            JdbcDataSource raw = new JdbcDataSource();
+-            raw.setURL("jdbc:h2:mem:repro-" + UUID.randomUUID()
+-                    + ";MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;"
+-                    + "LOCK_TIMEOUT=10000");
++            DataSource raw;
++            String rigUrl = System.getProperty("rig.mysql.url");
++            if (rigUrl != null) {
++                // PR 13217 rig: the same fixture on a real MySQL schema.
++                String schema = "q13181_" + UUID.randomUUID().toString()
++                        .replace("-", "").substring(0, 12);
++                new JdbcTemplate(new org.springframework.jdbc.datasource
++                        .DriverManagerDataSource(rigUrl, "root", ""))
++                        .execute("CREATE DATABASE " + schema
++                                + " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
++                raw = new org.springframework.jdbc.datasource.DriverManagerDataSource(
++                        rigUrl.replaceFirst("/[^/?]+(?=\\?|$)", "/" + schema),
++                        "root", "");
++                System.out.println("RIG_MYSQL_SCHEMA " + schema);
++            } else {
++                JdbcDataSource h2 = new JdbcDataSource();
++                h2.setURL("jdbc:h2:mem:repro-" + UUID.randomUUID()
++                        + ";MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;"
++                        + "LOCK_TIMEOUT=10000");
++                raw = h2;
++            }
+             Flyway.configure().dataSource(raw).load().migrate();
+             ledger = new QueryLedger(raw);
+             dataSource = ledger.dataSource();
