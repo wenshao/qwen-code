@@ -76,7 +76,7 @@ figs['r4-01-results'] = page(
       ['Harness', `"session log writes stopped after an earlier failure: Managed Session Store request failed: fetch failed"; turn could not settle`, 'the same'],
       ['Turn 35 s after the stream ended / creator cancel / next submit', `${bad('RUNNING')} / 202 → ${bad('CANCELLING')} after 60 s / 409 turn_active`, `${bad('RUNNING')} / 202 → ${bad('CANCELLING')} after 60 s / 409 turn_active`],
     ]) +
-    `<div class="note bad">Once a write fails, the Harness's session writer stops for good. The Turn in flight can then never settle (complete or cancel), and the Session refuses new Turns. Same on main, so it is not caused by this PR. I found no issue tracking it. One of my UI runs hit this race by chance: Spring stopped about 0.5 s after the Turn started. That is why the run stayed CANCELLING. The rerun with a 3 s gap is the one shown in figure 2.</div>`,
+    `<div class="note bad">Once a write fails, the Harness's session writer stops for good. The Turn in flight can then never settle (complete or cancel), and the Session refuses new Turns. Same on main, so it is not caused by this PR. I found no issue tracking it. One of my UI runs hit this race by chance: Spring began shutting down about 0.6 s after the Turn started. That is why the run stayed CANCELLING. The rerun with a 3 s gap is the one shown in figure 2.</div>`,
 );
 figs['r4-03-triage-and-suites'] = page(
   'Round 4 at 30f092d0: triage F1–F5 on the real stack, suites and mutation',
