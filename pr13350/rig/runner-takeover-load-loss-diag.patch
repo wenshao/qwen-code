@@ -1,0 +1,71 @@
+--- runner-x5.ts	2026-10-04 10:27:10
++++ runner-x5-diag.frozen.ts	2026-10-04 12:13:50
+@@ -718,6 +718,19 @@
+         headers,
+         ...(['GET', 'HEAD'].includes(method) ? {} : { body }),
+       });
++      // RIG_TLL_STREAM=1 (diagnostic): pipe non-load replies instead of buffering them, so the
++      // coordinator's SSE stream reaches it while the Turn is still running.
++      if (!isLoad && process.env['RIG_TLL_STREAM'] === '1') {
++        const streamedHeaders: Record<string, string> = {};
++        upstream.headers.forEach((value, name) => {
++          if (!['connection', 'content-encoding', 'content-length', 'transfer-encoding'].includes(name))
++            streamedHeaders[name] = value;
++        });
++        response.writeHead(upstream.status, streamedHeaders);
++        if (upstream.body) for await (const chunk of upstream.body) response.write(chunk);
++        response.end();
++        return;
++      }
+       const upstreamBody = Buffer.from(await upstream.arrayBuffer());
+       if (isLoad) {
+         loadAttempts.push(`${method} ${target.pathname} -> ${upstream.status}`);
+@@ -2238,7 +2251,8 @@
+       // reply; the documented gap is that every later load is refused and
+       // the Turn never settles.
+       let terminalSeen: PublicEvent | undefined;
+-      const stuckDeadline = Date.now() + 45_000;
++      const stuckDeadline = Date.now() + Number(process.env['RIG_TLL_WAIT_MS'] ?? 45_000);
++      const stuckStarted = Date.now();
+       while (Date.now() < stuckDeadline && !terminalSeen) {
+         const page = await fetchJson<PublicList<PublicEvent>>(
+           `${replacementSpringUrl}/v1/agents/sessions/${session.id}/events?after=0&limit=100`,
+@@ -2254,6 +2268,10 @@
+         mysqlPort,
+         `SELECT status FROM qwen_managed_agent.managed_agent_turn WHERE ${sessionFilter}`,
+       );
++      if (process.env['RIG_TLL_DIAG']) {
++        writeFileSync(`${process.env['RIG_TLL_DIAG']}-harnessB.log`, replacementHarness.log());
++        writeFileSync(`${process.env['RIG_TLL_DIAG']}-springB.log`, replacementSpring.log());
++      }
+       if (terminalSeen?.type === 'turn.completed') {
+         throw new Error(
+           `Takeover recovered despite the lost load reply (attempts=${attempts.join(' | ')}) — the idempotent takeover-load fix has landed; flip this mode to assert recovery`,
+@@ -2264,6 +2282,10 @@
+           `Turn ended with ${terminalSeen.type} instead of sticking (attempts=${attempts.join(' | ')}) — the documented reply-loss gap changed shape; re-record this mode`,
+         );
+       }
++      if (process.env['RIG_TLL_DIAG']) {
++        writeFileSync(`${process.env['RIG_TLL_DIAG']}-harnessB.log`, replacementHarness.log());
++        writeFileSync(`${process.env['RIG_TLL_DIAG']}-springB.log`, replacementSpring.log());
++      }
+       console.log(
+         JSON.stringify(
+           {
+@@ -2278,6 +2300,7 @@
+             ).length,
+             turnStatus,
+             terminalEvent: null,
++            waitedMs: Date.now() - stuckStarted,
+           },
+           null,
+           2,
+@@ -4969,7 +4992,7 @@
+   releaseCloseInflightHold();
+   releaseSpringRestartHold();
+   await fake?.close();
+-  if (failure && process.env['QWEN_MANAGED_E2E_KEEP_TMP'] === '1') {
++  if (process.env['QWEN_MANAGED_E2E_KEEP_TMP'] === '1') {
+     console.error(`Keeping temporary directory: ${temporary}`);
+   } else {
+     rmSync(temporary, { recursive: true, force: true });
