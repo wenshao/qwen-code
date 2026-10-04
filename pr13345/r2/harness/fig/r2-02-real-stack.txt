@@ -1,0 +1,31 @@
+# PR #13345 round 2 - real stack, old head d3b8ddd1 vs new head 4ae14d62
+== Each arm's built packages/core/dist; HTTP rows go through Spring (new-head jar) on MariaDB 10.11.18.
+
+## R6  command identity, 14 shapes x 2 commit paths, each in a fresh local Session (R1-4)
+                                          old d3b8ddd1                  new 4ae14d62
+  accepted (control, 512-byte id,         {d:committed, 1 body, reopens}   {g:same 6/6 - accept set unchanged}
+   4096-byte operation) x 2 paths
+  refused (control char, 513 bytes, NFD,  {r:refused after publish}        {g:refused before publish}
+   lone surrogate, empty, bad digest...)  {r:1 orphan body each (22/22)}   {g:0 bodies (22/22)}
+  error label                             {d:payload.* / commit.*}         {d:command.* (no code matches the text)}
+
+## R7  same refusals over HTTP store -> Spring -> MariaDB, 10 retries per path
+  rows in MariaDB                         {d:0}                            {d:0}
+  staged buffers left in memory           {r:20}                           {g:0}
+  trusted control commit afterwards       {g:committed}                    {g:committed}
+
+## R8  header cap (a9aa10e1): real local log, header line padded to N bytes
+  reader path readManagedSessionLog       {d:reads 65536 / 65537 / 200000} {g:reads 65536, refuses 65537 and 200000}
+  writer reopen (openManagedSession)      {d:refuses all padded copies: transcript changed outside its writer (both)}
+
+## Round-1 scenarios re-run on the new head
+  R1/R2 refusal orphans (local, HTTP)     {g:0 / 0 bodies, 0 staged}
+  R3 reopen after a later goal_state body {g:opens on both stores, 5 GETs, views unchanged}
+  R5 envelope bytes edited in MariaDB     {g:fails: resource failed verification}
+  R4 envelope-shaped monitor_run plant    {a:local: opens, silently back at revision 1 (unchanged, S-A)}
+                                          {g:HTTP: Java refuses the commit (closed keys)}
+
+## R9  Decision 7's new 4th invariant against today's five bodies (new head)
+  valid template + operationId/revision/previousRecordRef   {g:refused by all 5 bodies}
+  envelope keys a body already owns                         {a:mcp_operation owns operationId}
+  {d:Safe because the skip needs all three; the doc's "every key stays out" wording is already untrue.}

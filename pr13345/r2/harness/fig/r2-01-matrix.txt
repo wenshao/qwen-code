@@ -1,0 +1,20 @@
+# PR #13345 round 2 - mutation witnesses, old head d3b8ddd1 vs new head 4ae14d62
+== Part B: one mutant per /review R1 finding. Lanes: all of core/src/managed-runtime (hook-scale excluded) or the
+== full managed-agent-server unit suite. Totals checked against each arm's unmutated baseline.
+
+## finding   mutant                                          old head                  new head
+  R1-1   B01 tripwire condition never fires               {r:survives}                  {g:refuses to load over a body ...}
+  R1-1   B02 goal_state drops out of the envelope list    {r:survives}                  {g:partitions the enabled domains}
+  R1-2   B03 runtimeState terminal guard deleted (TS)     {a:6 fixture cases red}       {g:+ settles and unbinds every ...}
+  R1-2   B04 runtimeState terminal guard deleted (Java)   {a:2 fixture replays red}     {g:+ settlesEveryRunStateWhose...}
+  R1-3   B05 publish before the no-body refusal           {r:survives}                  {g:refuses domains without a body}
+  R1-4   B06 both assertCommandIdentity sites stripped    {d:n/a}                       {g:refuses a malformed command ...}
+  R1-5   B07 duplicate-input preflight branch deleted     {r:survives}                  {g:refuses the actor or the input}
+  R1-8   B08 journal task gains "lastError": null         {a:TS golden red, Java blind} {g:+ Java acceptsTheStageH...}
+  cap    B09 header branch back to maxEventBytes          {d:n/a}                       {g:refuses a header line one byte past}
+
+## Part A: all 26 round-1 head mutants re-run on the new head (witness files + Java/Broker lanes)
+  {g:26/26 killed. 24 by exactly the round-1 witnesses (R2-2 still 11 red, T16 still refuses to load);}
+  {g:T05/T06, whose deletion now also removes the identity check, additionally redden the new identity test.}
+
+++ new head: 35/35 killed.   old head: 4 survive (the gaps these commits close), 3 already red elsewhere, 2 head-only.

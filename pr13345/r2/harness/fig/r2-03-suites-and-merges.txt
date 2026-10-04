@@ -1,0 +1,29 @@
+# PR #13345 round 2 - suites, merges and CI
+== new head 4ae14d62; merged = new head + main aca4d03c (26 commits ahead, incl. Druid 1.2.25). Node 22.23.2, JDK 21.
+
+## Suites                                   new head                  new + main (merged)
+  core src/managed-runtime (vitest)         {g:1936/1938}                 {g:1937/1939}
+    failures: the 2 hook-scale timing cases on both trees (they failed in every round-1 arm too)
+    test names vs old head                  {g:+5 / -0 (the new witnesses)}
+  managed-agent-server unit (run / failed)  {g:552 / 0} {d:(1 skipped)}      {g:637 / 0} {d:(1 skipped)}
+  checkstyle / SpotBugs                     {g:0 / 0}                     {g:0 / 0}
+  *MySqlIT, colima MariaDB 10.11.18         {a:51/52}                     {a:51/52}
+    the same lease case as round 1 on both trees (admitsHookExecutions..., 2-vCPU VM)
+  ManagedAgentMySqlIT, native MySQL 8.4.7, interleaved new / merged / main, 2 reps each:
+    every run 19/19; hook case  new 26.7-41.8 s   merged 30.9-40.0 s   main 22.4-29.3 s  (load 31-75)
+    {a:one earlier merged run, outside the interleave and under heavier load: 60.15 s, failed its 60 s lease}
+  web-shell API client regenerated          {g:byte-identical (226564c7...)}
+
+## main moved to 17c182ed during the run (+#13388: 4 Java files, runtime-broker and harness stream)
+  merge-tree with the new head              {g:clean}
+  runtime-broker verify on that merge       {g:636 run / 0 failed (2 skipped), SpotBugs 0}
+  managed-agent-server unit + static        {g:637 / 0, checkstyle 0, SpotBugs 0}
+
+## Trial merge with #13336 (ef8250ad, still open)
+  git merge-tree                            {g:code auto-merges}   {a:2 conflicts: design-doc twins}
+  merged TS store contract                  {r:pins headers, limits, bytes, and digests}
+  merged Java store contract                {r:consumesSharedHeadersAndLimits}
+  {d:#13336 now carries 13 limits keys; the second PR to land adds 4 names to both closed lists.}
+
+## GitHub CI on 4ae14d62
+  {g:19 checks green}; {a:Hosted MySQL 8.4 lane still running, web-shell E2E smoke still queued for a runner}

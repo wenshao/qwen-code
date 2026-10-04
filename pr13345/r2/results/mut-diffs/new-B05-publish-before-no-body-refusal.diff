@@ -1,0 +1,15 @@
+diff --git a/packages/core/src/managed-runtime/managed-session-authority.ts b/packages/core/src/managed-runtime/managed-session-authority.ts
+index 146210e8b9..f7cb735f5b 100644
+--- a/packages/core/src/managed-runtime/managed-session-authority.ts
++++ b/packages/core/src/managed-runtime/managed-session-authority.ts
+@@ -1380,6 +1380,10 @@ export class LocalManagedSessionAuthority {
+   ): Promise<ManagedSessionExtensionReceipt> {
+     const body = MANAGED_EXTENSION_RECORD_BODIES[request.domain];
+     if (body === undefined) {
++      await this.resources?.publish(
++        `managed-${request.domain}`,
++        Buffer.from(JSON.stringify(request.record ?? null), 'utf8'),
++      );
+       throw new ManagedSessionRecordError(
+         `domain ${request.domain} has no Stage H record body.`,
+       );
