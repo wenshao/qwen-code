@@ -83,7 +83,7 @@ if (figs.includes('2')) {
   const blocks = [];
   const add = (run, h, cap) => run && blocks.push({ h, cap, svg: timeline(run).svg });
   add(pick('long-merge-'), 'Long queue: holder keeps the mount 30 s (post-tool model reply held)', `${pick('long-merge-')} — waiter polls every ~264 ms against the real Broker, one stderr notice, acquires 0.1 s after :release and completes.`);
-  add(pick('cancelqe-merge-'), 'Cancel the queued Turn at 12 s, then immediately send a follow-up to the same Session', `${pick('cancelqe-merge-')} — public agent.session.cancel → the queued Turn settles cancelled in ~0.3 s and issues no :release (it never held); follow-up B2, sent 12 ms later, queues again behind A and completes.`);
+  add(pick('cancelqe-merge-'), 'Cancel the queued Turn at 12 s, then immediately send a follow-up to the same Session', `${pick('cancelqe-merge-')} — public agent.session.cancel → the queued Turn settles cancelled in ~0.3 s and issues no :release (it never held); follow-up B2, sent ~12 ms later, queues again behind A and completes.`);
   add(pick('deadline-merge-'), 'Deadline fires while queued (merge, QWEN_MANAGED_AGENT_HARNESS_TURN_DEADLINE=20s)', `${pick('deadline-merge-')} — B queues behind A; B's deadline fires mid-queue; A (held 60 s) hits its own deadline and releases; follow-up B2 completes.`);
   add(pick('holdercancel-merge-'), 'Holder cancelled at 10 s while the waiter is queued', `${pick('holdercancel-merge-')} — A cancelled mid-hold releases the mount; B acquires right after instead of waiting for the 40 s hold.`);
   add(pick('holderfail-merge-'), 'Holder Turn fails after its tool (provider error on the post-tool reply)', `${pick('holderfail-merge-')} — A fails, the mount is released, queued B completes.`);
