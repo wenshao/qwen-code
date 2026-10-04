@@ -1,0 +1,168 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 497e5ba..0e796ae 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -81,6 +81,7 @@ import {
+   stopParkedRuntimeExecutions,
+   type HostedRuntimeRecoveryReport,
+ } from './hosted-runtime-recovery.js';
++import { HOSTED_TURN_DEADLINE } from './hosted-turn-wait.js';
+ import {
+   HOSTED_WORKSPACE_FILE_PROFILE,
+   HOSTED_WORKSPACE_SHELL_PROFILE,
+@@ -128,15 +129,6 @@ const RESTORE_CONTAINER_KINDS = new Set([
+   'managed-hook-message-chunks',
+ ]);
+ 
+-/**
+- * The prompt deadline timer and the cancel route abort the same controller,
+- * so the deadline aborts with a distinguishing reason; settlement reads it
+- * back to keep an expiry from being recorded as a user cancellation.
+- */
+-const HOSTED_TURN_DEADLINE = new Error(
+-  'The Hosted Harness Turn deadline expired.',
+-);
+-
+ /**
+  * The terminal classification of a turn whose runner threw. A deadline
+  * expiry is an attributable failure, never a cancellation.
+diff --git a/packages/cli/src/serve/hosted-turn-wait.ts b/packages/cli/src/serve/hosted-turn-wait.ts
+index ddf3b0e..c162152 100644
+--- a/packages/cli/src/serve/hosted-turn-wait.ts
++++ b/packages/cli/src/serve/hosted-turn-wait.ts
+@@ -4,6 +4,16 @@
+  * SPDX-License-Identifier: Apache-2.0
+  */
+ 
++/**
++ * The abort reason the Hosted prompt deadline timer uses. The deadline timer
++ * and the cancel route abort the same controller, so settlement and approval
++ * handling compare against it to keep an expiry from being recorded as a
++ * user cancellation.
++ */
++export const HOSTED_TURN_DEADLINE = new Error(
++  'The Hosted Harness Turn deadline expired.',
++);
++
+ export async function waitForTurn<T>(
+   work: Promise<T>,
+   signal?: AbortSignal,
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index 3f73670..8376eaa 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -33,6 +33,7 @@ import {
+ } from './hosted-file-history.js';
+ import { HostedShellPublisher } from './hosted-shell-publisher.js';
+ import { HostedHookSession } from './hosted-hook-session.js';
++import { HOSTED_TURN_DEADLINE } from './hosted-turn-wait.js';
+ import { HookEventName } from '@qwen-code/qwen-code-core/hooks/types.js';
+ import { boundedShellPreview } from './managed-shell-publisher.js';
+ import {
+@@ -2445,6 +2446,38 @@ it('does not ask about later calls once the turn is cancelled', async () => {
+   ]);
+ });
+ 
++it('ends an approval cut off by the turn deadline as expired, not cancelled', async () => {
++  const batch = [
++    {
++      ...calls[1],
++      name: 'write_file',
++      callId: 'call-0',
++      args: { file_path: 'new.txt', content: 'new' },
++    },
++    calls[1],
++  ];
++  turn = createTurn(false, { mode: 'default' });
++  const controller = new AbortController();
++  const running = turn.execute(
++    batch,
++    batch.map((call) => ({
++      functionCall: { id: call.callId, name: call.name, args: call.args },
++    })),
++    'model',
++    controller.signal,
++  );
++  const first = await requested();
++  controller.abort(HOSTED_TURN_DEADLINE);
++  await expect(running).rejects.toThrow('The Hosted Harness Turn deadline expired.');
++  expect(actionIds()).toEqual([first]);
++  expect(session.authority.action(first)?.state).toBe('expired');
++  expect(await toolResults()).toEqual([['call-0', 'call-1']]);
++  expect(await toolResultErrors()).toEqual([
++    'The turn reached its deadline before this tool call ran.',
++    'The turn reached its deadline before this tool call ran.',
++  ]);
++});
++
+ it('opens no Action when the turn is cancelled while one is prepared', async () => {
+   turn = createTurn(false, { mode: 'default' });
+   const controller = new AbortController();
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index c55739f..e9a4d45 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -68,7 +68,7 @@ import {
+ } from '@qwen-code/qwen-code-core/hooks/types.js';
+ import { hostedHookOccurrenceId } from './hosted-hook-session.js';
+ import { parseHookExecution } from '@qwen-code/qwen-code-core/managed-runtime/managed-hook-record.js';
+-import { waitForTurn } from './hosted-turn-wait.js';
++import { HOSTED_TURN_DEADLINE, waitForTurn } from './hosted-turn-wait.js';
+ import { boundedShellPreview } from './managed-shell-publisher.js';
+ import {
+   endHostedAction,
+@@ -124,10 +124,17 @@ const APPROVAL_REFUSALS = {
+   expired:
+     'Nobody answered the approval request before it expired, so this tool call was not run.',
+   cancelled: 'The turn was cancelled before this tool call ran.',
++  deadline: 'The turn reached its deadline before this tool call ran.',
+   unanswered:
+     'An earlier approval request in this turn expired unanswered, so this tool call was not asked about or run.',
+ } as const;
+ 
++function abortRefusal(signal: AbortSignal): string {
++  return signal.reason === HOSTED_TURN_DEADLINE
++    ? APPROVAL_REFUSALS.deadline
++    : APPROVAL_REFUSALS.cancelled;
++}
++
+ const pathProperty = {
+   type: 'string',
+   description:
+@@ -1975,7 +1982,7 @@ export class HostedWorkspaceToolTurn {
+       );
+     }
+     return asked && signal.aborted
+-      ? refusals.map((reason) => reason ?? APPROVAL_REFUSALS.cancelled)
++      ? refusals.map((reason) => reason ?? abortRefusal(signal))
+       : refusals;
+   }
+ 
+@@ -2005,7 +2012,7 @@ export class HostedWorkspaceToolTurn {
+       'managed-action-options',
+       Buffer.from(JSON.stringify(options)),
+     );
+-    if (signal.aborted) return APPROVAL_REFUSALS.cancelled;
++    if (signal.aborted) return abortRefusal(signal);
+     await this.harness.commitDurableWait(
+       {
+         requestId,
+@@ -2031,7 +2038,9 @@ export class HostedWorkspaceToolTurn {
+       await endHostedAction(
+         this.session,
+         requestId,
+-        signal.aborted ? 'cancelled' : 'expired',
++        signal.aborted && signal.reason !== HOSTED_TURN_DEADLINE
++          ? 'cancelled'
++          : 'expired',
+       );
+     await this.harness.resolveDurableWait();
+     const action = authority.action(requestId)!;
+@@ -2040,6 +2049,7 @@ export class HostedWorkspaceToolTurn {
+         ? undefined
+         : APPROVAL_REFUSALS.denied;
+     if (action.state !== 'expired') return APPROVAL_REFUSALS.cancelled;
++    if (signal.reason === HOSTED_TURN_DEADLINE) return APPROVAL_REFUSALS.deadline;
+     this.unanswered = true;
+     return APPROVAL_REFUSALS.expired;
+   }
