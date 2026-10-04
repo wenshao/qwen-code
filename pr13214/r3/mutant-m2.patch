@@ -1,0 +1,26 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBindingRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBindingRepository.java
+index 4f4de2b953..674146145d 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBindingRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBindingRepository.java
+@@ -87,6 +87,10 @@ public final class JdbcRuntimeBindingRepository
+             // read view is built after the row lock is held and therefore
+             // sees an admission that committed before it. A read moved ahead
+             // of the lock silently reopens the race, and H2 would not show it.
++            // MUTANT M2: the execution read hoisted ahead of the locking read.
++            boolean active = JdbcToolExecutionRepository.hasActiveByRuntimeSession(connection,
++                    expected.getBindingId(), expected.getRuntimeGeneration(),
++                    expected.getRuntimeSessionId());
+             RuntimeSessionRecord current = JdbcRuntimeSessionRepository.selectSession(
+                     connection, expected.getSession().getScope(),
+                     expected.getRuntimeSessionId(), true);
+@@ -103,9 +107,7 @@ public final class JdbcRuntimeBindingRepository
+                 throw new RuntimeBrokerException(409, "runtime_session_not_ready",
+                         "Runtime Session is not ready for release", false);
+             }
+-            if (JdbcToolExecutionRepository.hasActiveByRuntimeSession(connection,
+-                    current.getBindingId(), current.getRuntimeGeneration(),
+-                    current.getRuntimeSessionId())) {
++            if (active) {
+                 throw new RuntimeBrokerException(409, "runtime_session_busy",
+                         "Runtime Session has an active operation", false);
+             }
