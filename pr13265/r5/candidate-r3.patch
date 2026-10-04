@@ -1,0 +1,88 @@
+diff --git a/packages/core/src/hooks/hook-command-cgroup.ts b/packages/core/src/hooks/hook-command-cgroup.ts
+index f9f9011698..b10cf5c9f7 100644
+--- a/packages/core/src/hooks/hook-command-cgroup.ts
++++ b/packages/core/src/hooks/hook-command-cgroup.ts
+@@ -36,13 +36,24 @@ try {
+   writeSync(3, 'unavailable\n');
+   process.exit(1);
+ }
++try {
++  writeSync(3, 'joined\n');
++} catch {
++  // A caller without the status channel only reads the failure.
++}
+ // No deployment command or environment is evaluated before membership.
+ const child = spawn(executable, JSON.parse(args), {
+   env: JSON.parse(process.env.QWEN_HOOK_COMMAND_ENV),
+   stdio: ['inherit', 'inherit', 'inherit'],
+ });
+ child.on('error', () => process.exit(1));
+-child.on('exit', (code) => process.exit(code ?? 1));
++child.on('exit', (code, signal) => {
++  if (signal) {
++    process.removeAllListeners(signal);
++    process.kill(process.pid, signal);
++    setTimeout(() => process.exit(1), 1000);
++  } else process.exit(code ?? 1);
++});
+ `;
+ 
+ export class HookCommandCgroup {
+@@ -78,7 +89,7 @@ export class HookCommandCgroup {
+       // rule attach() applies before it joins the name into the root.
+       if (
+         unitName !== undefined &&
+-        (unitName.includes('/') || unitName.includes(''))
++        (unitName.includes('/') || unitName.includes('\0'))
+       ) {
+         throw new HookCommandIsolationUnavailableError();
+       }
+@@ -117,7 +128,7 @@ export class HookCommandCgroup {
+     unitName: string,
+   ): HookCommandCgroup | undefined {
+     const resolved = HookCommandCgroup.resolveRoot(root);
+-    if (unitName.includes('/') || unitName.includes('')) return undefined;
++    if (unitName.includes('/') || unitName.includes('\0')) return undefined;
+     let directory: string;
+     try {
+       directory = realpathSync(join(resolved, unitName));
+@@ -191,7 +202,10 @@ export class HookCommandCgroup {
+         // The member may already have exited.
+       }
+     }
+-    if (!(await this.waitForEmpty(graceMs))) this.kill();
++    if (!(await this.waitForEmpty(graceMs))) {
++      this.kill();
++      await this.waitForEmpty(1_000);
++    }
+   }
+ 
+   remove(): void {
+diff --git a/packages/core/src/managed-runtime/managed-child-run-supervisor.ts b/packages/core/src/managed-runtime/managed-child-run-supervisor.ts
+index a9409c3742..e756a2a26b 100644
+--- a/packages/core/src/managed-runtime/managed-child-run-supervisor.ts
++++ b/packages/core/src/managed-runtime/managed-child-run-supervisor.ts
+@@ -139,6 +139,7 @@ export class ManagedChildRunSupervisor {
+       (async (launched: ChildProcess, inUnit: HookCommandCgroup) => {
+         for (let attempt = 0; attempt < 40; attempt++) {
+           if (status.includes('unavailable\n')) return false;
++          if (status.includes('joined\n')) return true;
+           try {
+             const members = readFileSync(
+               join(inUnit.directory, 'cgroup.procs'),
+@@ -157,12 +158,14 @@ export class ManagedChildRunSupervisor {
+         }
+         return false;
+       });
++    // Listen for the exit before awaiting the proof: a command that ends
++    // inside the proof window must not lose its exit evidence.
++    const process_ = new ManagedChildRunProcess(spec.unitName, unit, child);
+     if (!(await prove(child, unit))) {
+       child.kill('SIGKILL');
+       unit.remove();
+       throw new HookCommandIsolationUnavailableError();
+     }
+-    const process_ = new ManagedChildRunProcess(spec.unitName, unit, child);
+     this.processes.set(spec.unitName, process_);
+     return process_;
+   }

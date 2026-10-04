@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box} body{margin:0;background:#0d1117;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+#card{width:1360px;padding:28px 34px 30px;background:#0d1117}
+h1{font-size:25px;margin:0 0 4px;font-weight:650} .sub{color:#8b949e;font-size:14.5px;margin-bottom:18px}
+h2{font-size:16px;margin:20px 0 8px;color:#79c0ff;font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:13.5px} th{color:#8b949e;text-align:left;font-weight:600;padding:6px 8px;border-bottom:1px solid #30363d}
+td{padding:6px 8px;border-bottom:1px solid #21262d;vertical-align:top} td.mono,span.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.ok{color:#3fb950} .bad{color:#f85149} .warn{color:#d29922} .mut{color:#8b949e} .b{font-weight:650}
+pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.45;white-space:pre;overflow:hidden;margin:6px 0}
+.note{border-left:4px solid #d29922;background:#161b22;padding:10px 14px;margin-top:16px;font-size:14px;line-height:1.5}
+.note.ok{border-color:#3fb950;color:#e6edf3} .note.bad{border-color:#f85149;color:#e6edf3}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.foot{color:#8b949e;font-size:12px;margin-top:14px}
+</style></head><body><div id="card"><h1>Every new Session becomes unreadable by v0.24.7 and main</h1><div class="sub">S8 reader matrix and S7 monitor_run funnel on the macOS real stack (Spring jar from aaaa8a25d2, dist from ce04b2112f)</div>
+<table><tr><th>S8 — Session created by ↓ / opened by →</th><th>this PR (reader managed-session/2)</th><th>previous head = main 6136786c0c = v0.24.7 (reader managed-session/1)</th></tr><tr><td>this PR (header stamped managed-session/2)</td><td class="ok">opens</td><td class="bad">header.minimumReader is not supported by this reader.</td></tr><tr><td>previous head (header managed-session/1)</td><td class="ok">opens</td><td class="ok">opens</td></tr></table>
+<pre>d00ec4f7bd: MANAGED_SESSION_MINIMUM_READER = 'managed-session/2' → every new Session, not only ones that use monitor_run (still disabled)
+monitor_run is already a known domain in main and in v0.24.7 (since #12837, e68822c815); the previous head's v1 reader opened a v1 Session holding a monitor_run record
+main's #13351 added the journal event 'message.retracted' on 2026-10-04 without raising minimumReader
+Java: ManagedExtensionRecordStore never reads the header</pre>
+<table><tr><th>monitor_run gate on a v1-header Session</th><th>result</th></tr><tr><td>TS authority</td><td class="ok">domain monitor_run requires a Session created by managed-session/2.</td></tr><tr><td>server, with only the TS gate bypassed</td><td class="bad">accepted — row rev1 monitor_run pending</td></tr></table>
+<table><tr><th>S7 — HostedMonitorSession through the HTTP store into Spring + MySQL</th><th>result</th></tr><tr><td>4 Monitors, 26 steps: TS view vs Java row vs public task</td><td class="ok">0 mismatches; cold reopen equal; 2 notification transactions (domain.committed + input.accepted + wake.requested)</td></tr><tr><td>refused on both sides</td><td class="ok">max_events before quota · observation past quota · observation before attach · second attach (same content) · observation after cancel</td></tr><tr><td>accepted, against 1e3b6b00b4's "output advancement only forward"</td><td class="warn">advanceOutput back to an older manifest</td></tr></table><div class="foot">PR #13265 round 5 · head ce04b2112f · Linux: 192.168.0.75 (Orange Pi, kernel 6.6.89, cgroup v2), the real ManagedToolExecutor/registry/route/watcher built per arm · macOS: Spring jar + native MySQL 8.4.7</div></div></body></html>

@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box} body{margin:0;background:#0d1117;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+#card{width:1360px;padding:28px 34px 30px;background:#0d1117}
+h1{font-size:25px;margin:0 0 4px;font-weight:650} .sub{color:#8b949e;font-size:14.5px;margin-bottom:18px}
+h2{font-size:16px;margin:20px 0 8px;color:#79c0ff;font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:13.5px} th{color:#8b949e;text-align:left;font-weight:600;padding:6px 8px;border-bottom:1px solid #30363d}
+td{padding:6px 8px;border-bottom:1px solid #21262d;vertical-align:top} td.mono,span.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.ok{color:#3fb950} .bad{color:#f85149} .warn{color:#d29922} .mut{color:#8b949e} .b{font-weight:650}
+pre{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.45;white-space:pre;overflow:hidden;margin:6px 0}
+.note{border-left:4px solid #d29922;background:#161b22;padding:10px 14px;margin-top:16px;font-size:14px;line-height:1.5}
+.note.ok{border-color:#3fb950;color:#e6edf3} .note.bad{border-color:#f85149;color:#e6edf3}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.foot{color:#8b949e;font-size:12px;margin-top:14px}
+</style></head><body><div id="card"><h1>A live background Shell still cannot be closed; a "finished" one may still be running</h1><div class="sub">H8 (Broker probe on the PR's fixture) and H7b (real executor + shell route on 192.168.0.75)</div>
+<pre>RuntimeBrokerService.release → settleUnprovenBackgroundRows (shell-status) → releaseSessionAfterSweep
+    busy check: hasActiveByRuntimeSession(...) → throw runtime_session_busy        ← a running Shell's :process row is PREPARED here
+    transport.release → WorkspaceRuntimeTransport → activateWorkspace(false)
+        → worker /v3/activation "release" → executor.stopBackgroundSession(...)   ← 7b63430602's drain lives here
+shell-terminate: declared in ManagedShellProtocol.KINDS, sent by nothing in production (TS or Java)</pre>
+<table><tr><th>H8 — RuntimeBrokerServiceTest probe (the PR's own Fixture)</th><th>result</th></tr><tr><td>worker answers shell-status "running"; release</td><td class="bad">runtime_session_busy; the sweep asked shell-status; worker release calls 0; :process row PREPARED</td></tr></table>
+<table><tr><th>H7b — what "exited" means (shell route after the registry completed)</th><th>answer</th><th>unit</th></tr><tr><td>`setsid sleep … &amp;; exit 0`</td><td class="bad">exited {exitCode 0} after 149 ms</td><td class="bad">populated, 1 live</td></tr><tr><td>`(sleep … &amp;) ; exit 0` (child keeps the pipes)</td><td class="bad">exited after 5.2 s (EOF grace)</td><td class="bad">populated, 1 live</td></tr><tr><td>Monitor registry (ce04b2112f wraps the same registry)</td><td class="warn">same rule</td><td class="mut">—</td></tr></table>
+<div class="note bad">While a background Shell runs, Session release and workspace close are refused before the worker is ever asked to drain, and nothing can stop the Shell — a dev server or tail -f holds the Session until it exits by itself. When it does "exit", the evidence is the launcher's: the release sweep settles the :process row and drops the Runtime hold while processes are still alive in the unit.</div><div class="foot">PR #13265 round 5 · head ce04b2112f · Linux: 192.168.0.75 (Orange Pi, kernel 6.6.89, cgroup v2), the real ManagedToolExecutor/registry/route/watcher built per arm · macOS: Spring jar + native MySQL 8.4.7</div></div></body></html>
