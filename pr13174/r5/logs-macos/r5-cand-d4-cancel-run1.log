@@ -1,0 +1,74 @@
+{"probe":"d4-cancel-submitted","status":202,"body":"{\"session_id\":\"b29da38c-a0c7-42f0-b69b-2cd112838b13\",\"turn_id\":\"turn_91f746c31efe466b86f01ef937932332\",\"status\":\"accepted\",\"replayed\":false}"}
+{
+  "probe": "d4-before-crash",
+  "dropped": {
+    "status": 202,
+    "at": 1791129216944,
+    "path": "/session/b29da38c-a0c7-42f0-b69b-2cd112838b13/prompt"
+  },
+  "d4TurnId": "turn_91f746c31efe466b86f01ef937932332",
+  "d4PromptId": "f034e5e1-8f37-46dd-a939-03723641a66e",
+  "turns": [
+    "turn_d6d6acbf208449da9ff0f52e9b4edb1e\tCOMPLETED\t-\t1\tepoch",
+    "turn_91f746c31efe466b86f01ef937932332\tCANCELLING\t-\t1\tno-epoch"
+  ],
+  "journalTxForPrompt": [
+    "12\t1\tf034e5e1-8f37-46dd-a939-03723641a66e",
+    "14\t1\tf034e5e1-8f37-46dd-a939-03723641a66e:main:b18b0421-d468-4b66-ae46-04bfe5bc588d:s",
+    "15\t1\tf034e5e1-8f37-46dd-a939-03723641a66e:main:b18b0421-d468-4b66-ae46-04bfe5bc588d:o"
+  ],
+  "proxyHeldSoFar": 0
+}
+{"probe":"d4-proxy-released","heldRequests":["POST /session/:id/prompt"]}
+{
+  "probe": "d4-turn-after-adoption",
+  "elapsedMs": 2368,
+  "terminal": "turn.cancelled",
+  "text": "",
+  "turns": [
+    "turn_d6d6acbf208449da9ff0f52e9b4edb1e\tCOMPLETED\t-\t1\tepoch",
+    "turn_91f746c31efe466b86f01ef937932332\tCANCELLED\t-\t0\tno-epoch"
+  ],
+  "harnessBootId": "cdedaea2-7c8c-49e3-adba-84b589eb486a",
+  "journalTxForD4Prompt": [
+    "12\t1\tcdedaea2\tf034e5e1-8f37-46dd-a939-03723641a66e",
+    "14\t1\tcdedaea2\tf034e5e1-8f37-46dd-a939-03723641a66e:main:b18b0421-d468-4b66-ae46-04bfe5bc588d:s",
+    "15\t1\tcdedaea2\tf034e5e1-8f37-46dd-a939-03723641a66e:main:b18b0421-d468-4b66-ae46-04bfe5bc588d:o"
+  ],
+  "d4ModelRequests": 1,
+  "laterTurnContextHasD4": "no turn-3 model request",
+  "terminalEvents": "2"
+}
+{
+  "probe": "turn3-submit-202",
+  "elapsedMs": 650,
+  "terminal": "turn.completed",
+  "text": "LATER_TURN_OK",
+  "turns": [
+    "turn_d6d6acbf208449da9ff0f52e9b4edb1e\tCOMPLETED\t-\t1\tepoch",
+    "turn_91f746c31efe466b86f01ef937932332\tCANCELLED\t-\t0\tno-epoch",
+    "turn_e6a2b81839a546c2985f7c952085c584\tCOMPLETED\t-\t1\tepoch"
+  ],
+  "harnessBootId": "31848153-e88b-4a1b-afc2-86bc6f29addc",
+  "journalTxForD4Prompt": [
+    "12\t1\tcdedaea2\tf034e5e1-8f37-46dd-a939-03723641a66e",
+    "14\t1\tcdedaea2\tf034e5e1-8f37-46dd-a939-03723641a66e:main:b18b0421-d468-4b66-ae46-04bfe5bc588d:s",
+    "15\t1\tcdedaea2\tf034e5e1-8f37-46dd-a939-03723641a66e:main:b18b0421-d468-4b66-ae46-04bfe5bc588d:o"
+  ],
+  "d4ModelRequests": 1,
+  "laterTurnContextHasD4": {
+    "prompt": true,
+    "answer": true
+  },
+  "terminalEvents": "3"
+}
+--- Spring log (filtered) ---
+2026-10-04T23:53:36.947+08:00  WARN 81466 --- [qwen-managed-agent-server] [     virtual-87] c.a.q.c.m.service.HarnessCoordinator     : Managed Turn coordination will retry tenant=managed-session-failover-e2e session=b29da38c-a0c7-42f0-b69b-2cd112838b13 turn=turn_91f746c31efe466b86f01ef937932332 retry=1 delayMs=1000 failure=PromptAdmissionUnknownException
+2026-10-04T23:53:42.828+08:00  WARN 81466 --- [qwen-managed-agent-server] [     virtual-89] c.a.q.c.m.service.HarnessCoordinator     : Managed Turn coordination will retry tenant=managed-session-failover-e2e session=b29da38c-a0c7-42f0-b69b-2cd112838b13 turn=turn_91f746c31efe466b86f01ef937932332 retry=2 delayMs=2000 failure=HostedHarnessGenerationException
+2026-10-04T23:53:45.111+08:00  INFO 81466 --- [qwen-managed-agent-server] [    virtual-100] c.a.q.c.m.service.HarnessCoordinator     : Withdrew the submission mark of a never-admitted Turn tenant=managed-session-failover-e2e session=b29da38c-a0c7-42f0-b69b-2cd112838b13 turn=turn_91f746c31efe466b86f01ef937932332 formerGeneration=cdedaea2-7c8c-49e3-adba-84b589eb486a adoptedGeneration=31848153-e88b-4a1b-afc2-86bc6f29addc
+--- proxy log (prompt/load) ---
+POST /session/:id/prompt -> 202
+POST /session/:id/prompt -> 202
+POST /session/:id/prompt -> 409 (held)
+POST /session/:id/load -> 200
+POST /session/:id/prompt -> 202

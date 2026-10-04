@@ -1,0 +1,35 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/HarnessCoordinator.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/HarnessCoordinator.java
+index b3553b560d..18bdbf934d 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/HarnessCoordinator.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/HarnessCoordinator.java
+@@ -394,7 +394,10 @@ public class HarnessCoordinator {
+                 current = store.findTurn(current.tenantId(),
+                         current.sessionId(), current.turnId()).orElseThrow();
+             }
+-        } else if ("CANCELLING".equals(claimed.status())) {
++        } else if ("CANCELLING".equals(claimed.status())
++                && claimed.harnessEventEpoch() != null
++                && attachment.eventEpoch() != null
++                && attachment.lastEventId() != null) {
+             // A CANCELLING Turn does not submit, so generation bind is not
+             // its gate: the plain attach holds the replacement Session, and
+             // the cancel itself is the terminal act — the next Turn's
+@@ -405,7 +408,17 @@ public class HarnessCoordinator {
+             // Session close).
+             harness.cancel(session.tenantId(), session.sessionId());
+             requireLease(leaseLost);
+-            current = claimed;
++            // CANDIDATE (verification only): the old generation's epoch is
++            // dead on this Harness; re-key the Turn onto the attachment's
++            // epoch so the stream below reads the replacement's events.
++            if (!attachment.eventEpoch().equals(claimed.harnessEventEpoch())) {
++                store.recordRecoveryAdmission(claimed.tenantId(),
++                        claimed.sessionId(), claimed.turnId(), owner,
++                        claimed.harnessEventEpoch(), attachment.eventEpoch(),
++                        attachment.lastEventId());
++            }
++            current = store.findTurn(claimed.tenantId(),
++                    claimed.sessionId(), claimed.turnId()).orElseThrow();
+             cancelledOnAttach = true;
+         } else {
+             boolean bound = store.bindHarness(session.tenantId(),
