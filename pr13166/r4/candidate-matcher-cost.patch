@@ -1,0 +1,104 @@
+diff --git a/packages/cli/src/serve/hosted-glob-pattern.test.ts b/packages/cli/src/serve/hosted-glob-pattern.test.ts
+index d6cd2d8a00..e53877b2d1 100644
+--- a/packages/cli/src/serve/hosted-glob-pattern.test.ts
++++ b/packages/cli/src/serve/hosted-glob-pattern.test.ts
+@@ -24,6 +24,11 @@ describe('checkHostedGlobPattern', () => {
+     '[.][.]/**/*',
+     '\\{a,b\\}',
+     'file\\?.txt',
++    // Three stars per segment match a 250-character name in milliseconds.
++    'src/**/*-*.test.ts',
++    '*a*b*c',
++    '**/[A-Z]*.tsx',
++    '\\*\\(literal\\)',
+   ])('admits %s', (pattern) => {
+     expect(checkHostedGlobPattern(pattern)).toBe('ok');
+   });
+@@ -57,6 +62,14 @@ describe('checkHostedGlobPattern', () => {
+     ['a stray closing brace', '{x},b}'],
+     ['a sequence assembled inside a group', '{1..{,9999}}'],
+     ['an overlong pattern', 'x'.repeat(1025)],
++    // Backtracking in the matcher, not the expansion: each blocked a real
++    // Runtime worker past the Broker's status deadline.
++    ['an extglob alternation', '+(?|?|?)Z'],
++    ['a two-way extglob', '+(?|?)Z'],
++    ['extglob behind a brace', '{src,@(a|b)}*'],
++    ['a star chain', '*?'.repeat(20) + 'Z'],
++    ['four stars in one segment', '*a*a*a*aZ'],
++    ['stars assembled by a brace', '{*a*a,x}*a*aZ'],
+   ])('refuses %s before expanding it', (_name, pattern) => {
+     const started = Date.now();
+     expect(checkHostedGlobPattern(pattern)).toBe('too-complex');
+diff --git a/packages/cli/src/serve/hosted-glob-pattern.ts b/packages/cli/src/serve/hosted-glob-pattern.ts
+index a6547524c3..b9d0826591 100644
+--- a/packages/cli/src/serve/hosted-glob-pattern.ts
++++ b/packages/cli/src/serve/hosted-glob-pattern.ts
+@@ -20,7 +20,19 @@ const MAX_BRACE_DEPTH = 8;
+ const SEQUENCE =
+   /^(?:(-?\d+)\.\.(-?\d+)|([a-zA-Z])\.\.([a-zA-Z]))(?:\.\.(-?\d+))?$/;
+ 
+-export const HOSTED_GLOB_TOO_COMPLEX = `Hosted glob patterns are limited to ${HOSTED_GLOB_PATTERN_MAX_LENGTH} characters, balanced braces and ${HOSTED_GLOB_MAX_ALTERNATIVES} brace alternatives. Split the search into simpler patterns and retry.`;
++/**
++ * Stars one path segment may carry. minimatch turns each `*` into a lazy
++ * quantifier, so backtracking grows with the name's length to the power of
++ * the stars: against a 250-character name, 3 stars match in milliseconds and
++ * 5 take seconds, past the Broker's status deadline for a blocked worker.
++ */
++export const HOSTED_GLOB_MAX_SEGMENT_STARS = 3;
++
++// extglob groups compile to nested quantifiers whose backtracking is
++// exponential in the name's length (`+(?|?|?)Z` against `package-lock.json`).
++const EXTGLOB = /(?:^|[^\\])[?*+@!]\(/;
++
++export const HOSTED_GLOB_TOO_COMPLEX = `Hosted glob patterns are limited to ${HOSTED_GLOB_PATTERN_MAX_LENGTH} characters, balanced braces, ${HOSTED_GLOB_MAX_ALTERNATIVES} brace alternatives and ${HOSTED_GLOB_MAX_SEGMENT_STARS} \`*\` per path segment, without extglob groups such as +(…). Split the search into simpler patterns and retry.`;
+ 
+ export type HostedGlobPatternCheck = 'ok' | 'escapes' | 'too-complex';
+ 
+@@ -41,8 +53,12 @@ export function checkHostedGlobPattern(
+     alternativesBound(pattern) > HOSTED_GLOB_MAX_ALTERNATIVES
+   )
+     return 'too-complex';
++  const alternatives = braceExpand(pattern);
++  // The matcher's cost is the other half of the budget: an alternative's
++  // regex must not backtrack beyond what a long file name can afford.
++  if (alternatives.some(matcherTooCostly)) return 'too-complex';
+   // Segment equality, so a literal `a/..b/*.ts` stays usable.
+-  return braceExpand(pattern).some((alternative) => {
++  return alternatives.some((alternative) => {
+     const shape = unescape(alternative);
+     return path.isAbsolute(shape) || shape.split(/[\\/]/).includes('..');
+   })
+@@ -50,6 +66,19 @@ export function checkHostedGlobPattern(
+     : 'ok';
+ }
+ 
++function matcherTooCostly(alternative: string): boolean {
++  if (EXTGLOB.test(alternative)) return true;
++  return alternative.split('/').some((segment) => {
++    if (segment === '**') return false;
++    let stars = 0;
++    for (let index = 0; index < segment.length; index++) {
++      if (segment[index] === '\\') index++;
++      else if (segment[index] === '*') stars++;
++    }
++    return stars > HOSTED_GLOB_MAX_SEGMENT_STARS;
++  });
++}
++
+ /**
+  * An upper bound on the alternatives brace-expansion yields for `text`,
+  * without expanding it: a comma group sums its items, a `{x..y[..step]}`
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index 51279a8531..391eefe34f 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -1006,6 +1006,9 @@ it.each([
+   { pattern: '{9007199254740992..9007199254740992}/*' },
+   { pattern: '{a,b}'.repeat(30) },
+   { pattern: 'x'.repeat(1025) },
++  // Matcher backtracking: both wedged a real Runtime worker.
++  { pattern: '+(?|?|?)Z' },
++  { pattern: '*?'.repeat(20) + 'Z' },
+   { pattern: '**/*.ts', path: '/private/secret-host-path' },
+   { pattern: '**/*.ts', path: '../escape' },
+   { pattern: '**/*.ts', path: 'a\\b' },
