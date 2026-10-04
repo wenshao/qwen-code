@@ -1,0 +1,78 @@
+### f4b
+# f4b-sql-state-ws-f4b  db=b9  2026-10-04T17:26:47.674Z
+NOTE  live cancel  -> 202 -> CANCELLED
+NOTE  CLOSED: GET / creator cancel (public, WebShell) / mallory cancel / creator submit  -> 200 / 409 workspace_unavailable, 409 workspace_unavailable / 404 session_not_found / 409 workspace_unavailable; command rows +0, Turn rows +0
+NOTE  ARCHIVED: GET / creator cancel (public, WebShell) / mallory cancel / creator submit  -> 200 / 409 workspace_unavailable, 409 workspace_unavailable / 404 session_not_found / 409 workspace_unavailable; command rows +0, Turn rows +0
+NOTE  DELETED: GET / creator cancel (public, WebShell) / mallory cancel / creator submit  -> 404 / 409 workspace_unavailable, 409 workspace_unavailable / 404 session_not_found / 409 workspace_unavailable; command rows +0, Turn rows +0
+NOTE  Turn history  -> [["turn_ffdce6194d134b11bbe6563054413fb5","COMPLETED","","0"],["turn_db5ffa808eee4982a18bbe74c0f8243a","CANCELLED","","0"]]
+== f4b-sql-state-ws-f4b: 0 passed, 0 failed
+### c16 regen (base has no page-twin binding guard either?)
+# c16-page-regen-ws-p1  db=b9  2026-10-04T17:26:52.217Z
+NOTE  before (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+NOTE  before (carol)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=true get=true","ctl":"list=false get=false"}
+NOTE  after regen (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+NOTE  after regen (carol)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=true get=true","ctl":"list=false get=false"}
+NOTE  after regen: alice submit on a1  -> 202 turn_953d518724b4438d852018a0037ed9d4
+NOTE  after restore (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  before: creator sees workspaceTurns=true on her own Sessions (list and get)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+FAIL  after regen: creator's Sessions in the moved Workspace show workspaceTurns=false (list and get)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  after regen: control Workspace Session keeps workspaceTurns=true  -> list=true get=true
+FAIL  after regen: submit refused 409 workspace_unavailable  -> 202 undefined
+PASS  after restore: capability back to true  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+== c16-page-regen-ws-p1: 3 passed, 2 failed
+### c14 revoke
+started 3722447e-72e2-4155-bac6-2b9e1b7a8977 turn=turn_4453442efd4e45c382d2b5d62b450140 initial=COMPLETED mode=revoke
+stopped spring pid=16402 sig=TERM
+spring up after 4s
+# c14-cold-cache-revoke-ws-krevoke  db=b9  2026-10-04T17:27:15.942Z
+NOTE  Turn before the cancel (after the Spring restart)  -> ["turn_4453442efd4e45c382d2b5d62b450140","RUNNING","","0"]
+NOTE  creator cancel after the restart  -> 409 workspace_unavailable
+NOTE  Turn 90 s after the cancel  -> RUNNING  (not terminal)
+NOTE  POST /cancel calls reaching the Harness  -> []
+NOTE  other Harness calls for the Session since the restart  -> ["POST /session/:id/prompt 202"]
+NOTE  model request  -> still held / answered
+NOTE  Turn 60 s after can_create was restored  -> RUNNING  (not terminal)
+NOTE  Workspace file  -> null
+NOTE  Turn history  -> [["turn_13b82c5a362c43d6814c7b240d79534a","COMPLETED","","0"],["turn_4453442efd4e45c382d2b5d62b450140","RUNNING","","7"]]
+== c14-cold-cache-revoke-ws-krevoke: 0 passed, 0 failed
+### w1 long revoke-drain
+started df1a91c2-a6ab-45fc-87af-0ae3789f5af0 turn=turn_c138ff80c3b54dc799375aa5e482546f env=["12:provisioning","13:ready"] mode=revoke-drain
+stopped spring pid=21631 sig=TERM
+spring up after 7s
+# w1-observe-revoke-drain-ws-wl1  db=b9  2026-10-04T17:30:05.918Z
+NOTE  environment events before the restart  -> ["12:provisioning","13:ready"]
+NOTE  WebShell environment before the restart  -> {"state":"ready"} turn=- workspaceTurns=false
+NOTE  environment events 80 s after the restart (no cancel)  -> ["12:provisioning","13:ready","15:failed{\"code\":\"runtime_warm_failed\"}"]
+NOTE  WebShell environment 80 s after the restart  -> {"errorCode":"runtime_warm_failed","state":"failed"} turn=- workspaceTurns=false
+NOTE  Turn  -> ["turn_c138ff80c3b54dc799375aa5e482546f","RUNNING","","6"]
+== w1-observe-revoke-drain-ws-wl1: 0 passed, 0 failed
+# w1-cancel-revoke-drain-ws-wl1  db=b9  2026-10-04T17:31:26.104Z
+NOTE  WebShell turns/cancel by the creator  -> 409 workspace_unavailable
+NOTE  Turn end  -> RUNNING  (not terminal)
+NOTE  environment events after the cancel  -> ["12:provisioning","13:ready","15:failed{\"code\":\"runtime_warm_failed\"}"]
+NOTE  WebShell environment after the cancel  -> {"errorCode":"runtime_warm_failed","state":"failed"} turn=- workspaceTurns=false
+NOTE  Turn after restore  -> RUNNING (not terminal)
+NOTE  next Turn after restore  -> 409 turn_active; WebShell {"errorCode":"runtime_warm_failed","state":"failed"} turn=- workspaceTurns=true
+NOTE  Turn history  -> [["turn_c14696f05abc42459a6f8ce65aeafcf3","COMPLETED","","0"],["turn_c138ff80c3b54dc799375aa5e482546f","RUNNING","","9"]]
+== w1-cancel-revoke-drain-ws-wl1: 0 passed, 0 failed
+### w1 none restart
+started 8d68cd3b-50c7-4d86-a73f-092f8ead7944 turn=turn_c6caee95e0cb4d15b626672d069f9ec7 env=["12:provisioning","13:ready"] mode=none
+stopped spring pid=26128 sig=TERM
+spring up after 6s
+# w1-observe-none-ws-wnone  db=b9  2026-10-04T17:34:06.947Z
+NOTE  environment events before the restart  -> ["12:provisioning","13:ready"]
+NOTE  WebShell environment before the restart  -> {"state":"ready"} turn=- workspaceTurns=true
+NOTE  environment events 25 s after the restart (no cancel)  -> ["12:provisioning","13:ready"]
+NOTE  WebShell environment 25 s after the restart  -> {"state":"ready"} turn=- workspaceTurns=true
+NOTE  Turn  -> ["turn_c6caee95e0cb4d15b626672d069f9ec7","RUNNING","","5"]
+== w1-observe-none-ws-wnone: 0 passed, 0 failed
+# w1-cancel-none-ws-wnone  db=b9  2026-10-04T17:34:32.110Z
+NOTE  WebShell turns/cancel by the creator  -> 202 accepted
+NOTE  Turn end  -> CANCELLING  (not terminal)
+NOTE  environment events after the cancel  -> ["12:provisioning","13:ready"]
+NOTE  WebShell environment after the cancel  -> {"state":"ready"} turn=- workspaceTurns=true
+NOTE  Turn after restore  -> CANCELLING (not terminal)
+NOTE  next Turn after restore  -> 409 turn_active; WebShell {"errorCode":"runtime_warm_failed","state":"failed"} turn=- workspaceTurns=true
+NOTE  Turn history  -> [["turn_74d9429c1b704891ab1a1f8245e4e36c","COMPLETED","","0"],["turn_c6caee95e0cb4d15b626672d069f9ec7","CANCELLING","","8"]]
+== w1-cancel-none-ws-wnone: 0 passed, 0 failed
+BASE9-DONE 17:37:04
