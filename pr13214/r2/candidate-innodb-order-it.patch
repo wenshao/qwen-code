@@ -1,0 +1,79 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBrokerMySqlIT.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBrokerMySqlIT.java
+index f26c1181b4..b52ece96e4 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBrokerMySqlIT.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBrokerMySqlIT.java
+@@ -31,6 +31,74 @@ class JdbcRuntimeBrokerMySqlIT {
+         JdbcRepositoryContract.verify(dataSource(), "mysql-" + UUID.randomUUID());
+     }
+ 
++    /**
++     * The JDBC release transition must read executions only after it holds
++     * the Session row lock: InnoDB builds the REPEATABLE READ snapshot at the
++     * first consistent read, so a read ahead of the lock misses an admission
++     * that commits while the release waits for that lock. H2 cannot show it.
++     */
++    @Test
++    void releaseTransitionSeesAnAdmissionThatCommittedWhileItWaited() throws Exception {
++        DataSource source = dataSource();
++        JdbcRuntimeBrokerSchema.initialize(source);
++        var bindings = new JdbcRuntimeBindingRepository(source,
++                new AesGcmSecretProtector("release-order", new byte[32]));
++        var sessions = new JdbcRuntimeSessionRepository(source);
++        var executions = new JdbcToolExecutionRepository(source);
++        var fixture = new RuntimeRecoveryContract.Fixture(bindings, sessions, executions,
++                "mysql-release-order-" + UUID.randomUUID());
++        RuntimeSessionRecord expected = fixture.session;
++        var pool = Executors.newFixedThreadPool(2);
++        try (Connection holder = source.getConnection()) {
++            holder.setAutoCommit(false);
++            try (PreparedStatement lock = holder.prepareStatement("SELECT session_state"
++                    + " FROM qwen_runtime_session WHERE runtime_session_id = ? FOR UPDATE")) {
++                lock.setString(1, expected.getRuntimeSessionId());
++                lock.executeQuery().close();
++            }
++            // The admission queues on the Session row lock first, the release
++            // behind it; the admission commits while the release still waits.
++            Future<ToolExecutionRecord> admission = pool.submit(() -> fixture.prepare("racing"));
++            awaitLockWaits(source, 1);
++            Future<RuntimeSessionRecord> release = pool.submit(() ->
++                    bindings.beginSessionRelease(sessions, executions, expected));
++            awaitLockWaits(source, 2);
++            holder.commit();
++            assertEquals(ToolExecutionRecord.State.PREPARED,
++                    admission.get(30, TimeUnit.SECONDS).getState());
++            var failure = assertThrows(java.util.concurrent.ExecutionException.class,
++                    () -> release.get(30, TimeUnit.SECONDS));
++            assertTrue(failure.getCause() instanceof RuntimeBrokerException, failure::toString);
++            assertEquals("runtime_session_busy",
++                    ((RuntimeBrokerException) failure.getCause()).getCode());
++        } finally {
++            pool.shutdownNow();
++        }
++        assertEquals(RuntimeSessionRecord.State.READY, sessions.findById(
++                expected.getSession().getScope(), expected.getRuntimeSessionId()).getState());
++    }
++
++    private static void awaitLockWaits(DataSource source, int waiting) throws Exception {
++        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
++        while (true) {
++            try (Connection connection = source.getConnection();
++                    PreparedStatement query = connection.prepareStatement("SELECT COUNT(*)"
++                            + " FROM information_schema.innodb_trx t JOIN information_schema.processlist p"
++                            + " ON p.id = t.trx_mysql_thread_id"
++                            + " WHERE t.trx_state = 'LOCK WAIT' AND p.db = DATABASE()");
++                    var result = query.executeQuery()) {
++                result.next();
++                if (result.getInt(1) >= waiting) {
++                    return;
++                }
++            }
++            if (System.nanoTime() > deadline) {
++                throw new AssertionError("expected " + waiting + " lock waits");
++            }
++            Thread.sleep(20);
++        }
++    }
++
+     @Test
+     void managedRecoveryKeepsPinsUntilTheOriginalHolderCleanupCompletes() throws Exception {
+         DataSource source = dataSource();

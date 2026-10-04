@@ -1,0 +1,15 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBindingRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBindingRepository.java
+index 4f4de2b953..d61aa882b9 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBindingRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeBindingRepository.java
+@@ -87,6 +87,10 @@ public final class JdbcRuntimeBindingRepository
+             // read view is built after the row lock is held and therefore
+             // sees an admission that committed before it. A read moved ahead
+             // of the lock silently reopens the race, and H2 would not show it.
++            // MUTANT M1: a consistent read ahead of the locking read.
++            JdbcToolExecutionRepository.hasActiveByRuntimeSession(connection,
++                    expected.getBindingId(), expected.getRuntimeGeneration(),
++                    expected.getRuntimeSessionId());
+             RuntimeSessionRecord current = JdbcRuntimeSessionRepository.selectSession(
+                     connection, expected.getSession().getScope(),
+                     expected.getRuntimeSessionId(), true);
