@@ -1,0 +1,69 @@
+[1mPR #9273 round 2 — delta checks[0m  tmux=tmux 3.5a  freeze=v0.2.2  rasterizer=/usr/bin/rsvg-convert
+
+[1;36m━━ D1  png rung: capture the real qwen TUI at 80x24 with real freeze on PATH[0m
+[2m$ [5936b9f118 (R1 head)] HOME=qhome capture-tui --command '<qwen TUI>' --until 'Type your message' --cols 80 --rows 24 --out d1-old/qwen[0m
+  exit=0  manifest={"evidence":"png","settledBy":"until-match"}
+  file qwen.png → SVG XML document
+  leftovers: 0 staged file(s)
+[2m$ [0b51eef6c6 (current head)] HOME=qhome capture-tui --command '<qwen TUI>' --until 'Type your message' --cols 80 --rows 24 --out d1-new/qwen[0m
+  exit=0  manifest={"evidence":"png","settledBy":"until-match"}
+  file qwen.png → PNG image data, 2940 x 1880, 8-bit/color RGB, no
+  leftovers: 0 staged file(s)
+[2m$ validateAssetContent('qwen.png', <landed bytes>)   # review/lib/assets.ts, the publish-assets gate[0m
+  old: {"ok":false,"reason":"content is not a recognized image but the extension claims png — evidence is admitted by content, not by name"}
+  new: {"ok":true}
+[1;32m✔ R1 head reproduces: qwen.png is SVG text[0m
+[1;32m✔ current head: evidence=png and qwen.png is a real PNG[0m
+[1;32m✔ publish gate: accepts the current head's file, refuses R1's[0m
+[1;32m✔ no .render-<nonce> staging files left next to the output[0m
+
+[1;36m━━ D2  png rung when freeze crashes: host without rsvg-convert → freeze's built-in rasterizer segfaults[0m
+[2m$ PATH=<tmux, sleep, freeze only> capture-tui --command 'printf "crash test DONE\n"; sleep 30' --until DONE --out d2/cap[0m
+  exit=0  manifest={"evidence":"ans-only","pngPath":null}
+  degradedBecause (freeze clause): freeze failed (exit 2: created by unique.runtime_registerUniqueMapCleanup in goroutine 1 /opt/hostedtoolcache/go/1.24.1/x64/src/runtime/mgc.go:1794 +0x79) — .ans text captured, no image rendered
+  files: cap.ans cap.json stderr stdout 
+[1;32m✔ freeze crash degrades to evidence=ans-only (no png certified)[0m
+[1;32m✔ degradedBecause names the freeze failure[0m
+[1;32m✔ no cap.png and no staging litter after the crash[0m
+
+[1;36m━━ D3  decoy session planted on the run's own private server (R26-4)[0m
+[2m$ capture-tui --command '<plant capdecoy on $TMUX's server; kill-session -t =cap>' --until DECOY-FROM-INSIDE --out d3-<arm>/cap[0m
+  [5936b9f118 (R1 head)] exit=0  .ans=DECOY-FROM-INSIDE foreign-bytes
+        manifest={"evidence":"ans-only","settledBy":"until-match"}
+        stderr=capture-tui: ans-only at 60x6 (settled by until-match)
+  [0b51eef6c6 (current head)] exit=3  .ans=(none)
+        stderr=capture-tui: refused — tmux failed mid-capture: can't find session: cap
+[1;32m✔ R1 head reproduces: decoy pane bytes certified as this run's evidence (exit 0)[0m
+[1;32m✔ current head: refuses mid-capture (exit 3), no .ans, no manifest[0m
+[1;32m✔ no capture server/socket left behind[0m
+[1;32m✔ control: an ordinary capture still works with the =cap: target[0m
+
+[1;36m━━ D4  a probe killed by a signal (R26-2)[0m
+[2m$ PATH=<tmux whose -V dies by SIGTERM> capture-tui …[0m
+  [5936b9f118 (R1 head)] exit=3  capture-tui: refused — tmux could not be probed (signal SIGTERM) — the binary ran and failed, so it is installed but not usable here. Fix the installation; rendering claims stay argued from the code until it answers. 
+  [0b51eef6c6 (current head)] exit=3  capture-tui: refused — tmux could not be probed (signal SIGTERM) — killed by a signal, possibly this run's own termination, so nothing about its usability was established. Retry once the host settles; rendering claims stay arg
+[2m$ PATH=<freeze whose --help dies by SIGTERM>:$PATH capture-tui …   # degrade consumer[0m
+  [5936b9f118 (R1 head)] exit=0  evidence=ans-only  degradedBecause (freeze clause)=freeze could not be probed (signal SIGTERM) — it ran and failed, so it is installed but not usable here. .ans text captured, no image rendered
+  [0b51eef6c6 (current head)] exit=0  evidence=ans-only  degradedBecause (freeze clause)=freeze could not be probed (signal SIGTERM) — killed by a signal, possibly this run's own termination; nothing about its usability was established. .ans text captured, no image rendered
+[1;32m✔ R1 head reproduces: a signal death is reported as 'installed but not usable here'[0m
+[1;32m✔ current head, tmux probe: exit 3, 'killed by a signal', no installation claim[0m
+[1;32m✔ current head, freeze probe: ans-only, 'killed by a signal', no installation claim[0m
+[2m$ timeout -s TERM 2 capture-tui …   # tmux -V hangs; timeout signals the whole process group[0m
+  [5936b9f118 (R1 head)] exit=124  stderr=capture-tui: refused — tmux could not be probed (signal SIGTERM) — the binary ran and failed, so it is installed but not usable here. Fix the installation; rendering claims stay argued from the co
+  [0b51eef6c6 (current head)] exit=124  stderr=capture-tui: refused — tmux could not be probed (signal SIGTERM) — killed by a signal, possibly this run's own termination, so nothing about its usability was established. Retry once the host sett
+
+[1;36m━━ D5  review cleanup when tmux unlinks the socket itself on kill-server (R26-3)[0m
+[2m$ tmux -L x kill-server on this host leaves the socket (tmux 3.5a): socket[0m
+[2m$ [5936b9f118 (R1 head)] (cd repo && PATH=<unlinking tmux>:$PATH qwen review cleanup pr-999999)   # orphan qwen-review-capture-94627-81d68c14[0m
+  stderr: WARNING: qwen-review-capture-94627-81d68c14 changed between the type guard and the kill — the server killed may not be the orphan this sweep matched, so its socket was left in place; check your tmux servers
+  socket after: gone   server alive: no
+[2m$ [0b51eef6c6 (current head)] (cd repo && PATH=<unlinking tmux>:$PATH qwen review cleanup pr-999999)   # orphan qwen-review-capture-94707-0abca2cb[0m
+  stdout: Reaped orphaned capture server: qwen-review-capture-94707-0abca2cb
+  stdout: Nothing to clean for target "pr-999999".
+  socket after: gone   server alive: no
+[1;32m✔ R1 head reproduces: WARNING about a socket 'left in place' over a path that is gone, no Reaped line[0m
+[1;32m✔ current head: Reaped + Nothing to clean, no WARNING[0m
+[1;32m✔ no capture server/socket left behind[0m
+
+[1;36m━━ Summary[0m
+[1;32m✔ all delta checks passed[0m

@@ -1,0 +1,28 @@
+[1mPR #9273 round 2 — unit suites[0m  head=0b51eef6c6  node=v22.22.2  tmux=tmux 3.5a
+
+[1;36m━━ U1  three touched suites, root[0m
+[2m$ vitest run capture-tui.test.ts cleanup.test.ts lib/tui-capture.test.ts[0m
+  exit=0
+  Test Files 3 passed (3)
+  Tests 332 passed | 4 skipped (336)
+
+[1;36m━━ U2  same suites as uid 1000 with /tmp/tmux-1000 ABSENT (round-1 finding 2 shape)[0m
+[2m$ ls -ld /tmp/tmux-1000[0m
+  ls: cannot access '/tmp/tmux-1000': No such file or directory
+[2m$ unshare --user --map-user=1000 vitest run …[0m
+  exit=0
+  Test Files 3 passed (3)
+  Tests 335 passed | 1 skipped (336)
+  "unsafe permissions" refusals in the log: 0
+  /tmp/tmux-1000 afterwards: drwx------
+
+[1;36m━━ U3  each of the five real-host fixtures ALONE, dir absent, uid 1000[0m
+  visits a base once even when two candidate strings name it     Tests 1 passed | 186 skipped (187) /tmp/tmux-1000 → [1;32mdrwx------[0m
+  a fallback kill that reaped through /tmp does not warn         Tests 1 passed | 186 skipped (187) /tmp/tmux-1000 → [1;32mdrwx------[0m
+  a swapped socket at the fallback name keeps the orphan WARNING Tests 1 passed | 186 skipped (187) /tmp/tmux-1000 → [1;32mdrwx------[0m
+  an unstamped run never connects or unlinks an entry at its uni Tests 1 passed | 186 skipped (187) /tmp/tmux-1000 → [1;32mdrwx------[0m
+  never connects the kill on another base when a stamp proves th Tests 1 passed | 186 skipped (187) /tmp/tmux-1000 → [1;32mdrwx------[0m
+
+[1;36m━━ U4  real tmux as uid 1000 after the whole run (the developer's own tmux)[0m
+[2m$ tmux -L mine new-session -d 'sleep 1'[0m
+  (exit 0)

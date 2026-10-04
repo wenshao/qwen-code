@@ -1,0 +1,94 @@
+[1mPR #9273 capture-tui E2E[0m  head=0b51eef6c6  tmux=tmux 3.5a  freeze=v0.2.2
+
+[1;36m━━ S1  README example, freeze absent → evidence=ans-only[0m
+[2m$ qwen review capture-tui --command 'printf "HELLO-\033[31mRED\033[0m-WORLD\n"; sleep 30' --until WORLD --out s1/cap[0m
+exit=0  wall=589ms  stdout={"captured":true,"evidence":"ans-only","manifest":"/root/verify/pr9273/e2e/r2/out/s1/cap.json"}
+{"evidence":"ans-only","settledBy":"until-match","pngPath":null,"degradedBecause":"tmux 3.5a trims only never-written trailing positions under -T — cells written and later erased still capture as trailing spaces, and the joined marker view carries them mid-line; trailing-space, right-edge and marker claims carry that caveat; freeze is not installed, or is installed but cannot be executed — .ans text captured, no image rendered"}
+ans bytes:  H E L L O - 033 [ 3 1 m R E D 033 [
+ 3 9 m - W O R L D \n \n \n \n \n \n \n
+[1;32m✔ exit 0[0m
+[1;32m✔ settled on --until, not on the 30s sleep (589ms)[0m
+[1;32m✔ .ans carries the SGR bytes (ESC[31mRED)[0m
+[1;32m✔ manifest evidence=ans-only[0m
+[1;32m✔ degradedBecause names freeze[0m
+[1;32m✔ no capture server/socket left behind[0m
+
+[1;36m━━ S2  freeze v0.2.2 on PATH → evidence=png[0m
+[2m$ PATH=$FREEZE:$PATH qwen review capture-tui --command '<SGR + box + CJK>' --until DONE --cols 60 --rows 8 --out s2/cap[0m
+exit=0  stdout={"captured":true,"evidence":"png","manifest":"/root/verify/pr9273/e2e/r2/out/s2/cap.json"}
+{"evidence":"png","settledBy":"until-match","pngPath":"/root/verify/pr9273/e2e/r2/out/s2/cap.png","degradedBecause":"tmux 3.5a trims only never-written trailing positions under -T — cells written and later erased still capture as trailing spaces, and the joined marker view carries them mid-line; trailing-space, right-edge and marker claims carry that caveat","cols":60,"rows":8}
+s2/cap.png: PNG image data, 1407 x 804, 8-bit/color RGBA, non-interlaced
+[1;32m✔ exit 0[0m
+[1;32m✔ manifest evidence=png[0m
+[1;32m✔ cap.png is a real PNG (file magic)[0m
+[1;32m✔ no capture server/socket left behind[0m
+
+[1;36m━━ S3  isolation: launched inside the user's own tmux session[0m
+user server before: mywork 1w 100x30
+[2m$ tmux -L pr9273-user new-window -t mywork '<capture-tui --cols 40 --rows 6 …>'   # TMUX is set inside[0m
+capture exit=0 (TMUX-SET); user server after: mywork 1w 100x30
+[1;32m✔ capture inside the user's tmux exits 0[0m
+[1;32m✔ TMUX was set in the launching shell (a real nested launch)[0m
+[1;32m✔ user session still alive, geometry still 100x30 (not resized to 40x6)[0m
+[1;32m✔ user pane content byte-identical[0m
+[1;32m✔ capture holds only its own pane — no user-pane bytes[0m
+[1;32m✔ no capture server/socket left behind[0m
+
+[1;36m━━ S4  refusal contract (exit 3, reason on stderr, JSON on stdout, no manifest)[0m
+  empty-out      exit=3  stdout={"captured":false,"evidence":"none","reason":"--out must not be empty."}
+                 stderr=capture-tui: refused — --out must not be empty. 
+  no-tmux        exit=3  stdout={"captured":false,"evidence":"none","reason":"tmux is not installed, or is installed but cannot be executed (a broken interpreter line answers the sam
+                 stderr=capture-tui: refused — tmux is not installed, or is installed but cannot be executed (a broken interpreter line answers the same ENOENT). Rendering claims sta
+  bad-regex      exit=3  stdout={"captured":false,"evidence":"none","reason":"--until is not a valid regex: Invalid regular expression: /(/: Unterminated group"}
+                 stderr=capture-tui: refused — --until is not a valid regex: Invalid regular expression: /(/: Unterminated group 
+  bad-cols       exit=3  stdout={"captured":false,"evidence":"none","reason":"--cols must be an integer in [20, 500], got 0"}
+                 stderr=capture-tui: refused — --cols must be an integer in [20, 500], got 0 
+  foreign-ans    exit=3  stdout={"captured":false,"evidence":"none","reason":"--out collides with a file this capture did not write: /root/verify/pr9273/e2e/r2/out/s4/foreign.ans. A 
+                 stderr=capture-tui: refused — --out collides with a file this capture did not write: /root/verify/pr9273/e2e/r2/out/s4/foreign.ans. A previous capture's own artifact
+[1;32m✔ empty-out: exit 3 + stderr reason + {captured:false,evidence:none} JSON[0m
+[1;32m✔ no-tmux: exit 3 + stderr reason + {captured:false,evidence:none} JSON[0m
+[1;32m✔ bad-regex: exit 3 + stderr reason + {captured:false,evidence:none} JSON[0m
+[1;32m✔ bad-cols: exit 3 + stderr reason + {captured:false,evidence:none} JSON[0m
+[1;32m✔ foreign-ans: exit 3 + stderr reason + {captured:false,evidence:none} JSON[0m
+[1;32m✔ no manifest written by any refusal[0m
+[1;32m✔ foreign <out>.ans left byte-identical[0m
+[1;32m✔ no capture server/socket left behind[0m
+
+[1;36m━━ S5  re-used --out: a previous run of this command is replaced[0m
+[2m$ capture-tui … --out s1/cap   (second time, different output)[0m
+exit=0  SECOND-RUN
+[1;32m✔ own artifacts replaced, exit 0[0m
+
+[1;36m━━ S6  --until timeout is recorded; --ready gates --keys[0m
+timeout run: exit=0  {"settledBy":"timeout","evidence":"ans-only","degradedBecause":"--until never matched within 2499.998496ms of the 2500ms budget — late frame captured; tmux 3.5a trims only never-written trailing positions under -T — cells written and later erased still capture as trailing spaces, and the joined marker view carries them mid-line; trailing-space, right-edge and marker claims carry that caveat; freeze is not installed, or is installed but cannot be executed — .ans text captured, no image rendered"}
+[1;32m✔ never-matching --until: captured anyway, settledBy=timeout[0m
+keys run:    exit=0  {"keys":["alice","Enter"],"keysSent":true,"settledBy":"until-match"}  pane: ^[[1m^[[32mHI-alice
+[1;32m✔ keys typed after --ready matched; reply rendered[0m
+withheld:    exit=0  {"keysSent":false,"settledBy":"timeout","degradedBecause":"--ready never matched within 2500ms — keys were NOT sent, late frame captured; tmux 3.5a trims only never-written trailing positions under -T — cells written and later erased still capture as trailing spaces, and the joined marker view carries them mid-line; trailing-space, right-edge and marker claims carry that caveat; freeze is not installed, or is installed but cannot be executed — .ans text captured, no image rendered"}
+[1;32m✔ --ready never matched: keys withheld, manifest says so[0m
+[1;32m✔ no capture server/socket left behind[0m
+
+[1;36m━━ S7  SIGTERM mid-run reaps; SIGKILL leaves an orphan that 'review cleanup' reaps[0m
+SIGTERM: exit=143  sockets-left=0  servers-left=0  stdout=
+[1;32m✔ SIGTERM: server reaped by the signal net, no manifest[0m
+SIGINT: exit=130  sockets-left=0  servers-left=0  stdout=
+[1;32m✔ SIGINT: server reaped by the signal net, no manifest[0m
+after SIGKILL of 29146: orphan socket=qwen-review-capture-29146-8d77da18  server alive=cap
+[1;32m✔ SIGKILL leaves a live orphan server (the case the sweep exists for)[0m
+[2m$ (cd scratch-repo && qwen review cleanup pr-999999)[0m
+cleanup exit=0  stdout: Reaped orphaned capture server: qwen-review-capture-29146-8d77da18 Nothing to clean for target "pr-999999". 
+cleanup stderr: note: bypass audit skipped (no fetch report) 
+[1;32m✔ orphan server killed and socket gone[0m
+[33mnote: ready sentinel(s) left in $TMPDIR by the SIGKILLed launcher: 1[0m
+[1;32m✔ the LIVE capture (pid alive) was not touched[0m
+[1;32m✔ the user's own server was not touched[0m
+[1;32m✔ orphan's pane process (sleep 6061) is gone[0m
+live capture finished: exit=0  {"settledBy":"timeout","evidence":"ans-only"}
+[1;32m✔ no capture server/socket left behind[0m
+
+[1;36m━━ S8  documented non-goal: a setsid'd descendant outlives the reap (header says so)[0m
+exit=0  surviving setsid'd pid=29613
+[1;32m✔ matches the header: the detached grandchild survives (documented, not a regression)[0m
+
+[1;36m━━ Summary[0m
+[1;32m✔ all checks passed[0m
