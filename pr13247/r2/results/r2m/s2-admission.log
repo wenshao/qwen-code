@@ -1,0 +1,78 @@
+# s2-admission  db=r2m  2026-10-04T02:44:01.971Z
+## identity / syntax (public)
+PASS  no actor (tenant only) → 401  -> 401 actor_required
+FAIL  no tenant, no actor → 401  -> 400 invalid_tenant
+PASS  missing Idempotency-Key header → 400  -> 400 invalid_request
+PASS  Idempotency-Key with a space → 400 invalid_idempotency_key  -> 400 invalid_idempotency_key
+PASS  Idempotency-Key 129 chars → 400 invalid_idempotency_key  -> 400 invalid_idempotency_key
+PASS  missing cwd_relative → 400 invalid_request  -> 400 invalid_request
+PASS  missing expected_context_revision → 400 invalid_request  -> 400 invalid_request
+PASS  expected_context_revision 0 → 400 invalid_request  -> 400 invalid_request
+PASS  expected_context_revision -1 → 400 invalid_request  -> 400 invalid_request
+PASS  malformed JSON body → 400  -> 400 invalid_request
+NOTE  type coercion: cwd_relative as number 7  -> 202 pending target=7 expected=1
+NOTE  type coercion: cwd_relative as array  -> 400 invalid_request
+NOTE  type coercion: expected_context_revision as string "1"  -> 202 pending target=child2 expected=1
+NOTE  type coercion: expected_context_revision as float 1.9  -> 409 context_revision_conflict
+NOTE  type coercion: expected_context_revision as true  -> 400 invalid_request
+NOTE  type coercion: expected_context_revision 2^63 overflow  -> 400 invalid_request
+## lexical cwd rule (public; stage before any Session fact)
+PASS  invalid cwd: absolute → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: dot-dot → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: inner dot-dot → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: backslash → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: empty → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: drive C:x → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: drive ./C:x → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: BEL control → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: NUL → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: DEL control → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: 1025 code points → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: lone surrogate → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd on an unknown Session (lexical first) → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  no operation row was written by any 4xx above (excluding coerced 202s)  -> cwd ops now 4 (before 2)
+## visibility / actor
+PASS  unknown Session → 404 session_not_found  -> 404 session_not_found
+PASS  other tenant (alice@t-other) → 404 session_not_found  -> 404 session_not_found
+PASS  stranger mallory (no grant) → 404 session_not_found  -> 404 session_not_found
+PASS  reader bob (can_read only) → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  carol (Workspace creator, not this Session’s creator) → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  stranger, stale revision (no state leak) → 404 session_not_found  -> 404 session_not_found
+PASS  reader, stale revision (no state leak) → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  creator, stale revision → 409 context_revision_conflict  -> 409 context_revision_conflict
+## WebShell syntax twins
+PASS  WebShell idempotencyKey 129 chars → 400  -> 400 invalid_request
+PASS  WebShell blank idempotencyKey → 400  -> 400 invalid_request
+PASS  WebShell key with a space (public would say invalid_idempotency_key) → 400 invalid_idempotency_key  -> 400 invalid_idempotency_key
+PASS  WebShell missing cwdRelative → 400  -> 400 invalid_request
+PASS  WebShell missing sessionId → 400  -> 400 invalid_request
+PASS  WebShell invalid cwd → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  WebShell stranger → 404 session_not_found  -> 404 session_not_found
+PASS  WebShell reader → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+## legacy (unbound) Session
+NOTE  legacy Session created  -> 202 c81acfad-0e04-40d5-8d86-e18c0d3f7fa0
+PASS  legacy Session, creator → 400 unsupported_feature  -> 400 unsupported_feature
+NOTE  legacy Session, stranger mallory (cwd)  -> 400 unsupported_feature
+NOTE  legacy Session, stranger mallory (sibling close route)  -> 202 undefined
+NOTE  legacy Session, stranger mallory (GET read)  -> 200 
+## Session state / registry facts (dedicated Workspace ws-s2 on st-b)
+NOTE  close for the state test  -> 409 -> ACTIVE
+FAIL  closed Session, creator → 409 session_state_conflict  -> 202 {"id":"op_eb6e8aedc4c94367af8def9f49745cb1","session_id":"7465861d-d155-43b1-942d-4f881ff5f154","type":"cwd_change","status":"pending","expected_context_revisio
+PASS  closed Session, stranger → 404 session_not_found  -> 404 session_not_found
+NOTE  archive  -> 409 -> ACTIVE
+FAIL  archived Session, creator → 409 session_state_conflict  -> 409 context_revision_conflict
+NOTE  delete  -> 409 -> ACTIVE
+FAIL  deleted Session, creator → 404 session_not_found  -> 409 context_revision_conflict
+PASS  creator lost can_create (still can_read) → 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  registry DRAINING → 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  registry DRAINING, reader (no leak) → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  registry generation drift → 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  facts restored → change admitted and completes  -> 202 completed
+## busy barriers
+NOTE  initial Turn held by the model  -> RUNNING
+PASS  active initial Turn → 409 session_context_busy  -> 409 session_context_busy
+PASS  active Turn, stale revision → CAS answers first → 409 context_revision_conflict  -> 409 context_revision_conflict
+PASS  active Turn, reader → 403 first → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  no operation row on the busy Session
+NOTE  coerced 202 admissions in this probe  -> 2
+== s2-admission: 50 passed, 4 failed

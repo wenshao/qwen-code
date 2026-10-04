@@ -1,0 +1,316 @@
+{
+  "name": "s1-basic",
+  "pass": 24,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "create bound Session 202/201",
+      "ok": true,
+      "detail": "status=202 id=c28a488f-11c6-486a-82d3-c9dfaff42615"
+    },
+    {
+      "label": "initial G0 Turn completes in child/",
+      "ok": true,
+      "detail": "{\"status\":\"COMPLETED\",\"error\":\"\",\"ms\":5208}"
+    },
+    {
+      "label": "binding before = (child, rev 1)",
+      "ok": true,
+      "detail": "{\"cwd\":\"child\",\"rev\":1,\"version\":18,\"status\":\"ACTIVE\"}"
+    },
+    {
+      "label": "public Session read before (workspace field)",
+      "note": true,
+      "detail": "{\"workspace_id\":\"ws-a\",\"cwd_relative\":\"child\",\"context_revision\":1,\"state\":\"ready\"}"
+    },
+    {
+      "label": "public POST /cwd → 202 pending, normalized target",
+      "ok": true,
+      "detail": "202 {\"id\":\"op_33470e538fa74e0093e3537020675bd6\",\"session_id\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"cwd_change\",\"status\":\"pending\",\"expected_context_revision\":1,\"target_cwd_relative\":\"child2\",\"replayed\":false}"
+    },
+    {
+      "label": "operation completes with result_context_revision=2",
+      "ok": true,
+      "detail": "118 ms {\"id\":\"op_33470e538fa74e0093e3537020675bd6\",\"session_id\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expected_context_revision\":1,\"target_cwd_relative\":\"child2\",\"result_context_revision\":2,\"replayed\":false}"
+    },
+    {
+      "label": "DB binding after = (child2, rev 2)",
+      "ok": true,
+      "detail": "{\"cwd\":\"child2\",\"rev\":2,\"version\":20,\"status\":\"ACTIVE\"}"
+    },
+    {
+      "label": "DB op row COMPLETED/CONFIRMED with receipt",
+      "ok": true,
+      "detail": "{\"state\":\"COMPLETED\",\"delivery\":\"CONFIRMED\",\"error\":\"\",\"target\":\"child2\",\"expected\":\"1\",\"result\":\"2\",\"attempts\":0,\"gen\":1,\"receipt\":\"rcpt_89adeb39958f4fae8864a303e4c5585b\"}"
+    },
+    {
+      "label": "replay, other spelling child2/./ → 202 same id, replayed=true, completed",
+      "ok": true,
+      "detail": "202 {\"id\":\"op_33470e538fa74e0093e3537020675bd6\",\"session_id\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expected_context_revision\":1,\"target_cwd_relative\":\"child2\",\"result_context_revision\":2,\"replayed\":true}"
+    },
+    {
+      "label": "replay ./child2 → same op",
+      "ok": true,
+      "detail": "202 op_33470e538fa74e0093e3537020675bd6"
+    },
+    {
+      "label": "same key, different target → 409 idempotency_conflict",
+      "ok": true,
+      "detail": "409 {\"error\":{\"code\":\"idempotency_conflict\",\"message\":\"The idempotency key was reused with different content.\",\"request_id\":\"81f5b5c2-49fb-4aba-96a5-231d22b581a8\"}}"
+    },
+    {
+      "label": "same key, different expected revision → 409 idempotency_conflict",
+      "ok": true,
+      "detail": "409 {\"error\":{\"code\":\"idempotency_conflict\",\"message\":\"The idempotency key was reused with different content.\",\"request_id\":\"1a9cb9d6-dcb3-4249-8171-8572a5d99329\"}}"
+    },
+    {
+      "label": "fresh key, stale expected revision 1 → 409 context_revision_conflict",
+      "ok": true,
+      "detail": "409 {\"error\":{\"code\":\"context_revision_conflict\",\"message\":\"The Session context revision has changed.\",\"request_id\":\"1a9614e7-a803-4541-9ffb-afe3bbcd9c25\"}}"
+    },
+    {
+      "label": "WebShell POST /sessions/cwd/change → 202 pending, camelCase",
+      "ok": true,
+      "detail": "202 {\"operationId\":\"op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3\",\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"cwd_change\",\"status\":\"pending\",\"expectedContextRevision\":2,\"targetCwdRelative\":\"child3/deep\",\"replayed\":false}"
+    },
+    {
+      "label": "WebShell echoes client request id header",
+      "ok": true,
+      "detail": "x-request-id=rig-req-s1"
+    },
+    {
+      "label": "WebShell operation completes with resultContextRevision=3",
+      "ok": true,
+      "detail": "122 ms {\"operationId\":\"op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3\",\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expectedContextRevision\":2,\"targetCwdRelative\":\"child3/deep\",\"resultContextRevision\":3,\"replayed\":false}"
+    },
+    {
+      "label": "WebShell replay (other spelling) → same op, replayed=true",
+      "ok": true,
+      "detail": "202 {\"operationId\":\"op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3\",\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expectedContextRevision\":2,\"targetCwdRelative\":\"child3/deep\",\"resultContextRevision\":3,\"replayed\":true}"
+    },
+    {
+      "label": "cross-surface read: public GET of WebShell op returns cwd shape",
+      "ok": true,
+      "detail": "{\"id\":\"op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3\",\"session_id\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expected_context_revision\":2,\"target_cwd_relative\":\"child3/deep\",\"result_context_revision\":3,\"replayed\":false}"
+    },
+    {
+      "label": "cross-surface read: WebShell query of public op returns cwd shape",
+      "ok": true,
+      "detail": "{\"operationId\":\"op_33470e538fa74e0093e3537020675bd6\",\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expectedContextRevision\":1,\"targetCwdRelative\":\"child2\",\"resultContextRevision\":2,\"replayed\":false}"
+    },
+    {
+      "label": "DB binding after = (child3/deep, rev 3)",
+      "ok": true,
+      "detail": "{\"cwd\":\"child3/deep\",\"rev\":3,\"version\":22,\"status\":\"ACTIVE\"}"
+    },
+    {
+      "label": "exactly two session.context.changed rows (one per completed change)",
+      "ok": true,
+      "detail": "[{\"seq\":9,\"data\":{\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"cwdRelative\":\"child2\",\"workspaceId\":\"ws-a\",\"contextRevision\":2,\"operationId\":\"op_33470e538fa74e0093e3537020675bd6\"},\"source\":\"operation:op_33470e538fa74e0093e3537020675bd6:completed\"},{\"seq\":10,\"data\":{\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"cwdRelative\":\"child3/deep\",\"workspaceId\":\"ws-a\",\"contextRevision\":3,\"operationId\":\"op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3\"},\"source\":\"operation:op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3:completed\"}]"
+    },
+    {
+      "label": "event data = {sessionId, operationId, workspaceId, cwdRelative, contextRevision}",
+      "ok": true,
+      "detail": "[{\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"cwdRelative\":\"child2\",\"workspaceId\":\"ws-a\",\"contextRevision\":2,\"operationId\":\"op_33470e538fa74e0093e3537020675bd6\"},{\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"cwdRelative\":\"child3/deep\",\"workspaceId\":\"ws-a\",\"contextRevision\":3,\"operationId\":\"op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3\"}]"
+    },
+    {
+      "label": "public events read lists both context events",
+      "ok": true,
+      "detail": "[{\"schema_version\":1,\"projection_version\":1,\"sequence\":9,\"event_id\":\"evt_cf1b1c0ad0c04d65ae854abc3fb52e61\",\"session_id\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"session.context.changed\",\"created_at\":1791082502,\"data\":{\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"cwdRelative\":\"child2\",\"workspaceId\":\"ws-a\",\"contextRevision\":2,\"operationId\":\"op_33470e538fa74e0093e3537020675bd6\"},\"terminal\":false},{\"schema_version\":1,\"projection_version\":1,\"sequence\":10,\"event_id\":\"evt_4d32ac0f37054def8df1cd61932c7b35\",\"session_id\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"session.context.changed"
+    },
+    {
+      "label": "live public SSE delivered both context events once each",
+      "ok": true,
+      "detail": "status=200 total=10 ctx=2 [{\"ev\":\"session.context.changed\",\"data\":{\"schema_version\":1,\"projection_version\":1,\"sequence\":9,\"event_id\":\"evt_cf1b1c0ad0c04d65ae854abc3fb52e61\",\"session_id\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"session.context.changed\",\"created_at\":1791082502,\"data\":{\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"cwdRelative\":\"child2\",\"workspaceId\":\"ws-a\",\"contextRevision\":2,\"operationId\":\"op_3347"
+    },
+    {
+      "label": "live WebShell SSE delivered both context events once each",
+      "ok": true,
+      "detail": "status=200 total=10 ctx=2 [{\"ev\":\"session.context.changed\",\"data\":{\"schemaVersion\":1,\"projectionVersion\":1,\"sequence\":9,\"eventId\":\"evt_cf1b1c0ad0c04d65ae854abc3fb52e61\",\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"type\":\"session.context.changed\",\"createdAt\":1791082502235,\"data\":{\"sessionId\":\"c28a488f-11c6-486a-82d3-c9dfaff42615\",\"cwdRelative\":\"child2\",\"workspaceId\":\"ws-a\",\"contextRevision\":2,\"operationId\":\"op_33470e"
+    },
+    {
+      "label": "public Session read after (workspace field)",
+      "note": true,
+      "detail": "{\"workspace_id\":\"ws-a\",\"cwd_relative\":\"child3/deep\",\"context_revision\":3,\"state\":\"ready\"}"
+    }
+  ],
+  "session": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+  "op1": "op_33470e538fa74e0093e3537020675bd6",
+  "op2": "op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3",
+  "events": [
+    {
+      "seq": 9,
+      "data": {
+        "sessionId": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+        "cwdRelative": "child2",
+        "workspaceId": "ws-a",
+        "contextRevision": 2,
+        "operationId": "op_33470e538fa74e0093e3537020675bd6"
+      },
+      "source": "operation:op_33470e538fa74e0093e3537020675bd6:completed"
+    },
+    {
+      "seq": 10,
+      "data": {
+        "sessionId": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+        "cwdRelative": "child3/deep",
+        "workspaceId": "ws-a",
+        "contextRevision": 3,
+        "operationId": "op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3"
+      },
+      "source": "operation:op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3:completed"
+    }
+  ],
+  "livePub": [
+    {
+      "ev": "session.context.changed",
+      "data": {
+        "schema_version": 1,
+        "projection_version": 1,
+        "sequence": 9,
+        "event_id": "evt_cf1b1c0ad0c04d65ae854abc3fb52e61",
+        "session_id": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+        "type": "session.context.changed",
+        "created_at": 1791082502,
+        "data": {
+          "sessionId": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+          "cwdRelative": "child2",
+          "workspaceId": "ws-a",
+          "contextRevision": 2,
+          "operationId": "op_33470e538fa74e0093e3537020675bd6"
+        },
+        "terminal": false
+      },
+      "at": 1791082502247
+    },
+    {
+      "ev": "session.context.changed",
+      "data": {
+        "schema_version": 1,
+        "projection_version": 1,
+        "sequence": 10,
+        "event_id": "evt_4d32ac0f37054def8df1cd61932c7b35",
+        "session_id": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+        "type": "session.context.changed",
+        "created_at": 1791082502,
+        "data": {
+          "sessionId": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+          "cwdRelative": "child3/deep",
+          "workspaceId": "ws-a",
+          "contextRevision": 3,
+          "operationId": "op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3"
+        },
+        "terminal": false
+      },
+      "at": 1791082502592
+    }
+  ],
+  "liveWeb": [
+    {
+      "ev": "session.context.changed",
+      "data": {
+        "schemaVersion": 1,
+        "projectionVersion": 1,
+        "sequence": 9,
+        "eventId": "evt_cf1b1c0ad0c04d65ae854abc3fb52e61",
+        "sessionId": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+        "type": "session.context.changed",
+        "createdAt": 1791082502235,
+        "data": {
+          "sessionId": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+          "cwdRelative": "child2",
+          "workspaceId": "ws-a",
+          "contextRevision": 2,
+          "operationId": "op_33470e538fa74e0093e3537020675bd6"
+        },
+        "terminal": false
+      },
+      "at": 1791082502247
+    },
+    {
+      "ev": "session.context.changed",
+      "data": {
+        "schemaVersion": 1,
+        "projectionVersion": 1,
+        "sequence": 10,
+        "eventId": "evt_4d32ac0f37054def8df1cd61932c7b35",
+        "sessionId": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+        "type": "session.context.changed",
+        "createdAt": 1791082502581,
+        "data": {
+          "sessionId": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+          "cwdRelative": "child3/deep",
+          "workspaceId": "ws-a",
+          "contextRevision": 3,
+          "operationId": "op_4c73c7d2f6ca4fc3bb0b4f824dbb4fa3"
+        },
+        "terminal": false
+      },
+      "at": 1791082502592
+    }
+  ],
+  "read0": {
+    "id": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+    "object": "agent.session",
+    "agent_id": "qwen-code",
+    "agent_revision": "1",
+    "status": "active",
+    "created_at": 1791082496,
+    "updated_at": 1791082501,
+    "metadata": {},
+    "last_event_id": 8,
+    "replay_floor_sequence": 0,
+    "snapshot_through_sequence": 8,
+    "capabilities": {
+      "items": true,
+      "snapshots": true,
+      "artifacts": false,
+      "resync": true,
+      "session_lifecycle": false,
+      "tasks": true,
+      "actions": false,
+      "session_close": false,
+      "session_archive": false,
+      "session_unarchive": false,
+      "session_delete": false
+    },
+    "workspace": {
+      "workspace_id": "ws-a",
+      "cwd_relative": "child",
+      "context_revision": 1,
+      "state": "ready"
+    }
+  },
+  "read1": {
+    "id": "c28a488f-11c6-486a-82d3-c9dfaff42615",
+    "object": "agent.session",
+    "agent_id": "qwen-code",
+    "agent_revision": "1",
+    "status": "active",
+    "created_at": 1791082496,
+    "updated_at": 1791082502,
+    "metadata": {},
+    "last_event_id": 10,
+    "replay_floor_sequence": 0,
+    "snapshot_through_sequence": 10,
+    "capabilities": {
+      "items": true,
+      "snapshots": true,
+      "artifacts": false,
+      "resync": true,
+      "session_lifecycle": false,
+      "tasks": true,
+      "actions": false,
+      "session_close": false,
+      "session_archive": false,
+      "session_unarchive": false,
+      "session_delete": false
+    },
+    "workspace": {
+      "workspace_id": "ws-a",
+      "cwd_relative": "child3/deep",
+      "context_revision": 3,
+      "state": "ready"
+    }
+  }
+}

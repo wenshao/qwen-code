@@ -1,0 +1,87 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedCwdChangeOperationTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedCwdChangeOperationTest.java
+index cb7ec76ed5..35a0645b4a 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedCwdChangeOperationTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedCwdChangeOperationTest.java
+@@ -845,6 +845,49 @@ class ManagedCwdChangeOperationTest {
+                 .workspace().getContextRevision()).isEqualTo(2);
+     }
+ 
++    // The Action clause alone must hold admission: on a Session with no
++    // open operation and no active Turn, a requested, unexpired Action is
++    // the only fact that refuses the change.
++    @Test
++    void aRequestedActionAloneBlocksAdmission() {
++        Fixture fixture = fixture(true);
++        String sessionId = fixture.createBoundSession(TENANT, WS);
++        fixture.insertAction(sessionId, "approval-only",
++                System.currentTimeMillis() + 86_400_000L);
++        assertThatThrownBy(() -> begin(fixture, sessionId, "key", "digest",
++                "services/b", 1))
++                .isInstanceOfSatisfying(ApiException.class,
++                        error -> assertRefusal(error, HttpStatus.CONFLICT,
++                                "session_context_busy"));
++        fixture.jdbc.update("DELETE FROM managed_agent_action WHERE"
++                + " action_id = 'approval-only'");
++        assertThat(begin(fixture, sessionId, "key", "digest", "services/b",
++                1).operation().state()).isEqualTo("PENDING");
++    }
++
++    // A transient probe refusal (a retryable RuntimeBrokerException, not a
++    // generic exception) must leave the operation open for the delivery
++    // machine instead of writing the terminal failure.
++    @Test
++    void aTransientProbeRefusalRetriesInsteadOfFailing() {
++        Fixture fixture = fixture(true);
++        StubWarmer warmer = new StubWarmer();
++        SessionLifecycleCoordinator coordinator = fixture.coordinator(
++                warmer);
++        warmer.refuse(WorkspaceExecutionStore.unavailableTransient(
++                new java.io.IOException("stale handle")));
++        String sessionId = fixture.createBoundSession(TENANT, WS);
++        String operationId = begin(fixture, sessionId, "key", "digest",
++                "services/b", 1).operation().operationId();
++        coordinator.dispatch(TENANT, sessionId, operationId);
++        OperationRecord waiting = fixture.store.findOperation(TENANT,
++                sessionId, operationId).orElseThrow();
++        assertThat(waiting.state()).isEqualTo("RUNNING");
++        assertThat(waiting.deliveryState()).isEqualTo("PENDING");
++        assertThat(waiting.attemptCount()).isEqualTo(1);
++        assertThat(waiting.failureCode()).isNull();
++    }
++
+     // A binding detached between claim and commit is workspace_unavailable,
+     // not context_revision_conflict: the Session has no Workspace at all.
+     @Test
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeInstallProbeTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeInstallProbeTest.java
+index 94f29a625a..c1f80d056e 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeInstallProbeTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/WorkspaceRuntimeInstallProbeTest.java
+@@ -59,6 +59,28 @@ class WorkspaceRuntimeInstallProbeTest {
+         assertProbeRefused(resolver, "..");
+     }
+ 
++    // A mount root that is momentarily missing is not a structural verdict:
++    // the probe reports it retryable so the settlement does not certify a
++    // refusal it never verified, and the same root returning heals it.
++    @Test
++    void aMissingMountRootIsRetryableAndHealsWhenItReturns() throws Exception {
++        Path root = Files.createDirectory(temporary.resolve("mount"))
++                .toRealPath();
++        Files.createDirectories(root.resolve("services/api"));
++        WorkspaceRuntimeResolver resolver = resolver(root);
++        Path parked = temporary.resolve("parked");
++        Files.move(root, parked);
++        assertThatThrownBy(() -> resolver.verifyInstallable(
++                binding("services/api"), "services/api"))
++                .isInstanceOfSatisfying(RuntimeBrokerException.class,
++                        error -> org.assertj.core.api.Assertions.assertThat(
++                                error.isRetryable()).isTrue());
++        Files.move(parked, root);
++        assertThatCode(() -> resolver.verifyInstallable(
++                binding("services/api"), "services/api"))
++                .doesNotThrowAnyException();
++    }
++
+     @Test
+     void refusesUnknownStorageAndAMountWhoseIdentityMoved() throws Exception {
+         Path root = Files.createDirectory(temporary.resolve("mount"))
