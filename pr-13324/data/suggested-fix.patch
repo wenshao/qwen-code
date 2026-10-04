@@ -1,0 +1,51 @@
+diff --git a/packages/cli/src/services/insight/generators/DataProcessor.test.ts b/packages/cli/src/services/insight/generators/DataProcessor.test.ts
+index a543fa20df..d3b804892d 100644
+--- a/packages/cli/src/services/insight/generators/DataProcessor.test.ts
++++ b/packages/cli/src/services/insight/generators/DataProcessor.test.ts
+@@ -1300,6 +1300,22 @@ describe('DataProcessor', () => {
+     });
+ 
+     it('keeps nested Code Mode writes out of file and line totals', async () => {
++      const fileDiff = (fileName: string, added: number, removed: number) => ({
++        fileDiff: '',
++        fileName,
++        originalContent: null,
++        newContent: '',
++        diffStat: {
++          model_added_lines: added,
++          model_removed_lines: removed,
++          model_added_chars: 0,
++          model_removed_chars: 0,
++          user_added_lines: 0,
++          user_removed_lines: 0,
++          user_added_chars: 0,
++          user_removed_chars: 0,
++        },
++      });
+       const base = {
+         sessionId: 'session1',
+         uuid: '',
+@@ -1314,10 +1330,7 @@ describe('DataProcessor', () => {
+           type: 'tool_result',
+           toolCallResult: {
+             callId: 'outer',
+-            resultDisplay: {
+-              fileName: '/workspace/direct.txt',
+-              diffStat: { model_added_lines: 2, model_removed_lines: 0 },
+-            },
++            resultDisplay: fileDiff('/workspace/direct.txt', 2, 0),
+           },
+         },
+         {
+@@ -1327,10 +1340,7 @@ describe('DataProcessor', () => {
+           subtype: 'code_mode_tool_result',
+           toolCallResult: {
+             callId: 'outer:code:1',
+-            resultDisplay: {
+-              fileName: '/workspace/nested.txt',
+-              diffStat: { model_added_lines: 12, model_removed_lines: 2 },
+-            },
++            resultDisplay: fileDiff('/workspace/nested.txt', 12, 2),
+           },
+         },
+       ];
