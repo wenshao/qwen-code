@@ -11,7 +11,7 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const CSS = fs.readFileSync(`${SP}/figs/render.mjs`, 'utf8').match(/const CSS = `([\s\S]*?)`;/)[1];
 const page = (title, sub, body, foot) => `<!doctype html><html><head><meta charset="utf-8"><style>${CSS}</style></head><body><div id="card"><h1>${esc(title)}</h1><div class="sub">${sub}</div>${body}<div class="foot">${foot}</div></div></body></html>`;
 const table = (head, rows) => `<table><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td${c.cls ? ` class="${c.cls}"` : ''}>${c.html ?? esc(c.t ?? c)}</td>`).join('')}</tr>`).join('')}</table>`;
-const FOOT = 'PR #13265 round 3 · head 210847dd0e · macOS: Spring jar + native MySQL 8.4.7 + built core/cli dist over the HTTP store · Linux: privileged container (kernel 6.8, cgroup v2, cgroupns private), node 22.23.2, the head\'s core/cli dist';
+const FOOT = 'PR #13265 round 3 · heads 210847dd0e and 9b8d87536a (hosted-workspace-tool-turn.ts only) · macOS: Spring jar + native MySQL 8.4.7 + built core/cli dist over the HTTP store · Linux: privileged container (kernel 6.8, cgroup v2, cgroupns private), node 22.23.2, the head\'s core/cli dist';
 const resultLine = (file) => JSON.parse(fs.readFileSync(file, 'utf8').split('\n').find((l) => l.startsWith('[RESULT]')).slice(9));
 const tally = (file, label) => JSON.parse(fs.readFileSync(file, 'utf8').split('\n').find((l) => l.startsWith(`[${label}]`)).slice(label.length + 3));
 const cards = {};
@@ -105,12 +105,13 @@ ${table(['call', 'result on the real stack', 'note'], [
     ['h-3: … → settleFailed(start_failed, started:false)', { t: `${stepLine('h-3', 'settleFailed(start_failed)').ts} — the user\'s stop shows as a failed task`, cls: 'warn' }, 'the only way to end a stop requested before start'],
     ['h-4: attach twice with the same receipt content', { t: stepLine('h-4', 'attach (same receipt content)').outcome.replace('REFUSED ', 'refused: '), cls: 'bad' }, { html: `publishing the same bytes twice gives two ids (${esc(pub.first.slice(0, 8))}… / ${esc(pub.second.slice(0, 8))}…, digest equal) — refs are not content-addressed, so attach() can never keep a receipt across a retry or a re-attach` }],
     ['h-1: attach → advanceOutput ×3', { t: s6.sequences['h-1'].slice(2, 6).join(' → '), cls: 'warn' }, 'every live revision flips running ↔ waiting; the public task reads waiting right after attach'],
+    [{ html: '9b8d87536a acceptBackgroundShell(): <span class="mono">attach()</span> first, its own replay check (existing tool.receipt) after' }, { t: 'a re-entry after the attach commit fails at attach() — the replay branch below it is unreachable', cls: 'bad' }, 'the receipt also carries occurredAt: Date.now(), so even identical facts publish a new ref (h-4 shows identical content is refused already)'],
     ['h-1: advanceOutput back to an older manifest', { t: 'accepted', cls: 'warn' }, 'advance-only is left to the publisher (R1-19)'],
   ])}
 <h2>Stream capture (still unwired) — G5 re-measured on the head</h2>
 <pre>${esc(fs.readFileSync(`${LX}/l9-head3.log`, 'utf8').trim().split('\n').map((l) => { const r = JSON.parse(l.slice(9)); return `${r.arm.padEnd(9)} ${r.mib} MiB → peak RSS ${r.peakRssMiB} MiB · capture ${r.captureStatus}, digest ok: ${r.streamDigestOk}`; }).join('\n'))}
 ${esc(fs.readFileSync(`${LX}/l10-head3.log`, 'utf8').trim().split('\n').slice(-2).join('\n'))}</pre>
-<div class="note">HostedChildRunSession is constructed for every tool-profile Hosted Session but is not called yet, and child_run stays disabled, so none of this reaches users today. The pre-start stop and the receipt reuse are decisions the orchestrator needs before the record producer lands.</div>`;
+<div class="note">Since 9b8d87536a the Hosted tool turn calls HostedChildRunSession once child_run is enabled. It stays disabled, and the Broker v3 gate (RuntimeBrokerService.java:548) and ToolPublicationContract.java:155 still refuse is_background, so none of this reaches users today. The pre-start stop and the receipt reuse are decisions the orchestrator needs before the record producer lands.</div>`;
   cards['r3-04-orchestrator'] = page('HostedChildRunSession edge semantics, and the capture re-measured', 'S6 on the macOS real stack · L9/L10 in the Linux container (NUL-fixed head dist)', body, FOOT);
 }
 

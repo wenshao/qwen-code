@@ -30,3 +30,4 @@ Notes
 - The Hosted CLI suites on the trial merge with main had one failure. It was
   the PreToolUse `'ask'` `vi.waitFor` case, which passed 3/3 when rerun
   alone on both the merge and the head (host load ~30).
+- head moved to 9b8d87536a (hosted-workspace-tool-turn.ts only) while this round was being written up; its CLI suites were rerun (ts-cli-head-9b8d87536a.txt; the 2 hosted-harness-session failures pass 3/3 alone on both heads).
