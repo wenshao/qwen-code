@@ -1,0 +1,75 @@
+// Round 2 TS mutants at head 9c1437ddd6: the round-1 set re-anchored where
+// the code moved, plus one mutant per new rule. [id, file, find, replace].
+const REC = 'packages/core/src/managed-runtime/managed-child-run-record.ts';
+const PROJ = 'packages/core/src/managed-runtime/managed-extension-projection.ts';
+const AUTH = 'packages/core/src/managed-runtime/managed-session-authority.ts';
+const ALL = [
+  ['T01 kind check dropped', REC, `if (body.kind !== 'shell') {`, `if (false) {`],
+  ['T02 start call may be absent', REC, `run.executionCallId === null ||\n    run.effectId !== null ||`, `run.effectId !== null ||`],
+  ['T03 effectId allowed', REC, `run.effectId !== null ||\n    run.dispatchId`, `run.dispatchId`],
+  ['T04 dispatchId allowed', REC, `run.dispatchId !== null ||\n    run.deliveryId`, `run.deliveryId`],
+  ['T05 delivery allowed', REC, `run.delivery !== null ||\n    run.definition`, `run.definition`],
+  ['T06 definition allowed', REC, `run.delivery !== null ||\n    run.definition !== null\n  ) {`, `run.delivery !== null\n  ) {`],
+  ['T07 receipt before start allowed', REC, `startReceiptRef !== null &&\n    UNSTARTED_EXECUTION_STATES.includes(execution)`, `false &&\n    UNSTARTED_EXECUTION_STATES.includes(execution)`],
+  ['T08 attached without receipt', REC, `(execution === 'running_attached' || execution === 'settled')`, `execution === 'settled'`],
+  ['T09 settled execution without receipt', REC, `(execution === 'running_attached' || execution === 'settled')`, `execution === 'running_attached'`],
+  ['T10 receipt without runtime', REC, `if (startReceiptRef !== null && run.runtime === null) {`, `if (false) {`],
+  ['T11 output kind unchecked', REC, `output.kind !== MANAGED_TOOL_RESULT_KINDS.manifest ||\n      output.schemaVersion !== 1`, `output.schemaVersion !== 1`],
+  ['T12 output version unchecked', REC, `output.kind !== MANAGED_TOOL_RESULT_KINDS.manifest ||\n      output.schemaVersion !== 1`, `output.kind !== MANAGED_TOOL_RESULT_KINDS.manifest`],
+  ['T13 output without receipt', REC, `if (outputRef !== null && startReceiptRef === null) {`, `if (false) {`],
+  ['T14 stop reason not closed', REC, `typeof reason !== 'string' ||\n      !Object.values(CHILD_RUN_STOP_REASONS)`, `typeof reason !== 'string' ||\n      !Object.values(CHILD_RUN_STOP_REASONS).length ||\n      !Object.values({})`],
+  ['T15 exitCode 256 allowed', REC, `code > 255`, `code > 256`],
+  ['T16 negative exitCode allowed', REC, `code < 0 ||`, `code < -1 ||`],
+  ['T17 fractional exitCode allowed', REC, `!Number.isInteger(code) ||`, ``],
+  ['T18 16-char signal limit +1', REC, `/^[A-Z][A-Z0-9]{0,15}$/`, `/^[A-Z][A-Z0-9]{0,16}$/`],
+  ['T19 lowercase signal allowed', REC, `/^[A-Z][A-Z0-9]{0,15}$/`, `/^[A-Za-z][A-Za-z0-9]{0,15}$/`],
+  ['T20 stopReason iff terminal dropped', REC, `if ((stopReason === null) !== !TERMINAL_RUN_STATES.includes(run.state)) {`, `if (false) {`],
+  ['T21 stopReason fits state dropped', REC, `if (!fitting.includes(stopReason)) {`, `if (false) {`],
+  ['T22 settled without settled execution', REC, `(execution !== 'settled' || startReceiptRef === null)`, `startReceiptRef === null`],
+  ['T23 settled without receipt', REC, `(execution !== 'settled' || startReceiptRef === null)`, `execution !== 'settled'`],
+  ['T24 start_failed with receipt', REC, `(startReceiptRef !== null || execution === null)`, `execution === null`],
+  ['T25 start_failed never attempted', REC, `(startReceiptRef !== null || execution === null)`, `startReceiptRef !== null`],
+  ['T26 process_failed without receipt', REC, `if (stopReason === 'process_failed' && startReceiptRef === null) {`, `if (false) {`],
+  ['T27 quota iff quota reason dropped', REC, `if ((stopReason === 'quota_exceeded') !== quota) {`, `if (false) {`],
+  ['T28 evidence on non-exit allowed', REC, `      : exitCode !== null || exitSignal !== null`, `      : false`],
+  ['T29 exit without evidence allowed', REC, `      ? exitCode === null && exitSignal === null`, `      ? false`],
+  ['T30 start may carry output', REC, `!record.stopRequested &&\n      record.outputRef === null`, `!record.stopRequested`],
+  ['T31 commandRef may change', REC, `const FIXED_KEYS = ['commandRef', 'kind', 'ownerScopeId', 'shellId'] as const;`, `const FIXED_KEYS = ['kind', 'ownerScopeId', 'shellId'] as const;`],
+  ['T32 ownerScopeId may change', REC, `const FIXED_KEYS = ['commandRef', 'kind', 'ownerScopeId', 'shellId'] as const;`, `const FIXED_KEYS = ['commandRef', 'kind', 'shellId'] as const;`],
+  ['T33 shellId may change', REC, `const FIXED_KEYS = ['commandRef', 'kind', 'ownerScopeId', 'shellId'] as const;`, `const FIXED_KEYS = ['commandRef', 'kind', 'ownerScopeId'] as const;`],
+  ['T34 run successor unchecked', REC, `!isExtensionRunSuccessor(before.run, after.run) ||`, ``],
+  ['T35 output may be removed', REC, `(before.outputRef !== null && after.outputRef === null) ||`, ``],
+  ['T36 exitCode may change', REC, `!setOnce(before.exitCode, after.exitCode) ||`, ``],
+  ['T37 exitSignal may change', REC, `!setOnce(before.exitSignal, after.exitSignal) ||`, ``],
+  ['T38 terminal not frozen', REC, `return same(before, after);\n    }`, `return true;\n    }`],
+  // new rules in 007289fee9
+  ['T50 receipt may change (re-attach rule)', REC, `||\n      !setOnce(before.startReceiptRef, after.startReceiptRef)\n    ) {`, `\n    ) {`],
+  ['T51 stopRequested type unchecked', REC, `if (typeof stopRequested !== 'boolean') {`, `if (false) {`],
+  ['T52 stop_requested without the flag', REC, `if (stopReason === 'stop_requested' && !stopRequested) {`, `if (false) {`],
+  ['T53 start may carry a stop request', REC, `isExtensionRunStart(record.run) &&\n      !record.stopRequested &&`, `isExtensionRunStart(record.run) &&`],
+  ['T54 stop request may be cleared', REC, `(before.stopRequested && !after.stopRequested) ||`, ``],
+  ['T55 draining dropped while attached', PROJ, `return stopRequested ? 'draining' : 'ready';`, `return 'ready';`],
+  ['T56 draining dropped while provisioning', PROJ, `return stopRequested ? 'draining' : 'provisioning';`, `return 'provisioning';`],
+  ['T57 authority never passes the stop request', AUTH, `domain === 'child_run'\n                  ? parseChildRun(parsed.record).stopRequested\n                  : false,`, `false,`],
+  ['T58 writer closure skips child_run', AUTH, `refs = [child.commandRef, child.startReceiptRef, child.outputRef];`, `refs = [];`],
+  ['T59 writer closure skips outputRef', AUTH, `refs = [child.commandRef, child.startReceiptRef, child.outputRef];`, `refs = [child.commandRef, child.startReceiptRef];`],
+  ['T60 writer closure skips startReceiptRef', AUTH, `refs = [child.commandRef, child.startReceiptRef, child.outputRef];`, `refs = [child.commandRef, child.outputRef];`],
+  // new terminal-line rules in 184dd6a12f
+  ['T61 settled without settled execution (new rule)', REC, `if (run.state === 'settled' && execution !== 'settled') {`, `if (false) {`],
+  ['T62 cancelled without settled execution', REC, `if (run.state === 'cancelled' && execution !== 'settled') {`, `if (false) {`],
+  ['T63 failed off its ending lines', REC, `run.state === 'failed' &&
+    execution !== 'settled' &&
+    execution !== 'not_started_proven'
+  ) {`, `false
+  ) {`],
+  ['T64 start_failed without not_started_proven', REC, `(startReceiptRef !== null || execution !== 'not_started_proven')`, `startReceiptRef !== null`],
+  ['T65 start_failed with a receipt (new form)', REC, `(startReceiptRef !== null || execution !== 'not_started_proven')`, `execution !== 'not_started_proven'`],
+  ['T66 process failure without settled execution', REC, `(stopReason === 'process_failed' || stopReason === 'quota_exceeded') &&
+    execution !== 'settled'
+  ) {`, `false
+  ) {`],
+];
+
+// Rules rewritten in 184dd6a12f (replaced by T61–T66) or removed (exit setOnce).
+const OBSOLETE = ['T22', 'T23', 'T24', 'T25', 'T36', 'T37'];
+export const MUTANTS = ALL.filter((m) => !OBSOLETE.includes(m[0].split(' ')[0]));
