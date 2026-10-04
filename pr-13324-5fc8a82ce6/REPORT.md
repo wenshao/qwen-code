@@ -2,7 +2,7 @@
 
 **Verdict: merge-ready at `5fc8a82ce6`.** On Linux, the real bundled CLI shows the production behaviour the PR claims across every surface I drove: headless, Ink TUI, OpenTUI, ACP replay, `/export` and `--resume`.
 
-During this round I found one blocker at the previous head `cfdfa97a73`: it did not compile, and 7 CI jobs failed on that error. The author's concurrent commit `f17ece2151` fixes it with the same test-only change I had validated locally. I re-ran everything below at the new head.
+During this round I hit a blocker at the previous head `cfdfa97a73`: it did not compile, and 7 CI jobs failed on that error. The author caught it from CI at the same time and fixed it in `f17ece2151` ([comment](https://github.com/QwenLM/qwen-code/pull/13324#issuecomment-5980663460)), using the same test-only change I had validated locally. That comment notes that a full build was not rerun; I reran it, and everything below was re-run at the new head.
 
 - Verified head: `5fc8a82ce6bb6a9eb7d4cb886f96b594c7b5edf1`. It merges main `05ebb1ef3e` and adds `f17ece2151`.
 - PR-own diff (`05ebb1ef3e..5fc8a82ce6`, 31 files) is identical line for line to the diff I verified at `cfdfa97a73` (`691a374d2a..cfdfa97a73`), apart from the `f17ece2151` fixture fix.
@@ -58,7 +58,7 @@ OpenTUI ran under bun 1.3.14 with `QWEN_TUI_RENDERER=opentui` and `QWEN_TUI_REND
 
 On CI, every failing job at `cfdfa97a73` had this as its first error: Lint & Static, Test (ubuntu), Integration Tests (no-AK), TUI parity snapshots, OpenTUI no-flicker gate, Real daemon E2E / Java 11, and Hosted process fault gates / MySQL 8.4. All 7 were green at `16c3553015`.
 
-`f17ece2151` completes both fixtures. I had validated the same shape locally before it landed: full typecheck and build exit 0, and dropping the guard still turns the test red. At `5fc8a82ce6`:
+`f17ece2151` completes both fixtures. I had validated the same shape locally before it landed: full typecheck and build exit 0, and dropping the guard still turns the test red. At `5fc8a82ce6`, which adds the full build the author's comment says was not rerun:
 
 | Gate | Result |
 | --- | --- |
@@ -66,7 +66,7 @@ On CI, every failing job at `cfdfa97a73` had this as its first error: Lint & Sta
 | root `npm run build` / `npm run bundle` | exit 0 / exit 0 |
 | `DataProcessor.test.ts` | 52/52 passed |
 | Mutant: drop the `subtype` guard in `DataProcessor.ts` | 1 failed / 51 passed, so the fixture still pins the guard |
-| CI so far | TUI parity snapshots and OpenTUI no-flicker gate: success (both were red at `cfdfa97a73`). The other lanes were still running at posting time. |
+| CI so far | Integration Tests (no-AK), TUI parity snapshots, OpenTUI no-flicker gate, Real daemon E2E / Java 11: success (all four red at `cfdfa97a73`). Lint & Static, Test (ubuntu) and Hosted process fault gates were still running at posting time. |
 
 ![Build break found and fixed](04-build-break-found-and-fixed.png)
 

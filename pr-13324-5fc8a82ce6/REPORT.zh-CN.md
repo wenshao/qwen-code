@@ -2,7 +2,7 @@
 
 **结论：`5fc8a82ce6` 可以合并。** 在 Linux 上用真实打包 CLI 驱动的每个入口（headless、Ink TUI、OpenTUI、ACP 回放、`/export`、`--resume`）都表现出 PR 所述的生产行为。
 
-本轮在上一个 head `cfdfa97a73` 上发现一个阻断项：它无法编译，7 个 CI 任务因此失败。作者同时推送的 `f17ece2151` 用与我本地验证过的相同的测试修改修复了它。下面所有结果都已在新 head 上重新运行。
+本轮在上一个 head `cfdfa97a73` 上遇到一个阻断项：它无法编译，7 个 CI 任务因此失败。作者同时从 CI 发现了这个问题，并在 `f17ece2151` 中修复（[评论](https://github.com/QwenLM/qwen-code/pull/13324#issuecomment-5980663460)），修法与我本地验证过的测试修改相同。该评论说明未重跑完整 build；我补跑了，下面所有结果也都已在新 head 上重新运行。
 
 - 验证 head：`5fc8a82ce6bb6a9eb7d4cb886f96b594c7b5edf1`，它合并了 main `05ebb1ef3e`，并加入 `f17ece2151`。
 - PR 自身改动（`05ebb1ef3e..5fc8a82ce6`，31 个文件）与我在 `cfdfa97a73` 上验证的改动（`691a374d2a..cfdfa97a73`）逐行一致，唯一差别是 `f17ece2151` 的 fixture 修复。
@@ -52,7 +52,7 @@ OpenTUI 在 bun 1.3.14 下运行，并设置了 `QWEN_TUI_RENDERER=opentui` 与 
 
 CI 上，`cfdfa97a73` 的每个失败任务第一条错误都是它：Lint & Static、Test (ubuntu)、Integration Tests (no-AK)、TUI parity snapshots、OpenTUI no-flicker gate、Real daemon E2E / Java 11、Hosted process fault gates / MySQL 8.4。这 7 个任务在 `16c3553015` 上都是绿的。
 
-`f17ece2151` 补全了这两个 fixture。在它推送之前，我已在本地验证过同样的写法：全仓 typecheck 和 build exit 0，删掉守卫后测试仍会变红。在 `5fc8a82ce6` 上：
+`f17ece2151` 补全了这两个 fixture。在它推送之前，我已在本地验证过同样的写法：全仓 typecheck 和 build exit 0，删掉守卫后测试仍会变红。在 `5fc8a82ce6` 上（补上作者评论中说明未重跑的完整 build）：
 
 | 门禁 | 结果 |
 | --- | --- |
@@ -60,7 +60,7 @@ CI 上，`cfdfa97a73` 的每个失败任务第一条错误都是它：Lint & Sta
 | 根目录 `npm run build` / `npm run bundle` | exit 0 / exit 0 |
 | `DataProcessor.test.ts` | 52/52 通过 |
 | 变异：删掉 `DataProcessor.ts` 中的 `subtype` 守卫 | 1 失败 / 51 通过，fixture 仍锁定该守卫 |
-| 目前的 CI | TUI parity snapshots 与 OpenTUI no-flicker gate：success（在 `cfdfa97a73` 上两者都是红的）。发帖时其余车道仍在运行。 |
+| 目前的 CI | Integration Tests (no-AK)、TUI parity snapshots、OpenTUI no-flicker gate、Real daemon E2E / Java 11：success（在 `cfdfa97a73` 上四者都是红的）。发帖时 Lint & Static、Test (ubuntu) 和 Hosted process fault gates 仍在运行。 |
 
 ## head `5fc8a82ce6` 上的门禁
 
