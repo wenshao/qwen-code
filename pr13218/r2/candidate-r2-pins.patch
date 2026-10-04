@@ -1,0 +1,79 @@
+diff --git a/scripts/managed-agent-dev.js b/scripts/managed-agent-dev.js
+index 71a326734d..587175c0c7 100644
+--- a/scripts/managed-agent-dev.js
++++ b/scripts/managed-agent-dev.js
+@@ -168,13 +168,15 @@ export function parseLauncherArgs(argv) {
+ // SERVER_PORT follows the Java URL when that URL is a plain-http loopback
+ // one — otherwise Spring binds 8080 no matter what --java-url said, and the
+ // launcher waits on a port nothing serves. Skipped for https (TLS lives at
+-// the ingress, not in this env file) and for non-loopback hosts.
++// the ingress, not in this env file) and for non-loopback hosts. IPv6
++// loopback is not offered: URL#hostname keeps the brackets ('[::1]'), and
++// Spring binds 127.0.0.1 unless QWEN_MANAGED_AGENT_SERVER_ADDRESS says otherwise.
+ export function loopbackHttpPort(javaUrl) {
+   try {
+     const parsed = new URL(javaUrl);
+     if (parsed.protocol !== 'http:') return undefined;
+     const host = parsed.hostname.toLowerCase();
+-    if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
++    if (host !== '127.0.0.1' && host !== 'localhost') {
+       return undefined;
+     }
+     return parsed.port || '80';
+diff --git a/scripts/tests/managed-agent-dev.test.js b/scripts/tests/managed-agent-dev.test.js
+index 2bb6663998..2f9e348ce0 100644
+--- a/scripts/tests/managed-agent-dev.test.js
++++ b/scripts/tests/managed-agent-dev.test.js
+@@ -533,6 +533,20 @@ describe('SERVER_PORT wiring in spring.env', () => {
+       renderSpringEnv({ ...base, javaUrl: 'http://10.0.0.5:8080' }),
+     ).not.toContain('SERVER_PORT');
+   });
++
++  it('treats localhost as loopback and a portless URL as 80', () => {
++    const base = {
++      harnessPort: 4270,
++      harnessToken: 't',
++      capabilityDigest: VALID_DIGEST,
++    };
++    expect(
++      renderSpringEnv({ ...base, javaUrl: 'http://localhost:18218' }),
++    ).toContain(`export SERVER_PORT='18218'`);
++    expect(renderSpringEnv({ ...base, javaUrl: 'http://127.0.0.1' })).toContain(
++      `export SERVER_PORT='80'`,
++    );
++  });
+ });
+ 
+ describe('renderSpringPs1Env', () => {
+@@ -671,7 +685,7 @@ describe('writeSpringEnvFiles', () => {
+             springPs1Env: ps1Content,
+             isWinPlatform: false,
+           }),
+-        ).toThrow(/is a symlink/);
++        ).toThrow(/^(?!\[managed-agent-dev\] ).* is a symlink/);
+         expect(readFileSync(victimEnv, 'utf8')).toBe(
+           'PRE-EXISTING VICTIM DATA',
+         );
+@@ -835,6 +849,22 @@ describe('buildHarnessWiring', () => {
+     });
+   });
+ 
++  it('carries --java-url into both env files', () => {
++    const wiring = buildHarnessWiring({
++      harnessPort: 4270,
++      workspace: '/ws',
++      harnessToken: 't',
++      capabilityDigest: VALID_DIGEST,
++      javaUrl: 'http://127.0.0.1:18218',
++    });
++    for (const content of [wiring.springEnv, wiring.springPs1Env]) {
++      expect(content).toContain(
++        `SESSION_STORE_BASE_URL='http://127.0.0.1:18218'`,
++      );
++      expect(content).toContain(`SERVER_PORT='18218'`);
++    }
++  });
++
+   it('feeds the Spring side and the harness side from one input', () => {
+     const wiring = buildHarnessWiring({
+       harnessPort: 4270,

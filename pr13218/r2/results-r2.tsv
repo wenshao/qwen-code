@@ -1,0 +1,12 @@
+scenario	stimulus	result	evidence
+R2 cold chain, recipe only	launcher --java-url 127.0.0.1:18218; Spring tab: source spring.env + datasource exports only (no SERVER_PORT, no Store lines); fresh DB	daemon +4.0s, harness +9.7s, [java] +9.7s, Vite +10.1s; Tomcat on 18218; Managed Turn completed 4.9s (qwen3.8-max)	out/r2/s1/*.log, out/r2-s1-turn/turn.json
+F1 regression set	3 more Spring restarts from spring.env	Turns completed 5.4s (localhost URL), 6.5s (after N1 recovery)	out/r2-localhost-turn, out/r2-n1-recovered
+N1 README mapping	Spring from env w/o Store lines / launcher relaunched, Spring not	Harness POST /session 400 / GET /capabilities 401; both panel hosted_harness_rejected	out/r2/n1/a.log, b.log
+N2 SERVER_PORT	127.0.0.1:18218 / localhost:18218 / [::1]:18218	SERVER_PORT=18218 / 18218 (Turn completed via localhost Store URL) / none (dead branch; with bracket fix Spring still binds 127.0.0.1 only)	out/r2/fixes/*.log, out/r2/ipv6
+N3 prefix	planted symlink dir	single [managed-agent-dev] prefix	out/r2/fixes/n3-symlink.log
+N5 trim	--java-url ' http://127.0.0.1:18218 '	[java] healthy, trimmed in spring.env	out/r2/fixes/n5-padded.log
+Teardown regression	SIGINT/SIGHUP/SIGQUIT/SIGTERM/kill -9 harness/daemon/Vite	12/12 gone in 1.0s each, ports free	out/r2/s4.log
+R4-8 (deferred)	Ctrl-C while waiting for daemon /capabilities	harness never spawned, 0 left	out/r2/races/r4-8.log
+R4-7 (deferred)	squatter binds auto-probed 4270 after banner	harness bumps to 4271; launcher rejects squatter 200, times out at 60s, tears down (0 left); spring.env says 4270	out/r2/races/r4-7.log
+R4-14 (deferred)	--daemon-port <busy>	exit 1 but spring.env token already rotated	out/r2/fixes/r4-14-pinned.log
+Unit/static	launcher suite, vite-config, eslint, prettier	85/85, 20/20, clean, clean; mutants 10/15 killed (14/15 with candidate pins)	out/r2/unit-*.log, mutants.txt
