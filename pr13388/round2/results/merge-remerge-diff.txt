@@ -1,0 +1,93 @@
+git show --remerge-diff ebcee311b4 -- packages/sdk-java:
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+index 295e174d93..286af2a206 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java
+@@ -4001,59 +4001,12 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             current = new AtomicReference<>(claimed);
+         }
+ 
+-<<<<<<< 07849a18f0 (fix(managed-agent): stop virtual-thread carrier pinning in the Hosted Harness stream and the Runtime Broker guards)
+         void start() {
+             monitor.lock();
+-=======
+-        synchronized void start() {
+-            long delay = renewalDelayMillis(operationLeaseDuration);
+-            task = renewalScheduler.scheduleWithFixedDelay(this::renew, delay,
+-                    delay, TimeUnit.MILLISECONDS);
+-        }
+-
+-        synchronized RuntimeBindingRecord stopAndGet() {
+-            close();
+-            return !closed.get() && valid.get() ? current.get() : null;
+-        }
+-
+-        synchronized boolean persistResourceHandle(
+-                RuntimeResourceHandle handle) {
+-            if (closed.get() || !valid.get()) {
+-                return false;
+-            }
+-            RuntimeBindingRecord expected = current.get();
+-            RuntimeBindingRecord updated = bindingRepository.compareAndSet(
+-                    expected, expected.withResourceHandle(handle,
+-                            clock.instant()));
+-            if (updated == null) {
+-                valid.set(false);
+-                close();
+-                return false;
+-            }
+-            current.set(updated);
+-            return true;
+-        }
+-
+-        private synchronized void renew() {
+-            // stopped is per-instance: cancel(false) cannot retract a tick
+-            // already waiting on this monitor, so once close() ran the tick
+-            // must return here rather than renew a claim its owner has
+-            // started renewing inline. The window is staged and pinned for
+-            // the provision-path shape, where persistResourceHandle can hold
+-            // this monitor while a tick queues behind it
+-            // (DurableRuntimeRecoveryTest.stoppedFlagRetractsATickQueuedBehindClose);
+-            // the LOST-branch shape has no third monitor holder, so there it
+-            // remains a timing-only guarantee.
+-            if (stopped.get() || closed.get()) {
+-                close();
+-                return;
+-            }
+-            RuntimeBindingRecord expected = current.get();
+->>>>>>> 5022712321 (fix(runtime-broker): close cross-process release race and harden scheduling (#13214))
+             try {
+                 long delay = renewalDelayMillis(operationLeaseDuration);
+-                task = scheduler.scheduleWithFixedDelay(this::renew, delay,
+-                        delay, TimeUnit.MILLISECONDS);
++                task = renewalScheduler.scheduleWithFixedDelay(this::renew,
++                        delay, delay, TimeUnit.MILLISECONDS);
+             } finally {
+                 monitor.unlock();
+             }
+@@ -4163,22 +4116,15 @@ public final class RuntimeBrokerService implements AutoCloseable {
+             this.dispatchGeneration = dispatchGeneration;
+         }
+ 
+-<<<<<<< 07849a18f0 (fix(managed-agent): stop virtual-thread carrier pinning in the Hosted Harness stream and the Runtime Broker guards)
+         void start() {
+             monitor.lock();
+             try {
+                 long delay = renewalDelayMillis(dispatchLeaseDuration);
+-                task = scheduler.scheduleWithFixedDelay(this::renew, delay,
+-                        delay, TimeUnit.MILLISECONDS);
++                task = renewalScheduler.scheduleWithFixedDelay(this::renew,
++                        delay, delay, TimeUnit.MILLISECONDS);
+             } finally {
+                 monitor.unlock();
+             }
+-=======
+-        synchronized void start() {
+-            long delay = renewalDelayMillis(dispatchLeaseDuration);
+-            task = renewalScheduler.scheduleWithFixedDelay(this::renew, delay,
+-                    delay, TimeUnit.MILLISECONDS);
+->>>>>>> 5022712321 (fix(runtime-broker): close cross-process release race and harden scheduling (#13214))
+         }
+ 
+         private void renew() {
