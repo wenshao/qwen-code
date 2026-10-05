@@ -1,0 +1,50 @@
+# M6-no-stop-race-guard
+# core/src/managed-runtime/managed-child-run-supervisor.ts: "      if (!this.settled) throw error;\n    }\n    if (this.settled) return this.evidence;" -> "      throw error;\n    }"
+# tests: src/managed-runtime/managed-child-run-supervisor.test.ts
+
+
+ RUN  v3.2.7 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr18/packages/core
+      Coverage enabled with v8
+
+ ❯ src/managed-runtime/managed-child-run-supervisor.test.ts (12 tests | 1 failed) 965ms
+   ✓ ManagedChildRunSupervisor > refuses creation without a delegated root 2ms
+   ✓ ManagedChildRunSupervisor > starts a process whose output and exit evidence are captured 51ms
+   ✓ ManagedChildRunSupervisor > settles a terminated process only after the unit is empty 56ms
+   ✓ ManagedChildRunSupervisor > keeps the process when emptiness cannot be proven 3ms
+   ✓ ManagedChildRunSupervisor > fails closed as isolation when membership cannot be proven 5ms
+   ✓ ManagedChildRunSupervisor > keeps the exit evidence of a process that exits during the membership proof 48ms
+   ✓ ManagedChildRunSupervisor > proves membership from the launcher marker when the process list is unreadable 156ms
+   ✓ ManagedChildRunSupervisor > settles a natural end only once the unit proves empty  381ms
+   ✓ ManagedChildRunSupervisor > answers a natural end a drain already settled with the same evidence 151ms
+   × ManagedChildRunSupervisor > answers a stop whose unit vanished behind the racing natural-end settle 106ms
+     → promise rejected "Error: ENOENT: no such file or directory,… { code: '…' }" instead of resolving
+   ✓ ManagedChildRunSupervisor > answers null for a natural end the root never produced 3ms
+   ✓ ManagedChildRunSupervisor > forwards attachment with its root only 1ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  20:34:17
+   Duration  5.57s (transform 67ms, setup 17ms, collect 51ms, tests 965ms, environment 0ms, prepare 72ms)
+
+JUNIT report written to /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr18/packages/core/junit.xml
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/managed-runtime/managed-child-run-supervisor.test.ts > ManagedChildRunSupervisor > answers a stop whose unit vanished behind the racing natural-end settle
+AssertionError: promise rejected "Error: ENOENT: no such file or directory,… { code: '…' }" instead of resolving
+ ❯ src/managed-runtime/managed-child-run-supervisor.test.ts:387:28
+    385|         exitSignal: null,
+    386|       });
+    387|       await expect(draining).resolves.toEqual({
+       |                            ^
+    388|         exitCode: 0,
+    389|         exitSignal: null,
+
+Caused by: Error: ENOENT: no such file or directory, open '/root/qwen-bg-killrace/cgroup.kill'
+ ❯ src/managed-runtime/managed-child-run-supervisor.test.ts:354:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'ENOENT' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

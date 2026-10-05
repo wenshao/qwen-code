@@ -1,0 +1,52 @@
+# M4-h7b-settle-on-root-exit
+# cli/src/serve/managed-background-shell-registry.ts: "evidence = root === null ? null : await process.settleOnEmpty();" -> "evidence = root;"
+# tests: src/serve/managed-background-shell.test.ts src/serve/managed-shell-runtime.test.ts src/serve/managed-monitor-runtime.test.ts src/serve/managed-context-worker.test.ts
+
+
+ RUN  v3.2.7 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr18/packages/cli
+      Coverage enabled with v8
+
+ ✓ src/serve/managed-monitor-runtime.test.ts (7 tests) 6ms
+ ❯ src/serve/managed-shell-runtime.test.ts (9 tests | 1 failed) 67ms
+   ✓ ManagedShellRuntime > refuses envelopes and operations outside the closed key set 2ms
+   ✓ ManagedShellRuntime > answers unknown for anything it does not own physically 1ms
+   ✓ ManagedShellRuntime > answers running only for the registered Session scope 1ms
+   ✓ ManagedShellRuntime > terminates with evidence and answers exited with it 1ms
+   ✓ ManagedShellRuntime > never claims an unproven end, and the hold survives it 0ms
+   ✓ ManagedShellRuntime > stopSession drains one Session and leaves another alone 0ms
+   ✓ ManagedShellRuntime > answers exited from the retained receipt after a natural end 0ms
+   × ManagedShellRuntime > supervises a natural end until its unit proves empty, never settling exited over live members 61ms
+     → expected false to be true // Object.is equality
+   ✓ ManagedShellRuntime > stays unknown when the end carried no evidence it could keep 0ms
+ ✓ src/serve/managed-background-shell.test.ts (21 tests) 66ms
+ ✓ src/serve/managed-context-worker.test.ts (770 tests) 2593ms
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  1 failed | 806 passed (807)
+   Start at  20:34:24
+   Duration  15.88s (transform 3.60s, setup 1.02s, collect 11.24s, tests 2.73s, environment 0ms, prepare 290ms)
+
+JUNIT report written to /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr18/packages/cli/junit.xml
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/serve/managed-shell-runtime.test.ts > ManagedShellRuntime > supervises a natural end until its unit proves empty, never settling exited over live members
+AssertionError: expected false to be true // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+ ❯ src/serve/managed-shell-runtime.test.ts:368:40
+    366|     await new Promise((resolve) => setTimeout(resolve, 50));
+    367|     // The root's exit alone answered nothing: the hold and the record…
+    368|     expect(registry.hasHolds(SESSION)).toBe(true);
+       |                                        ^
+    369|     expect(
+    370|       (await registry.describeFinished('qwen-bg-daemon'))?.receipt,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
