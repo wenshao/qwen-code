@@ -1,0 +1,27 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+index e81950f281..b60a03a7af 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+@@ -454,12 +454,7 @@ public class QwenHostedHarnessConnector implements HarnessConnector {
+         if (current != null) {
+             return current;
+         }
+-        // A ReentrantLock, not a monitor: the first build blocks on the
+-        // capabilities round trip, and callers waiting to enter a monitor
+-        // pin their virtual-thread carriers on JDK 21 while AQS waiters
+-        // unmount.
+-        clientLock.lock();
+-        try {
++        synchronized (this) {
+             current = client;
+             if (current == null) {
+                 current = HostedHarnessClient.builder()
+@@ -473,8 +468,6 @@ public class QwenHostedHarnessConnector implements HarnessConnector {
+                 client = current;
+             }
+             return current;
+-        } finally {
+-            clientLock.unlock();
+         }
+     }
+ 

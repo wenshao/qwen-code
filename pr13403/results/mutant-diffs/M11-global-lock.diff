@@ -1,0 +1,22 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+index e81950f281..633517ae83 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+@@ -145,7 +145,7 @@ public class QwenHostedHarnessConnector implements HarnessConnector {
+         HarnessSessionRef attached = passiveManagedRuntimeRecovery
+                 ? load(session, true) : attachments.get(key);
+         if (attached == null) {
+-            AttachmentLock slot = attachmentLocks.compute(key,
++            AttachmentLock slot = attachmentLocks.compute(new AttachmentKey("", ""),
+                     (ignored, held) -> {
+                         AttachmentLock next = held == null
+                                 ? new AttachmentLock() : held;
+@@ -162,7 +162,7 @@ public class QwenHostedHarnessConnector implements HarnessConnector {
+                 }
+             } finally {
+                 slot.lock.unlock();
+-                attachmentLocks.compute(key, (ignored, held) ->
++                attachmentLocks.compute(new AttachmentKey("", ""), (ignored, held) ->
+                         --held.holders == 0 ? null : held);
+             }
+         }

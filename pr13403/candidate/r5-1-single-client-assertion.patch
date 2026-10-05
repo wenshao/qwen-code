@@ -1,0 +1,27 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/HostedHarnessCreateOrLoadPinningTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/HostedHarnessCreateOrLoadPinningTest.java
+index 2a04832e2f..b812eb637a 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/HostedHarnessCreateOrLoadPinningTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/HostedHarnessCreateOrLoadPinningTest.java
+@@ -162,7 +162,9 @@ class HostedHarnessCreateOrLoadPinningTest {
+                 new InetSocketAddress("127.0.0.1", 0), 0);
+         ExecutorService serverExecutor = Executors.newCachedThreadPool();
+         server.setExecutor(serverExecutor);
++        AtomicInteger capabilitiesCalls = new AtomicInteger();
+         server.createContext("/capabilities", exchange -> {
++            capabilitiesCalls.incrementAndGet();
+             capabilitiesRequested.countDown();
+             try {
+                 open.await();
+@@ -293,6 +295,12 @@ class HostedHarnessCreateOrLoadPinningTest {
+                 "callers never settled after the latch opened: "
+                         + unsettled);
+         assertTrue(allOk.get(), "callers failed after the latch opened");
++        // Waiters must reuse the client the first caller built: each extra
++        // HostedHarnessClient owns its own HTTP, heartbeat and timer pools
++        // that nothing would ever close.
++        assertTrue(capabilitiesCalls.get() == 1,
++                "cold burst built " + capabilitiesCalls.get()
++                        + " Hosted Harness clients");
+     }
+ 
+     private static int carrierCount() {

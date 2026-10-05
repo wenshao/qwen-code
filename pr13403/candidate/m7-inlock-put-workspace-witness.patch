@@ -1,0 +1,87 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+index a96751f5da..a7e273373a 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+@@ -622,6 +622,82 @@ class QwenHostedHarnessConnectorTest {
+                 "attachmentLocks")).isEmpty();
+     }
+ 
++    @Test
++    void concurrentFirstWorkspaceAttachmentCreatesItOnce() throws Exception {
++        HostedHarnessClient client = mock(HostedHarnessClient.class);
++        HostedHarnessCapabilities capabilities =
++                mock(HostedHarnessCapabilities.class);
++        when(capabilities.getBootId()).thenReturn(BOOT_ID);
++        when(client.capabilities()).thenReturn(capabilities);
++        CountDownLatch inCreate = new CountDownLatch(1);
++        CountDownLatch release = new CountDownLatch(1);
++        CountDownLatch secondProgressed = new CountDownLatch(1);
++        AtomicInteger creates = new AtomicInteger();
++        AtomicReference<Thread> firstCreator = new AtomicReference<>();
++        when(client.createSession(any(CreateHarnessSession.class)))
++                .thenAnswer(invocation -> {
++                    if (creates.incrementAndGet() == 1) {
++                        firstCreator.set(Thread.currentThread());
++                        inCreate.countDown();
++                        release.await(30, TimeUnit.SECONDS);
++                    } else {
++                        secondProgressed.countDown();
++                    }
++                    HarnessSessionRef created = mock(HarnessSessionRef.class);
++                    when(created.getHarnessBootId()).thenReturn(BOOT_ID);
++                    when(created.getApprovalMode()).thenReturn("default");
++                    return created;
++                });
++        AgentStateStore sessions = mock(AgentStateStore.class);
++        when(sessions.requireSession("tenant-a", SESSION_ID)).thenReturn(
++                new SessionRecord("tenant-a", SESSION_ID, "qwen-code", null,
++                        null, "ACTIVE", null, null, 0, 0, 0, 1, 1, null, 1,
++                        new ContextBinding("tenant-a", "selected-workspace", 1,
++                                "storage", "child",
++                                WorkspaceExecutionProfile.CONTEXT_CONFIG_REF, 1),
++                        "default", "hosted-workspace-files/2"));
++        ManagedAgentProperties properties = properties();
++        properties.getHarness().setWorkspaceFilesEnabled(true);
++        ManagedActionStore actions = mock(ManagedActionStore.class);
++        // The first caller's confirming approval-mode lookup runs after it
++        // has left the per-key lock: hold it until the queued caller has
++        // made its own decision, so the in-lock cache write is what the
++        // second caller must observe.
++        when(actions.approvalMode("tenant-a", SESSION_ID))
++                .thenAnswer(invocation -> {
++                    if (Thread.currentThread() == firstCreator.get()) {
++                        secondProgressed.await(10, TimeUnit.SECONDS);
++                    } else if (firstCreator.get() != null) {
++                        secondProgressed.countDown();
++                    }
++                    return "default";
++                });
++        QwenHostedHarnessConnector connector = new QwenHostedHarnessConnector(
++                properties, sessions, mock(WorkspaceExecutionStore.class),
++                actions);
++        ReflectionTestUtils.setField(connector, "client", client);
++        List<Throwable> failures =
++                Collections.synchronizedList(new ArrayList<>());
++        Runnable caller = () -> {
++            try {
++                connector.createOrLoad("tenant-a", SESSION_ID, false);
++            } catch (RuntimeException error) {
++                failures.add(error);
++            }
++        };
++
++        Thread first = Thread.ofVirtual().start(caller);
++        assertThat(inCreate.await(30, TimeUnit.SECONDS)).isTrue();
++        Thread second = Thread.ofVirtual().start(caller);
++        awaitQueuedOnTheSingleSlot(connector);
++        release.countDown();
++        first.join(30_000);
++        second.join(30_000);
++
++        assertThat(failures).isEmpty();
++        verify(client, times(1)).createSession(any(CreateHarnessSession.class));
++    }
++
+     @Test
+     void attachmentLocksAreReclaimedOnceAttachmentsSettle() {
+         HostedHarnessClient client = mock(HostedHarnessClient.class);

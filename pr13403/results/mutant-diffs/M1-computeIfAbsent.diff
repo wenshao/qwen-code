@@ -1,0 +1,38 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+index e81950f281..fa5b005c86 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+@@ -143,29 +143,10 @@ public class QwenHostedHarnessConnector implements HarnessConnector {
+         }
+         AttachmentKey key = new AttachmentKey(tenantId, sessionId);
+         HarnessSessionRef attached = passiveManagedRuntimeRecovery
+-                ? load(session, true) : attachments.get(key);
+-        if (attached == null) {
+-            AttachmentLock slot = attachmentLocks.compute(key,
+-                    (ignored, held) -> {
+-                        AttachmentLock next = held == null
+-                                ? new AttachmentLock() : held;
+-                        next.holders++;
+-                        return next;
+-                    });
+-            slot.lock.lock();
+-            try {
+-                attached = attachments.get(key);
+-                if (attached == null) {
+-                    attached = loadExisting ? load(session, false)
+-                            : create(session);
+-                    attachments.put(key, attached);
+-                }
+-            } finally {
+-                slot.lock.unlock();
+-                attachmentLocks.compute(key, (ignored, held) ->
+-                        --held.holders == 0 ? null : held);
+-            }
+-        }
++                ? load(session, true)
++                : attachments.computeIfAbsent(key, ignored -> loadExisting
++                        ? load(session, false)
++                        : create(session));
+         if (session.workspace() != null
+                 && !actions.approvalMode(tenantId, sessionId).equals(attached.getApprovalMode())) {
+             attachments.remove(key);
