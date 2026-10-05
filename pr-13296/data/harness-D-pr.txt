@@ -1,0 +1,23 @@
+=== PR #13296 harness arm=pr scenario=D db=qwen_o4_h_d_pr_e306b203 mysql=8.4.11 isolation=REPEATABLE-READ flyway=34
+D0 first sweep under production cadence: ticks=112
+D1_natural: deferred rows now due between +0s and +116s
+D1_natural: ticks=113 wall=115.9s client_sql=23820 tenant_locks=3010 server_sql=0 server_lock_us=0 rows_examined=0 protected_evaluations=3000 evaluations={legacy_write_evidence_missing=750, quarantined=750, not_accepted_complete=750, recovery_protected=750, d1_natural_healthy=5}
+D1_natural: due rows waiting before each tick (tick:count) 0:23 10:32 20:5 30:96 40:96 50:96 60:96 70:32 80:0 90:0 100:32 110:32 | max=96
+D1_natural: healthy publication due at tick 20 collected after 4.0 s
+D2_clumped: deferred rows now due between -176s and -60s
+D2_clumped: ticks=98 wall=101.1s client_sql=23687 tenant_locks=3010 server_sql=0 server_lock_us=0 rows_examined=0 protected_evaluations=3000 evaluations={legacy_write_evidence_missing=750, quarantined=750, not_accepted_complete=750, recovery_protected=750, d2_clumped_healthy=5}
+D2_clumped: due rows waiting before each tick (tick:count) 0:3000 10:2680 20:2365 30:2045 40:1725 50:1405 60:1085 70:765 80:445 90:125 | max=3000
+D2_clumped: healthy publication due at tick 20 collected after 80.2 s
+  [after day boundaries] group | retention_state | gc_blocker | n | gc_next_at-now (min..max) | held+used | files on disk
+    legacy_write_evidence_missing  | RETIRING   | legacy_write_evidence_missing |   750 | +23.97h..+24.00h | 2250000+92250 | 750
+    quarantined                    | RETIRING   | quarantined            |   750 | +23.97h..+24.00h | 2250000+92250 | 750
+    not_accepted_complete          | RETIRING   | not_accepted_complete  |   750 | +23.97h..+24.00h | 2250000+92250 | 750
+    recovery_protected             | RETIRING   | recovery_protected     |   750 | +23.97h..+24.00h | 2250000+92250 | 750
+    healthy                        | COLLECTED  | null                   |    20 | 0..0 | 0+0 | 0
+    d1_natural_healthy             | COLLECTED  | null                   |     5 | -196s..-196s | 0+0 | 0
+    d2_clumped_healthy             | COLLECTED  | null                   |     5 | -80s..-80s | 0+0 | 0
+  integrity legacy_write_evidence_missing  rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity quarantined                    rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity not_accepted_complete          rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity recovery_protected             rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  deleted keys total=30 of which protected=0

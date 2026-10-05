@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><title>PR 13296 harness</title><style>
+body{margin:0;padding:20px;background:#f1f0ec;font-family:-apple-system,"Segoe UI",Arial,sans-serif}
+.card{width:1240px;background:#0d1117;border-radius:10px;padding:16px 18px;color:#d0d7de}
+h1{font-size:15px;color:#f0f6fc;margin:0 0 10px;font-weight:600}
+.t{margin-bottom:12px} .tt{font:12.5px/1.4 "DejaVu Sans Mono",Menlo,monospace;color:#7ee787;margin-bottom:4px}
+.dim{color:#8b949e} pre{margin:0;font:11.6px/1.42 "DejaVu Sans Mono",Menlo,monospace;white-space:pre-wrap;word-break:break-all}
+.hi{color:#ffa657;font-weight:700} .ok{color:#7ee787;font-weight:700}
+</style></head><body><div class="card"><h1>Scenario A, phases P3 (100 calls after a real 61 s wait) + final integrity — raw harness output, MySQL 8.4.11</h1><div class="t"><div class="tt">$ java … BackoffHarness base A   <span class="dim"># base arm — merge-base collector (minute retry)</span></div><pre>P3 second sweep, 100 back-to-back runOnce() calls after 61 s: wall=3.4s <span class="hi">client_sql=22251</span> tenant_locks=2823 server_sql=30720 server_lock_us=5961 rows_examined=259923 <span class="hi">protected_evaluations=2795</span> evaluations={legacy_write_evidence_missing=700, quarantined=700, not_accepted_complete=700, recovery_protected=695, reader_active=13, put_unresolved=2}
+   reader_active <span class="hi">collected after lease close=13/20</span>
+  [after second sweep] group | retention_state | gc_blocker | n | gc_next_at-now (min..max) | held+used | files on disk
+    legacy_write_evidence_missing  | RETIRING   | legacy_write_evidence_missing |   750 | -9s..+60s | 2250000+92250 | 750
+    quarantined                    | RETIRING   | quarantined            |   750 | -11s..+60s | 2250000+92250 | 750
+    not_accepted_complete          | RETIRING   | not_accepted_complete  |   750 | -10s..+60s | 2250000+92250 | 750
+    recovery_protected             | RETIRING   | recovery_protected     |   750 | -8s..+60s | 2250000+92250 | 750
+    reader_active                  | COLLECTED  | null                   |    13 | -86s..-11s | 0+0 | 7
+    reader_active                  | RETIRING   | reader_active          |     7 | -11s..-11s | 21000+861 | 7
+    put_unresolved                 | RETIRING   | put_unresolved         |     2 | +58s..+59s | 6000+246 | 2
+    healthy                        | COLLECTED  | null                   |    20 | 0..0 | 0+0 | 0
+  -- end of run --
+  integrity legacy_write_evidence_missing  rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity quarantined                    rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity not_accepted_complete          rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity recovery_protected             rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  deleted keys total=50 <span class="ok">of which protected=0</span></pre></div><div class="t"><div class="tt">$ java … BackoffHarness pr A   <span class="dim"># PR arm — head 2b4deac (24 h protected recheck)</span></div><pre>P3 second sweep, 100 back-to-back runOnce() calls after 61 s: wall=0.1s <span class="hi">client_sql=782</span> tenant_locks=42 server_sql=908 server_lock_us=228 rows_examined=962 <span class="hi">protected_evaluations=0</span> evaluations={reader_active=20, put_unresolved=2}
+   reader_active <span class="hi">collected after lease close=20/20</span>
+  [after second sweep] group | retention_state | gc_blocker | n | gc_next_at-now (min..max) | held+used | files on disk
+    legacy_write_evidence_missing  | RETIRING   | legacy_write_evidence_missing |   750 | <span class="hi">+23.95h..+23.98h</span> | 2250000+92250 | 750
+    quarantined                    | RETIRING   | quarantined            |   750 | <span class="hi">+23.95h..+23.98h</span> | 2250000+92250 | 750
+    not_accepted_complete          | RETIRING   | not_accepted_complete  |   750 | <span class="hi">+23.95h..+23.98h</span> | 2250000+92250 | 750
+    recovery_protected             | RETIRING   | recovery_protected     |   750 | <span class="hi">+23.95h..+23.98h</span> | 2250000+92250 | 750
+    reader_active                  | COLLECTED  | null                   |    20 | -8s..-1s | 0+0 | 0
+    put_unresolved                 | RETIRING   | put_unresolved         |     2 | +60s..+60s | 6000+246 | 2
+    healthy                        | COLLECTED  | null                   |    20 | 0..0 | 0+0 | 0
+  -- end of run --
+  integrity legacy_write_evidence_missing  rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity quarantined                    rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity not_accepted_complete          rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity recovery_protected             rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  deleted keys total=50 <span class="ok">of which protected=0</span></pre></div></div></body></html>

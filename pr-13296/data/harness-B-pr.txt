@@ -1,0 +1,21 @@
+=== PR #13296 harness arm=pr scenario=B db=qwen_o4_h_b_pr_c1b69659 mysql=8.4.11 isolation=REPEATABLE-READ flyway=34
+B1 first pass with grace=24h (retired +0s ago):
+  [grace running] group | retention_state | gc_blocker | n | gc_next_at-now (min..max) | held+used | files on disk
+    legacy_write_evidence_missing  | RETIRING   | grace_period           |     5 | +24.00h..+24.00h | 15000+615 | 5
+    quarantined                    | RETIRING   | grace_period           |     5 | +24.00h..+24.00h | 15000+615 | 5
+    not_accepted_complete          | RETIRING   | grace_period           |     5 | +24.00h..+24.00h | 15000+615 | 5
+    recovery_protected             | RETIRING   | recovery_protected     |     5 | +24.00h..+24.00h | 15000+615 | 5
+    healthy                        | RETIRING   | grace_period           |     5 | +24.00h..+24.00h | 15000+615 | 5
+   rows whose deadline is earlier than retired_at+grace: 0
+B2 after grace elapsed (retired_at and deadlines moved back 24h+1m):
+  [grace elapsed] group | retention_state | gc_blocker | n | gc_next_at-now (min..max) | held+used | files on disk
+    legacy_write_evidence_missing  | RETIRING   | legacy_write_evidence_missing |     5 | +24.00h..+24.00h | 15000+615 | 5
+    quarantined                    | RETIRING   | quarantined            |     5 | +24.00h..+24.00h | 15000+615 | 5
+    not_accepted_complete          | RETIRING   | not_accepted_complete  |     5 | +24.00h..+24.00h | 15000+615 | 5
+    recovery_protected             | RETIRING   | recovery_protected     |     5 | +24.00h..+24.00h | 15000+615 | 5
+    healthy                        | COLLECTED  | null                   |     5 | -60s..-60s | 0+0 | 0
+  integrity legacy_write_evidence_missing  rows=5 retiring=5 held=15000 used=615 files=5 catalog_live=5
+  integrity quarantined                    rows=5 retiring=5 held=15000 used=615 files=5 catalog_live=5
+  integrity not_accepted_complete          rows=5 retiring=5 held=15000 used=615 files=5 catalog_live=5
+  integrity recovery_protected             rows=5 retiring=5 held=15000 used=615 files=5 catalog_live=5
+  deleted keys total=5 of which protected=0

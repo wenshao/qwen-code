@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>PR 13296 gates</title>
+<style>
+:root { --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#8a8984; --grid:#e6e5e0; --good:#0f7b3f; --bad:#b42318; --warn:#9a6700; }
+body { margin:0; padding:20px; background:#f1f0ec; font:14px/1.45 -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif; color:var(--ink); }
+.card { width:1160px; background:var(--surface); border:1px solid #dddcd6; border-radius:10px; padding:22px 26px 18px; }
+h1 { font-size:19px; margin:0 0 4px; } h2 { font-size:15px; margin:16px 0 6px; }
+.sub { color:var(--ink2); margin:0 0 6px; font-size:13px; }
+table { border-collapse:collapse; width:100%; font-size:12.8px; }
+th, td { text-align:left; padding:5px 9px; border-bottom:1px solid var(--grid); vertical-align:top; }
+th { font-size:12px; color:var(--ink2); font-weight:600; border-bottom:1px solid #cfcec8; }
+code { font:11.8px "DejaVu Sans Mono", Menlo, monospace; }
+.ok { color:var(--good); font-weight:700; white-space:nowrap; } .ok::before { content:"✔ "; }
+.sv { color:var(--warn); font-weight:700; white-space:nowrap; } .sv::before { content:"▲ "; }
+table.gates td:first-child { white-space:nowrap; }
+.num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.foot { margin-top:10px; font-size:11.5px; color:var(--muted); }
+</style></head><body>
+<div class="card">
+  <h1>PR #13296 — gates re-run locally and mutation matrix</h1>
+  <p class="sub">JDK 21 (<code>eclipse-temurin:21-jdk</code>, CI parity), Maven 3.9.9 with a private local repo, MySQL 8.4.11 (<code>--disable-log-bin</code>), Linux x86-64. Head <code>2b4deac</code>; merged tree = <code>origin/main 2007925</code> + head (merges cleanly).</p>
+  <h2>Gates</h2>
+  <table class="gates">
+    <tr><th>tree</th><th>command</th><th>result</th></tr>
+    <tr><td>PR head</td><td><code>managed-agent-server: clean verify checkstyle:check</code></td><td><span class="ok">559 / 559</span> 0 skipped (incl. the Linux-only <code>RuntimeBrokerDefaultOnTest</code> the author's macOS run skipped) · Checkstyle 0 · SpotBugs 0</td></tr>
+    <tr><td>PR head</td><td><code>-Po4-mysql-gates … clean verify checkstyle:check</code> + <code>check-failsafe-reports.js o4-mysql</code></td><td><span class="ok">O4MySqlGate 48 / 48</span> on MySQL 8.4 (all new collector cases ran on MySQL, inherited from <code>ToolPublicationCollectorTest</code>) · checker exit 0</td></tr>
+    <tr><td>main + PR</td><td><code>clean verify checkstyle:check</code></td><td><span class="ok">647 / 647</span> · Checkstyle 0 · SpotBugs 0</td></tr>
+    <tr><td>main + PR</td><td><code>-Po4-mysql-gates …</code> + checker</td><td><span class="ok">O4MySqlGate 48 / 48</span> · checker exit 0</td></tr>
+    <tr><td>PR head</td><td><code>vitest scripts/tests/check-failsafe-reports.test.js</code></td><td><span class="ok">14 / 14</span> · mutants: skip-only → 4 killed · drop <code>error</code> → 2 killed · no CDATA strip → 4 killed</td></tr>
+  </table>
+  <h2>Collector mutants (exact-string edits of <code>ToolPublicationCollector.java</code>; <code>ToolPublicationCollectorTest</code> + <code>ToolPublicationRetentionStoreTest</code>, 58 cases; unmutated = 58/58)</h2>
+  <table>
+    <tr><th>mutant</th><th>outcome</th><th>first failing test</th></tr>
+    <tr><td>M01 revert the switch (all blockers +60 s, i.e. main)</td><td><span class="ok">killed</span></td><td><code>protectedBacklogWaitsForDailyRecheckAndYieldsAfterItsFirstSweep</code></td></tr>
+    <tr><td>M02–M05 drop one of the four labels (each separately)</td><td><span class="ok">4 / 4 killed</span></td><td><code>protectedBacklogWaits…</code> (per-blocker count of 40)</td></tr>
+    <tr><td>M06 <code>default</code> also 24 h</td><td><span class="ok">killed</span></td><td><code>otherBlockersKeepMinuteRetry…</code> ×4, <code>activeReaderKeepsMinuteRetry…</code></td></tr>
+    <tr><td>M07 / M08 / M09 interval 23 h · 24 h + 1 min · 1 h</td><td><span class="ok">3 / 3 killed</span></td><td><code>protectedBacklogWaits…</code> (deadline window)</td></tr>
+    <tr><td>M10 drop the <code>grace_period</code> deadline override</td><td><span class="ok">killed</span></td><td><code>graceCandidatesYield…</code>, <code>dueGraceCandidateUsesCurrentGrace…</code></td></tr>
+    <tr><td>M11 trust a stored protected blocker when due (skip re-evaluation)</td><td><span class="ok">killed</span></td><td><code>dueProtectedPublicationRechecksEvidence…</code> (+17 others)</td></tr>
+    <tr><td>M12 <code>collection_retry</code> deferral 24 h instead of 60 s</td><td><span class="ok">killed</span></td><td><code>expiredClaimStopsBeforeDeletingTheNextObject</code> (the R2-1 assertion)</td></tr>
+    <tr><td>M13 keep <code>gc_blocker</code> on the DELETING transition</td><td><span class="sv">survives</span></td><td>— matches deferred round-3 item 2 (no test pins the clear)</td></tr>
+    <tr><td>M14 do not persist <code>reader_active</code> as the blocker</td><td><span class="sv">survives</span></td><td>— matches deferred round-3 item 3</td></tr>
+  </table>
+  <div class="foot">12 / 14 killed. Both survivors are operator-facing bookkeeping (what the runbook's blocker query shows), not deletion safety; the real-MySQL harness observed the production behaviour is correct today (collected rows carry <code>gc_blocker = NULL</code>; reader-held rows carry <code>reader_active</code>).</div>
+</div>
+</body></html>

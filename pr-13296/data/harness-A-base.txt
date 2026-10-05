@@ -1,0 +1,44 @@
+=== PR #13296 harness arm=base scenario=A db=qwen_o4_h_a_base_44c39e7e mysql=8.4.11 isolation=REPEATABLE-READ flyway=34
+seeded: protected=3000 reader_active=20 put_unresolved=2 healthy=20 (one tenant, 128 sessions; protections via production paths: legacy=V30 default, quarantine=quarantineResource(), recovery=retire() over BLOCKED_RESOURCE head, reader=read() lease, put=put() with lost response, incomplete=accepted_complete FALSE)
+P1 first sweep, production cadence: ticks=114 wall=117.5s client_sql=24495 tenant_locks=3092 server_sql=0 server_lock_us=0 rows_examined=0 protected_evaluations=3030 evaluations={legacy_write_evidence_missing=750, quarantined=750, not_accepted_complete=775, recovery_protected=755, reader_active=20, put_unresolved=2, healthy=20}
+   healthy collected=20/20, deleted keys=20
+  [after first sweep] group | retention_state | gc_blocker | n | gc_next_at-now (min..max) | held+used | files on disk
+    legacy_write_evidence_missing  | RETIRING   | legacy_write_evidence_missing |   750 | -54s..+59s | 2250000+92250 | 750
+    quarantined                    | RETIRING   | quarantined            |   750 | -53s..+57s | 2250000+92250 | 750
+    not_accepted_complete          | RETIRING   | not_accepted_complete  |   750 | -50s..+60s | 2250000+92250 | 750
+    recovery_protected             | RETIRING   | recovery_protected     |   750 | -57s..+60s | 2250000+92250 | 750
+    reader_active                  | RETIRING   | reader_active          |    20 | -21s..+54s | 60000+2460 | 20
+    put_unresolved                 | RETIRING   | put_unresolved         |     2 | -28s..+1s | 6000+246 | 2
+    healthy                        | COLLECTED  | null                   |    20 | 0..0 | 0+0 | 0
+P2 reader leases closed; real wall-clock wait 61 s ...
+P3 second sweep, 100 back-to-back runOnce() calls after 61 s: wall=3.4s client_sql=22251 tenant_locks=2823 server_sql=30720 server_lock_us=5961 rows_examined=259923 protected_evaluations=2795 evaluations={legacy_write_evidence_missing=700, quarantined=700, not_accepted_complete=700, recovery_protected=695, reader_active=13, put_unresolved=2}
+   reader_active collected after lease close=13/20
+  [after second sweep] group | retention_state | gc_blocker | n | gc_next_at-now (min..max) | held+used | files on disk
+    legacy_write_evidence_missing  | RETIRING   | legacy_write_evidence_missing |   750 | -9s..+60s | 2250000+92250 | 750
+    quarantined                    | RETIRING   | quarantined            |   750 | -11s..+60s | 2250000+92250 | 750
+    not_accepted_complete          | RETIRING   | not_accepted_complete  |   750 | -10s..+60s | 2250000+92250 | 750
+    recovery_protected             | RETIRING   | recovery_protected     |   750 | -8s..+60s | 2250000+92250 | 750
+    reader_active                  | COLLECTED  | null                   |    13 | -86s..-11s | 0+0 | 7
+    reader_active                  | RETIRING   | reader_active          |     7 | -11s..-11s | 21000+861 | 7
+    put_unresolved                 | RETIRING   | put_unresolved         |     2 | +58s..+59s | 6000+246 | 2
+    healthy                        | COLLECTED  | null                   |    20 | 0..0 | 0+0 | 0
+P4 steady state 100 s of production cadence: wall=100.2s client_sql=12090 tenant_locks=1531 server_sql=16683 server_lock_us=4034 rows_examined=135587 protected_evaluations=1516 evaluations={legacy_write_evidence_missing=350, quarantined=375, not_accepted_complete=350, recovery_protected=441, reader_active=7, put_unresolved=1}; client_sql/min=7242 server_sql/min=9993
+P4 latency: healthy publication due now (grace deadline reached) collected after 57 ticks / 58.2 s (5/5=true)
+P5 day boundary: shifted 0 deferred rows by -24h (spread preserved)
+P5 re-sweep under production cadence: ticks=150 wall=155s wall=155.1s client_sql=36459 tenant_locks=4650 server_sql=50409 server_lock_us=6443 rows_examined=493902 protected_evaluations=4637 evaluations={legacy_write_evidence_missing=1125, quarantined=1100, not_accepted_complete=1150, recovery_protected=1262, put_unresolved=3, day_healthy=5}
+P5 latency: healthy publication due mid-burst (tick 20) collected after 45.8 s
+  [after day boundary] group | retention_state | gc_blocker | n | gc_next_at-now (min..max) | held+used | files on disk
+    legacy_write_evidence_missing  | RETIRING   | legacy_write_evidence_missing |   750 | -41s..+59s | 2250000+92250 | 750
+    quarantined                    | RETIRING   | quarantined            |   750 | -39s..+53s | 2250000+92250 | 750
+    not_accepted_complete          | RETIRING   | not_accepted_complete  |   750 | -40s..+60s | 2250000+92250 | 750
+    recovery_protected             | RETIRING   | recovery_protected     |   750 | -42s..+60s | 2250000+92250 | 750
+    reader_active                  | COLLECTED  | null                   |    20 | -399s..-324s | 0+0 | 0
+    put_unresolved                 | RETIRING   | put_unresolved         |     2 | -42s..+32s | 6000+246 | 2
+    healthy                        | COLLECTED  | null                   |    20 | 0..0 | 0+0 | 0
+    late_healthy                   | COLLECTED  | null                   |     5 | -213s..-213s | 0+0 | 0
+    day_healthy                    | COLLECTED  | null                   |     5 | -134s..-134s | 0+0 | 0
+  integrity legacy_write_evidence_missing  rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity quarantined                    rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity not_accepted_complete          rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  integrity recovery_protected             rows=750 retiring=750 held=2250000 used=92250 files=750 catalog_live=750
+  deleted keys total=50 of which protected=0

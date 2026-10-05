@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>PR 13296 grace</title>
+<style>
+:root { --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#8a8984; --grid:#e6e5e0; --base:#2a78d6; --pr:#eb6834; }
+body { margin:0; padding:20px; background:#f1f0ec; font:14px/1.45 -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif; color:var(--ink); }
+.card { width:1120px; background:var(--surface); border:1px solid #dddcd6; border-radius:10px; padding:22px 26px 18px; }
+h1 { font-size:19px; margin:0 0 4px; }
+.sub { color:var(--ink2); margin:0 0 14px; font-size:13px; }
+table { border-collapse:collapse; width:100%; font-size:13px; }
+th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--grid); vertical-align:top; }
+th { font-size:12px; color:var(--ink2); font-weight:600; border-bottom:1px solid #cfcec8; }
+td.num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+code { font:12px "DejaVu Sans Mono", Menlo, monospace; }
+.sw { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:0; }
+.chg { font-weight:700; }
+.foot { margin-top:12px; font-size:11.5px; color:var(--muted); }
+.phase { background:#f4f3ef; font-weight:600; color:var(--ink2); font-size:12px; }
+</style></head><body>
+<div class="card">
+  <h1>Shipped 24 h deletion grace combined with the new 24 h protected recheck (real MySQL 8.4, both arms)</h1>
+  <p class="sub">The review deferred this combination (the PR's backlog test uses zero grace). 5 publications per protection + 5 healthy, retired through the production <code>retire()</code>; grace = <code>PT24H</code> (the shipped default).
+  Then retirement and every stored deadline are moved back 24 h + 1 min, i.e. the grace has elapsed. Values are <code>gc_next_at − DB now</code>.</p>
+  <table>
+    <tr><th>group (5 rows each)</th><th>stored <code>gc_blocker</code></th><th><span class="sw" style="background:var(--base)"></span>base: next recheck</th><th><span class="sw" style="background:var(--pr)"></span>PR: next recheck</th><th>bytes / quota / files</th></tr>
+    <tr><td class="phase" colspan="5">B1 — first pass right after retirement (grace running)</td></tr>
+    <tr><td>legacy / quarantined / not_accepted_complete</td><td><code>grace_period</code></td><td class="num">+24.00 h (retired_at + grace)</td><td class="num">+24.00 h (retired_at + grace)</td><td>15,000 held + 615 used, 5 files, each group</td></tr>
+    <tr><td>recovery_protected <span style="color:var(--ink2)">(checked before grace)</span></td><td><code>recovery_protected</code></td><td class="num">+60 s</td><td class="num chg">+24.00 h</td><td>intact</td></tr>
+    <tr><td>healthy</td><td><code>grace_period</code></td><td class="num">+24.00 h</td><td class="num">+24.00 h</td><td>intact</td></tr>
+    <tr><td class="phase" colspan="5">B2 — after grace elapsed, 8 <code>runOnce()</code> calls</td></tr>
+    <tr><td>legacy_write_evidence_missing</td><td><code>legacy_write_evidence_missing</code></td><td class="num">+60 s</td><td class="num chg">+24.00 h</td><td>intact</td></tr>
+    <tr><td>quarantined</td><td><code>quarantined</code></td><td class="num">+60 s</td><td class="num chg">+24.00 h</td><td>intact</td></tr>
+    <tr><td>not_accepted_complete</td><td><code>not_accepted_complete</code></td><td class="num">+60 s</td><td class="num chg">+24.00 h</td><td>intact</td></tr>
+    <tr><td>recovery_protected</td><td><code>recovery_protected</code></td><td class="num">+60 s</td><td class="num chg">+24.00 h</td><td>intact</td></tr>
+    <tr><td>healthy</td><td><code>NULL</code> (cleared on DELETING)</td><td class="num">COLLECTED</td><td class="num">COLLECTED</td><td>0 / 0 / 0 files — 5 exact keys deleted</td></tr>
+  </table>
+  <div class="foot">No row's deadline is earlier than retired_at + grace on the PR arm (0 rows; base: the 5 recovery-protected rows at +60 s). Protected keys deleted: 0 on both arms.
+  Under the shipped grace, a recovery-protected session was rechecked every minute for the whole grace day on main (≈1,440 rechecks per row); on the PR it is rechecked once per day.</div>
+</div>
+</body></html>
