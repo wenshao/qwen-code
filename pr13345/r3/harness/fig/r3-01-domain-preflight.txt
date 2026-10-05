@@ -1,0 +1,25 @@
+# PR #13345 round 3 - commitDomainRecord's hoisted checks (be2c87bb, /review R2-1)
+== prev = 4ae14d62, new = be2c87bb. Each arm's built dist; HTTP = HttpManagedSessionStore -> Spring -> MariaDB 10.11.18.
+
+## R10  stale expectedSequence, retried 10x                prev                       new
+  local store: orphan body files                          {r:10}                         {g:0}
+  HTTP store: rows in MariaDB / staged in memory          {d:0} / {r:10}                    {d:0} / {g:0}
+
+## R11  writeFailure latched by a real append failure, then 5 commits (the record sink's pattern)
+  local store: orphan body files                          {r:5}                          {g:0}
+
+## R12  idempotent retry of a committed command that carried expectedSequence
+  commitExtensionRecord retry                             {g:replayed}                   {g:replayed}
+  commitDomainRecord retry, local and HTTP                {g:replayed}                   {r:REFUSED: expectedSequence 1 does not}
+                                                                                     {r:match the committed sequence 2}
+  {d:commit() checks the replay before the sequence; the hoist now checks the sequence first.}
+  {d:No production caller sets expectedSequence today, so this is a contract regression, not a live bug.}
+
+## Merge with #13376 (adb2ed4f, replay check before publish): conflicts on exactly these lines
+  resolution A: replay check first, then the preflight     {g:161/161 (4 touched files), R12 replayed, 0 orphans}
+  resolution B: the preflight first, then replay check     {r:161/161 too, R12 still REFUSED}
+  {a:The two PRs' tests cannot tell A from B.}
+
+## Candidate for this PR: check the sequence only for a command that has not committed (9 lines)
+  core/src/managed-runtime (hook-scale excluded) / tsc     {g:1932/1932, tsc clean}
+  R10 / R11 / R12                                          {g:0 / 0 / replayed}

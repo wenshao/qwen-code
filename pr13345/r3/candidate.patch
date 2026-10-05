@@ -1,0 +1,20 @@
+diff --git a/packages/core/src/managed-runtime/managed-session-authority.ts b/packages/core/src/managed-runtime/managed-session-authority.ts
+index 463cf9141a..d85d0e9bba 100644
+--- a/packages/core/src/managed-runtime/managed-session-authority.ts
++++ b/packages/core/src/managed-runtime/managed-session-authority.ts
+@@ -1325,7 +1325,14 @@ export class LocalManagedSessionAuthority {
+       assertCommandIdentity(command);
+       // Refused before publishing, so a retry loop leaves no body behind.
+       this.assertCommandWritable(command);
+-      this.assertExpectedSequence(command);
++      // A retried command replays inside commit(); its sequence is spent.
++      if (
++        !this.transactions.has(
++          managedSessionCommandKey(command.operation, command.commandId),
++        )
++      ) {
++        this.assertExpectedSequence(command);
++      }
+       const previous = this.domainRecords.get(request.domain);
+       const revision = (previous?.revision ?? 0) + 1;
+       const recordRef = await store.publish(
