@@ -1,0 +1,373 @@
+# M3a-shared-predicate-by-name
+# cli/src/serve/hosted-monitor-wake-turn.ts: "  return (\n    cause instanceof HostedToolRecoveryRequiredError ||\n    cause instanceof HostedMcpRecoveryRequiredError ||\n    cause instanceof HostedHookRecoveryRequiredError\n  );" -> "  return (\n    cause instanceof Error &&\n    (cause.name === 'HostedToolRecoveryRequiredError' ||\n      cause.name === 'HostedMcpRecoveryRequiredError' ||\n      cause.name === 'HostedHookRecoveryRequiredError')\n  );"
+# tests: src/serve/hosted-monitor-wake.test.ts src/serve/hosted-harness-session.test.ts
+
+
+ RUN  v3.2.7 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr19/packages/cli
+      Coverage enabled with v8
+
+ ❯ src/serve/hosted-monitor-wake.test.ts (18 tests | 3 failed) 13165ms
+   ✓ HostedMonitorWakeScheduler > delivers pending turns oldest first until the Set drains 20ms
+   ✓ HostedMonitorWakeScheduler > queues on a busy Session and the retry delivers once idle 61ms
+   ✓ HostedMonitorWakeScheduler > treats a runTurn busy answer like a busy state and retries 59ms
+   ✓ HostedMonitorWakeScheduler > leaves a blocked Session’s remainder pending 54ms
+   ✓ HostedMonitorWakeScheduler > fails the owner when a turn did not consume its input 8ms
+   ✓ HostedMonitorWakeScheduler > stops retrying once closed 84ms
+   ✓ HostedMonitorWakeScheduler > retries a transiently blocked Session once it clears 63ms
+   ✓ HostedMonitorWakeScheduler > a kick that lands mid-pump runs the turn that arrived with it 7ms
+   ✓ wakeHasPriorAttempt > knows an attempt by its wake turn id 0ms
+   ✓ createMonitorWakeRunTurn > queues instead of clearing a prompt claim that lands mid-read 241ms
+   ✓ createMonitorWakeRunTurn > runs the turn and returns active to its idle claim after settle 204ms
+   × createMonitorWakeRunTurn > leaves a tool recovery-required input unsettled rather than consuming it 282ms
+     → Hosted tool turn requires recovery; its original work was not released.
+   × createMonitorWakeRunTurn > leaves a mcp recovery-required input unsettled rather than consuming it 343ms
+     → MCP requires reconciliation of its original operation.
+   × createMonitorWakeRunTurn > leaves a hook recovery-required input unsettled rather than consuming it 166ms
+     → Hosted Hook requires reconciliation of its original execution.
+   ✓ createMonitorWakeRunTurn > settles a generic wake failure as an error turn_result and rethrows 254ms
+   ✓ settlePendingMonitorInputs > settles pending monitor notifications cancelled and leaves other inputs pending  645ms
+   ✓ settlePendingMonitorInputs > settles a notification that landed beyond the default event page  9948ms
+   ✓ settlePendingMonitorInputs > leaves an already-attempted wake turn to its recovery owner  717ms
+ ✓ src/serve/hosted-harness-session.test.ts (198 tests) 177012ms
+   ✓ Hosted Harness no-tool session > refuses a new prompt while the journal close is still sealing  496ms
+   ✓ Hosted Harness no-tool session > runs and queries a Hook-only operation without opening a user turn  2280ms
+   ✓ Hosted Harness no-tool session > refuses a prompt while a Hook operation runs  1244ms
+   ✓ Hosted Harness no-tool session > refuses a prompt while Session deletion runs  2137ms
+   ✓ Hosted Harness no-tool session > recovers Hook activation after 1 failed installation(s) without accepting stranded prompts  787ms
+   ✓ Hosted Harness no-tool session > recovers Hook activation after 2 failed installation(s) without accepting stranded prompts  1203ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, UserPromptSubmit, reload=false, modelStarted=false)  1182ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_command_isolation_unavailable, UserPromptSubmit, reload=false, modelStarted=false)  1230ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, SessionStart, reload=false, modelStarted=false)  1411ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_command_isolation_unavailable, SessionStart, reload=false, modelStarted=false)  1520ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, SessionStart, reload=true, modelStarted=false)  1251ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_command_isolation_unavailable, SessionStart, reload=true, modelStarted=false)  1365ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, SessionStart, reload=false, modelStarted=true)  1176ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, PreToolUse, reload=false, modelStarted=false)  1161ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, UserPromptSubmit, reload=true, modelStarted=false)  1409ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, UserPromptSubmit, reload=false, modelStarted=true)  958ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, InstructionsLoaded, reload=false, modelStarted=false)  1638ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_command_isolation_unavailable, InstructionsLoaded, reload=false, modelStarted=false)  1482ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, InstructionsLoaded, reload=true, modelStarted=false)  1531ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (managed_hook_handler_unavailable, InstructionsLoaded, reload=false, modelStarted=true)  990ms
+   ✓ Hosted Harness no-tool session > settles only a cancelled pre-model Hook (unrecognized_runtime_error, InstructionsLoaded, reload=false, modelStarted=false)  1054ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (single)  1408ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (batch)  1692ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (result-write-failure)  1522ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (result-ack-failure)  1566ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (terminal-write-failure)  1322ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (reload)  1457ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (unknown)  1149ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (unfinished-model)  1000ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (wrong-prompt)  859ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (wrong-call)  966ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (large-batch)  1791ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (large-batch-partial)  1783ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (large-batch-reload)  1512ms
+   ✓ Hosted Harness no-tool session > recovers only proven-unstarted cancelled PreToolUse (large-batch-utf8)  1287ms
+   ✓ Hosted Harness no-tool session > does not settle a later turn from a previously cancelled SessionStart  918ms
+   ✓ Hosted Harness no-tool session > does not settle a later turn from a previously cancelled InstructionsLoaded  939ms
+   ✓ Hosted Harness no-tool session > restores the saved Hook pin and verifies its message closure (missing: undefined)  1479ms
+   ✓ Hosted Harness no-tool session > restores the saved Hook pin and verifies its message closure (missing: managed-hook-message-chunks)  1551ms
+   ✓ Hosted Harness no-tool session > restores the saved Hook pin and verifies its message closure (missing: managed-hook-message-part)  1658ms
+   ✓ Hosted Harness no-tool session > finishes a stopped Hook turn after its final settlement write is lost  1600ms
+   ✓ Hosted Harness no-tool session > reports and clears the unknown Hook fence (reload: false)  973ms
+   ✓ Hosted Harness no-tool session > reports and clears the unknown Hook fence (reload: true)  1066ms
+   ✓ Hosted Harness no-tool session > settles End and Delete before releasing the Hook Runtime  919ms
+   ✓ Hosted Harness no-tool session > logs a failed Session deletion and keeps the Session usable  1011ms
+   ✓ Hosted Harness no-tool session > unblocks MCP resource requests after the original unknown operation settles (Broker restarted: false)  663ms
+   ✓ Hosted Harness no-tool session > unblocks MCP resource requests after the original unknown operation settles (Broker restarted: true)  585ms
+   ✓ Hosted Harness no-tool session > stops first-prompt MCP initialization after cancel without admitting input or configuring another server  1043ms
+   ✓ Hosted Harness no-tool session > stops first-prompt MCP initialization after deadline without admitting input or configuring another server  1921ms
+   ✓ Hosted Harness no-tool session > does not admit input when cancellation arrives during publication after MCP initialization  399ms
+   ✓ Hosted Harness no-tool session > serves MCP status during dispatch and keeps admissions fenced until both finish  561ms
+   ✓ Hosted Harness no-tool session > serves MCP cancel during dispatch and keeps admissions fenced until both finish  539ms
+   ✓ Hosted Harness no-tool session > refuses every MCP operation and prompt admission while close is pending  550ms
+   ✓ Hosted Harness no-tool session > refuses a prompt while an MCP configuration runs  396ms
+   ✓ Hosted Harness no-tool session > refuses a prompt while Session deletion runs  423ms
+   ✓ Hosted Harness no-tool session > restores the owner before invoke after an idle Broker restart  511ms
+   ✓ Hosted Harness no-tool session > restores the owner before close after an idle Broker restart  633ms
+   ✓ Hosted Harness no-tool session > settles a turn after unknown discovery and can retry and reload  1166ms
+   ✓ Hosted Harness no-tool session > settles a turn after failed discovery and can retry and reload  854ms
+   ✓ Hosted Harness no-tool session > keeps MCP load explicit and outside Workspace-only cold validation  834ms
+   ✓ Hosted Harness no-tool session > keeps valid Unicode arguments intact through raw MCP admission  585ms
+   ✓ Hosted Harness no-tool session > settles a turn overlapping explicit configuration without latching recovery  1553ms
+   ✓ Hosted Harness no-tool session > loads and detaches an existing 17-pin MCP Session  377ms
+   ✓ Hosted Harness no-tool session > reports exhausted Runtime capacity from the MCP prompt entry point  869ms
+   ✓ Hosted Harness no-tool session > reports exhausted Runtime capacity from the MCP configuration entry point  682ms
+   ✓ Hosted Harness no-tool session > reports exhausted Runtime capacity from the MCP resource entry point  321ms
+   ✓ Hosted Harness no-tool session > reconciles an unknown initial MCP configuration before admitting a retried prompt  636ms
+   ✓ Hosted Harness no-tool session > requires the saved explicit Shell profile and advertises it only with a Broker  788ms
+   ✓ Hosted Harness no-tool session > closes the Shell publisher after a completed turn  678ms
+   ✓ Hosted Harness no-tool session > closes the Shell publisher after a model-error turn  612ms
+   ✓ Hosted Harness no-tool session > closes the Shell publisher after a execution-error turn  407ms
+   ✓ Hosted Harness no-tool session > clears the active prompt and the session when Shell publisher cleanup never settles  707ms
+   ✓ Hosted Harness no-tool session > refuses a workspace cold load before another input when a committed resource is missing  574ms
+   ✓ Hosted Harness no-tool session > refuses a cold load when a settled file tool outcome is missing from its checkpoint  1002ms
+   ✓ Hosted Harness no-tool session > refuses a cold load when a complete empty Shell stream loses its seal  374ms
+   ✓ Hosted Harness no-tool session > refuses a cold load with conflicting-ref in retained history  360ms
+   ✓ Hosted Harness no-tool session > refuses a cold load with extension-domain in retained history  358ms
+   ✓ Hosted Harness no-tool session > loads a renamed hosted-workspace-files/1 Session and verifies its retained title resources  524ms
+   ✓ Hosted Harness no-tool session > loads a renamed hosted-workspace-shell/1 Session and verifies its retained title resources  564ms
+   ✓ Hosted Harness no-tool session > refuses attachment if writer ownership is lost during restore validation  388ms
+   ✓ Hosted Harness no-tool session > marks the publication flag not-applicable on a profile-less cold refusal  415ms
+   ✓ Hosted Harness no-tool session > names the broker posture when a takeover load has no Runtime to take over  514ms
+   ✓ Hosted Harness no-tool session > names the blocked authorization reason a refused restore discarded  452ms
+   ✓ Hosted Harness no-tool session > keeps the caller session ID, commits a text turn, and refuses duplicate inference  408ms
+   ✓ Hosted Harness no-tool session > rejects an oversized complete assistant record before acquisition and permits retry and reload  686ms
+   ✓ Hosted Harness no-tool session > rejects an oversized complete cancellation record before acquisition and permits retry and reload  665ms
+   ✓ Hosted Harness no-tool session > omits settled output when only the complete tool result record exceeds the limit  676ms
+   ✓ Hosted Harness no-tool session > preserves the original Shell receipt and continuation across workspace_busy recovery (Hooks: false)  1982ms
+   ✓ Hosted Harness no-tool session > preserves the original Shell receipt and continuation across workspace_unavailable recovery (Hooks: false)  2397ms
+   ✓ Hosted Harness no-tool session > preserves the original Shell receipt and continuation across partial recovery (Hooks: false)  1510ms
+   ✓ Hosted Harness no-tool session > preserves the original Shell receipt and continuation across managed_runtime_provider_operation_failed recovery (Hooks: false)  2490ms
+   ✓ Hosted Harness no-tool session > preserves the original Shell receipt and continuation across runtime_control_operation_invalid recovery (Hooks: false)  3180ms
+   ✓ Hosted Harness no-tool session > preserves the original Shell receipt and continuation across workspace_busy recovery (Hooks: true)  3932ms
+   ✓ Hosted Harness no-tool session > recovers a proven unstarted Shell after its history reply is lost  754ms
+   ✓ Hosted Harness no-tool session > stops writing an event stream after backpressure ends it  882ms
+   ✓ Hosted Harness no-tool session > logs the failure cause while keeping the public turn error generic  380ms
+   ✓ Hosted Harness no-tool session > settles a turn after one managed-message failure  588ms
+   ✓ Hosted Harness no-tool session > settles a turn after one managed-turn-result failure  625ms
+   ✓ Hosted Harness no-tool session > settles a turn after one runnable-check failure  571ms
+   ✓ Hosted Harness no-tool session > refuses a bare load of a recovery-blocked Turn after detach  572ms
+   ✓ Hosted Harness no-tool session > settles a cancelled turn when writing its user record fails once  436ms
+   ✓ Hosted Harness no-tool session > reports an aborted turn as cancelled to the Java event projector  458ms
+   ✓ Hosted Harness no-tool session > reports a deadline-exceeded turn as a classified failure, not a cancellation  2774ms
+   ✓ Hosted Harness no-tool session > classifies a deadline expiry on the retried settlement path  3000ms
+   ✓ Hosted Harness tool approvals > pins a mode that can ask at creation and refuses other modes  311ms
+   ✓ Hosted Harness tool approvals > refuses to load a tool Session whose saved approval is { approvalMode: 'plan', approvalTimeoutMs: 60000 }  474ms
+   ✓ Hosted Harness tool approvals > refuses to load a tool Session whose saved approval is { approvalMode: 'default' }  509ms
+   ✓ Hosted Harness tool approvals > refuses to load a tool Session whose saved approval is { approvalTimeoutMs: 60000 }  366ms
+   ✓ Hosted Harness tool approvals > answers approvals through the resolve route across turns and a reload  3305ms
+   ✓ Hosted Harness tool approvals > streams a message_retracted envelope when a restarted attempt retracts its prefix  544ms
+   ✓ Hosted Harness tool approvals > blocks the Session at once when recording an answer stops its writes  440ms
+   ✓ Hosted Harness tool approvals > retains the turn recovery error on cold load of a pending file edit  997ms
+   ✓ Hosted Harness tool approvals > reloads settled file results after pending-snapshot without redispatch  1382ms
+   ✓ Hosted Harness tool approvals > reloads settled file results after history-settled without redispatch  1327ms
+   ✓ Hosted Harness tool approvals > cancels a waiting approval through the cancel route and releases the Workspace  511ms
+   ✓ Hosted Harness tool approvals > refuses answers once the Session is recovery-blocked  501ms
+   ✓ Hosted Harness tool approvals > asks again in the Turn after one whose calls were all refused  1473ms
+   ✓ Hosted Harness tool approvals > keeps a replay retryable when it fails before writing on a stopped Session  1053ms
+   ✓ Hosted Harness tool approvals > asks again in the next Turn after an approval expired unanswered  2144ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (success)  2079ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (conflict)  2229ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (closing)  1124ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (old-history-unavailable)  1884ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (corrupt-receipt)  1091ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (release)  1047ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (busy)  1073ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (warm)  905ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (bind)  1019ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (unsupported)  869ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (unknown-acquire)  823ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (unknown-released)  844ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (unknown-bind)  864ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (refusal-release)  852ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (capacity)  996ms
+   ✓ Hosted Harness tool approvals > settles undo or preserves its recovery boundary (partial)  797ms
+   ✓ Hosted Harness Runtime turn takeover > fences recovery 'continue' admission when 'closing'  739ms
+   ✓ Hosted Harness Runtime turn takeover > fences recovery 'continue' admission when 'authorizing'  767ms
+   ✓ Hosted Harness Runtime turn takeover > fences recovery 'continue' admission when 'detached'  780ms
+   ✓ Hosted Harness Runtime turn takeover > fences recovery 'cancel' admission when 'closing'  735ms
+   ✓ Hosted Harness Runtime turn takeover > fences recovery 'cancel' admission when 'authorizing'  715ms
+   ✓ Hosted Harness Runtime turn takeover > fences recovery 'cancel' admission when 'detached'  766ms
+   ✓ Hosted Harness Runtime turn takeover > keeps a bare cold load of a parked Turn inert  622ms
+   ✓ Hosted Harness Runtime turn takeover > settles the parked execution on load and continues the turn  886ms
+   ✓ Hosted Harness Runtime turn takeover > re-answers a redriven takeover load whose reply was lost  1198ms
+   ✓ Hosted Harness Runtime turn takeover > re-answers a redriven passive takeover load whose reply was lost  907ms
+   ✓ Hosted Harness Runtime turn takeover > keeps the held Runtime lease when a redriven load fails transiently  798ms
+   ✓ Hosted Harness Runtime turn takeover > reports a parked execution passively and cancels the turn  1243ms
+   ✓ Hosted Harness Runtime turn takeover > keeps the lease owed when the cancel route fails transiently and settles on retry  857ms
+   ✓ Hosted Harness Runtime turn takeover > keeps the adoption owed through a failed terminal write and settles on the redriven cancel  928ms
+   ✓ Hosted Harness Runtime turn takeover > keeps the lease owed when the takeover load cannot verify workspace writes  732ms
+   ✓ Hosted Harness Runtime turn takeover > records the owed adoption when every takeover load refuses the workspace writes  1034ms
+   ✓ Hosted Harness Runtime turn takeover > keeps the lease owed when the cancel meets a blocked session  798ms
+   ✓ Hosted Harness Runtime turn takeover > answers a settled cancellation even when the final handback fails  817ms
+   ✓ Hosted Harness Runtime turn takeover > refuses to settle a cancellation the Broker never confirmed  646ms
+   ✓ Hosted Harness Runtime turn takeover > refuses cancel with a mismatched recovery identity  601ms
+   ✓ Hosted Harness Runtime turn takeover > replays a lost cancel admission at its watermark while it runs  980ms
+   ✓ Hosted Harness Runtime turn takeover > continues a turn parked in a second tool round without corrupting history  1440ms
+   ✓ Hosted Harness Runtime turn takeover > refuses the load with a retryable refusal when the takeover drive fails  707ms
+   ✓ Hosted Harness Runtime turn takeover > refuses continue with a mismatched recovery identity  799ms
+   ✓ Hosted Harness Runtime turn takeover > replays a lost continue admission at its original watermark  882ms
+   ✓ Hosted Harness Runtime turn takeover > releases the recovered Runtime lease when the Session detaches  726ms
+   ✓ Hosted Harness Runtime turn takeover > clears the pending file history when a recovered Write continuation answers with text  985ms
+   ✓ Hosted Harness Runtime turn takeover > refuses the replay of a continuation that became recovery blocked  1157ms
+   ✓ Hosted Harness Runtime turn takeover > replays a lost continue admission while the turn still runs  1035ms
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  3 failed | 213 passed (216)
+   Start at  23:06:39
+   Duration  214.07s (transform 17.46s, setup 1.58s, collect 46.82s, tests 190.18s, environment 0ms, prepare 442ms)
+
+JUNIT report written to /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr19/packages/cli/junit.xml
+
+qwen serve: Hosted Hook operation 2ab0ddae-d698-4751-98ea-2579b14c0c1f failed: Error: activation unavailable
+qwen serve: Hosted Hook operation 03e43cb3-331e-4fbf-b90e-747bbdf4bdba failed: Error: activation unavailable
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: Hosted Hook requires reconciliation of its original execution.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 1c1ff36c-b838-4a2b-abed-df75e6601cfb is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn ba588926-41cc-42ed-91c2-66ee249cf848 is recovery blocked: undefined
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (workspace_verify): Error: missing Hook snapshot resource
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (workspace_verify): Error: missing Hook snapshot resource
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not finish after admission; retrying settlement: Error: lost final settlement
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not settle: Error: lost final settlement
+qwen serve: Hosted Harness turn 54eb85d6-6b11-4c4f-803d-23378d218c80 is recovery blocked: undefined
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 close failed: Error: MCP requires reconciliation of its original operation.
+qwen serve: Hosted Harness turn a1807510-fda4-4b17-9f4f-3eddf696cae1 is recovery blocked: undefined
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 close failed: Error: MCP requires reconciliation of its original operation.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 failed: Error: Runtime MCP discovery failed.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 failed: Error: Runtime MCP discovery failed.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 failed: Error: MCP configuration is in progress.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: undefined
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 failed: AssertionError: expected [ 'read_file', 'write_file', …(3) ] to deeply equal [ 'read_file', 'write_file', …(2) ]
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 failed: Error: model failed
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: lost execution reply
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (workspace_verify): Error: missing committed input
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (workspace_verify): ManagedSessionRecordError: resource a7a6c11a2d088ac2a8a31338636bc08ba333b1d2938d1dc5f3845ef549df13f4 is not present for session 22222222-2222-4222-8222-222222222222.
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (workspace_verify): Error: Hosted resource references conflict.
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (workspace_verify): Error: Hosted recovery domain is unsupported.
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (workspace_verify): Error: title resource missing
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (workspace_verify): Error: title resource missing
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 failed: Error: Hosted assistant record exceeds the inline Session Store limit.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 failed: Error: Hosted tool cancellation exceeds the inline Session Store limit.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: lost history reply
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not finish after admission; retrying settlement: Error: transient store failure
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not finish after admission; retrying settlement: Error: transient store failure
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not finish after admission; retrying settlement: Error: transient restore failure
+qwen serve: Hosted Shell publisher cleanup failed: Error: cleanup failed
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: original result unknown
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not finish after admission; retrying settlement: Error: store down
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not settle: Error: store down
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: broker gone
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (file_history_pending): {"pendingTurn":"33333333-3333-4333-8333-333333333333","pendingUndo":null,"unsettled":"33333333-3333-4333-8333-333333333333","takeover":false}
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not finish after admission; retrying settlement: Error: transient store failure
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (workspace_verify): Error: old history resource unavailable
+qwen serve: Hosted file undo requires recovery: Error: release response lost
+qwen serve: Hosted Session 22222222-2222-4222-8222-222222222222 load refused (file_history_pending): {"pendingTurn":null,"pendingUndo":{"requestId":"e6d99f79-8df5-4cf9-a753-fc9fe6149df2","promptId":"33333333-3333-4333-8333-333333333333"},"unsettled":null,"takeover":false}
+qwen serve: Hosted file undo requires recovery: Error: warm response lost
+qwen serve: Hosted file undo requires recovery: Error: Runtime Broker returned HTTP 503 (workspace_busy).
+qwen serve: Hosted file undo requires recovery: Error: Runtime Broker returned HTTP 503 (runtime_session_not_acquirable).
+qwen serve: Hosted file undo requires recovery: Error: Runtime Broker returned HTTP 503 (managed_runtime_provider_operation_failed).
+qwen serve: Hosted file undo requires recovery: Error: release response lost
+qwen serve: Hosted file undo requires recovery: Error: Hosted file undo only partially completed.
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness recovery re-answer of session 22222222-2222-4222-8222-222222222222 failed: Error: broker hiccup
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not settle the cancellation: Error: broker transport blip
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not settle the cancellation: Error: store hiccup
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: store gone
+qwen serve: Hosted Harness release of recovered Runtime 33333333-3333-4333-8333-333333333333 failed: Error: handback refused
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness could not hand back the recovered Runtime 33333333-3333-4333-8333-333333333333 for session 22222222-2222-4222-8222-222222222222: Error: broker unreachable
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 could not settle the cancellation: Error: broker gone
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness recovery of session 22222222-2222-4222-8222-222222222222 failed: Error: broker unreachable
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: store gone
+qwen serve: Hosted Harness turn 33333333-3333-4333-8333-333333333333 is recovery blocked: Error: aborted
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/serve/hosted-monitor-wake.test.ts > createMonitorWakeRunTurn > leaves a tool recovery-required input unsettled rather than consuming it
+Error: Hosted tool turn requires recovery; its original work was not released.
+ ❯ it.each.session.session src/serve/hosted-monitor-wake.test.ts:424:20
+    422| 
+    423|   it.each([
+    424|     ['tool', () => new HostedToolRecoveryRequiredError(new Error('park…
+       |                    ^
+    425|     ['mcp', () => new HostedMcpRecoveryRequiredError()],
+    426|     ['hook', () => new HostedHookRecoveryRequiredError()],
+ ❯ Object.executeHostedTurn src/serve/hosted-monitor-wake.test.ts:443:19
+ ❯ src/serve/hosted-monitor-wake-turn.ts:96:20
+ ❯ src/serve/hosted-monitor-wake.test.ts:449:16
+
+Caused by: Error: parked
+ ❯ it.each.session.session src/serve/hosted-monitor-wake.test.ts:424:56
+ ❯ Object.executeHostedTurn src/serve/hosted-monitor-wake.test.ts:443:19
+ ❯ src/serve/hosted-monitor-wake-turn.ts:96:20
+ ❯ src/serve/hosted-monitor-wake.test.ts:449:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/serve/hosted-monitor-wake.test.ts > createMonitorWakeRunTurn > leaves a mcp recovery-required input unsettled rather than consuming it
+Error: MCP requires reconciliation of its original operation.
+ ❯ it.each.session.session src/serve/hosted-monitor-wake.test.ts:425:19
+    423|   it.each([
+    424|     ['tool', () => new HostedToolRecoveryRequiredError(new Error('park…
+    425|     ['mcp', () => new HostedMcpRecoveryRequiredError()],
+       |                   ^
+    426|     ['hook', () => new HostedHookRecoveryRequiredError()],
+    427|   ])(
+ ❯ Object.executeHostedTurn src/serve/hosted-monitor-wake.test.ts:443:19
+ ❯ src/serve/hosted-monitor-wake-turn.ts:96:20
+ ❯ src/serve/hosted-monitor-wake.test.ts:449:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/serve/hosted-monitor-wake.test.ts > createMonitorWakeRunTurn > leaves a hook recovery-required input unsettled rather than consuming it
+Error: Hosted Hook requires reconciliation of its original execution.
+ ❯ src/serve/hosted-monitor-wake.test.ts:426:20
+    424|     ['tool', () => new HostedToolRecoveryRequiredError(new Error('park…
+    425|     ['mcp', () => new HostedMcpRecoveryRequiredError()],
+    426|     ['hook', () => new HostedHookRecoveryRequiredError()],
+       |                    ^
+    427|   ])(
+    428|     'leaves a %s recovery-required input unsettled rather than consumi…
+ ❯ Object.executeHostedTurn src/serve/hosted-monitor-wake.test.ts:443:19
+ ❯ src/serve/hosted-monitor-wake-turn.ts:96:20
+ ❯ src/serve/hosted-monitor-wake.test.ts:449:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+

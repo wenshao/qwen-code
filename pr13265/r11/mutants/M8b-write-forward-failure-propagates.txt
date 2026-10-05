@@ -1,0 +1,63 @@
+# M8b-write-forward-failure-propagates
+# cli/src/serve/hosted-shell-publisher.ts: "      await sink.write(stream, bytes);\n      try {\n        await this.advanceBackgroundManifest(entry, String(id));\n      } catch {" -> "      await sink.write(stream, bytes);\n      try {\n        await this.advanceBackgroundManifest(entry, String(id));\n      } catch (error) {\n        throw error;"
+# tests: src/serve/hosted-shell-publisher.background.test.ts src/serve/hosted-shell-publisher.test.ts src/serve/hosted-child-run-session.test.ts src/serve/hosted-monitor-session.test.ts
+
+
+ RUN  v3.2.7 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr19/packages/cli
+      Coverage enabled with v8
+
+ ✓ src/serve/hosted-child-run-session.test.ts (5 tests) 3954ms
+   ✓ HostedChildRunSession > commits the whole shell line through the authority funnel  1531ms
+   ✓ HostedChildRunSession > refuses output outside its capture lineage, higher numbers included  819ms
+   ✓ HostedChildRunSession > records a stop request exactly once and settles it as cancelled  624ms
+   ✓ HostedChildRunSession > settles a pre-start failure on not_started_proven and freezes it  325ms
+   ✓ HostedChildRunSession > serializes unawaited steps and skips deep-equal revisions  654ms
+ ✓ src/serve/hosted-monitor-session.test.ts (10 tests) 7024ms
+   ✓ HostedMonitorSession > commits the whole watch line through the authority funnel  1624ms
+   ✓ HostedMonitorSession > refuses output outside its capture lineage, higher numbers included  825ms
+   ✓ HostedMonitorSession > commits each settled, failed and cancelled terminal shape  1283ms
+   ✓ HostedMonitorSession > advances the watermark only when a notification rides the revision  633ms
+   ✓ HostedMonitorSession > commits a start failure on not_started_proven and a watch failure settled  753ms
+   ✓ HostedMonitorSession > commits a stop request as cancelled and refuses a second receipt  454ms
+   ✓ HostedMonitorSession > commits a recovery-blocked state and rebuilds with a new receipt  592ms
+   ✓ HostedMonitorSession > refuses a rebuild from a watch that never lost its Runtime  388ms
+   ✓ HostedMonitorSession > refuses a rebuild after the run ended  440ms
+ ✓ src/serve/hosted-shell-publisher.test.ts (23 tests) 11294ms
+   ✓ captures through HTTP and commits one receipt without advancing model history  1733ms
+   ✓ serializes overlapping writes and finish for each process pipe  1079ms
+   ✓ ignores a write delivered after its stream has finished  902ms
+   ✓ reports an unstarted process result as not_started  626ms
+   ✓ irreversibly blocks capture after a lost raw write acknowledgement  702ms
+   ✓ retains the accepted prefix when a producer holds a pipe past the drain boundary  699ms
+   ✓ refuses missing registration and immutable descriptor changes  664ms
+   ✓ refuses an original execution after its activation was replaced  679ms
+   ✓ refuses preparation when activation changes during argument read  531ms
+   ✓ refuses preparation when activation changes during writer guard  554ms
+   ✓ refuses a prepare replay after activation replacement  494ms
+   ✓ checks the durable Runtime binding rather than a caller supplied model ID  428ms
+   ✓ fences activation replacement during output verification before committing a receipt  666ms
+   ✓ fences activation replacement during receipt queue before committing a receipt  644ms
+   ✓ uses the joined UTF-8 preview to decide whether capture text was truncated  426ms
+   ✓ requires the publisher capability and stops listening once closed  463ms
+ ✓ src/serve/hosted-shell-publisher.background.test.ts (12 tests) 11410ms
+   ✓ admits the foreground of every turn of the Session beside a background watch  1531ms
+   ✓ runs the background exit leg: revise, seal, settle as one evidence  1236ms
+   ✓ melds a monitor watch through one terminal step only after its start receipt  1517ms
+   ✓ retries a finalize that failed once instead of caching the refusal forever  924ms
+   ✓ commits the tail an ownerless watch decoded before its record settles  1315ms
+   ✓ completes a refused exit settle on the record’s own attach, without a client retry  878ms
+   ✓ keeps an ownerless tail for the settle that its attach unblocks  920ms
+   ✓ retries the record forward a wedge threw once instead of latching its write  677ms
+   ✓ settles an unproven background end as a failure, never as an exit  569ms
+   ✓ settles an unproven monitor end as watch_failed, never as a clean exit  850ms
+   ✓ replays the lines a monitor wrote before its observer registered  532ms
+   ✓ force-emits a truncated observation at the partial-line ceiling instead of discarding it  461ms
+
+ Test Files  4 passed (4)
+      Tests  50 passed (50)
+   Start at  23:16:37
+   Duration  19.33s (transform 622ms, setup 1.77s, collect 2.16s, tests 33.68s, environment 0ms, prepare 266ms)
+
+JUNIT report written to /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr19/packages/cli/junit.xml
+ % Coverage report from v8
+
