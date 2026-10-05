@@ -1,0 +1,84 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.test.ts b/packages/cli/src/serve/hosted-harness-session.test.ts
+index 39b12b4640..8d15eda9bc 100644
+--- a/packages/cli/src/serve/hosted-harness-session.test.ts
++++ b/packages/cli/src/serve/hosted-harness-session.test.ts
+@@ -456,6 +456,48 @@ describe('Hosted Harness no-tool session', () => {
+     },
+   );
+ 
++  it.each(['close', 'delete'] as const)(
++    'lets a %s lifecycle load re-address an attachment the coordinator no longer caches',
++    async (kind) => {
++      const { server, definition, requests } = await hookApp();
++      const loadBody = {
++        managedSessionStore: definition.managedSessionStore,
++        toolProfile: definition.toolProfile,
++      };
++      const ordinary = await headers(
++        supertest(server).post(`/session/${SESSION_ID}/load`),
++      ).send(loadBody);
++      expect(ordinary.status).toBe(409);
++      expect(ordinary.body.code).toBe('hosted_session_already_attached');
++      const authority = { operationId: 'op-l3-cache', claimGeneration: 2 };
++      const loaded = await headers(
++        supertest(server).post(`/session/${SESSION_ID}/load`),
++      ).send({ ...loadBody, lifecycleAuthority: authority });
++      expect(loaded.status).toBe(200);
++      const settled = await headers(
++        supertest(server).post(`/session/${SESSION_ID}/lifecycle`),
++      )
++        .set('X-Qwen-Client-Id', loaded.body.clientId)
++        .send({
++          kind,
++          sessionKey: {
++            tenantId: 'tenant',
++            workspaceId: 'workspace',
++            sessionId: SESSION_ID,
++          },
++          authority,
++        });
++      expect(settled.status).toBe(200);
++      expect(
++        requests
++          .filter((request) => request.kind === 'hook-execute')
++          .map((request) => request.input.hook_event_name),
++      ).toEqual(
++        kind === 'close' ? ['SessionEnd'] : ['SessionEnd', 'SessionDelete'],
++      );
++    },
++  );
++
+   it.each([true, false])(
+     'authorizes detach after the coordinator recovers effects without a Harness lifecycle request (clientId=%s)',
+     async (withClientId) => {
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 6df81a0897..cd7e7a1396 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -1545,6 +1545,26 @@ export function registerHostedHarnessSessionRoutes(
+         return;
+       }
+     }
++    if (
++      attached !== undefined &&
++      !create &&
++      body?.['lifecycleAuthority'] !== undefined &&
++      attached.toolProfile === HOSTED_WORKSPACE_FILE_PROFILE
++    ) {
++      // A coordinator that lost its attachment cache (restart, failover)
++      // re-addresses the live attachment for lifecycle work instead of
++      // wedging on 409. The writer fence above proves this Harness
++      // generation; POST /session/:id/lifecycle still authorizes the claim
++      // against the Session Store before any Hook is dispatched.
++      try {
++        lifecycleAuthority(body['lifecycleAuthority']);
++      } catch {
++        error(res, 400, 'invalid_hosted_lifecycle_authority');
++        return;
++      }
++      res.status(200).json(attachmentReply(attached));
++      return;
++    }
+     if (attached !== undefined || opening.has(sessionId)) {
+       error(res, 409, 'hosted_session_already_attached');
+       return;

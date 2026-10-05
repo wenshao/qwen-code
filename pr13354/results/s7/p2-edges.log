@@ -1,0 +1,37 @@
+# p2-edges  db=s7 arm=merge2  2026-10-05T17:12:29.809Z
+PASS  [A public] readable non-creator bob -> 403  -> 403 session_operation_forbidden
+PASS  [A public] no-access mallory -> 404  -> 404 session_not_found
+PASS  [A public] running Turn -> 409 turn_active  -> 202 -> 409 turn_active
+PASS  [A public] refusals persisted no operation  -> []
+PASS  [A public] after the Turn settles, the same Session deletes  -> 202 completed 163 ms
+PASS  [A web] readable non-creator bob -> 403  -> 403 session_operation_forbidden
+PASS  [A web] no-access mallory -> 404  -> 404 session_not_found
+PASS  [A web] running Turn -> 409 turn_active  -> 202 -> 409 turn_active
+PASS  [A web] refusals persisted no operation  -> []
+PASS  [A web] after the Turn settles, the same Session deletes  -> 202 completed 161 ms
+PASS  [B public] ACTIVE close completes -> CLOSED, worker stopped  -> {"status":"completed","ms":160,"row":{"kind":"CLOSE","state":"COMPLETED","delivery":"CONFIRMED","before_":"ACTIVE","receipt":"rcpt_2e2be5c97bb9496c982e3026e26f5bda","gen":1,"attempts":0,"err":"","proto":1,"effects":1},"w1":{"binding":"d469fbc5-c60d-4597-ae9c-4d2207e0cda7","bstate":"RELEASED","rid":"0685f95b9938","pid":20367,"regState":"RETIRED","regFiles":"json,lock,ready","pidAlive":false}}
+NOTE  [B public] close wire (merge2)  -> ["POST /session/:id/detach -> 204 auth=op_591a3c93/g1"]
+PASS  [B public] close uses lifecycle protocol 1, detach with authority, no legacy DELETE /session  -> ["POST /session/:id/detach -> 204 auth=op_591a3c93/g1"]
+PASS  [B public] closed Session stays readable; capability delete=true (L2)  -> {"status":200,"caps":{"close":true,"archive":true,"unarchive":true,"delete":true,"lifecycle":false}}
+PASS  [B public] L2 delete of CLOSED Session completes with zero Harness calls  -> {"op":{"kind":"DELETE","state":"COMPLETED","delivery":"CONFIRMED","before_":"CLOSED","receipt":"rcpt_05f7ece8cbd9483f98ff4d2ab58e4a3e","gen":1,"attempts":0,"err":"","proto":0,"effects":0},"wire":[]}
+PASS  [B web] ACTIVE close completes -> CLOSED, worker stopped  -> {"status":"completed","ms":166,"row":{"kind":"CLOSE","state":"COMPLETED","delivery":"CONFIRMED","before_":"ACTIVE","receipt":"rcpt_ca57e712b37f45fe8f5391a3f3d4cacf","gen":1,"attempts":0,"err":"","proto":1,"effects":1},"w1":{"binding":"74c1dfe3-680b-4b80-91d8-10a7fb230a7f","bstate":"RELEASED","rid":"30b7f1014420","pid":20379,"regState":"RETIRED","regFiles":"json,lock,ready","pidAlive":false}}
+NOTE  [B web] close wire (merge2)  -> ["POST /session/:id/detach -> 204 auth=op_15c89668/g1"]
+PASS  [B web] close uses lifecycle protocol 1, detach with authority, no legacy DELETE /session  -> ["POST /session/:id/detach -> 204 auth=op_15c89668/g1"]
+PASS  [B web] closed Session stays readable; capability delete=true (L2)  -> {"status":200,"caps":{"close":true,"archive":true,"unarchive":true,"delete":true}}
+PASS  [B web] archive after close completes  -> completed
+PASS  [B web] L2 delete of ARCHIVED Session completes with zero Harness calls  -> {"op":{"kind":"DELETE","state":"COMPLETED","delivery":"CONFIRMED","before_":"ARCHIVED","receipt":"rcpt_53a9aac7a8ae4ff2bf3ec6a3f0b52184","gen":1,"attempts":0,"err":"","proto":0,"effects":0},"wire":[]}
+PASS  [C public] Session DELETING while detach is held  -> DELETING
+PASS  [C public] ordinary input refused during DELETING  -> 409 workspace_unavailable
+PASS  [C public] Broker warm refused during DELETING  -> 409 {"error":"Workspace execution authority is unavailable.","code":"workspace_unavailable","retryable":false}
+PASS  [C public] concurrent close / new-key delete refused 409, same-key replay returns the same operation  -> close=409 session_operation_active del=409 session_state_conflict replay=202 true
+NOTE  [C public] read while DELETING  -> 200 deleting caps={"close":true,"archive":false,"unarchive":false,"delete":true,"lifecycle":false}
+PASS  [C public] operation completes after the held detach is released  -> completed after 6886 ms
+PASS  [C web] Session DELETING while detach is held  -> DELETING
+PASS  [C web] ordinary input refused during DELETING  -> 409 workspace_unavailable
+PASS  [C web] Broker warm refused during DELETING  -> 409 {"error":"Workspace execution authority is unavailable.","code":"workspace_unavailable","retryable":false}
+PASS  [C web] concurrent close / new-key delete refused 409, same-key replay returns the same operation  -> close=409 session_operation_active del=409 session_state_conflict replay=202 true
+NOTE  [C web] read while DELETING  -> 200 deleting caps={"close":true,"archive":false,"unarchive":false,"delete":true}
+PASS  [C web] operation completes after the held detach is released  -> completed after 6983 ms
+NOTE  [D] create without input  -> 202  session=5e50fd2c-76ca-497c-a92a-51d99b494495 status=ACTIVE
+PASS  [D] empty ACTIVE Session deletes (never-initialized evidence)  -> {"caps":{"close":true,"archive":false,"unarchive":false,"delete":true,"lifecycle":false},"del":202,"op":"completed","row":{"kind":"DELETE","state":"COMPLETED","delivery":"CONFIRMED","before_":"ACTIVE","receipt":"rcpt_4dccd9cd25ec42abb9bb26a18d0fb37c","gen":1,"attempts":0,"err":"","proto":1,"effects":1},"wire":["POST /session/:id/detach -> 404 auth=op_b2ac6d91/g1"],"bindings":0}
+== p2-edges: 30 passed, 0 failed
