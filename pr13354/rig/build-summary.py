@@ -24,7 +24,7 @@ def row(r, label):
     return next((x for x in r['rows'] if x['label'].startswith(label)), None)
 
 arms = ['base', 'facc', 'faccm', 'c65', 'c65m']
-labels = ['base<br><code>69d060e24c</code>', 'PR head<br><code>facc4ab1f</code>', '<code>facc4ab1f</code><br>+ main <code>85ea2358dc</code>', 'PR head<br><code>c65e46d04e</code>', '<code>c65e46d04e</code><br>+ main <code>91cf9ed6c0</code>']
+labels = ['base<br><code>69d060e24c</code>', 'PR head<br><code>facc4ab1f</code>', '<code>facc4ab1f</code><br>+ main <code>85ea2358dc</code>', 'PR head<br><code>c65e46d04e</code>', '<code>c65e46d04e</code> + main <code>91cf9ed6c0</code><br>= current head <code>de70a07332</code> (same tree)']
 dbs = {'base': 'b1', 'facc': 'h1', 'faccm': 'm1', 'c65': 's6', 'c65m': 's7'}
 M = {a: {} for a in arms}
 # delete flow
@@ -93,7 +93,7 @@ panel2 = [
     'hook record: SessionEnd  run.state=recovery_blocked  reason=outcome_unknown  executionCallId=null',
     'operation  : RECOVERY_BLOCKED / workspace_lifecycle_hooks_unsettled / gen7 / att7;  Hook endpoint: 0 requests',
 ]
-if r5: panel2.append(f"c65e46d04e + main 91cf9ed6c0: {'same' if r5['fail'] else 'completes'} ({cnt(r5)} checks)")
+if r5: panel2.append(f"c65e46d04e + main 91cf9ed6c0 (= current head de70a07332, same tree): {'same, delete and close' if r5['fail'] else 'completes'}")
 summary['r31html'] = (
     '<h2>Control (no restart): the hooked path works</h2>' +
     '<table><tr><th>arm</th><th>close</th><th>delete</th></tr>'
@@ -125,7 +125,7 @@ for label, items in [
   ('PR head <code>c65e46d04e</code> (as pushed)', [('pr4a','p8-contention-8x2')]),
   ('main <code>85ea2358dc</code>', [('pc8','p8-contention-8x3'),('pc16','p8-contention-16x2')]),
   ('<code>facc4ab1f</code> + main', [('pm3','p8-contention-8x3'),('pm4','p8-contention-8x3'),('pm8','p8-contention-8x3'),('pm5','p8-contention-16x2'),('pm16','p8-contention-16x2')]),
-  ('<code>c65e46d04e</code> + main <code>91cf9ed6c0</code>', [('pm2a','p8-contention-8x3'),('pm2b','p8-contention-16x2')]),
+  ('<code>c65e46d04e</code> + main = head <code>de70a07332</code>', [('pm2a','p8-contention-8x3'),('pm2b','p8-contention-16x2')]),
 ]:
     for db, name in items:
         x = p8(db, name)
