@@ -1,0 +1,101 @@
+diff --git a/packages/cli/src/serve/managed-context-worker.test.ts b/packages/cli/src/serve/managed-context-worker.test.ts
+index 135da9d8d9..158fe990e0 100644
+--- a/packages/cli/src/serve/managed-context-worker.test.ts
++++ b/packages/cli/src/serve/managed-context-worker.test.ts
+@@ -10,6 +10,7 @@ import os from 'node:os';
+ import path from 'node:path';
+ import { Readable } from 'node:stream';
+ import { fileURLToPath } from 'node:url';
++import { Worker } from 'node:worker_threads';
+ import {
+   afterAll,
+   afterEach,
+@@ -1151,6 +1152,31 @@ describe('Managed context tool gate', () => {
+     expect(allowed.result.executionStatus).not.toBe('error');
+   });
+ 
++  it('runs Hosted glob on a terminable worker thread', async () => {
++    // An in-thread search cannot be interrupted, so a Hosted glob that lost
++    // its deadline would wedge the Runtime on an expensive pattern again.
++    const root = workspace(['services/api/src']);
++    fs.writeFileSync(path.join(root, 'services/api/src/index.ts'), '');
++    const origin = await startWorker({ ...BOOT, mountRoot: root });
++    await post(origin, CONTEXT, installation('session-1', 'services/api'));
++    const terminate = vi.spyOn(Worker.prototype, 'terminate');
++    try {
++      const searched = await (
++        await post(origin, EXECUTE, {
++          ...shell('session-1', 'call-bounded', ''),
++          toolName: 'glob',
++          input: { pattern: '**/*.ts' },
++        })
++      ).json();
++
++      expect(searched.result.executionStatus).toBe('success');
++      expect(JSON.stringify(searched)).toContain('index.ts');
++      expect(terminate).toHaveBeenCalledTimes(1);
++    } finally {
++      terminate.mockRestore();
++    }
++  });
++
+   it('refuses a glob that would search or report outside the Session directory', async () => {
+     const root = workspace(['services/api/src', 'services/web']);
+     fs.writeFileSync(path.join(root, 'services/api/src/index.ts'), '');
+diff --git a/packages/core/src/tools/glob-search-worker.test.ts b/packages/core/src/tools/glob-search-worker.test.ts
+index fbfaaf87a5..67c21aea58 100644
+--- a/packages/core/src/tools/glob-search-worker.test.ts
++++ b/packages/core/src/tools/glob-search-worker.test.ts
+@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
+ import { promisify } from 'node:util';
+ import os from 'node:os';
+ import path from 'node:path';
++import { Worker } from 'node:worker_threads';
+ import {
+   afterAll,
+   afterEach,
+@@ -210,6 +211,44 @@ describe('bounded Glob search (real worker)', () => {
+     }
+   }, 15_000);
+ 
++  it.each(['timeout', 'cancel'] as const)(
++    'stops the matching thread before a %s settles',
++    async (ending) => {
++      // A thread that is never terminated keeps backtracking after the
++      // search has answered; nothing else in the result reveals it.
++      const events: string[] = [];
++      const terminate = Worker.prototype.terminate;
++      const spy = vi
++        .spyOn(Worker.prototype, 'terminate')
++        .mockImplementation(function (this: Worker) {
++          return terminate.call(this).then((code) => {
++            events.push('terminated');
++            return code;
++          });
++        });
++      const controller = new AbortController();
++      const cancel =
++        ending === 'cancel'
++          ? setTimeout(
++              () => controller.abort(new Error('test cancellation')),
++              300,
++            )
++          : undefined;
++      try {
++        const result = await tool(ending === 'timeout' ? 500 : 10_000)
++          .build({ pattern: '+(?|?|?)Z' })
++          .execute(controller.signal);
++        events.push('settled');
++        expect(result.error?.type).toBe(ToolErrorType.GLOB_EXECUTION_ERROR);
++        expect(events).toEqual(['terminated', 'settled']);
++      } finally {
++        clearTimeout(cancel);
++        spy.mockRestore();
++      }
++    },
++    15_000,
++  );
++
+   it('retains ignore filtering and prunes outward traversal in the worker', async () => {
+     await fs.mkdir(path.join(root, '.git'));
+     await fs.writeFile(path.join(root, '.gitignore'), 'git-hidden.ts\n');
