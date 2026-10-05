@@ -1,0 +1,243 @@
+diff --git a/packages/cli/src/serve/managed-context-worker.ts b/packages/cli/src/serve/managed-context-worker.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/managed-context-worker.ts
+index d520aabd7f..c2a87e08bd 100644
+--- a/packages/cli/src/serve/managed-context-worker.ts
++++ b/packages/cli/src/serve/managed-context-worker.ts
+@@ -235,33 +235,7 @@ export function registerManagedContextRoutes(
+   const publisher: ManagedShellCapturePublisher | undefined =
+     capturePublisher ??
+     (remotePublishers && remotePublisher
+-<<<<<<< bd350491fb (fix(managed-agent): redrive a refused final forward on an attached record)
+       ? selectShellCapturePublisher(remotePublishers, remotePublisher)
+-=======
+-      ? {
+-          get hasInstalledPublication() {
+-            return (
+-              remotePublishers.hasInstalledPublication ||
+-              remotePublisher.hasInstalledPublication
+-            );
+-          },
+-          async prepare(request) {
+-            const local = remotePublishers.hasSession(
+-              request.reference.sessionId,
+-            );
+-            const remote = remotePublisher.hasExecution(
+-              request.capture.executionCallId,
+-            );
+-            if (local && remote)
+-              throw new Error('Shell publication modes conflict.');
+-            const selected = local ? remotePublishers : remotePublisher;
+-            return {
+-              ...(await selected.prepare(request)),
+-              publisher: selected,
+-            };
+-          },
+-        }
+->>>>>>> 69d5db2ff2 (feat(runtime): add experimental Kubernetes CSI runtime and durable worker ACK (#13289))
+       : (remotePublishers ?? remotePublisher));
+   remotePublisher?.registerInstallRoute(app, boot, admissionOpen);
+   const [attestRoute, contextRoute] = MANAGED_CONTEXT_ROUTES;
+@@ -337,7 +311,6 @@ export function registerManagedContextRoutes(
+     loadManagedHookManifest(process.env['QWEN_MANAGED_HOOK_CONFIG']),
+   );
+   registerManagedHookRoutes(app, boot, hooks);
+-<<<<<<< bd350491fb (fix(managed-agent): redrive a refused final forward on an attached record)
+   // H3 background Shells share the delegation the Hook commands already use;
+   // unset or empty both mean no delegation, and the executor keeps its
+   // committed refusal then.
+@@ -349,10 +322,7 @@ export function registerManagedContextRoutes(
+   // One monitor registry shared by executor and maintenance routes: a
+   // private second instance could only ever answer unknown.
+   const monitorRegistry = new ManagedMonitorRegistry();
+-  const executor = new ManagedToolExecutor(
+-=======
+   const executor: ManagedToolExecutor = new ManagedToolExecutor(
+->>>>>>> 69d5db2ff2 (feat(runtime): add experimental Kubernetes CSI runtime and durable worker ACK (#13289))
+     async (reference) => {
+       const isActive = () =>
+         admissionOpen() &&
+diff --git a/packages/cli/src/serve/managed-runtime-tool-executor.ts b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/managed-runtime-tool-executor.ts
+index abfac9f260..a932be6401 100644
+--- a/packages/cli/src/serve/managed-runtime-tool-executor.ts
++++ b/packages/cli/src/serve/managed-runtime-tool-executor.ts
+@@ -45,16 +45,6 @@ import {
+   parseManagedMcpControl,
+ } from './managed-mcp-runtime.js';
+ import {
+-<<<<<<< bd350491fb (fix(managed-agent): redrive a refused final forward on an attached record)
+-  HookCommandIsolationUnavailableError,
+-  type HookCommandIsolationUnavailableReason,
+-  type ManagedChildRunProcess,
+-  type ManagedChildRunSupervisor,
+-} from '@qwen-code/qwen-code-core/managed-runtime/managed-child-run-supervisor.js';
+-import { ManagedBackgroundShellRegistry } from './managed-background-shell-registry.js';
+-import { ManagedMonitorRegistry } from './managed-monitor-registry.js';
+-import { ManagedMonitorWatcher } from './managed-monitor-watcher.js';
+-=======
+   MANAGED_CSI_ACK_LIMIT_BYTES,
+   ManagedCsiAckRequestError,
+   parseManagedCsiAcknowledgement,
+@@ -66,7 +56,15 @@ import { ManagedMonitorWatcher } from './managed-monitor-watcher.js';
+   type ManagedCsiBoot,
+   type ManagedCsiPodIdentity,
+ } from './managed-csi-envelope.js';
+->>>>>>> 69d5db2ff2 (feat(runtime): add experimental Kubernetes CSI runtime and durable worker ACK (#13289))
++import {
++  HookCommandIsolationUnavailableError,
++  type HookCommandIsolationUnavailableReason,
++  type ManagedChildRunProcess,
++  type ManagedChildRunSupervisor,
++} from '@qwen-code/qwen-code-core/managed-runtime/managed-child-run-supervisor.js';
++import { ManagedBackgroundShellRegistry } from './managed-background-shell-registry.js';
++import { ManagedMonitorRegistry } from './managed-monitor-registry.js';
++import { ManagedMonitorWatcher } from './managed-monitor-watcher.js';
+ 
+ export class ManagedMcpToolUnknownError extends Error {}
+ 
+@@ -787,15 +785,11 @@ export class ManagedToolExecutor {
+       if (!existing.capturePublisher?.finish) await existing.promise;
+       return v3View(existing);
+     }
+-<<<<<<< bd350491fb (fix(managed-agent): redrive a refused final forward on an attached record)
++    this.assertAdmissionOpen();
+     if (
+       !this.capturePublisher ||
+       (toolName !== ShellTool.Name && toolName !== 'monitor')
+     ) {
+-=======
+-    this.assertAdmissionOpen();
+-    if (!this.capturePublisher || toolName !== ShellTool.Name) {
+->>>>>>> 69d5db2ff2 (feat(runtime): add experimental Kubernetes CSI runtime and durable worker ACK (#13289))
+       throw new ManagedToolUnavailableError(
+         'Tool v3 capture is not available.',
+       );
+diff --git a/packages/cli/src/serve/managed-workspace-activation.ts b/packages/cli/src/serve/managed-workspace-activation.ts
+remerge CONFLICT (content): Merge conflict in packages/cli/src/serve/managed-workspace-activation.ts
+index 28e709a8a1..34121232de 100644
+--- a/packages/cli/src/serve/managed-workspace-activation.ts
++++ b/packages/cli/src/serve/managed-workspace-activation.ts
+@@ -92,16 +92,12 @@ export class WorkspaceActivations {
+         }
+         const sessionId = request['sessionId'] as string;
+         const active = request['operation'] === 'activate';
+-<<<<<<< bd350491fb (fix(managed-agent): redrive a refused final forward on an attached record)
+-        if (active && this.sessions.get(sessionId) === false) {
+-=======
++        // Admission stays open for a deactivation bearing background work:
++        // its ordered drain below runs first and rechecks before refusing.
+         if (
+-          (active &&
+-            (!executor.isAdmissionOpen ||
+-              this.sessions.get(sessionId) === false)) ||
+-          (!active && executor.hasActiveSession(sessionId))
++          active &&
++          (!executor.isAdmissionOpen || this.sessions.get(sessionId) === false)
+         ) {
+->>>>>>> 69d5db2ff2 (feat(runtime): add experimental Kubernetes CSI runtime and durable worker ACK (#13289))
+           res.status(409).json({ code: 'managed_activation_conflict' });
+           return;
+         }
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
+index cf15858c61..9757760ee4 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/InMemoryToolExecutionRepository.java
+@@ -307,7 +307,6 @@ public final class InMemoryToolExecutionRepository
+     }
+ 
+     @Override
+-<<<<<<< bd350491fb (fix(managed-agent): redrive a refused final forward on an attached record)
+     public synchronized List<ToolExecutionRecord> findBackgroundProcesses(
+             RuntimeSessionRecord session, String afterExecutionCallId, int limit) {
+         if (session == null || limit < 1 || limit > 100) {
+@@ -323,7 +322,16 @@ public final class InMemoryToolExecutionRepository
+                 String key = JdbcRepositorySupport.valueKey(record.getExecutionCallId());
+                 if (key.compareTo(after) > 0) {
+                     batch.put(key, record);
+-=======
++                    if (batch.size() > limit) {
++                        batch.pollLastEntry();
++                    }
++                }
++            }
++        }
++        return List.copyOf(batch.values());
++    }
++
++    @Override
+     public synchronized List<ToolExecutionRecord> findByBinding(
+             String bindingId, long runtimeGeneration,
+             String afterExecutionCallId, int limit) {
+@@ -347,7 +355,6 @@ public final class InMemoryToolExecutionRepository
+                             && !previous.getExecutionCallId().equals(record.getExecutionCallId())) {
+                         throw new IllegalStateException("Tool execution-call hash collision");
+                     }
+->>>>>>> 69d5db2ff2 (feat(runtime): add experimental Kubernetes CSI runtime and durable worker ACK (#13289))
+                     if (batch.size() > limit) {
+                         batch.pollLastEntry();
+                     }
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
+index 456d8734c6..e8bb48c000 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcToolExecutionRepository.java
+@@ -435,7 +435,6 @@ public final class JdbcToolExecutionRepository
+     }
+ 
+     @Override
+-<<<<<<< bd350491fb (fix(managed-agent): redrive a refused final forward on an attached record)
+     public List<ToolExecutionRecord> findBackgroundProcesses(
+             RuntimeSessionRecord session, String afterExecutionCallId, int limit) {
+         if (session == null || limit < 1 || limit > 100) {
+@@ -491,7 +490,11 @@ public final class JdbcToolExecutionRepository
+                 }
+                 cursor = JdbcRepositorySupport.valueKey(
+                         batch.get(batch.size() - 1).getExecutionCallId());
+-=======
++            }
++        });
++    }
++
++    @Override
+     public List<ToolExecutionRecord> findByBinding(String bindingId,
+             long runtimeGeneration, String afterExecutionCallId, int limit) {
+         String id = BrokerValues.requireId(bindingId, "bindingId");
+@@ -525,7 +528,6 @@ public final class JdbcToolExecutionRepository
+                     }
+                 }
+                 return List.copyOf(records);
+->>>>>>> 69d5db2ff2 (feat(runtime): add experimental Kubernetes CSI runtime and durable worker ACK (#13289))
+             }
+         });
+     }
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRepository.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRepository.java
+remerge CONFLICT (content): Merge conflict in packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRepository.java
+index 8b346e1d4e..f612604aa1 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRepository.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/ToolExecutionRepository.java
+@@ -68,7 +68,6 @@ public interface ToolExecutionRepository {
+     List<ToolExecutionRecord> findUnsettled(RuntimeSessionRecord session,
+             String afterExecutionCallId, int limit);
+ 
+-<<<<<<< bd350491fb (fix(managed-agent): redrive a refused final forward on an attached record)
+     /** Non-terminal background-process ledger rows belonging to this exact
+      * Session and binding generation, ordered by execution ID hash — the
+      * same ownership fence as {@link #findUnsettled}, but found by dispatch
+@@ -79,7 +78,7 @@ public interface ToolExecutionRepository {
+      * execution ID, including one already settled. */
+     List<ToolExecutionRecord> findBackgroundProcesses(RuntimeSessionRecord session,
+             String afterExecutionCallId, int limit);
+-=======
++
+     /**
+      * At most 100 executions in any state for this exact binding generation,
+      * across all Sessions, ordered by execution ID hash. The exclusive cursor
+@@ -94,7 +93,6 @@ public interface ToolExecutionRepository {
+         throw new UnsupportedOperationException(
+                 "Binding execution inventory is unavailable");
+     }
+->>>>>>> 69d5db2ff2 (feat(runtime): add experimental Kubernetes CSI runtime and durable worker ACK (#13289))
+ 
+     boolean hasActiveByRuntimeSession(String runtimeSessionId);
+ 
