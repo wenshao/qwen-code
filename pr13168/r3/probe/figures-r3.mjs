@@ -173,6 +173,47 @@ const RES4 = (f) => resTxt(`r4/${f}`);
   );
 }
 
+const R5B = (f) => J(`r5b/${f}`);
+const RES5 = (f) => resTxt(`r5b/${f}`);
+
+// ---------------------------------------------------------------- 08 round 4: R5-3/R6-2 fixed
+{
+  const p5 = R5B('p5-boundary-r5head-d.json');
+  const p12 = R5B('p12-ancestor-r5head-g.json');
+  const p8 = R5B('p8-continue-r5head-j.json');
+  const p3 = R5B('p3-cancel-r5head-e.json');
+  const p7 = R5B('p7-real-r5head-i.json');
+  const r4p5 = J('r4/p5-boundary-r4head-d.json');
+  const cnt = (p2, k) => `${p2.reps.filter((r) => r[k].token).length}/${p2.reps.length}`;
+  figs['08-round4'] = page(
+    'Round 4, head <code>d2b1845</code> — the R5-3 boundary gap (my R3b finding) is fixed',
+    `${STACK} Rebuilt: new bundle + new server jar (head's full stack, V35 migration, #13183 from main). <code>9d53f984d6</code> confines read_file/write_file/edit to the caller's own Session directory by realpath and removes the sibling-install exemption (<code>ownsAnotherSessionDir</code>, <code>bindings</code> deleted). Durable local-process opted out on macOS.`,
+    table(
+      ['File-tool boundary (bot R5-3 = my R3b finding, and R6-2)', '0922621', 'd2b1845'],
+      [
+        ['read_file through an in-Session link to a sibling (p5)', F(`${r4p5['services/api rq'].status} — read the sibling`), P(`${p5['services/api rq'].status} — refused`)],
+        ['read_file to an ANCESTOR Session via a link (R6-2, p12)', D('n/a'), P(`${p12.throughLink.status} — refused, no leak`)],
+        ['workspace-context never injects a sibling file', P('not injected'), P('not injected')],
+        ['Mutation: delete the Session-dir boundary check', D('—'), P('14 tests red, incl. the 4 new "confines file tools…" (no-sibling / sibling-installed / ancestor / Workspace-root) + symlink-escape')],
+      ],
+    ) +
+      table(
+        ['Regression + the bot\'s round-4/6/7 fixes', 'Result on d2b1845'],
+        [
+          ['Central A/B: files/1 · files/2 · shell/1', P(`${RES5('p1-central-r5head-v1-a.log')} · ${RES5('p1-central-r5head-v2-b.log')} · ${RES5('p1-central-r5head-v1-c.log')}`)],
+          ['Cancel during a stalled read', P(`${RES5('p3-cancel-r5head-e.log')}, ${p3.settleMs} ms`)],
+          ['Takeover continuation carries the context', P(`${JSON.stringify(p8.cont.requests.map((q) => q.markers.length))}, ${p8.cont.ctxOps} read`)],
+          ['Real model follows QWEN.md', P(`${cnt(p7, 't1')} / ${cnt(p7, 't2')}`)],
+          ['CLI vitest, 9 changed test files (macOS)', P('1363 / 1363')],
+          ['CI Test (ubuntu): glob fixture (my R3b) fixed', P('0 failing — fixed by checking collectedFilePaths, not the echoed header')],
+          ['glob range overflow / inject-once / code-point cut', P('pinned by unit tests (bot R4-3 / H2 / R3-8)')],
+        ],
+      ) +
+      '<div class="note ok">The file-tool boundary now matches the workspace-context boundary: both confine to the Session directory by realpath. My R3b finding (bot R5-3) and R6-2 are closed end to end, and the new unit tests pin all four sibling topologies — including the sibling-installed branch my R3b probe could not reach. Every round-2 fix still holds and the bot\'s glob/injection round-4/6/7 items are pinned.</div>' +
+      '<div class="note">Side note (not #13168): on macOS, #13166\'s core test <code>glob.test.ts > containmentRoot > searches when the containment root is a symlink to the search dir</code> fails (collectedFilePaths undefined). It uses a symlink as the containment root on top of macOS\'s symlinked <code>/var</code> tmpdir; the Hosted flow never hits it because <code>mount.resolve</code> hands glob a canonical directory (p1 files/2 glob is 12/12). CI\'s macOS lane is skipped, so it is green there; Linux passes.</div>',
+  );
+}
+
 const ids = process.argv.slice(2);
 const want = ids.length ? ids : Object.keys(figs);
 const browser = await chromium.launch();

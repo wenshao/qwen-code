@@ -1,0 +1,24 @@
+# p5-boundary-r5head-d db=r5b arm=r5head 2026-10-05T09:37:40.520Z
+[create web (sibling) Session] 200
+[create services/api] 200
+[services/api turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1650ms
+[services/api workspace-context result] []
+[services/api system instruction of request #2] {"sibling":false,"host":false,"root":false,"bigHead":false,"bigTail":false,"truncNote":false,"hostPath":false}
+[services/api read_file QWEN.md (same link)] {"status":"error","raw":"{\"error\":\"Path 'QWEN.md' is not within the Session working directory.\",\"executionStatus\":\"error\",\"runtimeError\":{\"message\":\"Path 'QWEN.md' is not within the Session working directory.\"}}","trace":["call read_file({\"file_path\":\"QWEN.md\"})","result read_file status=error \"Path 'QWEN.md' is not within the Session working directory.\""],"leaked":false}
+[services/api read_file AGENTS.md (outside link)] {"status":"error","raw":"{\"error\":\"Path 'AGENTS.md' is not within the Session working directory.\",\"executionStatus\":\"error\",\"runtimeError\":{\"message\":\"Path 'AGENTS.md' is not within the Session working directory.\"}}","trace":["call read_file({\"file_path\":\"AGENTS.md\"})","result read_file status=error \"Path 'AGENTS.md' is not within the Session working directory.\""],"leaked":false}
+[create services/mono] 200
+[services/mono turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1701ms
+[services/mono workspace-context result] []
+[services/mono system instruction of request #2] {"sibling":false,"host":false,"root":false,"bigHead":false,"bigTail":false,"truncNote":false,"hostPath":false}
+[create services/big] 200
+[services/big turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1432ms
+[services/big workspace-context result] [{"name":"QWEN.md","chars":65536,"head":"BIG_HEAD_MARKER\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","tail":"xxxxxxxxxxxxxx\n[Truncated: the file exceeds the Hosted context limit.]"}]
+[services/big system instruction of request #2] {"sibling":false,"host":false,"root":false,"bigHead":true,"bigTail":false,"truncNote":true,"hostPath":false}
+[PASS] outside-Workspace AGENTS.md link is skipped
+[PASS] read_file refuses the sibling link (Session-directory containment, #13166)  -> {"status":"error","raw":"{\"error\":\"Path 'QWEN.md' is not within the Session working directory.\",\"executionStatus\":\"error\",\"runtimeError\":{\"message\":\"Path 'QWEN.md' is not within the Session working directory.\"}}","trace":["call read_file({\"file_path\":\"QWEN.md\"})","result read_file status=error \"Path 'QWEN.md' is not within the Session working directory.\""],"leaked":false}
+[OBSERVE] sibling Session file injected into api Session system instruction: false
+[PASS] [expected-by-design?] context read stays inside the Session directory (sibling secret NOT injected)  -> sibling injected=false
+[OBSERVE] Workspace-root QWEN.md reached through services/mono/QWEN.md link: false
+[PASS] oversized QWEN.md truncated to 65,536 chars with explicit note  -> {"name":"QWEN.md","chars":65536,"head":"BIG_HEAD_MARKER\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","tail":"xxxxxxxxxxxxxx\n[Truncated: the file exceeds the Hosted context limit.]"}
+[PASS] no host path in any system instruction
+[RESULT] p5-boundary-r5head-d: 5 passed, 0 failed
