@@ -1,0 +1,14 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceExecutionStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceExecutionStore.java
+index 3dbbd8aa2d..a887b90067 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceExecutionStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceExecutionStore.java
+@@ -217,8 +217,7 @@ public class WorkspaceExecutionStore {
+         }
+         transaction.executeWithoutResult(status -> {
+             WorkspaceStorageKindGuard.lockDomain(jdbc, saved.getRequest().getScope().getTenantId());
+-            WorkspaceStorageKindGuard.requireLocalAlias(jdbc, saved.getRequest().getScope().getTenantId(),
+-                    saved.getRequest().getStorageId());
++            // Teardown is not fenced by the alias: the LOCAL-kind predicates below release only a LOCAL lease.
+             List<Boolean> exact = jdbc.query("SELECT binding_id, runtime_generation, binding_state, tenant_id,"
+                     + " workspace_id, storage_id, record_version, operation_owner, operation_generation,"
+                     + " operation_lease_until, loss_evidence_json, stop_evidence_json, UNIX_TIMESTAMP() AS db_seconds,"
