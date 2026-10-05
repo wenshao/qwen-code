@@ -1,0 +1,27 @@
+[1;36m$ cd PR@87682bc/packages/core && npx vitest run src/extension/extensionManager.test.ts -t 'bounded directory loading'[0m
+ [32m✓[39m src/extension/extensionManager.test.ts [2m([22m[2m187 tests[22m[2m | [22m[33m185 skipped[39m[2m)[22m[33m 309[2mms[22m[39m
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m2 passed[39m[22m[2m | [22m[33m185 skipped[39m[90m (187)[39m
+
+[1;36m$ cp <PR test file> main@71fefc7 && npx vitest run zz-negctl.test.ts -t 'bounded directory loading'[0m   [2m(main's serial loop)[0m
+[31m   [31m×[31m extension tests[2m > [22mbounded directory loading[2m > [22moverlaps at most four loads and preserves directory order and skips[39m[32m 21[2mms[22m[39m
+[31m   [31m×[31m extension tests[2m > [22mbounded directory loading[2m > [22mdrains a failed batch and throws its first directory-order error[39m[32m 1[2mms[22m[39m
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 2 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+[31m[1mAssertionError[22m: expected "loadExtension" to be called 4 times, but got 1 times[39m
+[31m[1mAssertionError[22m: expected "loadExtension" to be called 4 times, but got 1 times[39m
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[33m185 skipped[39m[90m (187)[39m
+  [2mgit status --porcelain (main arm): ''[0m
+
+[1;36mMutation matrix[0m [2m(each mutant replaces the PR's loop; full extensionManager.test.ts = 187 tests per run)[0m
+  [1;32mKILLED [0m m01-serial-batch1              new-tests failing 2/2, other failing  0  [2mbatch size 1 (the old serial loop)[0m
+  [1;32mKILLED [0m m02-batch8                     new-tests failing 2/2, other failing  0  [2mbatch size 8[0m
+  [1;32mKILLED [0m m03-unbounded                  new-tests failing 2/2, other failing  0  [2mone unbounded batch over all entries[0m
+  [1;32mKILLED [0m m04-promise-all-failfast       new-tests failing 1/2, other failing  0  [2mPromise.all (fail fast, no drain)[0m
+  [1;32mKILLED [0m m05-completion-order           new-tests failing 2/2, other failing  0  [2mconsume results in completion order[0m
+  [1;32mKILLED [0m m06-first-error-by-time        new-tests failing 1/2, other failing  0  [2mthrow first rejection by completion time[0m
+  [1;32mKILLED [0m m07-defer-error-keep-scanning  new-tests failing 1/2, other failing  0  [2mkeep starting later batches, throw first error at end[0m
+  [1;32mKILLED [0m m08-no-null-filter             new-tests failing 1/2, other failing 27  [2mpush null results too[0m
+  [1;32mKILLED [0m m09-swallow-rejections         new-tests failing 1/2, other failing  2  [2mskip rejected entries instead of rethrowing[0m
+  [1;32mKILLED [0m m10-sliding-pool4              new-tests failing 1/2, other failing  0  [2msliding pool of 4, no batch barrier (same order/drain)[0m
+  [1;33mm10 is a legitimate alternative design (sliding pool); the first new test pins the batch barrier specifically.[0m

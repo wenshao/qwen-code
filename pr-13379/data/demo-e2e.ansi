@@ -1,0 +1,26 @@
+[2m# fixture: 21 entries in ~/.qwen/extensions = 6 batches of 4; batch 2 holds two manifests named 'dupe'[0m
+[2m#   b00-dupe-first (1.0.0, 300 skills, finishes LAST)  b02-dupe-second (2.0.0, 1 skill)  + malformed manifest,[0m
+[2m#   linked extension, Agent Plugins v1 plugin, plain file; d00..d07 shrink so loads complete in reverse.[0m
+[2m# mutant = PR bundle patched to consume each batch in COMPLETION order (proves the oracle has teeth)[0m
+
+[1;36m$ qwen extensions list[0m   [2m(real bundled CLI, isolated HOME)[0m
+  main@71fefc7 exit=0  lines=1153  sha256=[1;32ma56c4c16fd56[0m  dupe -> [1;32mdupe (2.0.0) b02-dupe-second[0m  first: heavy,Alpha One,hooked
+  PR@87682bc   exit=0  lines=1153  sha256=[1;32ma56c4c16fd56[0m  dupe -> [1;32mdupe (2.0.0) b02-dupe-second[0m  first: heavy,Alpha One,hooked
+  mutant       exit=0  lines=1480  sha256=[1;31m78a43b747a3a[0m  dupe -> [1;31mdupe (1.0.0) b00-dupe-first[0m  first: alpha-three,Alpha One,hooked
+  [1;32mmain == PR (byte-identical stdout)[0m   [1;33mmutant != main (oracle detects completion-order consumption)[0m
+
+[1;36m$ qwen -p 'say OK'[0m   [2m(fake OpenAI endpoint records the model-visible request)[0m
+  main@71fefc7 exit=0 reply=OK  req=243090 chars  [1;32m855 skills, 17 context files, ctx[4]=b02-dupe-second, ctx[0..2]=a00-heavy,a01,a02-hooks[0m
+  PR@87682bc   exit=0 reply=OK  req=243090 chars  [1;32m855 skills, 17 context files, ctx[4]=b02-dupe-second, ctx[0..2]=a00-heavy,a01,a02-hooks[0m
+  mutant       exit=0 reply=OK  req=306519 chars  [1;31m1154 skills, 17 context files, ctx[4]=b00-dupe-first, ctx[0..2]=a03,a02-hooks,a01[0m
+  [1;32mmain == PR: every request body identical after uuid/timestamp normalisation[0m
+
+[1;36m$ qwen serve[0m   [2m(GET status, /summary, /extensions catalog, 5x /:name/details, 24 concurrent reads)[0m
+  main@71fefc7 8 routes -> 7x200 1x404 (404 = /no-such-ext/details); 24 concurrent -> 200, consistent=true
+  PR@87682bc   8 routes -> 7x200 1x404 (404 = /no-such-ext/details); 24 concurrent -> 200, consistent=true
+  [1;32mmain == PR: all route bodies identical (generation normalised)[0m   details(dupe) -> 2.0.0 b02-dupe-second
+
+[1;36m$ ln -s /nonexistent/gone ~/.qwen/extensions/a01z-dangling && qwen extensions list[0m
+  main@71fefc7 exit=1  [1;33mENOENT: no such file or directory, stat '~/.qwen/extensions/a01z-dangling'[0m
+  PR@87682bc   exit=1  [1;33mENOENT: no such file or directory, stat '~/.qwen/extensions/a01z-dangling'[0m
+  [2m(pre-existing on main: one dangling entry fails the whole scan; the PR keeps that contract unchanged)[0m
