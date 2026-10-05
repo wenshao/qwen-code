@@ -51,7 +51,11 @@ figs['r5-01-deadline'] = page(
     pre([...pick('g12b', 's19-r4-head4-extglob.log', /^\[(extglob3|extglob3 next Turn|extglob3 harness log)\]/, 3), ...pick('g12b', 's19-r4-head4-star20.log', /^\[(star20|star20 next Turn)\]/, 2)]) +
     '<h2>0ce55064 (round 5): bounded, model-correctable error; Session keeps working</h2>' +
     pre([...pick('g14', 's19-r4-head5-r5.log', /^\[(extglob2|extglob3|star20)\]/, 3), ...pick('g14', 's22-cancel-glob-head5.log', /^\[(extglob|normal|stars|cancel at 1\.5 s|after cancel)\]/, 6)]) +
-    `<div class="note ok">Runtime workers 3 s after the cancelled run: ${esc(grab('g14', 's22-cancel-glob-head5.log', /^\[runtime workers \(pid %cpu etime\)\] (.*)$/).slice(0, 120))} … — every worker at 0.0 % CPU (round 4 left an orphaned worker spinning at ~82 % for 52 min).</div>`,
+    (() => {
+      const workers = JSON.parse(grab('g14', 's22-cancel-glob-head5.log', /^\[runtime workers \(pid %cpu etime\)\] (.*)$/));
+      const max = Math.max(...workers.map((w) => Number(w.split(' ')[1])));
+      return `<div class="note ok">All ${workers.length} Runtime workers on the rig (pid %cpu etime) 3 s after the cancelled run, including the concurrent regression Sessions' — highest ${max} %:<br><code>${esc(workers.join('  '))}</code><br>When Spring stopped, no 0ce55064 worker process remained. Round 4 left an orphaned worker spinning at ~82 % for 52 min. The cancel was sent 1.5 s after submission; the Session was idle 2.2 s after submission.</div>`;
+    })(),
 );
 
 const bench = log('g14', 'bench-glob-worker.log').filter((l) => l.startsWith('files='));
