@@ -1,0 +1,62 @@
+    it('PROBE: splits the clamped mcp row across several tools on both paths', async () => {
+      const mcp = (tool: string, pad: number) =>
+        Object.defineProperties(Object.create(DiscoveredMCPTool.prototype), {
+          name: { value: `mcp__server__${tool}` },
+          serverName: { value: 'server' },
+          serverToolName: { value: tool },
+          schema: {
+            value: {
+              name: `mcp__server__${tool}`,
+              description: `MCP ${tool} ${'x'.repeat(pad)}`,
+              parameters: { type: 'OBJECT', properties: {} },
+            },
+          },
+        }) as DiscoveredMCPTool;
+      const big = mcp('big', 400);
+      const small = mcp('small', 130);
+      const controlSchema = {
+        name: 'tool_call',
+        parameters: { type: 'OBJECT', properties: {} },
+      };
+      const tools = [
+        { ...skillToolDouble, getLoadedSkillContentNames: () => new Map() },
+        big,
+        small,
+        { name: controlSchema.name, schema: controlSchema },
+      ];
+      const declared = [skillToolSchema, controlSchema];
+      const history = [prelude, ...conversation];
+      const raw = [big, small].map((t) =>
+        estimateContextTextTokens(JSON.stringify(t.schema)),
+      );
+      const rawSum = raw[0]! + raw[1]!;
+
+      // Estimate path: each row is its own schema times the kept share.
+      const est = await collectContextData(
+        makeChatConfig({ total: 0, tools, declared, history }),
+        true,
+      );
+      const share = est.breakdown.mcpTools / rawSum;
+      expect(share).toBeGreaterThan(0);
+      expect(share).toBeLessThan(1);
+      expect(est.mcpTools.map((t) => t.tokens)).toEqual(
+        raw.map((r) => Math.round(r * share)),
+      );
+
+      // Provider path with the total below the overhead, so scale < 1 too.
+      const rawOverhead = sumRows(est.breakdown) - est.breakdown.messages;
+      const total = Math.floor(rawOverhead / 2);
+      const prov = await collectContextData(
+        makeChatConfig({ total, tools, declared, history }),
+        true,
+      );
+      const factor = (total / rawOverhead) * share;
+      expect(factor).toBeLessThan(share);
+      expect(prov.mcpTools.map((t) => t.tokens)).toEqual(
+        raw.map((r) => Math.round(r * factor)),
+      );
+      const provSum = prov.mcpTools.reduce((s, t) => s + t.tokens, 0);
+      expect(Math.abs(provSum - prov.breakdown.mcpTools)).toBeLessThanOrEqual(
+        prov.mcpTools.length,
+      );
+    });
