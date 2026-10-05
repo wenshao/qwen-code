@@ -1,0 +1,166 @@
+[
+ {
+  "name": "r2-01-flyway-and-replay",
+  "title": "Round 2 @ 3bba3d87 — V40 collision fixed; my round-1 Linux rig replayed on the new head",
+  "subtitle": "Same VM (Ubuntu 24.04 aarch64, kernel 6.8, separate loop-backed ext4 volumes), MySQL 8.4.11, jars + dist/cli.js rebuilt from 3bba3d87",
+  "sections": [
+   {
+    "heading": "Flyway (fresh MySQL 8.4 database, packaged server jar)",
+    "table": [
+     [
+      "tree",
+      "checker",
+      "startup"
+     ],
+     [
+      "PR head 3bba3d87",
+      "++ 43 migrations, all unique",
+      "++ applied 43, now at v43"
+     ],
+     [
+      "trial merge with main 91cf9ed6 (no textual conflict)",
+      "++ 43 migrations, all unique",
+      "++ applied 43, now at v43"
+     ],
+     [
+      "main a1610e6e (integrated by the PR)",
+      "== 40, V40 = managed_session_creator",
+      "== (used for the upgrade arm)"
+     ]
+    ]
+   },
+   {
+    "heading": "Round-1 scenarios replayed on the new head — same outcome as on c5dde7d5",
+    "table": [
+     [
+      "scenario",
+      "result on 3bba3d87"
+     ],
+     [
+      "S1 stop → retire → capture → prepare → promote → restart → write → undo",
+      "++ 2 live st-a workers stopped, st-b survives; 4/42 tables change; rev 1→2 once; undo of pre-migration prompts on target"
+     ],
+     [
+      "S2 preflight refusals (5)",
+      "++ same codes, no row, no fence, workers untouched"
+     ],
+     [
+      "S2 mount-root target: lost+found, QWEN_HOME unset/symlink, stray file",
+      "++ refused (tree_mismatch / history_environment_mismatch)"
+     ],
+     [
+      "S2 SIGKILL mid prepare scan · SIGKILL at marker rename",
+      "++ both resume on plain retry; COMPLETED rev2, no temp left"
+     ],
+     [
+      "S2 restart with old mapping / QWEN_HOME unset / symlink alias",
+      "++ Turn refused (Broker 409), nothing written; canonical restores service"
+     ],
+     [
+      "S2 drift after PREPARED → abort → W1a restore-original",
+      "++ INVALIDATED → ABORTED → READY at source, Turn OK"
+     ],
+     [
+      "S4 sysrq kernel crash at the marker rename",
+      "++ old marker + op .tmp survive; retry → COMPLETED rev2; restart, write, pre-migration undo OK"
+     ]
+    ]
+   },
+   {
+    "heading": "PR's Java suites on Linux + MySQL 8.4.11 (3bba3d87)",
+    "lines": [
+     "++ runtime-broker focused (WorkspaceMigrationRepository, JdbcRepository, RuntimeBrokerService, LocalRuntimeStore): 148 run, 0 fail, 2 skipped",
+     "++ server unit (WorkspaceMigrationStore, ManagedWorkspaceAdmission, ManagedActions): 49 run, 0 fail",
+     "++ MySQL IT (WorkspaceMigration 3, WorkspaceSessionRetention 16, WorkspaceSessionClose 5): 24 run, 0 fail"
+    ]
+   }
+  ],
+  "note": "The only round-1 blocker is gone. None of the replayed scenarios behaves differently after the main integration (#13210 broker auth, #13402/#13403).",
+  "noteClass": "ok"
+ },
+ {
+  "name": "r2-02-concurrent-commands",
+  "title": "New: concurrent maintenance commands on a PREPARED migration (S7)",
+  "subtitle": "Four storages prepared identically; queue order forced by holding the retention-tenant row lock and counting LOCK WAIT in innodb_trx, then releasing",
+  "sections": [
+   {
+    "heading": "Race arms",
+    "table": [
+     [
+      "arm",
+      "commands",
+      "outcome",
+      "state after"
+     ],
+     [
+      "R1 st-a",
+      "promote ‖ promote, started together",
+      "++ one COMPLETED, other migration_not_writable",
+      "++ COMPLETED · READY rev2 at target · fence cleared · no .tmp"
+     ],
+     [
+      "R2 st-b",
+      "promote queued 1st, abort 2nd (marker already published)",
+      "++ promote COMPLETED · abort migration_already_completed",
+      "++ READY rev2 at target"
+     ],
+     [
+      "R2 st-c",
+      "abort queued 1st, promote 2nd (marker already published)",
+      "++ abort ABORTED · promote migration_conflict",
+      "++ FENCED rev1 at source · fence cleared · target keeps this op's marker"
+     ],
+     [
+      "R3 st-d",
+      "W1a restore-original during promote scan, and after",
+      "++ both refused (storage fence / not FENCED)",
+      "++ COMPLETED · READY rev2 at target"
+     ]
+    ]
+   },
+   {
+    "heading": "R4 st-c after the lost race: rollback and a fresh operation",
+    "lines": [
+     "++ W1a restore-original → READY rev2 at the source; Turn writes after-abort.txt at the source",
+     "++ new operation (rev 2) with the aborted operation's marker still in the target → prepare refused: migration_tree_mismatch",
+     "++ operator rebuilds the target marker from the source → prepare PREPARED → promote COMPLETED, READY rev3 at the target",
+     "!! cosmetic: in R1 the winner's COMPLETED receipt carries lastErrorCode=migration_not_writable written by the loser (same family as N4)"
+    ]
+   }
+  ],
+  "note": "Every interleaving leaves the mount row consistent with the operation state; revision moves at most once and a lost abort/promote race never half-applies.",
+  "noteClass": "ok"
+ },
+ {
+  "name": "r2-03-upgrade-then-migrate",
+  "title": "New: the real upgrade path — Sessions created by main, deployment upgraded to the PR head, then migrated (S8)",
+  "subtitle": "Same database, QWEN_HOME and mounts across both builds; main = a1610e6e (the main this PR integrates)",
+  "sections": [
+   {
+    "heading": "Phase 1: main jar + main CLI",
+    "lines": [
+     "== Flyway ... 38 39 40 (V40 = managed_session_creator)",
+     "== st-a: F1 writes notes.txt main-v1 → main-v2 · F2 closed + archived · D1 closed + deleted (all via the public API) · st-b: B1"
+    ]
+   },
+   {
+    "heading": "Phase 2: upgrade jar + CLI to 3bba3d87",
+    "lines": [
+     "++ Flyway on the populated database: ... 39 40 41 42 43 (all success)",
+     "++ F1 (created by main) cold-loads on the head and writes notes.txt head-v3"
+    ]
+   },
+   {
+    "heading": "Phase 3: W1c with the head maintenance jars",
+    "lines": [
+     "!! retire: migration_history_unverified (N1, single-Session history root) → touch → RETIRED",
+     "++ capture SEALED 3/3 Sessions (ACTIVE + main-ARCHIVED + main-DELETED) · prepare PREPARED · promote COMPLETED, READY rev2 at /srv/w1c-dst/a",
+     "++ restart with the new mapping: F1 load 200, WRITE notes.txt after-migration (target)",
+     "++ undo of prompt m2 recorded by the MAIN build → target notes.txt = main-v1; source untouched (head-v3)"
+    ]
+   }
+  ],
+  "note": "Records written by main (session creator column, journal, file-history backups, lifecycle evidence) migrate and undo correctly after the upgrade.",
+  "noteClass": "ok"
+ }
+]
