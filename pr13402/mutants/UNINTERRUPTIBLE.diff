@@ -1,0 +1,17 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/SessionEventHub.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/SessionEventHub.java
+index d3876c95c6..28e27adf99 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/SessionEventHub.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/SessionEventHub.java
+@@ -129,7 +129,11 @@ public class SessionEventHub implements CommittedEventPublisher {
+             lock.lock();
+             try {
+                 if (!hasAfter(afterSequence)) {
+-                    changed.awaitNanos(Math.max(1, timeout.toNanos()));
++                    try {
++                        changed.awaitNanos(Math.max(1, timeout.toNanos()));
++                    } catch (InterruptedException ignored) {
++                        // swallowed
++                    }
+                 }
+                 return deliver(afterSequence);
+             } finally {

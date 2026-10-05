@@ -1,0 +1,43 @@
+<!doctype html><meta charset="utf-8"><style>
+body{margin:0;background:#0d1117;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#c9d1d9}
+#card{display:inline-block;padding:26px 30px 22px;background:#0d1117;width:1240px}
+h1{font-size:22px;margin:0 0 4px;color:#f0f6fc}
+.sub{font-size:13.5px;color:#8b949e;margin-bottom:12px}
+h2{font-size:15px;margin:14px 0 6px}
+pre{margin:0;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:12px 14px;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;overflow:hidden}
+.base{color:#f0883e}.fix{color:#3fb950}.bad{color:#f85149}.ok{color:#3fb950}.dim{color:#8b949e}.hl{color:#d2a8ff}
+.note{margin-top:14px;border-left:3px solid #3fb950;padding:4px 12px;font-size:13.5px;line-height:1.45}
+</style><div id="card">
+<h1>Where the 300 SSE stream threads park — jcmd dumps, 5 s after subscribing</h1>
+<div class="sub">Same rig as figure 1 (idle ×300, JDK 21.0.12, 10 cores). <span class="dim">jcmd Thread.print + Thread.dump_to_file -format=text; fat-jar bytecode via javap.</span></div>
+<h2 class="base">main 8d864a9f21 — synchronized + Object.wait</h2>
+<pre><span class="dim">javap SessionEventHub$SessionBuffer:</span> 4 × ACC_SYNCHRONIZED · Object.wait:(JI)V · Object.notifyAll:()V
+<span class="dim">Thread.print:</span>  <span class="bad">256 ForkJoinPool-1-worker carriers, 256 "Carrying virtual thread"</span>   <span class="dim">(scheduler maxPoolSize = 256)</span>
+<span class="dim">virtual threads (300):</span>
+  <span class="bad">256</span>  SessionBuffer.await → Object.wait            <span class="dim">pinned — each holds its carrier</span>
+   <span class="bad">28</span>  DruidDataSource.pollLast ← ManagedAgentStore.findEvents <span class="dim">waiting for one of the 20 pool connections</span>
+   <span class="bad">16</span>  NioSocketImpl.read ← com.mysql.cj                     <span class="dim">hold a connection, cannot resume without a carrier</span>
+
+#514 "" virtual
+      java.base/java.lang.Object.wait0(Native Method)
+      java.base/java.lang.Object.wait(Object.java:488)
+      com.alibaba.qwen.code.managedagent.service.SessionEventHub$SessionBuffer.await(<span class="hl">SessionEventHub.java:107</span>)
+      com.alibaba.qwen.code.managedagent.service.SessionEventHub$Subscription.await(SessionEventHub.java:63)
+      com.alibaba.qwen.code.managedagent.service.ManagedEventStreamService.streamPublic(ManagedEventStreamService.java:125)
+      java.base/java.lang.VirtualThread.run(VirtualThread.java:329)</pre>
+<h2 class="fix">main + #13402 (trial merge 6bf9785da7) — ReentrantLock + Condition</h2>
+<pre><span class="dim">javap SessionEventHub$SessionBuffer:</span> ReentrantLock lock · Condition changed · Condition.awaitNanos:(J)J · Condition.signalAll:()V
+<span class="dim">Thread.print:</span>  <span class="ok">10 ForkJoinPool-1-worker carriers, 0 "Carrying virtual thread"</span>
+<span class="dim">virtual threads (300):</span>
+  <span class="ok">300</span>  SessionBuffer.await → ConditionObject.awaitNanos   <span class="dim">unmounted — no carrier held</span>
+
+#149 "" virtual
+      java.base/java.lang.VirtualThread.parkNanos(VirtualThread.java:635)
+      java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:267)
+      java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1797)
+      com.alibaba.qwen.code.managedagent.service.SessionEventHub$SessionBuffer.await(<span class="hl">SessionEventHub.java:132</span>)
+      com.alibaba.qwen.code.managedagent.service.SessionEventHub$Subscription.await(SessionEventHub.java:65)
+      com.alibaba.qwen.code.managedagent.service.ManagedEventStreamService.streamPublic(ManagedEventStreamService.java:125)
+      java.base/java.lang.VirtualThread.run(VirtualThread.java:329)</pre>
+<div class="note">The 44 stream threads past the ceiling on main are not in the hub at all. They are stuck in JDBC behind the pinned carriers, which also drains the 20-connection Druid pool for every other request. With the Condition, all 300 park in the hub and the pool stays free. At 1000 subscribers, main has 643 threads waiting on Druid, while the patched jar parks 994 in the hub on the same 10 carriers.</div>
+</div>
