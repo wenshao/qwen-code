@@ -1,0 +1,110 @@
+[
+{"name":"01-acceptance-linux","title":"W1c production acceptance on real Linux — stop → retire → capture → prepare → promote → restart → write → undo",
+ "subtitle":"PR head c5dde7d5 · Ubuntu 24.04 aarch64 (kernel 6.8) · MySQL 8.4.11 · packaged Spring jar (embedded Broker, durable local workers) + bundled CLI Harness/worker · source and target on separate ext4 filesystems",
+ "sections":[
+  {"heading":"Storage st-a (2 Workspaces, 5 Files Sessions) + unrelated st-b on the same tenant","lines":[
+   "F1, U = ACTIVE · F2 = ARCHIVED · F3 = CLOSED · D1 = DELETED   (public close/archive/delete, all 202 → completed)",
+   "U has a pre-migration undo receipt (rewind u2: undo.txt second → first)",
+   "durable workers before maintenance: st-a 2 alive (READY bindings), st-b 1 alive"]},
+  {"heading":"1  retire with Spring + Harness stopped and the old st-a workers still running      1.5 s","lines":[
+   "++ st-a workers pid 9939, 9919 → gone (/proc); 5 st-a bindings RELEASED; storage fence installed",
+   "++ st-b worker pid 9992 still ALIVE (unrelated storage untouched); retire replay: identical receipt"]},
+  {"heading":"2–4  W1a fence · W1b capture · external copy · prepare · promote","lines":[
+   "== W1a fence 0.8 s · W1b capture 18.8 s → SEALED 5/5 Sessions, 897 assets, 446 entries",
+   "== cp -a /srv/w1c-src/a (loop0 ext4, dev 1792) → /srv/w1c-dst/a (loop1 ext4, dev 1793)",
+   "++ prepare 23.6 s → PREPARED (replay 0.8 s, identical receipt, no rescan)",
+   "++ promote 21.1 s → COMPLETED; replay identical, revision stays 2; storage fence cleared",
+   "++ mount row  FENCED rev 1 dev 1792  →  READY rev 2 dev 1793 root=/srv/w1c-dst/a",
+   "++ 38/42 tables byte-identical (mysqldump, PK order). Changed: execution_lease, workspace_migration,",
+   "   runtime_binding + binding_slot (released by retire). Source tree, source marker, history tree unchanged"]},
+  {"heading":"5  restart with st-a=/srv/w1c-dst/a and the same QWEN_HOME","lines":[
+   "++ cold load F1 / U / B1 → 200;  F1 WRITE notes.txt v3 → target v3, source still v2",
+   "++ undo new prompts: fresh.txt removed, notes.txt v3 → v2 (target)",
+   "++ undo PRE-migration prompt f2 from the retained backup: notes.txt → v1, deep/x.txt removed (target)",
+   "++ undo PRE-migration create u1: undo.txt removed in target; source keeps \"first\"",
+   "++ new bindings run in /srv/w1c-dst/a; source tree digest still unchanged after all post-migration work"]}],
+ "note":"The production acceptance the PR lists as pending (real Linux mount identity, packaged Broker/Harness/Worker, retire–capture–prepare–promote–restart–write–undo) passes on this rig.","noteClass":"ok"},
+{"name":"02-refusals-interruptions","title":"Refusals, interruptions and rollback (S2, one database, four storages)",
+ "subtitle":"Target for st-a = the mount root of a fresh ext4 volume (/srv/w1c-mr); every step reuses the same request file",
+ "sections":[
+  {"heading":"A  preflight refusals — no migration row, no storage fence, old workers untouched (3/3 alive)","table":[
+   ["case","refusal"],
+   ["state directory missing","++ migration_state_unavailable"],
+   ["state directory mode 0755","++ migration_state_unavailable"],
+   ["fileHistoryRoot through a symlink","++ migration_history_unverified"],
+   ["Shell-profile member (st-c)","++ migration_profile_unsupported"],
+   ["never-attached public Session (st-d)","++ migration_member_uninitialized  (S6: public close + delete clears it; retire then succeeds)"]]},
+  {"heading":"B  st-a → /srv/w1c-mr (mount root): operator mistakes, SIGKILLs, completion","table":[
+   ["step","result","row / mount"],
+   ["prepare with ext4 lost+found in the target root","!! migration_tree_mismatch (path not named)","PREPARING / FENCED rev1"],
+   ["prepare, maintenance QWEN_HOME unset","++ migration_history_environment_mismatch","PREPARING / FENCED rev1"],
+   ["prepare, QWEN_HOME = symlink alias of the same home","++ migration_history_environment_mismatch","PREPARING / FENCED rev1"],
+   ["prepare, stray file in target","++ migration_tree_mismatch","PREPARING / FENCED rev1"],
+   ["prepare, SIGKILL mid worker scan","== killed","PREPARING / FENCED rev1"],
+   ["prepare retry","++ PREPARED","PREPARED / FENCED rev1"],
+   ["promote, SIGKILL on the inotify rename of the marker","== killed (new marker already in place)","PREPARED / FENCED rev1"],
+   ["promote retry","++ COMPLETED, no temp file left","COMPLETED / READY rev2"],
+   ["promote replay · abort after completion","++ identical · migration_already_completed","COMPLETED / READY rev2"]]},
+  {"heading":"D  st-b: drift after PREPARED → rollback to the original location","lines":[
+   "++ append to source b.txt → promote: source_drift → INVALIDATED; target marker still the source marker; mount FENCED rev1",
+   "++ promote again → migration_not_ready · abort → ABORTED, storage fence cleared",
+   "!! inspect now shows lastError=migration_not_ready (the source_drift cause was overwritten by the extra attempt)",
+   "++ W1a restore-original → READY; restart; st-b Turn completes at the source (b2.txt written)"]}],
+ "note":"Fail-closed everywhere I tried; every interrupted step resumed with the same request. Diagnostics are the weak spot: tree mismatches don't name the entry.","noteClass":"ok"},
+{"name":"03-after-promotion-settings","title":"After promotion: wrong deployment settings fail closed — and recover by fixing the setting",
+ "subtitle":"Same migrated st-a (S2) restarted four times; Turn = cold load + WRITE probe.txt; S3 repeats the QWEN_HOME arm with an unmigrated storage alongside",
+ "sections":[
+  {"heading":"Restart arms on the migrated storage","table":[
+   ["deployment setting","load","Turn","probe.txt"],
+   ["old mapping (st-a → /srv/w1c-src/a)","200","-- turn_error: Broker 409 workspace_unavailable","nowhere"],
+   ["QWEN_HOME unset","200","-- turn_error: Broker 409 workspace_unavailable","nowhere"],
+   ["QWEN_HOME = symlink → the same canonical home","200","-- turn_error: Broker 409 workspace_unavailable","nowhere"],
+   ["new mapping + canonical QWEN_HOME","200","++ turn_complete","target only"]]},
+  {"heading":"QWEN_HOME gate applies only to migrated storages (S3)","table":[
+   ["Broker QWEN_HOME","st-a (migrated)","st-b (never migrated)"],
+   ["unset","-- turn_error (409 workspace_unavailable)","++ turn_complete"],
+   ["canonical","++ turn_complete","++ turn_complete"]]},
+  {"heading":"Operator error during maintenance: Spring started while the storage fence is installed (S2 B0)","lines":[
+   "++ st-a cold load → 503 managed_session_open_failed; 0 st-a workers started; no file written",
+   "++ st-b (other storage, same tenant) → Turn completes",
+   "!! server.log: 0 lines naming QWEN_HOME, history or the mount for any of the refusals above"]}],
+ "note":"R1-2 data: the refusal is not permanent — restoring the canonical QWEN_HOME and the new mapping restores service immediately. A symlinked QWEN_HOME is refused before promotion by the worker, so it cannot reach COMPLETED through the runbook.","noteClass":""},
+{"name":"04-flyway-v40-collision","title":"Merge blocker: Flyway V40 collides with main (#13210, merged 2026-10-05 04:20 UTC)",
+ "subtitle":"Trial merge = PR c5dde7d5 + main 544d7532 (main has since moved to 466119af with no sdk-java change); git reports no textual conflict",
+ "sections":[
+  {"heading":"Migrations in the merged tree","lines":[
+   "-- V40__managed_session_creator.sql          (main, #13210)",
+   "-- V40__workspace_storage_migration.sql      (this PR)",
+   "   V41__workspace_migration_lookup_indexes.sql, V42__workspace_migration_binary_identity.sql (this PR)"]},
+  {"heading":"Packaged server jar on a fresh MySQL 8.4.11 database","lines":[
+   "-- trial-merge jar: health=000, service failed — Found more than one migration with version 40",
+   "--   Offenders: V40__managed_session_creator.sql, V40__workspace_storage_migration.sql; no schema history created",
+   "++ PR-head jar:    Successfully applied 42 migrations to schema w1c_fw_head, now at version v42"]},
+  {"heading":"Repository checker (main's scripts/check-flyway-migrations.js)","lines":[
+   "-- merge tree: ::error:: 2 migrations claim version 40   (exit 1)",
+   "++ PR head:    42 migrations, all versions unique       (exit 0)"]},
+  {"heading":"PR's own Java suites on Linux + MySQL 8.4 (CI uses MariaDB)","lines":[
+   "++ runtime-broker: WorkspaceMigrationRepositoryTest, JdbcRepositoryTest, RuntimeBrokerServiceTest, LocalRuntimeStoreTest — 148 run, 0 fail, 2 skipped",
+   "++ server unit: WorkspaceMigrationStoreTest, ManagedWorkspaceAdmissionTest, ManagedActionsTest — 47 run, 0 fail",
+   "++ MySQL IT: WorkspaceMigrationMySqlIT 3, WorkspaceSessionRetentionMySqlIT 16, WorkspaceSessionCloseMySqlIT 5 — 24 run, 0 fail"]}],
+ "note":"The PR's CI ran before #13210 merged, so its green Flyway check is stale. Renumbering W1c to V41–V43 (and the design text) is required before merge.","noteClass":"bad"},
+{"name":"05-crash-scale-history-root","title":"Kernel crash at the marker rename · maintenance-window cost · history-root precondition",
+ "subtitle":"S4: sysrq 'b' (immediate reboot, no sync) fired by a root inotify watcher on the rename · S3: 20,107 entries / 335 MB · S3/S4/S5: retained history root",
+ "sections":[
+  {"heading":"S4  real kernel crash during promote","lines":[
+   "== PREPARED, mount FENCED rev1 → promote → watcher sees rename of .qwen-managed-storage.json → reboot",
+   "== after reboot (boot_id 0ca01d86 → cd6f2fe3; loop devices remounted with the same dev ids):",
+   "   target marker = OLD (rename not durable) + operation-owned .tmp present; row PREPARED; mount FENCED rev1",
+   "++ promote retry 8.4 s → COMPLETED, READY rev2, temp file removed, replay identical, source marker unchanged",
+   "++ restart with the new mapping: load 200, WRITE notes.txt v3, undo pre-migration p2 → notes.txt v1"]},
+  {"heading":"S3  maintenance window for a 20,000-file + 256 MiB Workspace (shared Mac host, 15-min load ≈ 22)","table":[
+   ["retire","W1a fence","W1b capture","cp -a target","prepare","promote"],
+   ["1.7 s","0.9 s","238 s","0.5 s","489 s","564 s"]]},
+  {"heading":"Retained history root must have birth time ≠ mtime (W1a identity reader)","table":[
+   ["$QWEN_HOME/file-history","retire"],
+   ["absent (no file ever overwritten, S5)","-- migration_history_unverified, no row"],
+   ["created with its first Session dir in one tick (one Session, S3/S4)","-- migration_history_unverified, no row"],
+   ["fresh mkdir (S5)","-- migration_history_unverified, no row"],
+   ["after touch","++ RETIRED → full migration + undo OK"]]}],
+ "note":"Physical interruption at the most delicate step recovers by plain retry. Offline window ≈ capture + 2 full verification scans; the history-root birth-time refusal gives operators no hint that a touch fixes it.","noteClass":""}
+]
