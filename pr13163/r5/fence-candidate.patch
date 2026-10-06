@@ -1,0 +1,15 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 960d58fb87..05d0765dcf 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -1764,6 +1764,10 @@ export function registerHostedHarnessSessionRoutes(
+           // can still reach, so the recovery holds close()'s own fence: a
+           // concurrent teardown would otherwise release a lease that is still
+           // mid-adoption and persist the record RELEASED.
++          if (resident.mcpRecovering) {
++            error(res, 409, 'hosted_turn_recovery_required');
++            return;
++          }
+           resident.mcpRecovering = true;
+           const recovered = await recoverHostedRuntimeTurn({
+             session: resident.managed,

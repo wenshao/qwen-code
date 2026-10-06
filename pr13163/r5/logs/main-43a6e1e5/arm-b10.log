@@ -1,0 +1,101 @@
+spring up after 25s
+### f4b-sql-state.mjs ws-f4b e
+# f4b-sql-state-ws-f4b  db=b10  2026-10-06T11:16:04.641Z
+NOTE  live cancel  -> 202 -> CANCELLED
+NOTE  CLOSED: GET / creator cancel (public, WebShell) / mallory cancel / creator submit  -> 200 / 409 workspace_unavailable, 409 workspace_unavailable / 404 session_not_found / 409 workspace_unavailable; command rows +0, Turn rows +0
+NOTE  ARCHIVED: GET / creator cancel (public, WebShell) / mallory cancel / creator submit  -> 200 / 409 workspace_unavailable, 409 workspace_unavailable / 404 session_not_found / 409 workspace_unavailable; command rows +0, Turn rows +0
+NOTE  DELETED: GET / creator cancel (public, WebShell) / mallory cancel / creator submit  -> 404 / 409 workspace_unavailable, 409 workspace_unavailable / 404 session_not_found / 409 workspace_unavailable; command rows +0, Turn rows +0
+NOTE  Turn history  -> [["turn_bf01be55cfaf4621b261bcb4f90e89e3","COMPLETED","","0"],["turn_1506fdaa0a304fb79257fd0b8101ff8a","CANCELLED","","0"]]
+== f4b-sql-state-ws-f4b: 0 passed, 0 failed
+### c19-rename-race.mjs bound ws-c19 f
+# c19-rename-race-bound  db=b10  2026-10-06T11:16:10.548Z
+PASS  initial Turn COMPLETED  -> c7f7c9ee-22d1-4c4e-aeb3-2c7b414d2808
+NOTE  R1 (K1 → A, Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → B  -> 200 title B
+NOTE  R2 (K1 → A retry, Harness call held 8 s, then 200)  -> 200 title A; K1 row while held PENDING
+NOTE  R3 (K1 → A retry overlapping R2, Harness 500)  -> 503 hosted_harness_unavailable; K1 row after R3 FAILED
+NOTE  database title afterwards  -> title A
+NOTE  title calls the Harness applied, in order  -> ["title B","title A"]
+NOTE  Harness title calls with faults  -> ["title A:respond:500","title B:-:200","title A:respond:500","title A:delay:200"]
+NOTE  R4 (K1 → A once more, no fault)  -> 200 title A; database title then title A; K1 row COMPLETED
+== c19-rename-race-bound: 1 passed, 0 failed
+### c19-rename-race.mjs unbound - -
+# c19-rename-race-unbound  db=b10  2026-10-06T11:16:23.813Z
+PASS  initial Turn COMPLETED  -> a911ce8b-e9f6-43d0-901f-b15d81b3f1fb
+NOTE  R1 (K1 → A, Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → B  -> 200 title B
+NOTE  R2 (K1 → A retry, Harness call held 8 s, then 200)  -> 200 title A; K1 row while held PENDING
+NOTE  R3 (K1 → A retry overlapping R2, Harness 500)  -> 503 hosted_harness_unavailable; K1 row after R3 FAILED
+NOTE  database title afterwards  -> title A
+NOTE  title calls the Harness applied, in order  -> ["title B","title A"]
+NOTE  Harness title calls with faults  -> ["title A:respond:500","title B:-:200","title A:respond:500","title A:delay:200"]
+NOTE  R4 (K1 → A once more, no fault)  -> 200 title A; database title then title A; K1 row COMPLETED
+== c19-rename-race-unbound: 1 passed, 0 failed
+### c16-page-caps.mjs ws-p1 a ws-p0 b regen
+# c16-page-regen-ws-p1  db=b10  2026-10-06T11:16:34.710Z
+NOTE  before (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+NOTE  before (carol)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=true get=true","ctl":"list=false get=false"}
+NOTE  after regen (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+NOTE  after regen (carol)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=true get=true","ctl":"list=false get=false"}
+NOTE  after regen: alice submit on a1  -> 202 turn_7ef958aa86c44aac99667145216725f1
+NOTE  after restore (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  before: creator sees workspaceTurns=true on her own Sessions (list and get)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+FAIL  after regen: creator's Sessions in the moved Workspace show workspaceTurns=false (list and get)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  after regen: control Workspace Session keeps workspaceTurns=true  -> list=true get=true
+FAIL  after regen: submit refused 409 workspace_unavailable  -> 202 undefined
+PASS  after restore: capability back to true  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+== c16-page-regen-ws-p1: 3 passed, 2 failed
+### c14 revoke
+started 730229ef-a1c8-4de7-8cd6-184d14c5c012 turn=turn_0f207a6150244caeba3bcccc8a54e480 initial=COMPLETED mode=revoke
+stopped spring pid=21707 sig=TERM
+spring up after 8s
+# c14-cold-cache-revoke-ws-krevoke-b10  db=b10  2026-10-06T11:17:09.940Z
+NOTE  Turn before the cancel (after the Spring restart)  -> ["turn_0f207a6150244caeba3bcccc8a54e480","RUNNING","","0"]
+NOTE  creator cancel after the restart  -> 409 workspace_unavailable
+NOTE  Turn 90 s after the cancel  -> RUNNING  (not terminal)
+NOTE  POST /cancel calls reaching the Harness  -> []
+NOTE  other Harness calls for the Session since the restart  -> ["POST /session/:id/prompt 202"]
+NOTE  model request  -> still held / answered
+NOTE  Turn 60 s after can_create was restored  -> RUNNING  (not terminal)
+NOTE  Workspace file  -> null
+NOTE  Turn history  -> [["turn_2e82c821c8cf443eb5f9793952323684","COMPLETED","","0"],["turn_0f207a6150244caeba3bcccc8a54e480","RUNNING","","7"]]
+== c14-cold-cache-revoke-ws-krevoke-b10: 0 passed, 0 failed
+stopped spring pid=40199 sig=TERM
+stopped harness pid=21342 sig=TERM
+stopped model pid=21287 sig=TERM
+stopped tap pid=21288 sig=TERM
+spring up after 6s
+### c18 store drift (main)
+started da6d8705-dc1c-4e7b-b59b-811f21e4b98f turn=turn_097e39137e1c479d8ad472ac08ac4aac
+stopped spring pid=48415 sig=TERM
+spring up after 6s
+# c18-store-drift-ws-drift-b10  db=b10  2026-10-06T11:20:12.835Z
+NOTE  store base-url seen by the Harness on the last load  -> "http://localhost:18163"
+NOTE  creator cancel after the restart  -> 202 accepted
+NOTE  Turn 120 s after the cancel  -> CANCELLING  (not terminal)
+NOTE  Harness calls for the Session since the restart (count)  -> {"POST /session/:id/prompt 202":2,"POST /session/:id/load 409":7}
+NOTE  model request  -> aborted after 120001 ms
+NOTE  Turn history  -> [["turn_05dba8a090c948688fee93a2caecf4b3","COMPLETED","","0"],["turn_097e39137e1c479d8ad472ac08ac4aac","CANCELLING","","7"]]
+== c18-store-drift-ws-drift-b10: 0 passed, 0 failed
+stopped spring pid=49384 sig=TERM
+stopped harness pid=48367 sig=TERM
+stopped model pid=48271 sig=TERM
+stopped tap pid=48272 sig=TERM
+spring up after 10s
+### c18 store drift (30f092d0)
+started 2b697de7-0b7a-4de0-b655-10a8fea9d541 turn=turn_940edb551c03413a967a2714aaae5097
+stopped spring pid=57490 sig=TERM
+spring up after 6s
+# c18-store-drift-ws-drift-n9  db=n9x  2026-10-06T11:22:51.296Z
+NOTE  store base-url seen by the Harness on the last load  -> "http://localhost:18163"
+NOTE  creator cancel after the restart  -> 202 accepted
+NOTE  Turn 120 s after the cancel  -> FAILED hosted_harness_rejected at +41868 ms
+NOTE  Harness calls for the Session since the restart (count)  -> {"POST /session/:id/prompt 202":2,"POST /session/:id/load 404":1}
+NOTE  model request  -> still held / answered
+NOTE  Turn history  -> [["turn_97a1c6f6ed68420b88ba76f76feb7540","COMPLETED","","0"],["turn_940edb551c03413a967a2714aaae5097","FAILED","hosted_harness_rejected","0"]]
+== c18-store-drift-ws-drift-n9: 0 passed, 0 failed
+stopped spring pid=58588 sig=TERM
+stopped harness pid=57395 sig=TERM
+stopped model pid=57346 sig=TERM
+stopped tap pid=57347 sig=TERM
+BASE10-DONE 11:23:34

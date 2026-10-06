@@ -1,0 +1,126 @@
+spring up after 44s
+### c16-page-caps.mjs ws-p1 a ws-p0 b regen
+# c16-page-regen-ws-p1  db=h10  2026-10-06T10:59:29.192Z
+NOTE  before (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+NOTE  before (carol)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=true get=true","ctl":"list=false get=false"}
+NOTE  after regen (alice)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=false get=false","ctl":"list=true get=true"}
+NOTE  after regen (carol)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=false get=false","ctl":"list=false get=false"}
+NOTE  after regen: alice submit on a1  -> 409 workspace_unavailable
+NOTE  after restore (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  before: creator sees workspaceTurns=true on her own Sessions (list and get)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  after regen: creator's Sessions in the moved Workspace show workspaceTurns=false (list and get)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  after regen: control Workspace Session keeps workspaceTurns=true  -> list=true get=true
+PASS  after regen: submit refused 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  after restore: capability back to true  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+== c16-page-regen-ws-p1: 5 passed, 0 failed
+### c16-page-caps.mjs ws-p2 c ws-p0 b storage
+# c16-page-storage-ws-p2  db=h10  2026-10-06T10:59:54.382Z
+NOTE  before (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+NOTE  before (carol)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=true get=true","ctl":"list=false get=false"}
+NOTE  after storage (alice)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=false get=false","ctl":"list=true get=true"}
+NOTE  after storage (carol)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=false get=false","ctl":"list=false get=false"}
+NOTE  after storage: alice submit on a1  -> 409 workspace_unavailable
+NOTE  after restore (alice)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  before: creator sees workspaceTurns=true on her own Sessions (list and get)  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  after storage: creator's Sessions in the moved Workspace show workspaceTurns=false (list and get)  -> {"a1":"list=false get=false","a2":"list=false get=false","c1":"list=false get=false","ctl":"list=true get=true"}
+PASS  after storage: control Workspace Session keeps workspaceTurns=true  -> list=true get=true
+PASS  after storage: submit refused 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  after restore: capability back to true  -> {"a1":"list=true get=true","a2":"list=true get=true","c1":"list=false get=false","ctl":"list=true get=true"}
+== c16-page-storage-ws-p2: 5 passed, 0 failed
+### f4b-sql-state.mjs ws-f4b e
+# f4b-sql-state-ws-f4b  db=h10  2026-10-06T11:00:14.909Z
+NOTE  live cancel  -> 202 -> CANCELLED
+NOTE  CLOSED: GET / creator cancel (public, WebShell) / mallory cancel / creator submit  -> 200 / 409 workspace_unavailable, 409 workspace_unavailable / 404 session_not_found / 409 workspace_unavailable; command rows +0, Turn rows +0
+NOTE  ARCHIVED: GET / creator cancel (public, WebShell) / mallory cancel / creator submit  -> 200 / 409 workspace_unavailable, 409 workspace_unavailable / 404 session_not_found / 409 workspace_unavailable; command rows +0, Turn rows +0
+NOTE  DELETED: GET / creator cancel (public, WebShell) / mallory cancel / creator submit  -> 404 / 409 workspace_unavailable, 409 workspace_unavailable / 404 session_not_found / 404 session_not_found; command rows +0, Turn rows +0
+NOTE  Turn history  -> [["turn_ca2ecf6a7e8d4fda8b90691561d2d973","COMPLETED","","0"],["turn_c85d7dab7b754d8baea2a3f8201500c5","CANCELLED","","0"]]
+== f4b-sql-state-ws-f4b: 0 passed, 0 failed
+### c19-rename-race.mjs bound ws-c19 f
+# c19-rename-race-bound  db=h10  2026-10-06T11:00:22.790Z
+PASS  initial Turn COMPLETED  -> e580849d-c4da-4ebe-bfd0-4f854d28e563
+NOTE  R1 (K1 → A, Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → B  -> 200 title B
+NOTE  R2 (K1 → A retry, Harness call held 8 s, then 200)  -> 200 title A; K1 row while held COMPLETED
+NOTE  R3 (K1 → A retry overlapping R2, Harness 500)  -> 200 title A; K1 row after R3 COMPLETED
+NOTE  database title afterwards  -> title A
+NOTE  title calls the Harness applied, in order  -> ["title B","title A"]
+NOTE  R4 (K1 → A once more, no fault)  -> 200 title A; database title then title A; K1 row COMPLETED
+== c19-rename-race-bound: 1 passed, 0 failed
+### c19-rename-race.mjs unbound - -
+# c19-rename-race-unbound  db=h10  2026-10-06T11:00:38.075Z
+PASS  initial Turn COMPLETED  -> 49909a94-0220-49c2-b628-d89b656539c8
+NOTE  R1 (K1 → A, Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → B  -> 200 title B
+NOTE  R2 (K1 → A retry, Harness call held 8 s, then 200)  -> 200 title A; K1 row while held COMPLETED
+NOTE  R3 (K1 → A retry overlapping R2, Harness 500)  -> 200 title A; K1 row after R3 COMPLETED
+NOTE  database title afterwards  -> title A
+NOTE  title calls the Harness applied, in order  -> ["title B","title A"]
+NOTE  R4 (K1 → A once more, no fault)  -> 200 title A; database title then title A; K1 row COMPLETED
+== c19-rename-race-unbound: 1 passed, 0 failed
+### c14 revoke
+started c89947b3-04ab-4b35-a917-32b77ccae638 turn=turn_4d47be9cbf2744d6bc35f627751d8480 initial=COMPLETED mode=revoke
+stopped spring pid=57153 sig=TERM
+spring up after 16s
+# c14-cold-cache-revoke-ws-krevoke-n10  db=h10  2026-10-06T11:01:22.909Z
+NOTE  Turn before the cancel (after the Spring restart)  -> ["turn_4d47be9cbf2744d6bc35f627751d8480","RUNNING","","0"]
+NOTE  creator cancel after the restart  -> 202 accepted
+NOTE  Turn 90 s after the cancel  -> CANCELLING  (not terminal)
+NOTE  POST /cancel calls reaching the Harness  -> [{"at":34087,"status":204},{"at":53611,"status":204},{"at":65726,"status":204},{"at":85727,"status":204}]
+NOTE  other Harness calls for the Session since the restart  -> ["POST /session/:id/prompt 202","POST /session/:id/load 200","POST /session/:id/cancel 204"]
+NOTE  model request  -> aborted after 60968 ms
+NOTE  Turn 60 s after can_create was restored  -> CANCELLING  (not terminal)
+NOTE  Workspace file  -> null
+NOTE  Turn history  -> [["turn_46c406f6c83d4de49f0c0d0232411cfe","COMPLETED","","0"],["turn_4d47be9cbf2744d6bc35f627751d8480","CANCELLING","","3"]]
+== c14-cold-cache-revoke-ws-krevoke-n10: 0 passed, 0 failed
+### c14 none
+started 58d2cc22-2db6-4e5f-a4b2-3b11b2f6c27d turn=turn_cfc52df75690424c98be2a65a4958f0a initial=COMPLETED mode=none
+stopped spring pid=85685 sig=TERM
+spring up after 9s
+# c14-cold-cache-none-ws-knone-n10  db=h10  2026-10-06T11:04:18.319Z
+NOTE  Turn before the cancel (after the Spring restart)  -> ["turn_cfc52df75690424c98be2a65a4958f0a","RUNNING","","0"]
+NOTE  creator cancel after the restart  -> 202 accepted
+NOTE  Turn 90 s after the cancel  -> CANCELLING  (not terminal)
+NOTE  POST /cancel calls reaching the Harness  -> [{"at":39949,"status":204},{"at":59931,"status":204},{"at":71119,"status":204}]
+NOTE  other Harness calls for the Session since the restart  -> ["POST /session/:id/prompt 202","POST /session/:id/load 200","POST /session/:id/cancel 204"]
+NOTE  model request  -> aborted after 59602 ms
+NOTE  Turn 60 s after can_create was restored  -> CANCELLING  (not terminal)
+NOTE  Workspace file  -> null
+NOTE  Turn history  -> [["turn_188ec32666004130b791f06e83658c90","COMPLETED","","0"],["turn_cfc52df75690424c98be2a65a4958f0a","CANCELLING","","3"]]
+== c14-cold-cache-none-ws-knone-n10: 0 passed, 0 failed
+stopped spring pid=94274 sig=TERM
+stopped harness pid=56694 sig=TERM
+stopped model pid=56656 sig=TERM
+stopped tap pid=56657 sig=TERM
+spring up after 8s
+### c18 store drift
+started 819f0d88-e2ea-4540-99ad-4f5490344b9f turn=turn_55f138a856104c71b8194585a9162f22
+stopped spring pid=3629 sig=TERM
+spring up after 12s
+# c18-store-drift-ws-drift-n10  db=h10  2026-10-06T11:07:44.463Z
+NOTE  store base-url seen by the Harness on the last load  -> "http://localhost:18163"
+NOTE  creator cancel after the restart  -> 202 accepted
+NOTE  Turn 120 s after the cancel  -> CANCELLING  (not terminal)
+NOTE  Harness calls for the Session since the restart (count)  -> {"POST /session/:id/prompt 202":2,"POST /session/:id/load 409":7}
+NOTE  model request  -> aborted after 120001 ms
+NOTE  Turn history  -> [["turn_dcfe7ed596684bc795120ebc469009e8","COMPLETED","","0"],["turn_55f138a856104c71b8194585a9162f22","CANCELLING","","7"]]
+== c18-store-drift-ws-drift-n10: 0 passed, 0 failed
+stopped spring pid=5016 sig=TERM
+stopped harness pid=3533 sig=TERM
+stopped model pid=3483 sig=TERM
+stopped tap pid=3484 sig=TERM
+spring up after 7s
+### c10 wedge
+# c10-blocked-revoked-ws-c10-n10  db=h10  2026-10-06T11:09:57.809Z
+PASS  initial Turn COMPLETED  -> f5329f7b-7c8b-4b88-81e9-bd1ebb1554fd
+NOTE  first write landed, model holding before the second  -> one-blk-revoked-1935.txt=step-one
+NOTE  second write vs revoked grant  -> Harness "recovery blocked"=true at +6096 ms; Turn=RUNNING; two-blk-revoked-1935.txt=null
+NOTE  creator cancel (revoked)  -> 202 accepted
+NOTE  Turn after 70 s  -> CANCELLING  (still not terminal)
+NOTE  next later Turn  -> 409 turn_active
+NOTE  Turn history  -> [["turn_fdffd5ae54c54a189797da5e86cc1694","COMPLETED","","0"],["turn_4f387edb81a44880a3d9b9ea34a6ff36","CANCELLING","","0"]]
+== c10-blocked-revoked-ws-c10-n10: 1 passed, 0 failed
+stopped spring pid=10855 sig=TERM
+stopped harness pid=10656 sig=TERM
+stopped model pid=10623 sig=TERM
+stopped tap pid=10624 sig=TERM
+ARM-DONE 11:11:32
