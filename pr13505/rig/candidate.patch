@@ -1,0 +1,60 @@
+diff --git a/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json b/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
+index c28cc4b43c..ab3966451e 100644
+--- a/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
++++ b/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
+@@ -1440,6 +1440,39 @@
+       "start": false,
+       "error": "depth must be an integer from 1 to 8"
+     },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-child-run-id-empty",
++      "patch": {
++        "childRunId": ""
++      },
++      "valid": false,
++      "start": false,
++      "error": "childRunId must be a non-empty string"
++    },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-owner-scope-control",
++      "patch": {
++        "ownerScopeId": "scope\u0001main"
++      },
++      "valid": false,
++      "start": false,
++      "error": "ownerScopeId must not contain control characters"
++    },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-root-session-nfd",
++      "patch": {
++        "rootSessionId": "cafe\u0301"
++      },
++      "valid": false,
++      "start": false,
++      "error": "rootSessionId must use NFC normalization"
++    },
+     {
+       "template": "child_agent",
+       "domain": "child_run",
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java
+index 3fda0041d4..77de83ca5a 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java
+@@ -931,6 +931,11 @@ public final class ManagedExtensionRecords {
+         require(!"child_failed".equals(stopReason)
+                 || "settled".equals(execution),
+                 "Child run child_failed needs its settled execution");
++        // The identities last, as the TypeScript validator reads them, so a
++        // doubly broken body reports the same clause in both languages.
++        id(child.get("childRunId"), "childRunId");
++        id(child.get("ownerScopeId"), "ownerScopeId");
++        id(child.get("rootSessionId"), "rootSessionId");
+     }
+ 
+     /** A normalized relative directory: `.` or NFC text without `.`/`..` segments. */
