@@ -1,0 +1,33 @@
+<style>body{margin:0;background:#0d1117}.wrap{display:inline-block;padding:18px;background:#0d1117;color:#e6edf3;font-family:'DejaVu Sans',sans-serif;width:1180px}
+h1{font-size:19px;margin:0 0 4px}.sub{font-size:13px;color:#8b949e;margin:0 0 14px}.sec{border:1px solid #30363d;border-radius:8px;margin:0 0 12px;overflow:hidden}
+.t{background:#161b22;padding:7px 12px;font-size:14px;font-weight:600}pre{margin:0;padding:9px 12px;font-family:'DejaVu Sans Mono',monospace;font-size:12.5px;line-height:1.45;white-space:pre-wrap;color:#d0d7de}</style>
+<div class="wrap"><h1>PR #13468 round 2 — mutants against the test-only commit 1a02ab1a5d</h1><div class="sub">Each mutant edits one production file, runs the pinning test, then the file is restored byte-for-byte (cmp vs git show HEAD). Output lines are verbatim from the vitest / harness logs.</div><div class="sec"><div class="t" style="border-left:4px solid #3fb950">M0 control — test-only head 1a02ab1, unmutated</div><pre>server.test.ts › adopts a UUID legacy Conversations restore through the standalone service
+<span style="color:#3fb950">      Tests  1 passed | 1369 skipped (1370)</span>
+acpAgent.test.ts › rejects SSH workspace relocation and local runtime mutations before dispatch
+<span style="color:#3fb950">      Tests  1 passed | 841 skipped (842)</span>
+ssh-workspace-guards.test.ts
+<span style="color:#3fb950">      Tests  3 passed (3)</span></pre></div><div class="sec"><div class="t" style="border-left:4px solid #ff7b72">M1 swap (route, sessionId) at the owner-wrapper call site, session.ts:1976</div><pre><span style="color:#ff7b72"> FAIL  src/serve/server.test.ts &gt; Live conversation runtime lifecycle &gt; adopts a UUID legacy Conversations restore through the standalone service</span>
+<span style="color:#3fb950">-   &quot;route&quot;: &quot;POST /session/:id/side-task&quot;,</span>
+<span style="color:#3fb950">-   &quot;sessionId&quot;: &quot;550e8400-e29b-41d4-a716-446655440010&quot;,</span>
+<span style="color:#ff7b72">+   &quot;route&quot;: &quot;550e8400-e29b-41d4-a716-446655440010&quot;,</span>
+<span style="color:#ff7b72">+   &quot;sessionId&quot;: &quot;POST /session/:id/side-task&quot;,</span>
+─────── Failed Tests 1 ───────
+<span style="color:#ff7b72">      Tests  1 failed | 1369 skipped (1370)</span></pre></div><div class="sec"><div class="t" style="border-left:4px solid #ff7b72">M2 swap (route, sessionId) at the restricted-wrapper call site, session.ts:2873</div><pre><span style="color:#ff7b72"> FAIL  src/serve/server.test.ts &gt; Live conversation runtime lifecycle &gt; adopts a UUID legacy Conversations restore through the standalone service</span>
+<span style="color:#3fb950">-   &quot;route&quot;: &quot;POST /session/:id/branch&quot;,</span>
+<span style="color:#3fb950">-   &quot;sessionId&quot;: &quot;550e8400-e29b-41d4-a716-446655440010&quot;,</span>
+<span style="color:#ff7b72">+   &quot;route&quot;: &quot;550e8400-e29b-41d4-a716-446655440010&quot;,</span>
+<span style="color:#ff7b72">+   &quot;sessionId&quot;: &quot;POST /session/:id/branch&quot;,</span>
+─────── Failed Tests 1 ───────
+<span style="color:#ff7b72">      Tests  1 failed | 1369 skipped (1370)</span></pre></div><div class="sec"><div class="t" style="border-left:4px solid #ff7b72">M3 drop sessionSideTask from the ACP child SSH deny-list (ssh-workspace-guards.ts)</div><pre><span style="color:#ff7b72"> FAIL  src/acp-integration/acpAgent.test.ts &gt; QwenAgent MCP SSE/HTTP support &gt; rejects SSH workspace relocation and local runtime mutations before dispatch</span>
+AssertionError: expected TypeError: sessionService.forkSession is … to match object { …(2) }
+<span style="color:#3fb950">-   &quot;errorKind&quot;: &quot;unsupported_operation&quot;,</span>
+<span style="color:#3fb950">-   &quot;message&quot;: &quot;This operation is unavailable for SSH workspaces.&quot;,</span>
+<span style="color:#ff7b72">+   &quot;message&quot;: &quot;sessionService.forkSession is not a function&quot;,</span>
+ ❯ src/acp-integration/acpAgent.test.ts:7603:7
+─────── Failed Tests 1 ───────
+<span style="color:#ff7b72">      Tests  1 failed | 841 skipped (842)</span>
+ssh-workspace-guards.test.ts
+─────── Failed Tests 1 ───────
+<span style="color:#ff7b72">      Tests  1 failed | 2 passed (3)</span></pre></div><div class="sec"><div class="t" style="border-left:4px solid #3fb950">Real daemon, real ssh:// workspace — PR head bundle</div><pre>POST /session/:id/side-task  -&gt; 400 {&quot;error&quot;: &quot;Invalid params: This operation is unavailable for SSH workspaces.&quot;, &quot;code&quot;: &quot;unsupported_operation&quot;}
+side_task catalog for the parent -&gt; []</pre></div><div class="sec"><div class="t" style="border-left:4px solid #ff7b72">Real daemon, real ssh:// workspace — M3 mutant bundle (child guard dropped): nothing else stops it</div><pre>POST /session/:id/side-task  -&gt; 201 {&quot;sessionId&quot;: &quot;be5ce490-d86c-4f67-aceb-cd1e3375818c&quot;, &quot;workspaceCwd&quot;: &quot;/root/verify/pr13468/runs/ssh-r2-m3-ssh-guard/home/.qwen/ssh-workspaces/8539e5e
+side_task catalog for the parent -&gt; [&#x27;be5ce490-d86c-4f67-aceb-cd1e3375818c&#x27;]</pre></div></div>
