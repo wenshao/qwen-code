@@ -1,10 +1,12 @@
-## Maintainer verification, round 2 (delta) — #13330 @ `924484ef`
+## Maintainer verification, round 2 (delta) — #13330 @ `517104bb`
 
-**Verdict: ready to merge on the code. The PR body needs an edit first.** Round 1 ([comment](https://github.com/QwenLM/qwen-code/pull/13330#issuecomment-6007415466), at `c096be36`) found one blocking regression and one should-fix divergence. Round 3 (`0f697026`) applied the round-1 candidate patch unchanged. It also fixed the two operability gaps (item 7, the warn-flood half of item 8) and added the tests for the mutation survivors. Round 4 (`924484ef`) merged `main` cleanly. I re-ran every round-1 probe at the new head against the new merge-base `43a6e1e5`. Everything round 1 flagged is now fixed. This report covers only the delta.
+**Verdict: ready to merge on the code. The PR body needs an edit first.** Round 1 ([comment](https://github.com/QwenLM/qwen-code/pull/13330#issuecomment-6007415466), at `c096be36`) found one blocking regression and one should-fix divergence. Round 3 (`0f697026`) applied the round-1 candidate patch unchanged. It also fixed the two operability gaps (item 7, the warn-flood half of item 8) and added the tests for the mutation survivors. Round 4 (`924484ef`) merged `main` cleanly. I re-ran every round-1 probe at `924484ef` against the new merge-base `43a6e1e5`. Everything round 1 flagged is now fixed. This report covers only the delta.
 
 **Rig.** Same as round 1. The probes run the real `ManagedAgentServerApplication` (H2 file databases, the local-process provisioner, a real CLI worker built and bundled from this head), plus a real `qwen serve --profile hosted-harness` full-stack IT. The base arm is the merge-base `43a6e1e5`, so between the arms the production diff is exactly the PR's 9 files. The full-suite runs (mutation sweep, negative controls) ran on aarch64 (`maven:3.9.11-eclipse-temurin-21`), and the probes on x86_64 (`eclipse-temurin:21-jdk`).
 
-### Round-1 findings at `924484ef`
+**Head moved during the round.** I measured at `924484ef`. While I was finishing, the bot's update-branch moved the head to `517104bb` (a merge of `main` `d092d5b4`). `git diff 924484ef 517104bb -- packages/sdk-java` is empty, and the PR's diff against the new merge-base is line-for-line the same. So every Java result below applies as-is, and the figures keep the `924484ef` label they were measured under. The merge did change TypeScript, so I rebuilt the CLI bundle at `517104bb` and re-ran on it the hosted full-stack IT and the close-fence probe, which uses the bundle as its worker. Both results are identical to `924484ef`: 4/4, unbound Turn sent 0 tools, no tool events, and every warm and release cell unchanged.
+
+### Round-1 findings at `517104bb`
 
 | Round-1 finding | Now | Evidence |
 |---|---|---|
@@ -48,7 +50,7 @@ Not a finding. I'm noting it so nobody treats it as a regression later.
 
 - **The logical diff is unchanged.** I compared the PR against the old merge-base (`3172c9fd`→`0f697026`) and against the new one (`43a6e1e5`→`924484ef`). Both cover the same 17 files with +577/−18. The changed lines are identical (595 lines); the only difference is where one blank line sits around the new `store` field, next to `main`'s `workspaces` field.
 - **The new `main` code does not reach the fence.** The fence runs after the workspace branch of the resolver, so bound Sessions never evaluate it, and W2's `verifyWorkspaceCwdTarget` and the bound close path (`closeWorkspace`) are untouched by it. The Kubernetes wording is still accurate after #13289. That PR adds the experimental CSI runtime pieces (the CLI worker and a durable worker-ACK store), but the embedded broker still refuses `provisioner=kubernetes` at startup with the PR's message (re-run at this head).
-- **CI at `924484ef` is green on every lane.** That includes the full SDK Java matrix, `Runtime Broker and Managed Agent MariaDB`, `Hosted process fault gates / MySQL 8.4` (red at `0f697026`, green here) and `Real daemon E2E`. Only `review-pr` and `fallback-comment` failed, and both belong to the review pipeline, not this code.
+- **CI at `924484ef` is green on every lane.** That includes the full SDK Java matrix, `Runtime Broker and Managed Agent MariaDB`, `Hosted process fault gates / MySQL 8.4` (red at `0f697026`, green here) and `Real daemon E2E`. Only `review-pr` and `fallback-comment` failed, and both belong to the review pipeline, not this code. At `517104bb`, when I posted: the ubuntu (Java 11/17/21) and macOS Java lanes and Flyway are green. MariaDB, `Hosted process fault gates` and Windows are still queued; their inputs under `packages/sdk-java` are byte-identical to `924484ef`.
 
 ### Cross-check of the triage sandbox run ([comment](https://github.com/QwenLM/qwen-code/pull/13330#issuecomment-6016016971), same head)
 

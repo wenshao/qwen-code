@@ -1,10 +1,12 @@
-## 维护者验证第 2 轮（仅增量）— #13330 @ `924484ef`
+## 维护者验证第 2 轮（仅增量）— #13330 @ `517104bb`
 
-**结论：代码层面可以合入，但合入前需要先修改 PR 描述。** 第 1 轮（[评论](https://github.com/QwenLM/qwen-code/pull/13330#issuecomment-6007415466)，`c096be36`）发现一处阻塞回归和一处应修的分叉。第 3 轮（`0f697026`）原样采用了第 1 轮的候选补丁，同时修复了两处可运维性问题（第 7 项，以及第 8 项的告警洪水部分），并为变异存活体补了测试。第 4 轮（`924484ef`）干净地合入了 `main`。我在新 head 上、以新的 merge-base `43a6e1e5` 为 base，重跑了第 1 轮的全部探针。第 1 轮指出的问题现在都已修复。本报告只写增量。
+**结论：代码层面可以合入，但合入前需要先修改 PR 描述。** 第 1 轮（[评论](https://github.com/QwenLM/qwen-code/pull/13330#issuecomment-6007415466)，`c096be36`）发现一处阻塞回归和一处应修的分叉。第 3 轮（`0f697026`）原样采用了第 1 轮的候选补丁，同时修复了两处可运维性问题（第 7 项，以及第 8 项的告警洪水部分），并为变异存活体补了测试。第 4 轮（`924484ef`）干净地合入了 `main`。我在 `924484ef` 上、以新的 merge-base `43a6e1e5` 为 base，重跑了第 1 轮的全部探针。第 1 轮指出的问题现在都已修复。本报告只写增量。
 
 **环境。** 与第 1 轮相同。探针运行真实的 `ManagedAgentServerApplication`（H2 文件库、local-process provisioner、从本 head 构建并打包的真实 CLI worker），另外跑了一次真实 `qwen serve --profile hosted-harness` 的全栈 IT。base 臂是 merge-base `43a6e1e5`，两臂之间的生产代码差异正好是 PR 的 9 个文件。全量测试（变异扫描、负对照）在 aarch64 上运行（`maven:3.9.11-eclipse-temurin-21`），探针在 x86_64 上运行（`eclipse-temurin:21-jdk`）。
 
-### 第 1 轮问题在 `924484ef` 上的状态
+**本轮期间 head 有变化。** 我是在 `924484ef` 上测的。收尾时，bot 的 update-branch 把 head 推到了 `517104bb`（合入 `main` `d092d5b4`）。`git diff 924484ef 517104bb -- packages/sdk-java` 为空，PR 相对新 merge-base 的 diff 也逐行相同。所以下面所有 Java 结果原样适用，图中保留测量时的 `924484ef` 标注。这次合并改了 TypeScript，所以我在 `517104bb` 上重建了 CLI bundle，在新 bundle 上重跑了 hosted 全栈 IT，以及把 bundle 当 worker 用的关闭围栏探针。两者结果都与 `924484ef` 完全一致：4/4 通过，非绑定 turn 拿到 0 个工具，没有工具事件，warm 和 release 的每一格都没有变化。
+
+### 第 1 轮问题在 `517104bb` 上的状态
 
 | 第 1 轮问题 | 现状 | 证据 |
 |---|---|---|
@@ -48,7 +50,7 @@
 
 - **逻辑 diff 没有变化。** 我分别对比了 PR 相对旧 merge-base（`3172c9fd`→`0f697026`）和相对新 merge-base（`43a6e1e5`→`924484ef`）的 diff。两者都是同样的 17 个文件、+577/−18，改动行逐行相同（595 行），唯一的差别是新增的 `store` 字段旁边一个空行的位置（它与 `main` 的 `workspaces` 字段并排）。
 - **`main` 新代码碰不到这个围栏。** 围栏位于 resolver 的 workspace 分支之后，绑定会话永远不会走到它；W2 的 `verifyWorkspaceCwdTarget` 和绑定会话的关闭路径（`closeWorkspace`）都不受它影响。#13289 合入后，Kubernetes 文案仍然准确。那个 PR 加的是实验性 CSI runtime 的组件（CLI worker 和持久化的 worker ACK 存储），内嵌 broker 在启动时仍会用 PR 的文案拒绝 `provisioner=kubernetes`（已在本 head 上重跑确认）。
-- **`924484ef` 上 CI 所有车道全绿。** 包括完整的 SDK Java 矩阵、`Runtime Broker and Managed Agent MariaDB`、`Hosted process fault gates / MySQL 8.4`（在 `0f697026` 上是红的，这里是绿的）和 `Real daemon E2E`。只有 `review-pr` 和 `fallback-comment` 失败，二者都属于评审流水线，与本 PR 代码无关。
+- **`924484ef` 上 CI 所有车道全绿。** 包括完整的 SDK Java 矩阵、`Runtime Broker and Managed Agent MariaDB`、`Hosted process fault gates / MySQL 8.4`（在 `0f697026` 上是红的，这里是绿的）和 `Real daemon E2E`。只有 `review-pr` 和 `fallback-comment` 失败，二者都属于评审流水线，与本 PR 代码无关。截至发布时，`517104bb` 上 ubuntu（Java 11/17/21）、macOS 的 Java 车道和 Flyway 已通过。MariaDB、`Hosted process fault gates` 和 Windows 还在排队；它们在 `packages/sdk-java` 下的输入与 `924484ef` 字节相同。
 
 ### 对 triage 沙箱验证的交叉核对（[评论](https://github.com/QwenLM/qwen-code/pull/13330#issuecomment-6016016971)，同一 head）
 
