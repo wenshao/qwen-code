@@ -1,0 +1,100 @@
+[
+ {
+  "id": "M01-generation-arm",
+  "file": "ManagedExtensionProjection.java",
+  "old": "case SETTLED -> \"not_started\".equals(executionStatus)\n                    || \"cancelled\".equals(executionStatus)\n                            && dispatchGeneration == 0\n",
+  "new": "case SETTLED -> \"not_started\".equals(executionStatus)\n"
+ },
+ {
+  "id": "M02-reserved-id-ordinary",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "require(!RESERVED_EVENT_ID.matcher(eventId).matches(),",
+  "new": "require(true || !RESERVED_EVENT_ID.matcher(eventId).matches(),"
+ },
+ {
+  "id": "M03-own-reserved-id-stageh",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "require(ownReservedId(eventId, domain),",
+  "new": "require(true || ownReservedId(eventId, domain),"
+ },
+ {
+  "id": "M04-domain-payload-hole",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "            requireDomainCommitted(payload, domain, body != null);\n",
+  "new": "            if (body != null) requireDomainCommitted(payload, domain, true);\n"
+ },
+ {
+  "id": "M05-event-kinds",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "            ManagedExtensionRecords.oneOf(event.get(\"kind\"),\n                    ManagedExtensionRecords.EVENT_KINDS, \"event.kind\");\n",
+  "new": ""
+ },
+ {
+  "id": "M06-subject-object",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "                && (!event.has(\"subject\") || event.get(\"subject\").isObject());",
+  "new": "                ;"
+ },
+ {
+  "id": "M07-marker-cap",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "                                        .MAX_COMMIT_MARKER_BYTES",
+  "new": "                                        .MAX_EVENT_BYTES"
+ },
+ {
+  "id": "M08-unknown-subtype",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "                    require(!managed, \"Record line \" + (index + 1)",
+  "new": "                    require(true || !managed, \"Record line \" + (index + 1)"
+ },
+ {
+  "id": "M09-one-stageh-per-tx",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "                require(applied == 0, \"A transaction carries at most one\"",
+  "new": "                require(true || applied == 0, \"A transaction carries at most one\""
+ },
+ {
+  "id": "M10-event-sequence",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "                    sessionId, firstSequence + index, body == null);",
+  "new": "                    sessionId, event.path(\"sequence\").asLong(), body == null);"
+ },
+ {
+  "id": "M11-own-session",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "        require(tenantId.equals(key.get(\"tenantId\").textValue())\n                && workspaceId.equals(key.get(\"workspaceId\").textValue())\n                && sessionId.equals(key.get(\"sessionId\").textValue()),\n                \"The event names another Session.\");",
+  "new": ""
+ },
+ {
+  "id": "M12-closed-envelope",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "                if (!allowed.contains(names.next())) {",
+  "new": "                if (false && !allowed.contains(names.next())) {"
+ },
+ {
+  "id": "M13-event-in-range",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "            require(index < eventCount, \"The event of record line \"",
+  "new": "            require(true || index < eventCount, \"The event of record line \""
+ },
+ {
+  "id": "M14-event-line-cap",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "            managed = true;\n            requireLineBytes(lines[index], index,\n                    ManagedSessionStoreModels.MAX_EVENT_BYTES);\n",
+  "new": "            managed = true;\n"
+ },
+ {
+  "id": "M15-no-stream-announce-restored",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "            if (isBeingDeleted(tenantId, sessionId)) {\n                return;\n            }\n",
+  "new": "            if (sessions != null) sessions.appendLiveSessionEventIfAbsent(tenantId, sessionId, \"task.updated\", java.util.Map.of(\"taskId\", taskId, \"state\", projection.state()), \"task:\" + taskId + \":\" + revision);\n            if (isBeingDeleted(tenantId, sessionId)) {\n                return;\n            }\n"
+ },
+ {
+  "id": "M06b-subject-object-both",
+  "file": "ManagedExtensionRecordStore.java",
+  "old": "                && (!event.has(\"subject\") || event.get(\"subject\").isObject());",
+  "new": "                ;",
+  "old2": "        require(event == null || !event.isObject() || !event.has(\"subject\")\n                || event.get(\"subject\").isObject(),\n                \"event.subject must be a JSON object\");\n",
+  "new2": ""
+ }
+]
