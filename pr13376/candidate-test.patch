@@ -1,0 +1,39 @@
+diff --git a/packages/core/src/managed-runtime/managed-session-metadata.test.ts b/packages/core/src/managed-runtime/managed-session-metadata.test.ts
+index 1d0e207492..6aba76a110 100644
+--- a/packages/core/src/managed-runtime/managed-session-metadata.test.ts
++++ b/packages/core/src/managed-runtime/managed-session-metadata.test.ts
+@@ -457,6 +457,34 @@ describe('managed session metadata', () => {
+     });
+   });
+ 
++  it('replays a retried command that pinned expectedSequence', async () => {
++    const harness = await createHarness();
++    await withAuthority(harness, async (authority) => {
++      // The identical retry carries the sequence it was first sent with, which
++      // the commit itself has since moved past: the replay must answer first.
++      const command = {
++        ...renameCommand('cmd-rename-1'),
++        expectedSequence: authority.committedSequence,
++      };
++      const request = {
++        domain: 'session_metadata',
++        content: { title: 'First title', titleSource: 'auto' },
++      } as const;
++      const first = await authority.commitDomainRecord(command, request, {
++        class: 'trusted_entry',
++      });
++      await expect(
++        authority.commitDomainRecord(command, request, {
++          class: 'trusted_entry',
++        }),
++      ).resolves.toMatchObject({
++        revision: 1,
++        recordRef: first.recordRef,
++        receipt: { replayed: true },
++      });
++    });
++  });
++
+   it('refuses a retry of a committed command under a different domain', async () => {
+     const harness = await createHarness();
+     await withAuthority(harness, async (authority) => {
