@@ -93,7 +93,7 @@ function projClass(scenario, arm, text) {
     ['null-resultref', 'turn.settled resultRef: null'],
     ['result-body-not-a-record', 'result body {"state":"completed"}'],
     ['turn-result-no-version', 'turn_result without version  (M18)'],
-    ['turn-result-bad-timestamp', 'turn_result timestamp "not-a-date"  (M19)'],
+    ['turn-result-bad-timestamp', 'turn_result timestamp "not-a-date"'],
     ['turn-result-unknown-subtype', 'turn_result subtype "turn_result_v9"  (M19)'],
     ['turn-result-malformed-message', 'turn_result message: "x"  (M19)'],
   ];
@@ -116,7 +116,7 @@ function projClass(scenario, arm, text) {
     'PR #13332 — cross-binary local log and the real CLI',
     'Writer and reader are each arm\'s built core dist (no mocks); the CLI rows run each arm\'s dist/cli.js bundle against a fake OpenAI server with an isolated HOME.',
     body,
-    'Null resultRef: base reader throws a raw TypeError, head names the event (typed). Every malformed turn result a base writer commits fails the whole session\'s cold projection on both readers; head\'s writer refuses all of them, including the no-version and diagnostics shapes that no PR test pins (mutants M18/M19). A glued marker tail makes base refuse Legacy --resume of a Legacy session; head resumes it.'));
+    'Null resultRef: base reader throws a raw TypeError, head names the event (typed). Every malformed turn result a base writer commits fails the whole session\'s cold projection on both readers; head\'s writer refuses all of them, including the no-version shape and the diagnostics-only shapes (unknown subtype, malformed message) that no PR test pins (mutants M18/M19). A glued marker tail makes base refuse Legacy --resume of a Legacy session; head resumes it.'));
 }
 
 // ---------- Card 3: tests, witnesses, mutants ----------
@@ -144,8 +144,8 @@ function projClass(scenario, arm, text) {
     M04: 'equivalent: installActivation always bumps the epoch, so the epoch clause already rejects a fresh activation',
     M05: 'benign: a duplicate concurrent renewal replays by command idempotency (probe: same event count), and the only caller ignores the result',
     M12: 'unpinned: no writer emits a \\u-spelled header subtype (JSON.stringify never escapes it)',
-    M18: 'GAP: a turn_result without version bricks the cold projection (card 2) and no test notices the clause gone',
-    M19: 'GAP: invalid timestamp / unknown subtype / malformed message brick the cold projection (card 2); no test pins it',
+    M18: 'GAP: a turn_result without version bricks the cold projection (card 2); killed by a candidate row (candidate-test.patch)',
+    M19: 'GAP: unknown subtype / malformed message brick the cold projection (card 2); killed by a candidate row (candidate-test.patch)',
     M28: 'gap: enqueue limits clone untested',
     M29: 'gap: claim input clone untested',
     M32: 'gap: release outcome clone untested',
@@ -157,7 +157,7 @@ function projClass(scenario, arm, text) {
     'PR #13332 — the PR\'s tests on three arms, and single-guard revert mutants',
     'Host load average 40–88 on 10 cores during these runs (other sessions); every failure on head/merge was a 15 s timeout that passed with a 120 s timeout.',
     body,
-    `${killed}/${mut.length} reverts are caught. Two survivors are real gaps worth one it.each row each (no-version and a diagnostics case in "rejects a turn-complete whose result body is …"); the rest are equivalent, benign, or low-risk clone checks.`));
+    `${killed}/${mut.length} reverts are caught. Two survivors are real gaps; two it.each rows ("a record without a version", "a record with a malformed message payload") kill them and pass on head — see candidate-test.patch. The rest are equivalent, benign, or low-risk clone checks.`));
 }
 
 // ---------- Card 4: end-to-end + merge suites ----------
