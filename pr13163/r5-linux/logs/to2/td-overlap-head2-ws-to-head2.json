@@ -1,0 +1,92 @@
+{
+  "name": "td-overlap-head2-ws-to-head2",
+  "pass": 0,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "creator cancel (create restored, cold cache)",
+      "note": true,
+      "detail": "202 accepted"
+    },
+    {
+      "label": "L1 (Spring) acquire answered by the Broker, answer held 5 s",
+      "note": true,
+      "detail": "+33442 ms"
+    },
+    {
+      "label": "L2 (overlapping passive load) acquire answered, answer held 15 s",
+      "note": true,
+      "detail": "+33551 ms"
+    },
+    {
+      "label": "DELETE while both loads adopt",
+      "note": true,
+      "detail": "+33561 ms -> 409 {\"error\":\"hosted_turn_active\",\"code\":\"hosted_turn_active\"}"
+    },
+    {
+      "label": "L1 answered Spring",
+      "note": true,
+      "detail": "+38471 ms -> 200 "
+    },
+    {
+      "label": "DELETE right after L1 answered, L2 still adopting",
+      "note": true,
+      "detail": "+38664 ms -> 204 "
+    },
+    {
+      "label": "L2 answer",
+      "note": true,
+      "detail": "+48543 ms -> 409 {\"error\":\"hosted_turn_recovery_required\",\"code\":\"hosted_turn_recovery_required\"}"
+    },
+    {
+      "label": "Turn end",
+      "note": true,
+      "detail": "FAILED hosted_harness_rejected at +49594 ms"
+    },
+    {
+      "label": "Broker calls through the tap since the cancel",
+      "note": true,
+      "detail": "[\"POST /internal/runtime-broker/v1/tool-sessions:acquire 200 [delay-after]\",\"POST /internal/runtime-broker/v1/tool-sessions:acquire 200 [delay-after]\",\"POST /internal/runtime-broker/v1/tool-sessions/:id:release 200\"]"
+    },
+    {
+      "label": "Spring -> Harness calls since the cancel",
+      "note": true,
+      "detail": "[\"POST /session/:id/load 200 passive\",\"POST /session/:id/managed-runtime/cancel 409 hosted_session_closing\",\"POST /session/:id/managed-runtime/cancel 404 hosted_session_not_found\"]"
+    },
+    {
+      "label": "Runtime Session records",
+      "note": true,
+      "detail": "[[\"647951e7c02a\",\"RELEASED\",\"3\"],[\"9f2bbcf006d4\",\"RELEASED\",\"3\"]]"
+    },
+    {
+      "label": "Turn history",
+      "note": true,
+      "detail": "[[\"turn_2f24c2a41c364375bb88c0c667e50e2c\",\"COMPLETED\",\"\",\"0\"],[\"turn_b67a833289614f2db80d5b9af6e8fde0\",\"FAILED\",\"hosted_harness_rejected\",\"1\"]]"
+    }
+  ],
+  "arm": "head2",
+  "cancel": 202,
+  "del1": 409,
+  "del2": 204,
+  "l1": 200,
+  "l2": {
+    "status": 409,
+    "body": "{\"error\":\"hosted_turn_recovery_required\",\"code\":\"hosted_turn_recovery_required\"}",
+    "at": "+48543 ms"
+  },
+  "end": {
+    "status": "FAILED",
+    "error": "hosted_harness_rejected",
+    "ms": 44
+  },
+  "brokerCalls": [
+    "POST /internal/runtime-broker/v1/tool-sessions:acquire 200 [delay-after]",
+    "POST /internal/runtime-broker/v1/tool-sessions:acquire 200 [delay-after]",
+    "POST /internal/runtime-broker/v1/tool-sessions/:id:release 200"
+  ],
+  "harnessCalls": [
+    "POST /session/:id/load 200 passive",
+    "POST /session/:id/managed-runtime/cancel 409 hosted_session_closing",
+    "POST /session/:id/managed-runtime/cancel 404 hosted_session_not_found"
+  ]
+}

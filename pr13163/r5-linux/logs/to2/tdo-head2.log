@@ -1,0 +1,32 @@
+model listening 18167
+tap 18166 -> 18165
+harness pid=484845 dist=head2 up after 2s log=/root/v13163/rig/run/to2/harness-0.log
+springb pid=484889 jar=head2 store=http://127.0.0.1:18164 up after 25s log=/root/v13163/rig/run/to2/springb-0.log
+spring pid=485795 jar=head2 store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/to2/spring-0.log
+# td-start-ws-to-head2  db=to2  2026-10-06T14:05:15.908Z
+PASS  initial Turn COMPLETED  -> dffed7c4-21f0-4138-8ef8-3b7449d62476
+PASS  Turn recovery-blocked in the live Harness  -> Turn=RUNNING one=step-one two=null
+== td-start-ws-to-head2: 2 passed, 0 failed
+stopped spring pid=485795 sig=TERM
+spring pid=486345 jar=head2 store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/to2/spring-1.log
+# td-overlap-head2-ws-to-head2  db=to2  2026-10-06T14:05:50.723Z
+NOTE  creator cancel (create restored, cold cache)  -> 202 accepted
+NOTE  L1 (Spring) acquire answered by the Broker, answer held 5 s  -> +33442 ms
+NOTE  L2 (overlapping passive load) acquire answered, answer held 15 s  -> +33551 ms
+NOTE  DELETE while both loads adopt  -> +33561 ms -> 409 {"error":"hosted_turn_active","code":"hosted_turn_active"}
+NOTE  L1 answered Spring  -> +38471 ms -> 200 
+NOTE  DELETE right after L1 answered, L2 still adopting  -> +38664 ms -> 204 
+NOTE  L2 answer  -> +48543 ms -> 409 {"error":"hosted_turn_recovery_required","code":"hosted_turn_recovery_required"}
+NOTE  Turn end  -> FAILED hosted_harness_rejected at +49594 ms
+NOTE  Broker calls through the tap since the cancel  -> ["POST /internal/runtime-broker/v1/tool-sessions:acquire 200 [delay-after]","POST /internal/runtime-broker/v1/tool-sessions:acquire 200 [delay-after]","POST /internal/runtime-broker/v1/tool-sessions/:id:release 200"]
+NOTE  Spring -> Harness calls since the cancel  -> ["POST /session/:id/load 200 passive","POST /session/:id/managed-runtime/cancel 409 hosted_session_closing","POST /session/:id/managed-runtime/cancel 404 hosted_session_not_found"]
+NOTE  Runtime Session records  -> [["647951e7c02a","RELEASED","3"],["9f2bbcf006d4","RELEASED","3"]]
+NOTE  Turn history  -> [["turn_2f24c2a41c364375bb88c0c667e50e2c","COMPLETED","","0"],["turn_b67a833289614f2db80d5b9af6e8fde0","FAILED","hosted_harness_rejected","1"]]
+== td-overlap-head2-ws-to-head2: 0 passed, 0 failed
+stopped spring pid=486345 sig=TERM
+stopped spring-b pid=484889 sig=TERM
+stopped harness pid=484845 sig=TERM
+stopped model pid=484813 sig=TERM
+stopped tap pid=484814 sig=TERM
+stopped btap pid=484810 sig=TERM
+TDO-DONE 14:06:42

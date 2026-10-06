@@ -1,0 +1,66 @@
+COLD-START 13:17:15 db=h5d jar=head dist=head
+model listening 18167
+tap 18166 -> 18165
+harness pid=432123 dist=head up after 2s log=/root/v13163/rig/run/h5d/harness-0.log
+springb pid=432167 jar=head store=http://127.0.0.1:18164 up after 25s log=/root/v13163/rig/run/h5d/springb-0.log
+spring pid=433087 jar=head store=http://127.0.0.1:18164 up after 6s log=/root/v13163/rig/run/h5d/spring-0.log
+### /usr/bin/node c14-cold-cache.mjs start ws-k5revoke a revoke
+started fdc6328f-f8dc-4665-b003-1a2bcd3dc145 turn=turn_227bd9ec94db4409a1da31de1aa7ef98 initial=COMPLETED mode=revoke
+RC=0
+### restart replica A only (Session Store on B stays up)
+stopped spring pid=433087 sig=TERM
+spring pid=433483 jar=head store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/h5d/spring-1.log
+### /usr/bin/node c14-cold-cache.mjs cancel ws-k5revoke a revoke
+# c14-cold-cache-revoke-ws-k5revoke  db=h5d  2026-10-06T13:18:10.548Z
+NOTE  Turn before the cancel (after the Spring restart)  -> ["turn_227bd9ec94db4409a1da31de1aa7ef98","RUNNING","","0"]
+NOTE  creator cancel after the restart  -> 202 accepted
+NOTE  Turn 90 s after the cancel  -> CANCELLED  at +43685 ms
+NOTE  POST /cancel calls reaching the Harness  -> [{"at":43481,"status":204}]
+NOTE  other Harness calls for the Session since the restart  -> ["POST /session/:id/prompt 202","POST /session/:id/load 200","POST /session/:id/cancel 204"]
+NOTE  model request  -> aborted after 59995 ms
+NOTE  Turn 60 s after can_create was restored  -> CANCELLED  
+NOTE  Workspace file  -> null
+NOTE  Turn history  -> [["turn_f2a34efb017f49bfbcf7ea08af7f0c49","COMPLETED","","0"],["turn_227bd9ec94db4409a1da31de1aa7ef98","CANCELLED","","0"]]
+== c14-cold-cache-revoke-ws-k5revoke: 0 passed, 0 failed
+RC=0
+### /usr/bin/node c14-cold-cache.mjs start ws-k5none a none
+started 2a44630c-47a7-4e52-b1d0-9339941fc213 turn=turn_30ee39968cb4497e9fb4444693f1d3ab initial=COMPLETED mode=none
+RC=0
+### restart replica A only (Session Store on B stays up)
+stopped spring pid=433483 sig=TERM
+spring pid=434669 jar=head store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/h5d/spring-2.log
+### /usr/bin/node c14-cold-cache.mjs cancel ws-k5none a none
+# c14-cold-cache-none-ws-k5none  db=h5d  2026-10-06T13:19:17.368Z
+NOTE  Turn before the cancel (after the Spring restart)  -> ["turn_30ee39968cb4497e9fb4444693f1d3ab","RUNNING","","0"]
+NOTE  creator cancel after the restart  -> 202 accepted
+NOTE  Turn 90 s after the cancel  -> CANCELLED  at +43453 ms
+NOTE  POST /cancel calls reaching the Harness  -> [{"at":43466,"status":204}]
+NOTE  other Harness calls for the Session since the restart  -> ["POST /session/:id/prompt 202","POST /session/:id/load 200","POST /session/:id/cancel 204"]
+NOTE  model request  -> aborted after 59954 ms
+NOTE  Turn 60 s after can_create was restored  -> CANCELLED  
+NOTE  Workspace file  -> null
+NOTE  Turn history  -> [["turn_3c95d890f0c7424eb3b2eab8b539174f","COMPLETED","","0"],["turn_30ee39968cb4497e9fb4444693f1d3ab","CANCELLED","","0"]]
+== c14-cold-cache-none-ws-k5none: 0 passed, 0 failed
+RC=0
+### /usr/bin/node w2c-cwd-cancel.mjs start ws-w5c h
+# w2c-start-ws-w5c  db=h5d  2026-10-06T13:20:01.488Z
+PASS  initial Turn COMPLETED in child/  -> 92531251-eb70-433e-94a2-05573590e2e2 file=after-w0
+PASS  W2 cwd change completed (child -> child2, revision +1)  -> 202 -> completed ; binding ["child","1"] -> ["child2","2"]
+NOTE  later Turn admitted in child2, then create revoked + DRAINING  -> 202 turn_19ffbd361ae14340b650cc6bf535e609
+== w2c-start-ws-w5c: 2 passed, 0 failed
+RC=0
+### restart replica A only (Session Store on B stays up)
+stopped spring pid=434669 sig=TERM
+spring pid=436011 jar=head store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/h5d/spring-3.log
+### /usr/bin/node w2c-cwd-cancel.mjs cancel ws-w5c h
+# w2c-cancel-ws-w5c  db=h5d  2026-10-06T13:20:24.282Z
+NOTE  creator cancel (after Spring restart)  -> 202 accepted in 135 ms; workspaceTurns=false
+NOTE  Turn end  -> CANCELLED  at +43981 ms
+NOTE  model request  -> aborted after 60019 ms
+NOTE  late file in child2 / child  -> null / null
+NOTE  next Turn after restore writes into child2  -> 202 -> COMPLETED; child2=AFTER child=null
+NOTE  command rows  -> [["SUBMIT_TURN","COMPLETED"],["CANCEL_TURN","COMPLETED"],["SUBMIT_TURN","COMPLETED"]]
+NOTE  Turn history  -> [["turn_10d64a218de1425fb7a9b361620396ef","COMPLETED","","0"],["turn_19ffbd361ae14340b650cc6bf535e609","CANCELLED","","0"],["turn_f9a28ea23c43451e8b11302166235b9e","COMPLETED","","0"]]
+== w2c-cancel-ws-w5c: 0 passed, 0 failed
+RC=0
+COLD-DONE 13:21:13
