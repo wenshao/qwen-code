@@ -1,0 +1,80 @@
+diff --git a/packages/web-shell/client/components/managed/use-managed-session.test.tsx b/packages/web-shell/client/components/managed/use-managed-session.test.tsx
+index 0d8ae47c8b..df8335ec58 100644
+--- a/packages/web-shell/client/components/managed/use-managed-session.test.tsx
++++ b/packages/web-shell/client/components/managed/use-managed-session.test.tsx
+@@ -542,6 +542,56 @@ describe('useManagedSession', () => {
+     }
+   });
+ 
++  it('does not resurrect a keep-alive-expired verdict when the healthy stream later drops', async () => {
++    // One 404 on a reconnect; the next connection answers with keep-alives
++    // and clears it; much later that long-lived connection drops with a
++    // network error. The 404 was refuted long ago and must not come back.
++    vi.useFakeTimers();
++    const restoreBackoff = deterministicBackoff();
++    try {
++      let calls = 0;
++      const provider = {
++        getSession: vi.fn().mockResolvedValue({ sessionId: 'session-1' }),
++        getTranscript: vi.fn().mockResolvedValue(transcript(1)),
++        subscribeEvents: vi.fn(async function* (
++          _sessionId: string,
++          request: { signal?: AbortSignal; onAlive?: () => void },
++        ) {
++          calls++;
++          if (calls === 1)
++            throw Object.assign(new Error('session gone'), { status: 404 });
++          if (calls === 2) {
++            await new Promise((resolve) => setTimeout(resolve, 5_000));
++            request.onAlive?.();
++            await new Promise((resolve) => setTimeout(resolve, 60_000));
++            throw new TypeError('network error');
++          }
++          yield* [];
++          await new Promise((resolve) =>
++            request.signal?.addEventListener('abort', resolve),
++          );
++        }),
++      } as unknown as ManagedAgentProvider;
++      mountReact(<Probe provider={provider} />);
++      await flushReact();
++      expect(latest?.stoppedReason).toBe('session gone');
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(9_000);
++      });
++      // The keep-alive at t=8000 refuted the verdict.
++      expect(latest?.stoppedReason).toBeUndefined();
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(60_000);
++      });
++      // The drop at t=68000 is a fresh, transient failure only.
++      expect(latest?.stoppedReason).toBeUndefined();
++      expect(latest?.error).toBe('network error');
++    } finally {
++      restoreBackoff();
++      vi.useRealTimers();
++    }
++  });
++
+   it('expires a terminal stream verdict on an error-free clean close', async () => {
+     vi.useFakeTimers();
+     const restoreBackoff = deterministicBackoff();
+diff --git a/packages/web-shell/client/components/managed/use-managed-session.ts b/packages/web-shell/client/components/managed/use-managed-session.ts
+index c11232a4c6..a2698f6e30 100644
+--- a/packages/web-shell/client/components/managed/use-managed-session.ts
++++ b/packages/web-shell/client/components/managed/use-managed-session.ts
+@@ -380,7 +380,13 @@ export function useManagedSession(
+             // it lands the expiry the proof-of-life point was holding.
+             onAlive: () => {
+               delivered = true;
+-              if (proofOfLifePassed) expireAnswered('stream');
++              if (proofOfLifePassed) {
++                expireAnswered('stream');
++                // The server answered on this connection after the expiry:
++                // the verdict is refuted for good, and a later drop of this
++                // connection is a fresh failure, not a reason to restore it.
++                expiredVerdictMessage = undefined;
++              }
+             },
+           })) {
+             if (abort.signal.aborted) return;
