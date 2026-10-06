@@ -1,0 +1,46 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentServerIntegrationTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentServerIntegrationTest.java
+index 621ab6741c..a628d7eb56 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentServerIntegrationTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedAgentServerIntegrationTest.java
+@@ -1880,17 +1880,17 @@ class ManagedAgentServerIntegrationTest {
+                 .andExpect(header().exists("Allow"))
+                 .andExpect(jsonPath("$.error.code")
+                         .value("method_not_allowed"));
+-        // Routes here declare no `consumes`, so Spring never raises
+-        // HttpMediaTypeNotSupportedException: the text/plain body reaches
+-        // the handler and is refused as a client error with the envelope's
+-        // 400 invalid_request. The dedicated 415 handler still guards any
+-        // route that adds a constraint.
++        // With the required header present, the @RequestBody resolver finds
++        // no converter for text/plain and raises
++        // HttpMediaTypeNotSupportedException (a 500 before this change).
+         mvc.perform(post("/v1/agents/sessions")
+                         .header(TenantContextFilter.HEADER, "tenant-415")
++                        .header("Idempotency-Key", "media-type-415")
+                         .contentType(MediaType.TEXT_PLAIN)
+                         .content("not json"))
+-                .andExpect(status().isBadRequest())
+-                .andExpect(jsonPath("$.error.code").value("invalid_request"));
++                .andExpect(status().isUnsupportedMediaType())
++                .andExpect(jsonPath("$.error.code")
++                        .value("unsupported_media_type"));
+     }
+ 
+     @Test
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionRowLockOrderTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionRowLockOrderTest.java
+index 652ae27921..0f2b439001 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionRowLockOrderTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionRowLockOrderTest.java
+@@ -30,8 +30,11 @@ class SessionRowLockOrderTest {
+                 "cancelBeforeAdmission", "failTurn")) {
+             String body = methodBody(source, method);
+             int sessionLock = body.indexOf("requireSessionForUpdate");
++            // recordAdmission reaches the Turn row through its own UPDATE
++            // statement rather than a helper, so the SQL text counts too.
+             int turnRowAccess = firstIndexOf(body, "requireTurn(",
+-                    "requireTurnForUpdate(", "insertCancelCommand(");
++                    "requireTurnForUpdate(", "insertCancelCommand(",
++                    "managed_agent_turn");
+             assertThat(sessionLock).as(method + " locks the session row")
+                     .isGreaterThanOrEqualTo(0);
+             assertThat(turnRowAccess < 0 || sessionLock < turnRowAccess)
