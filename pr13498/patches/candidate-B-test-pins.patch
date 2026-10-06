@@ -1,0 +1,133 @@
+diff --git a/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.fixtures.json b/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.fixtures.json
+index d6b5a81421..d84bfb2059 100644
+--- a/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.fixtures.json
++++ b/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.fixtures.json
+@@ -455,6 +455,23 @@
+         }
+       }
+     },
++    {
++      "id": "session-id-c1-control",
++      "valid": false,
++      "envelope": {
++        "v": 1,
++        "sessionId": "session-\u0085",
++        "tenantId": "tenant-1",
++        "workspaceId": "workspace-1",
++        "sequence": 42,
++        "eventId": "evt-000042",
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      }
++    },
+     {
+       "id": "tenant-id-empty",
+       "valid": false,
+@@ -488,6 +505,23 @@
+         }
+       }
+     },
++    {
++      "id": "workspace-id-empty",
++      "valid": false,
++      "envelope": {
++        "v": 1,
++        "sessionId": "session-1",
++        "tenantId": "tenant-1",
++        "workspaceId": "",
++        "sequence": 42,
++        "eventId": "evt-000042",
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      }
++    },
+     {
+       "id": "sequence-missing",
+       "valid": false,
+@@ -639,6 +673,23 @@
+         }
+       }
+     },
++    {
++      "id": "event-id-control-character",
++      "valid": false,
++      "envelope": {
++        "v": 1,
++        "sessionId": "session-1",
++        "tenantId": "tenant-1",
++        "workspaceId": "workspace-1",
++        "sequence": 42,
++        "eventId": "evt-\u0007",
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      }
++    },
+     {
+       "id": "kind-missing",
+       "valid": false,
+@@ -1247,6 +1298,34 @@
+           "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
+         }
+       }
++    },
++    {
++      "id": "both-unparseable-compare-false",
++      "same": false,
++      "first": {
++        "v": 1,
++        "sessionId": "session-1",
++        "tenantId": "tenant-1",
++        "workspaceId": "workspace-1",
++        "sequence": 42,
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      },
++      "second": {
++        "v": 1,
++        "sessionId": "session-1",
++        "tenantId": "tenant-1",
++        "workspaceId": "workspace-1",
++        "sequence": 42,
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      }
+     }
+   ],
+   "fromEventCases": [
+diff --git a/packages/core/src/managed-runtime/managed-event-envelope.test.ts b/packages/core/src/managed-runtime/managed-event-envelope.test.ts
+index 6f2eda39d6..498ad7451f 100644
+--- a/packages/core/src/managed-runtime/managed-event-envelope.test.ts
++++ b/packages/core/src/managed-runtime/managed-event-envelope.test.ts
+@@ -146,6 +146,9 @@ describe('Managed event envelope contract', () => {
+     expect(fixtures.contractVersion).toBe(1);
+     expect(fixtures.formatVersion).toBe(MANAGED_EVENT_ENVELOPE_FORMAT_VERSION);
+     expect(fixtures.kinds).toStrictEqual([...MANAGED_SESSION_EVENT_KINDS]);
++    expect(
++      (schema.$defs['envelope'].properties?.['kind'] as { enum: unknown }).enum,
++    ).toStrictEqual([...MANAGED_SESSION_EVENT_KINDS]);
+     expect(fixtures.forbiddenFields).toStrictEqual([
+       ...MANAGED_EVENT_ENVELOPE_FORBIDDEN_FIELDS,
+     ]);
+@@ -233,6 +236,7 @@ describe('Managed event envelope contract', () => {
+       const event = parseManagedSessionEvent(fixture.event);
+ 
+       expect(managedEventEnvelopeFrom(event)).toStrictEqual(fixture.envelope);
++      expect(isDeepFrozen(managedEventEnvelopeFrom(event))).toBe(true);
+       expect(managedEventEnvelopeFrom(event).payloadRef.digest).toBe(
+         managedSessionEventsDigest([event]),
+       );

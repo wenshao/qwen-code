@@ -1,0 +1,48 @@
+[
+ {
+  "file": "01-real-rows.png",
+  "ok": true,
+  "title": "#13498 · Real Managed stack rows through the envelope contract",
+  "sub": "Spring jar (JDK 21) + MySQL 8.4.7 + Hosted Harness + dist/cli.js from head 846247fa30 · rows read back from qwen_managed_session_journal_tx",
+  "blocks": [
+   "## Runs that produced the rows\n++ run-managed-agent-server-e2e --model qwen3.8-max      PASS 19 s   toolSideEffect=true  crossTenant=404\n++ run-managed-agent-server-e2e --session-failover      PASS 20 s   writerGeneration 1 -> 2\n== 44 journal transactions (2 session.create without events) · 48 committed events · 10 of 17 kinds",
+   "## parseManagedSessionEvent -> managedEventEnvelopeFrom -> JSON wire -> parseManagedEventEnvelope + schema\n++ event.sessionKey == row (tenant_id, workspace_id, session_id)        48/48\n++ derive -> parse round trip identical                                 48/48\n++ envelope accepted by managed-event-envelope-v1.schema.json           48/48\n++ distinct (tenantId, sessionId, sequence) keys                        48/48\n++ one-event commits: payloadRef.digest == stored events_digest         36/36\n!! multi-event commits (6 tx, 12 events): digest is per event, so a\n!!   receiver must recompute it; no stored column carries it            0/12 stored\n++ occurredAt <= journal commit time (max lag 40 ms)                    48/48\n++ record lines in SQL that contain an absolute path (cwd)              94\n++ envelopes that contain an absolute path                              0",
+   "## Kinds seen in real rows\n   activation.changed 7  checkpoint.committed 9  message.committed 8  model.attempt 8\n   message.delta 4  input.accepted 3  wake.requested 3  turn.settled 3  domain.committed 2  tool.intent 1\n== not produced by these runs: action.changed tool.receipt context.compacted cancel.requested\n==   config.bound lifecycle.changed message.retracted (derivation copies kind, so it is kind-agnostic)"
+  ],
+  "note": "Claim holds on real data: the commit path supplies every envelope field today, and keeping the body in SQL really keeps absolute paths (cwd in every record line) off the wire."
+ },
+ {
+  "file": "02-two-streams.png",
+  "ok": false,
+  "title": "#13498 · One (tenantId, sessionId, sequence), two different committed facts",
+  "sub": "Same real Session (qwen3.8-max run): managed_agent_event.sequence_id vs journal commit sequence",
+  "blocks": [
+   "## real-model-e2e / d506a523-97c1-4023-a33b-38399d4d38ba\n  seq  public_event (managed_agent_event)   authoritative_journal (envelope v1 kind)\n    1  session.created                      activation.changed\n    2  turn.accepted                        input.accepted\n    3  environment.provisioning             wake.requested\n    4  turn.started                         checkpoint.committed\n    5  environment.ready                    message.committed\n    6  item.output_text.delta               model.attempt\n    7  item.output_text.delta               message.delta\n    8  item.output_text.delta               message.delta\n    9  item.output_text.delta               model.attempt\n   10  turn.completed                       message.committed\n!! qwen3.8-max run: 10/10 public sequences reuse a journal key · failover run: 13/13",
+   "## What the docs on main say vs what v1 freezes\n== parent design 2026-10-04-managed-agent-event-transport.md section 6:\n==   \"dedups on (tenantId, sessionId, stream, sequence) ... an envelope always names its stream\"\n==   \"one sequence without a source is not an identity\"\n-- PR envelope key:  (tenantId, sessionId, sequence)        no stream field\n-- PR module comment: the notice is \"for materialization and cross-node wake\"\n!! MessageMaterializer reads managed_agent_event by sequence_id (the public stream),\n!!   which the v1 kind enum cannot express\n++ candidate A: stream = \"authoritative_journal\" in envelope, key and dedupe (85/85)"
+  ],
+  "note": "Today v1 only carries journal kinds, so nothing collides yet. Adding a required field after v1 is frozen is a breaking change, so the stream decision is cheapest now."
+ },
+ {
+  "file": "03-gate.png",
+  "ok": false,
+  "title": "#13498 · Non-enablement gate scans packages/core/src only",
+  "sub": "Gate mutants on head 846247fa30 · every existing Managed consumer lives in packages/cli/src/serve",
+  "blocks": [
+   "## G1: consumer inside packages/core/src (control)\n   managed-session-storage.ts: import { parseManagedEventEnvelope } from './managed-event-envelope.js'\n++ gate fails: \"declares the contract without enabling any consumer\"           (killed)",
+   "## G2: consumer in packages/cli/src/serve via the deep import path\n   hosted-harness-session.ts: import { parseManagedEventEnvelope }\n     from '@qwen-code/qwen-code-core/managed-runtime/managed-event-envelope.js'\n== same import style: 29 cli imports of .../managed-runtime/managed-session-records.js\n-- envelope suite                                78/78 passed (gate green)\n-- tsc --noEmit -p packages/cli                  exit 0\n-- npm run bundle                                code lands in dist/chunks/server-OQCYKZQ5.js\n-- executed from the bundle:\n   envelope consumer: {\"v\":1,...,\"workspaceId\":\"/Users/alice/project\",...}"
+  ],
+  "note": "The structural proof covers core only. Widen the walk to the packages that import core (at least packages/cli/src), or scope the claim in the PR body and design doc."
+ },
+ {
+  "file": "04-ids-mutants-ci.png",
+  "ok": true,
+  "title": "#13498 · Id rules vs the Session Store, mutation matrix, CI red leg",
+  "sub": "Java = shipped jar ManagedSessionStore.validateScope (reflection) · mutants on the 78-test suite",
+  "blocks": [
+   "## Envelope parser vs the Java Session Store on the same ids\n  case                              envelope (head)   Java store   candidate C\n  workspaceId /Users/alice/project   accept            refuse       refuse\n  workspaceId C:\\Users\\alice         accept            refuse       refuse\n  workspaceId . / ..                 accept            refuse       refuse\n  sessionId .. / a/b                 accept            refuse       refuse\n  tenantId 129 / 512 bytes           accept            refuse       refuse\n  tenantId 128 bytes                 accept            accept       accept\n== Spring boot with QWEN_MANAGED_AGENT_WORKSPACE_ID=/srv/workspaces/alice: refuses to start\n==   \"Runtime Broker workspace ID must match the canonical workspace path hash\"",
+   "## Mutation matrix (29 mutants on module + schema)\n  head 846247fa30            21 killed   8 survived\n-- M08 workspaceId validation deleted        S03 extra kind in schema envelope enum\n-- M19 two unparseable inputs compare true   S05 schema stableId allows C1 controls\n-- M23 derived envelope not frozen           == M02/M03 redundant pair, M20 JSON-equivalent\n++ candidate B (+4 fixtures, 2 asserts)  26 killed   3 equivalent left\n++ candidate A/C extra mutants            7/8 killed  (A1 equivalent while v1 has one stream)",
+   "## CI red leg: Test (ubuntu-latest, Node 22.x)\n   2 failures, both in packages/cli acp-integration/session/Session.test.ts (no PR file)\n-- head (main ac81c07d + PR)        3/3 local runs fail the same 2 tests\n++ trial merge with main ac497aee   pass   main fixed both expectations in b5855087 (#13407)"
+  ],
+  "note": "Merging main clears the red leg with no PR change. Candidate B is test-only; candidate C is optional because the deployed authority already refuses these ids."
+ }
+]

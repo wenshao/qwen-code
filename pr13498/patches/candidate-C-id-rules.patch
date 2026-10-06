@@ -1,0 +1,213 @@
+diff --git a/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.fixtures.json b/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.fixtures.json
+index 89c6ac8de7..3f5117f1e0 100644
+--- a/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.fixtures.json
++++ b/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.fixtures.json
+@@ -499,6 +499,24 @@
+         }
+       }
+     },
++    {
++      "id": "session-id-dot-dot",
++      "valid": false,
++      "envelope": {
++        "v": 1,
++        "sessionId": "..",
++        "tenantId": "tenant-1",
++        "workspaceId": "workspace-1",
++        "stream": "authoritative_journal",
++        "sequence": 42,
++        "eventId": "evt-000042",
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      }
++    },
+     {
+       "id": "tenant-id-empty",
+       "valid": false,
+@@ -517,6 +535,42 @@
+         }
+       }
+     },
++    {
++      "id": "tenant-id-128-bytes",
++      "valid": true,
++      "envelope": {
++        "v": 1,
++        "sessionId": "session-1",
++        "tenantId": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
++        "workspaceId": "workspace-1",
++        "stream": "authoritative_journal",
++        "sequence": 42,
++        "eventId": "evt-000042",
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      }
++    },
++    {
++      "id": "tenant-id-over-128-bytes",
++      "valid": false,
++      "envelope": {
++        "v": 1,
++        "sessionId": "session-1",
++        "tenantId": "ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
++        "workspaceId": "workspace-1",
++        "stream": "authoritative_journal",
++        "sequence": 42,
++        "eventId": "evt-000042",
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      }
++    },
+     {
+       "id": "workspace-id-missing",
+       "valid": false,
+@@ -552,6 +606,42 @@
+         }
+       }
+     },
++    {
++      "id": "workspace-id-absolute-path",
++      "valid": false,
++      "envelope": {
++        "v": 1,
++        "sessionId": "session-1",
++        "tenantId": "tenant-1",
++        "workspaceId": "/Users/alice/project",
++        "stream": "authoritative_journal",
++        "sequence": 42,
++        "eventId": "evt-000042",
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      }
++    },
++    {
++      "id": "workspace-id-windows-path",
++      "valid": false,
++      "envelope": {
++        "v": 1,
++        "sessionId": "session-1",
++        "tenantId": "tenant-1",
++        "workspaceId": "C:\\Users\\alice",
++        "stream": "authoritative_journal",
++        "sequence": 42,
++        "eventId": "evt-000042",
++        "kind": "domain.committed",
++        "occurredAt": 1760000000000,
++        "payloadRef": {
++          "digest": "631f42ee57f8e39d9491a76ba9477d32a11f8c2b8a3a4ff3c21b30760c600000"
++        }
++      }
++    },
+     {
+       "id": "stream-missing",
+       "valid": false,
+diff --git a/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.schema.json b/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.schema.json
+index 6f43005bba..2024342384 100644
+--- a/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.schema.json
++++ b/packages/core/src/managed-runtime/contracts/managed-event-envelope-v1.schema.json
+@@ -145,6 +145,18 @@
+       "maxLength": 512,
+       "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+     },
++    "keyComponent": {
++      "type": "string",
++      "minLength": 1,
++      "maxLength": 512,
++      "pattern": "^(?!\\.+$)[^\\u0000-\\u001f\\u007f-\\u009f/\\\\]+$"
++    },
++    "tenantId": {
++      "type": "string",
++      "minLength": 1,
++      "maxLength": 128,
++      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
++    },
+     "digest": {
+       "type": "string",
+       "pattern": "^[0-9a-f]{64}$"
+@@ -179,13 +191,13 @@
+           "const": 1
+         },
+         "sessionId": {
+-          "$ref": "#/$defs/stableId"
++          "$ref": "#/$defs/keyComponent"
+         },
+         "tenantId": {
+-          "$ref": "#/$defs/stableId"
++          "$ref": "#/$defs/tenantId"
+         },
+         "workspaceId": {
+-          "$ref": "#/$defs/stableId"
++          "$ref": "#/$defs/keyComponent"
+         },
+         "stream": {
+           "enum": ["authoritative_journal"]
+diff --git a/packages/core/src/managed-runtime/managed-event-envelope.ts b/packages/core/src/managed-runtime/managed-event-envelope.ts
+index 0ca2955aa3..348767515c 100644
+--- a/packages/core/src/managed-runtime/managed-event-envelope.ts
++++ b/packages/core/src/managed-runtime/managed-event-envelope.ts
+@@ -159,6 +159,19 @@ function closed<Key extends string>(
+   return { ...value } as Record<Key, ManagedSessionJsonValue>;
+ }
+ 
++// The Session Store's own key rules (ManagedSessionStore.validateScope):
++// a tenant id fits 128 UTF-8 bytes, and a workspace or session id is a safe
++// key component, so no committed row can name an id the envelope refuses.
++const MAX_TENANT_ID_BYTES = 128;
++
++function keyComponent(value: ManagedSessionJsonValue, label: string): string {
++  const id = assertManagedSessionStableId(value, label);
++  if (id.includes('/') || id.includes('\\') || /^\.+$/.test(id)) {
++    fail(`${label} must be a safe key component.`);
++  }
++  return id;
++}
++
+ function assertEnum<T extends string>(
+   value: ManagedSessionJsonValue,
+   allowed: readonly T[],
+@@ -170,6 +183,14 @@ function assertEnum<T extends string>(
+   return value as T;
+ }
+ 
++function tenantId(value: ManagedSessionJsonValue): string {
++  const id = assertManagedSessionStableId(value, 'envelope.tenantId');
++  if (Buffer.byteLength(id, 'utf8') > MAX_TENANT_ID_BYTES) {
++    fail(`envelope.tenantId exceeds ${MAX_TENANT_ID_BYTES} UTF-8 bytes.`);
++  }
++  return id;
++}
++
+ export function parseManagedEventEnvelope(
+   value: unknown,
+ ): ManagedEventEnvelope {
+@@ -187,15 +208,9 @@ export function parseManagedEventEnvelope(
+   const ref = closed(body.payloadRef, PAYLOAD_REF_KEYS, 'envelope.payloadRef');
+   return Object.freeze({
+     v: MANAGED_EVENT_ENVELOPE_FORMAT_VERSION,
+-    sessionId: assertManagedSessionStableId(
+-      body.sessionId,
+-      'envelope.sessionId',
+-    ),
+-    tenantId: assertManagedSessionStableId(body.tenantId, 'envelope.tenantId'),
+-    workspaceId: assertManagedSessionStableId(
+-      body.workspaceId,
+-      'envelope.workspaceId',
+-    ),
++    sessionId: keyComponent(body.sessionId, 'envelope.sessionId'),
++    tenantId: tenantId(body.tenantId),
++    workspaceId: keyComponent(body.workspaceId, 'envelope.workspaceId'),
+     stream: assertEnum(
+       body.stream,
+       MANAGED_EVENT_ENVELOPE_STREAMS,
