@@ -1,0 +1,73 @@
+// PR #13260 S8: the real upgrade path. Sessions are created by the main the PR integrates (a1610e6e: jar + CLI, Flyway
+// V40), the whole deployment is upgraded to the PR head (V41-V43 applied to that populated database), used, and only then
+// migrated with the head's maintenance jars. Afterwards: write + undo of a prompt that the MAIN build recorded.
+import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import * as L from './lib.mjs';
+import * as W from './w1bc.mjs';
+import * as P from './pop.mjs';
+import * as M from './w1c.mjs';
+const TAG = process.env.TAG ?? 's8';
+const HL = process.env.HEADLBL ?? 'h2';
+L.openLog(`s8-${TAG}`);
+const { say } = L;
+const R = { tag: TAG };
+const SRC = '/srv/w1c-src/a'; const DST = '/srv/w1c-dst/a';
+const read = (root, f) => { try { return fs.readFileSync(`${root}/${f}`, 'utf8').trim(); } catch (e) { return `<${e.code}>`; } };
+const flyway = () => L.sql('SELECT version, success FROM flyway_schema_history ORDER BY installed_rank').map((r) => `${r[0]}${r[1] === '1' ? '' : '!'}`).join(' ');
+say(L.hostFacts());
+say(`   phase 1 (main a1610e6e): server ${L.env().JAR} dist ${L.env().DIST}`);
+process.env.MAINT_JAR = '/opt/w1c/main-server.jar';
+await P.rollout(['a', 'b']);
+R.flywayMain = flyway(); say(`   flyway after main: ...${R.flywayMain.split(' ').slice(-3).join(' ')}`);
+L.seedWs('ws-a1', 'a'); L.seedWs('ws-b1', 'b');
+const rig = await L.startRig(`s8-${TAG}-main`, { dist: 'dist-main' });
+const S = {}; const PR = {};
+const open = async (n, ws) => { S[n] = new L.HSession(rig.h, await L.createSession(ws), ws); say(`   ${n} ${S[n].sessionId.slice(0, 8)} (${ws}) create=${(await S[n].create(L.FILES)).status} [main]`); };
+const run = async (n, k, t) => { const r = await S[n].prompt(t); PR[k] = r.promptId; say(`     ${n} ${k} ${t}: ${P.term(r)}`); return r; };
+await open('F1', 'ws-a1'); await run('F1', 'm1', 'WRITE notes.txt main-v1'); await run('F1', 'm2', 'WRITE notes.txt main-v2');
+await open('F2', 'ws-a1'); await run('F2', 'm3', 'WRITE other.txt o1');
+await open('D1', 'ws-a1'); await run('D1', 'm4', 'WRITE del.txt d1');
+await open('B1', 'ws-b1'); await run('B1', 'm5', 'WRITE b.txt b1');
+for (const s of Object.values(S)) await s.detach();
+R.lifecycleMain = [await P.lifecycle(S.F2.sessionId, 'close'), await P.lifecycle(S.F2.sessionId, 'archive'), await P.lifecycle(S.D1.sessionId, 'close'), await P.lifecycle(S.D1.sessionId, 'delete')];
+say(`   main lifecycle: ${R.lifecycleMain.join(' | ')}`);
+R.creatorColumn = L.sql("SELECT COUNT(*), SUM(creator_actor_key IS NOT NULL) FROM managed_agent_session")[0].join('/');
+await rig.h.stop(); L.svc('stop'); await W.waitLeasesExpired('a');
+
+say('== phase 2: upgrade the whole deployment to the PR head (jar + CLI), same DB, same QWEN_HOME, same mounts');
+say('  ', L.svc(`JAR=${HL}-server.jar`, `DIST=dist-${HL}`, 'start').split('\n').at(-1).slice(0, 160));
+R.flywayHead = flyway(); say(`   flyway after head: ...${R.flywayHead.split(' ').slice(-5).join(' ')}`);
+const h1 = await new L.Harness({ name: `s8-${TAG}-head`, modelUrl: rig.model.baseUrl, brokerUrl: rig.proxy.url, dist: `dist-${HL}`, port: Number(process.env.HPORT ?? 0) }).start();
+rig.h = h1;
+S.F1.bind(h1); say(`   F1 cold load on head: ${(await S.F1.load(L.FILES)).status}`); await run('F1', 'h1', 'WRITE notes.txt head-v3');
+await S.F1.detach(); await h1.stop(); L.svc('stop'); await W.waitLeasesExpired('a');
+
+say('== phase 3: W1c with the head maintenance jars');
+process.env.MAINT_JAR = `/opt/w1c/${HL}-server.jar`;
+const hroot = W.historyRoot();
+const m0 = L.mountRow('a');
+const req = M.migrationRequest({ revision: m0.revision, source: SRC, target: DST, bundle: `/srv/w1c-bundles/${TAG}`, cli: `/opt/w1c/dist-${HL}/cli.js` });
+const file = M.writeRequest(req, TAG);
+const J = { jar: `/opt/w1c/${HL}-server-workspace-migration.jar` };
+let r = await M.mig('retire', file, { label: `${TAG}-retire`, ...J });
+if (r.code !== 0) { R.firstRetire = M.migSummary(r); L.sh(`touch -d '+1 second' ${hroot}`); r = await M.mig('retire', file, { label: `${TAG}-retire-2`, ...J }); }
+L.sayMaint(`${TAG}-fence`, L.maint(['fence', L.TENANT, 'st-a', SRC, String(m0.revision), req.fenceOperationId, '--offline-confirmed']));
+W.prepareBundle(TAG, { sessions: W.members('a').map((m) => m.id) });
+R.capture = W.summary(await W.w1b('capture', W.captureRequest({ op: req.captureOperationId, fence: req.fenceOperationId, revision: m0.revision, bundle: req.bundleRoot, dist: `dist-${HL}` }), { label: `${TAG}-capture`, jar: `/opt/w1c/${HL}-server-workspace-bundle.jar` }));
+L.sh(`cp -a ${SRC} ${DST}`);
+R.prepare = M.migSummary(await M.mig('prepare', file, { label: `${TAG}-prepare`, ...J }));
+R.promote = M.migSummary(await M.mig('promote', file, { label: `${TAG}-promote`, ...J }));
+R.mount = L.mstr(L.mountRow('a'));
+say(`   ${R.mount}`);
+say('  ', L.svc(`ROOT_a=${DST}`, 'start').split('\n').at(-1).slice(0, 160));
+const h2 = await new L.Harness({ name: `s8-${TAG}-after`, modelUrl: rig.model.baseUrl, brokerUrl: rig.proxy.url, dist: `dist-${HL}`, port: Number(process.env.HPORT ?? 0) }).start();
+S.F1.bind(h2); const ld = await S.F1.load(L.FILES);
+await run('F1', 'h2', 'WRITE notes.txt after-migration');
+const target1 = read(`${DST}/project`, 'notes.txt');
+const rw = await h2.json(`/session/${S.F1.sessionId}/files/rewind`, { promptId: PR.m2, requestId: randomUUID() }, { clientId: S.F1.clientId });
+R.after = { load: ld.status, afterWrite: target1, undoMainPrompt: `${rw.status} ${JSON.stringify(rw.json?.filesChanged)}`, afterUndo: read(`${DST}/project`, 'notes.txt'), source: read(`${SRC}/project`, 'notes.txt') };
+say(`   after: load=${ld.status} notes.txt=${target1}; undo of main-recorded prompt m2: ${R.after.undoMainPrompt} -> target notes.txt=${R.after.afterUndo}, source=${R.after.source}`);
+await S.F1.detach().catch(() => {}); await h2.stop(); await rig.stop(); L.svc('stop');
+fs.writeFileSync(`${L.OUT}/s8-${TAG}.json`, JSON.stringify(R, null, 1));
+say('S8-DONE');

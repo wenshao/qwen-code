@@ -1,0 +1,127 @@
+[
+ {
+  "name": "a-01-flyway-v45-collision",
+  "title": "Merge blocker again: W1c's V45 collides with main's V45 (#13265, merged 2026-10-06 03:22 UTC)",
+  "subtitle": "PR head 102cd9be (W1c = V45–V47 after #13289's V41–V44) · trial merge with main b2c95e04 · git reports no textual conflict",
+  "sections": [
+   {
+    "heading": "Migrations in the merged tree",
+    "lines": [
+     "-- V45__managed_session_task_journal.sql      (main, #13265 H3 background Shell and Monitor runtime)",
+     "-- V45__workspace_storage_migration.sql       (this PR)",
+     "   V46__workspace_migration_lookup_indexes.sql, V47__workspace_migration_binary_identity.sql (this PR)"
+    ]
+   },
+   {
+    "heading": "Repository checker + packaged server jar on a fresh MySQL 8.4.11 database",
+    "table": [
+     [
+      "tree",
+      "scripts/check-flyway-migrations.js",
+      "startup"
+     ],
+     [
+      "trial merge as is",
+      "-- 2 migrations claim version 45 (exit 1)",
+      "-- Found more than one migration with version 45; no schema history"
+     ],
+     [
+      "PR head 102cd9be",
+      "++ 47 migrations, all unique",
+      "++ applied 47, now at v47"
+     ],
+     [
+      "trial merge, W1c renumbered V46–V48 (rig-only)",
+      "++ 48 migrations, all unique",
+      "++ applied 48, now at v48"
+     ]
+    ]
+   },
+   {
+    "heading": "Renumbered trial merge, full process flow (merge jar + merge CLI incl. #13265)",
+    "lines": [
+     "++ 5 Files Sessions (ACTIVE ×2, ARCHIVED, CLOSED, DELETED) · retire stops 2 live workers · capture SEALED 5/5",
+     "++ prepare / promote → COMPLETED, READY rev2 at the target · 4/47 tables change · source and history unchanged",
+     "++ restart: cold loads 200, writes on the target, undo of new and pre-migration prompts OK"
+    ]
+   }
+  ],
+  "note": "The PR's own Flyway check passed before #13265 landed. In my runs, renumbering W1c to V46–V48 was the only change the merge needed; #13265's runtime did not disturb W1c for Files Sessions.",
+  "noteClass": "bad"
+ },
+ {
+  "name": "a-02-r7-1-public-api",
+  "title": "R7-1 through the public API on real Linux: f2a349be admits 3/3, 102cd9be refuses 3/3",
+  "subtitle": "Spring keeps admitting (the operator mistake the fence guards). X holds the tenant placement-guard row; retire queues (LOCK WAIT 1); POST /v1/agents/sessions queues (LOCK WAIT 2); X commits",
+  "sections": [
+   {
+    "heading": "Queued create after retire installs the storage fence (one fresh storage per trial)",
+    "table": [
+     [
+      "build",
+      "trial",
+      "retire",
+      "queued create",
+      "st members"
+     ],
+     [
+      "f2a349be (control)",
+      "st-a / st-b / st-c",
+      "RETIRED, fence installed ×3",
+      "-- 202, new Session ×3",
+      "-- 1 → 2 (stray ACTIVE member) ×3"
+     ],
+     [
+      "102cd9be (fix)",
+      "st-a / st-b / st-c",
+      "RETIRED, fence installed ×3",
+      "++ 409 workspace_unavailable ×3",
+      "++ 1 → 1 ×3"
+     ]
+    ]
+   },
+   {
+    "heading": "Controls on 102cd9be",
+    "lines": [
+     "++ replaying a creation receipt committed BEFORE the fence (same Idempotency-Key) → 202, same Session id ×3, no new member",
+     "++ a new create while the fence is up → 409 workspace_unavailable ×3 (also on f2a349be: only the queued race slipped through)"
+    ]
+   }
+  ],
+  "note": "The fix closes the race on the packaged stack through public HTTP, which the author's macOS evidence did not cover; original receipts still replay.",
+  "noteClass": "ok"
+ },
+ {
+  "name": "a-03-exact-head-and-upgrade",
+  "title": "Exact head 102cd9be on Linux: full flow, and an older main upgraded to it before migrating",
+  "subtitle": "Ubuntu 24.04 aarch64, kernel 6.8, separate loop-backed ext4 volumes, MySQL 8.4.11; jars and dist/cli.js built from 102cd9be",
+  "sections": [
+   {
+    "heading": "S1 full flow at 102cd9be",
+    "lines": [
+     "++ retire stops the 2 live st-a workers (st-b's survives) · capture SEALED 5/5 · prepare/promote → READY rev2 once",
+     "++ 4/45 tables change (lease, migration, runtime binding + slot) · source tree, source marker, history unchanged",
+     "++ restart: cold loads 200 · writes land on the target · undo of new and pre-migration prompts on the target"
+    ]
+   },
+   {
+    "heading": "S8 upgrade: main a1610e6e (Flyway V40) → 102cd9be (V41–V44 CSI from #13289 + V45–V47 W1c) → W1c",
+    "lines": [
+     "++ Sessions created by main (ACTIVE, closed+archived, closed+deleted); Flyway on the populated DB … 43 44 45 46 47",
+     "++ main-created Session cold-loads and writes on the head",
+     "!! retire: migration_history_unverified (N1) → touch → RETIRED",
+     "++ capture SEALED 3/3 · promote → READY rev2 · undo of a prompt recorded by MAIN restores main-v1 on the target"
+    ]
+   },
+   {
+    "heading": "PR's Java suites on Linux + MySQL 8.4.11 (102cd9be)",
+    "lines": [
+     "++ runtime-broker focused: 148 run, 0 fail, 2 skipped · server unit (incl. WorkspaceMigrationStoreTest 16): 51 run, 0 fail",
+     "++ MySQL IT: WorkspaceMigrationMySqlIT 4 (incl. the new R7-1 test), WorkspaceSessionRetentionMySqlIT 16, WorkspaceSessionCloseMySqlIT 5: 25 run, 0 fail"
+    ]
+   }
+  ],
+  "note": "The flows I re-ran on this head behave exactly as in earlier rounds after the R7-1 fix and the f2a349be main integration.",
+  "noteClass": "ok"
+ }
+]
