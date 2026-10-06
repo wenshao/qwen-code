@@ -1,0 +1,103 @@
+# M12-redrive-single-attempt
+# cli/src/serve/hosted-shell-publisher.ts: "const MAX_REDRIVE_ATTEMPTS = 3;" -> "const MAX_REDRIVE_ATTEMPTS = 1;"
+# tests: src/serve/hosted-shell-publisher.background.test.ts
+
+
+ RUN  v3.2.7 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr21/packages/cli
+      Coverage enabled with v8
+
+ ❯ src/serve/hosted-shell-publisher.background.test.ts (18 tests | 2 failed) 27867ms
+   ✓ admits the foreground of every turn of the Session beside a background watch  337ms
+   ✓ runs the background exit leg: revise, seal, settle as one evidence  463ms
+   ✓ melds a monitor watch through one terminal step only after its start receipt  560ms
+   ✓ retries a finalize that failed once instead of caching the refusal forever  416ms
+   ✓ commits the tail an ownerless watch decoded before its record settles  657ms
+   ✓ completes a refused exit settle on the record’s own attach, without a client retry  448ms
+   ✓ re-drives a refused final forward on an attached record without any client action  3586ms
+   × heals a refused final forward through the bounded redrive when the store flaps twice (S15c) 5426ms
+     → expected { kind: 'shell', …(10) } to match object { stopReason: 'exited', run: { …(2) } }
+(34 matching properties omitted from actual)
+   ✓ waits an in-flight redrive inside the drain instead of closing past it (P2-A)  610ms
+   × waits a redrive whose backoff fires only while the drain is already waiting (P2-3) 11549ms
+     → expected 1 to be 2 // Object.is equality
+     → Hook timed out in 10000ms.
+If this is a long-running hook, pass a timeout value as the last argument or configure it globally with "hookTimeout".
+   ✓ advances the record when a blind-capture revision lands, without waiting for another output (P2-B)  533ms
+   ✓ swallows a refused write-arm forward and retries it on the next edging write (M8b)  401ms
+   ✓ keeps an ownerless tail for the settle that its attach unblocks  593ms
+   ✓ retries the record forward a wedge threw once instead of latching its write  450ms
+   ✓ settles an unproven background end as a failure, never as an exit  495ms
+   ✓ settles an unproven monitor end as watch_failed, never as a clean exit  661ms
+   ✓ replays the lines a monitor wrote before its observer registered  350ms
+   ✓ force-emits a truncated observation at the partial-line ceiling instead of discarding it  330ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 16 passed (18)
+   Start at  08:48:15
+   Duration  36.26s (transform 430ms, setup 215ms, collect 647ms, tests 27.87s, environment 0ms, prepare 64ms)
+
+JUNIT report written to /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/375ea070-7eb1-408b-8193-ec64d7c2959a/scratchpad/wt-pr21/packages/cli/junit.xml
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/serve/hosted-shell-publisher.background.test.ts > heals a refused final forward through the bounded redrive when the store flaps twice (S15c)
+AssertionError: expected { kind: 'shell', …(10) } to match object { stopReason: 'exited', run: { …(2) } }
+(34 matching properties omitted from actual)
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[2m    "run": {[22m
+[32m-     "execution": "settled",[39m
+[32m-     "state": "settled",[39m
+[31m+     "execution": "running_attached",[39m
+[31m+     "state": "running",[39m
+[2m    },[22m
+[32m-   "stopReason": "exited",[39m
+[31m+   "stopReason": null,[39m
+[2m  }[22m
+
+ ❯ vi.waitFor.timeout src/serve/hosted-shell-publisher.background.test.ts:903:22
+    901|           .record,
+    902|       );
+    903|       expect(record).toMatchObject({
+       |                      ^
+    904|         stopReason: 'exited',
+    905|         run: { state: 'settled', execution: 'settled' },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/serve/hosted-shell-publisher.background.test.ts > waits a redrive whose backoff fires only while the drain is already waiting (P2-3)
+AssertionError: expected 1 to be 2 // Object.is equality
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 2[39m
+[31m+ 1[39m
+
+ ❯ src/serve/hosted-shell-publisher.background.test.ts:1133:44
+    1131|   });
+    1132|   await vi.waitFor(() => {
+    1133|     expect(settleCalls.get('execution-b')).toBe(2);
+       |                                            ^
+    1134|   });
+    1135|   releaseGateA();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/serve/hosted-shell-publisher.background.test.ts > waits a redrive whose backoff fires only while the drain is already waiting (P2-3)
+Error: Hook timed out in 10000ms.
+If this is a long-running hook, pass a timeout value as the last argument or configure it globally with "hookTimeout".
+ ❯ src/serve/hosted-shell-publisher.background.test.ts:77:1
+     75| let publisher: HostedShellPublisher | undefined;
+     76| let server: Server | undefined;
+     77| afterEach(async () => {
+       | ^
+     78|   vi.unstubAllGlobals();
+     79|   await publisher?.close();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
