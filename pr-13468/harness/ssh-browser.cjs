@@ -1,0 +1,24 @@
+const { chromium } = require('playwright');
+const fs = require('node:fs');
+(async () => {
+  const [base, out] = process.argv.slice(2);
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ viewport: { width: 1560, height: 900 }, deviceScaleFactor: 2 });
+  const p = await ctx.newPage();
+  const wire = [];
+  p.on('response', async (r) => { if (r.url().includes('/side-task')) wire.push({ status: r.status(), body: (await r.text().catch(() => '')).slice(0, 300) }); });
+  await p.goto(`${base}/?token=tok13468`);
+  await p.waitForTimeout(3000);
+  await p.getByText('hello from ssh workspace').first().click();
+  await p.waitForTimeout(2500);
+  const ed = p.locator('[data-web-shell-composer-editor] .cm-content').first();
+  await ed.click();
+  await p.keyboard.type('/btw side what is in this remote project?', { delay: 5 });
+  await p.waitForTimeout(300);
+  await p.keyboard.press('Escape').catch(() => {});
+  await p.locator('[data-web-shell-composer-submit]').first().click();
+  await p.waitForTimeout(4000);
+  await p.screenshot({ path: out });
+  console.log(JSON.stringify(wire));
+  await b.close();
+})();
