@@ -1,0 +1,19 @@
+--- /root/verify/pr13260/head/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java	2026-10-06 07:20:35.737847145 +0800
++++ /root/verify/pr13260/fix-r7/src/ManagedAgentStore.java	2026-10-06 09:18:08.036059161 +0800
+@@ -248,6 +248,8 @@
+         if (!input.isEmpty() && !workspaceFilesEnabled) {
+             throw workspaceExecutionUnavailable();
+         }
++        // FIX ARM (R7-1): take the placement lock before the transaction's first consistent read.
++        WorkspaceMigrationAdmission.lockTenant(jdbc, tenantId);
+         List<WorkspaceCommand> existing = findWorkspaceCommand(tenantId,
+                 actorId, idempotencyKey);
+         if (!existing.isEmpty()) {
+@@ -256,7 +258,6 @@
+         }
+         requireAgentRevision(requestedRevision);
+         requireCreationScope(tenantId, idempotencyKey, true);
+-        WorkspaceMigrationAdmission.lockTenant(jdbc, tenantId);
+         ResolvedBinding workspace = workspaces.resolveForCreation(
+                 tenantId, actorId, selection);
+         WorkspaceMigrationAdmission.requireOpen(jdbc, tenantId, workspace.binding().getStorageId());

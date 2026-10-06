@@ -1,13 +1,14 @@
 ## 维护者真实环境验证 — 第 3 轮 @ `f2a349be`（增量）
 
-**结论：当前 head 没有阻断项。** PR 描述在 `f2a349be` 上仍列为"未验证"的生产项，我在真实 x86_64 Linux 主机上都跑了，全部成立：
+**结论：有一处应在合并前修复，其余我测试的内容全部成立。**
 
-- 精确 head 的打包进程全流程；
-- prepare → promote 每个 flush 点的断电；
-- promote / abort / W1a restore-original 并发；
-- 迁移后对迁移前 Runtime 的 status / cancel / release。
-
-剩下两项非阻断的诊断问题：第 1 轮的 N1 仍可复现；N8 是本线程首次报告。
+- **合并前修复：** review bot 新报的 Critical [R7-1](https://github.com/QwenLM/qwen-code/pull/13260#discussion_r4190497344) 在真实打包栈上端到端复现，3 次中 3 次。排在 `retire` 之后的公共 create-session 被放行（`202`），落在 fence 刚提交的存储上。bot 建议的一行调整在同一装置中修复了它，3 次中 3 次（第 5 节）。
+- **在真实 x86_64 Linux 主机上成立：** PR 描述在 `f2a349be` 上仍列为"未验证"的生产项：
+  - 精确 head 的打包进程全流程；
+  - prepare → promote 每个 flush 点的断电；
+  - promote / abort / W1a restore-original 并发；
+  - 迁移后对迁移前 Runtime 的 status / cancel / release。
+- **非阻断：** 两项诊断问题。第 1 轮的 N1 仍可复现；N8 是本线程首次报告。
 
 本轮只补 [第 1 轮 @ `c5dde7d5`](https://github.com/QwenLM/qwen-code/pull/13260#issuecomment-5994861788) 和 [第 2 轮 @ `3bba3d879`](https://github.com/QwenLM/qwen-code/pull/13260#issuecomment-5998168167) 没覆盖的部分。
 
@@ -19,7 +20,7 @@
 | :-- | :-- |
 | 宿主 | Debian 13 KVM 虚拟机，内核 6.12.63 **x86_64**，16 vCPU / 29 GiB。源与目标是两个独立的 loop ext4 卷；history 和 state 在根 ext4 上。 |
 | 栈 | MySQL 8.4.11 · Zulu OpenJDK 21.0.10 · Node 22.22.2。打包的 Spring jar（内嵌 Broker、durable 本地 worker）、作为 Hosted Harness/worker 的 `dist/cli.js`、workspace-bundle / workspace-migration jar 都由 `f2a349be` 构建。所有产品进程以非 root 服务用户运行。假 OpenAI 模型驱动真实的 `write_file` / `read_file` 调用。 |
-| 证据 | this directory：4 张卡片、`harness/`（全部脚本、dm-log-writes 回放器、两份反向对照 diff）、`results/`（控制台日志、JSON、每条维护命令的 stdout/stderr、产物 SHA-256） |
+| 证据 | this directory：5 张卡片、`harness/`（全部脚本、dm-log-writes 回放器、两份反向对照 diff、R7-1 复现脚本与修复组 diff）、`results/`（控制台日志、JSON、每条维护命令的 stdout/stderr、产物 SHA-256） |
 
 ### 1. x86_64 上的精确 head 进程全流程（图 r3-01）
 
@@ -106,6 +107,26 @@
 - 重试只会重放回执。Turn 失败（`hosted_turn_failed`），undo 返回 409，W1a inspect 报告 `marker=mismatch`。
 
 可见这套装置能检测出这些 fsync 所防范的故障，而发布版的写入顺序确实防住了它。
+
+### 5. R7-1 端到端确认，并验证建议的修复（图 r3-05）
+
+![r3-05](r3-05-r7-1-fence-missed.png)
+
+**准备：** Spring 保持运行，因为它正是 fence 要守护的准入面；MySQL 8.4 使用 REPEATABLE READ。交错顺序从产品外部强制：
+1. 连接 X 持有该租户的 placement-guard 行（`FOR UPDATE`）。
+2. `retire` 在该行上排队。
+3. `POST /v1/agents/sessions` 执行完第一次一致性读（`findWorkspaceCommand`）后排在 `retire` 之后。
+4. X 提交。
+
+**head，3 次中 3 次：**
+- `retire` 装上 fence 并进入 RETIRED。
+- create 返回 `202`，在 st-a 上新建了一个 ACTIVE Session。
+- 这个 Session 无法打开：Harness create 返回 `503 managed_session_open_failed`。
+- census 从未见过它。runbook 后续因此卡住：W1a fence 和 W1b capture（SEALED 2/2）都成功，但 `prepare` 以 `uninitialized migration member` 拒绝。
+
+**修复组，3 次中 3 次：** 把 `lockTenant()` 移为 `insertWorkspaceSessionCommand` 的第一条语句（diff 见 `harness/r7/`），其他条件完全相同。create 被 `409 workspace_unavailable` 拒绝，没有多出的成员。
+
+**影响：** 这是失败关闭的，存储上不会写入任何东西。但 fence 对创建路径的承诺被打破了。触发它需要维护期间 Spring 仍在接纳请求，这是 runbook 禁止的，但 fence 恰恰就是为这种情况准备的安全网。
 
 ### 非阻断项
 

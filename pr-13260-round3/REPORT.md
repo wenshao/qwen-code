@@ -1,13 +1,14 @@
 ## Maintainer real-environment verification — round 3 @ `f2a349be` (delta)
 
-**Verdict: no blocker at the current head.** I ran the production items the PR body still lists as unverified at `f2a349be` on a real x86_64 Linux host, and they all hold:
+**Verdict: one fix before merge, otherwise everything I tested holds.**
 
-- the full packaged process flow at the exact head;
-- power loss at every flush point of prepare → promote;
-- concurrent promote / abort / W1a restore-original;
-- pre-migration Runtime status / cancel / release after promotion.
-
-Two non-blocking diagnostics items remain. N1 from round 1 still reproduces, and N8 is new on this thread.
+- **Fix before merge:** the review bot's new Critical [R7-1](https://github.com/QwenLM/qwen-code/pull/13260#discussion_r4190497344) reproduces end to end on the packaged stack, 3 of 3 trials. A public create-session that queues behind `retire` is admitted (`202`) onto the storage whose fence has just committed. The bot's one-line reorder closes it in the same harness, 3 of 3 (section 5).
+- **Holds on a real x86_64 Linux host:** the production items the PR body still lists as unverified at `f2a349be`:
+  - the full packaged process flow at the exact head;
+  - power loss at every flush point of prepare → promote;
+  - concurrent promote / abort / W1a restore-original;
+  - pre-migration Runtime status / cancel / release after promotion.
+- **Non-blocking:** two diagnostics items. N1 from round 1 still reproduces, and N8 is new on this thread.
 
 This round covers only what [round 1 @ `c5dde7d5`](https://github.com/QwenLM/qwen-code/pull/13260#issuecomment-5994861788) and [round 2 @ `3bba3d879`](https://github.com/QwenLM/qwen-code/pull/13260#issuecomment-5998168167) did not.
 
@@ -19,7 +20,7 @@ This round covers only what [round 1 @ `c5dde7d5`](https://github.com/QwenLM/qwe
 | :-- | :-- |
 | Host | Debian 13 KVM guest, kernel 6.12.63 **x86_64**, 16 vCPU / 29 GiB. Source and target are separate loop-backed ext4 volumes; history and state live on the root ext4. |
 | Stack | MySQL 8.4.11 · Zulu OpenJDK 21.0.10 · Node 22.22.2. The packaged Spring jar (embedded Broker, durable local workers), the bundled `dist/cli.js` as Hosted Harness/worker, and the workspace-bundle / workspace-migration jars are all built from `f2a349be`. Every product process runs as a non-root service user. A fake OpenAI model drives real `write_file` / `read_file` calls. |
-| Evidence | this directory: 4 cards, `harness/` (all scripts, the dm-log-writes replayer, both negative-control diffs), `results/` (console logs, JSON, every maintenance command's stdout/stderr, artifact SHA-256s) |
+| Evidence | this directory: 5 cards, `harness/` (all scripts, the dm-log-writes replayer, both negative-control diffs, the R7-1 witness and fix-arm diff), `results/` (console logs, JSON, every maintenance command's stdout/stderr, artifact SHA-256s) |
 
 ### 1. Exact-head process flow on x86_64
 
@@ -106,6 +107,26 @@ My earlier, unposted aarch64 run at `3bba3d87` used InnoDB lock-queue ordering i
 - The retry only replays the receipt. Turns fail (`hosted_turn_failed`), undo returns 409, and W1a inspect reports `marker=mismatch`.
 
 So the harness detects the failure that those fsyncs prevent, and the shipped ordering prevents it.
+
+### 5. R7-1 confirmed end to end, and the suggested fix verified
+
+![R7-1](r3-05-r7-1-fence-missed.png)
+
+**Setup:** Spring stays running, since it is the admission surface the fence guards, and MySQL 8.4 runs at REPEATABLE READ. I forced the interleaving from outside the product:
+1. Connection X holds the tenant's placement-guard row (`FOR UPDATE`).
+2. `retire` queues on that row.
+3. `POST /v1/agents/sessions` runs its first consistent read (`findWorkspaceCommand`) and queues behind `retire`.
+4. X commits.
+
+**Head, 3 of 3 trials:**
+- `retire` installs the fence and reaches RETIRED.
+- The create returns `202`, with a new ACTIVE Session on st-a.
+- That Session cannot be opened: Harness create returns `503 managed_session_open_failed`.
+- The census never saw it. The rest of the runbook then stalls: W1a fence and W1b capture (SEALED 2/2) succeed, but `prepare` refuses with `uninitialized migration member`.
+
+**Fix arm, 3 of 3 trials:** the identical run with `lockTenant()` moved to the first statement of `insertWorkspaceSessionCommand` (diff in `harness/r7/`). The create is refused with `409 workspace_unavailable`, and no stray member appears.
+
+**Impact:** this is fail-closed, since nothing is written to the storage. But the fence's promise for the creation path breaks. It needs Spring to be admitting during maintenance, which the runbook forbids, but the fence exists as the safety net for exactly that case.
 
 ### Non-blocking
 
