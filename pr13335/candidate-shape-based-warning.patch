@@ -1,0 +1,131 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
+index 7a46f0754d..95060326a1 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
+@@ -12,15 +12,29 @@ import java.util.List;
+ import java.util.Map;
+ import java.util.Locale;
+ import java.util.Set;
++import java.util.regex.Pattern;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ import org.springframework.boot.context.properties.ConfigurationProperties;
+ import org.springframework.boot.convert.DurationUnit;
++import org.springframework.context.EnvironmentAware;
++import org.springframework.core.env.Environment;
+ 
+ @ConfigurationProperties("qwen.managed-agent")
+-public class ManagedAgentProperties {
++public class ManagedAgentProperties implements EnvironmentAware {
+     private static final Logger LOG = LoggerFactory.getLogger(
+             ManagedAgentProperties.class);
++    private static final Pattern BARE_NUMBER = Pattern.compile("[+-]?\\d+");
++
++    // Raw override text, so the unit sweep can key on the written shape
++    // (a bare number) instead of the bound magnitude. Null outside a
++    // Spring context, where the magnitude bands remain the fallback.
++    private Environment environment;
++
++    @Override
++    public void setEnvironment(Environment environment) {
++        this.environment = environment;
++    }
+ 
+     private final Harness harness = new Harness();
+     private final SessionStore sessionStore = new SessionStore();
+@@ -125,11 +139,11 @@ public class ManagedAgentProperties {
+     // must still boot.
+     private void warnOnSecondScaleOverrides() {
+         warnOnSecondScaleOverrides("qwen.managed-agent.", this,
+-                new ManagedAgentProperties());
++                new ManagedAgentProperties(), environment);
+     }
+ 
+     private static void warnOnSecondScaleOverrides(String prefix,
+-            Object bound, Object initial) {
++            Object bound, Object initial, Environment environment) {
+         for (Field field : bound.getClass().getDeclaredFields()) {
+             if (Modifier.isStatic(field.getModifiers())) {
+                 continue;
+@@ -162,6 +176,26 @@ public class ManagedAgentProperties {
+                 DurationUnit unit = field.getAnnotation(DurationUnit.class);
+                 Duration basisDefault = basis instanceof Duration basisDuration
+                         ? basisDuration : null;
++                String raw = environment == null || unit == null
++                        || unit.value() != ChronoUnit.SECONDS ? null
++                        : environment.getProperty(property);
++                if (raw != null) {
++                    // The written shape decides: a suffixed value states
++                    // its unit and never warns; a bare number is exactly
++                    // the text whose meaning this change flipped.
++                    if (BARE_NUMBER.matcher(raw.trim()).matches()) {
++                        LOG.warn("{}={} has no unit suffix and binds as {}"
++                                + " (seconds); before this change a bare"
++                                + " number bound as milliseconds ({})."
++                                + " Write the unit (for example {}s or"
++                                + " {}ms) to make the intent explicit.",
++                                property, raw.trim(), value,
++                                Duration.ofMillis(Long.parseLong(
++                                        raw.trim())),
++                                raw.trim(), raw.trim());
++                    }
++                    continue;
++                }
+                 if (unit != null && unit.value() == ChronoUnit.SECONDS
+                         && value instanceof Duration boundValue) {
+                     if (basisDefault != null
+@@ -201,7 +235,8 @@ public class ManagedAgentProperties {
+                     }
+                 }
+             } else if (value != null) {
+-                warnOnSecondScaleOverrides(property + ".", value, basis);
++                warnOnSecondScaleOverrides(property + ".", value, basis,
++                        environment);
+             }
+         }
+     }
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+index e08aa8ce26..5a08fafc80 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+@@ -240,6 +240,40 @@ class ManagedAgentPropertiesTest {
+                 });
+     }
+ 
++    @Test
++    @ExtendWith(OutputCaptureExtension.class)
++    void theUnitSweepKeysOnTheWrittenShapeNotTheMagnitude(
++            CapturedOutput output) {
++        // Suffixed values state their unit: the runner's own failover
++        // values and short deliberate timeouts must not warn.
++        new ApplicationContextRunner()
++                .withPropertyValues(
++                        "qwen.managed-agent.dispatch.lease-duration=2s",
++                        "qwen.managed-agent.dispatch.lease-renew-interval=500ms",
++                        "qwen.managed-agent.session-store.writer-lease-duration=1s",
++                        "qwen.managed-agent.harness.approval-timeout=30s")
++                .withUserConfiguration(PropertiesConfiguration.class)
++                .run(started -> {
++                    assertThat(started).hasNotFailed();
++                    assertThat(output).doesNotContain(
++                            "qwen.managed-agent.dispatch.lease-duration",
++                            "qwen.managed-agent.dispatch.lease-renew-interval",
++                            "qwen.managed-agent.session-store.writer-lease-duration",
++                            "qwen.managed-agent.harness.approval-timeout");
++                });
++        // A stale 600000 meant as ten minutes binds PT166H40M, only 333x
++        // the 30m default: no magnitude band sees it, the bare shape does.
++        new ApplicationContextRunner()
++                .withPropertyValues(
++                        "qwen.managed-agent.harness.turn-deadline=600000")
++                .withUserConfiguration(PropertiesConfiguration.class)
++                .run(started -> {
++                    assertThat(started).hasNotFailed();
++                    assertThat(output).contains(
++                            "qwen.managed-agent.harness.turn-deadline=600000");
++                });
++    }
++
+     @Test
+     void materializeIntervalDrivesTheScheduledCadence() {
+         // The typed field is the cadence's only driving source:
