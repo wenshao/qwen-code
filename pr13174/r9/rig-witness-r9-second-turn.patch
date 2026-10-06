@@ -1,0 +1,94 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.test.ts b/packages/cli/src/serve/hosted-harness-session.test.ts
+index 1da2d6186d..56d6aa3761 100644
+--- a/packages/cli/src/serve/hosted-harness-session.test.ts
++++ b/packages/cli/src/serve/hosted-harness-session.test.ts
+@@ -9333,6 +9333,89 @@ describe('Hosted Harness Runtime turn takeover', () => {
+     },
+   );
+ 
++  // VERIFICATION RIG ONLY (PR #13174 round 9): the same park as above, but
++  // the parked Turn is the Session's SECOND Turn (Turn 1 completed first).
++  it.each([null, FILE_PROFILE])(
++    'RIG r9: settles the cancellation takeover of a park that is not the first Turn (profile=%s)',
++    async (toolProfile) => {
++      const server = await app(true);
++      const created = await headers(supertest(server).post('/session')).send({
++        sessionId: SESSION_ID,
++        sessionScope: 'thread',
++        managedSessionStore: store(),
++        ...(toolProfile === null ? {} : { toolProfile }),
++      });
++      expect(created.status).toBe(200);
++      const clientId = created.body.clientId as string;
++      const first = [{ type: 'text', text: 'first turn completes' }];
++      await headers(supertest(server).post(`/session/${SESSION_ID}/prompt`))
++        .set('X-Qwen-Client-Id', clientId)
++        .send({
++          prompt: first,
++          promptId: randomUUID(),
++          payloadDigest: `sha256:${createHash('sha256').update(JSON.stringify(first)).digest('hex')}`,
++        })
++        .expect(202);
++      await vi.waitFor(
++        async () => {
++          const status = await headers(
++            supertest(server).get(`/session/${SESSION_ID}/status`),
++          ).set('X-Qwen-Client-Id', clientId);
++          expect(status.body.hasActivePrompt).toBe(false);
++          expect(status.body.recoveryBlocked).toBe(false);
++        },
++        { timeout: 10_000 },
++      );
++      const originalWrite = ManagedSessionRecordSink.prototype.write;
++      const write = vi
++        .spyOn(ManagedSessionRecordSink.prototype, 'write')
++        .mockImplementation(async function (
++          this: ManagedSessionRecordSink,
++          record,
++        ) {
++          if (record.subtype === 'turn_result')
++            throw new Error('settlement unavailable');
++          return originalWrite.call(this, record);
++        });
++      const prompt = [{ type: 'text', text: 'hello' }];
++      const payloadDigest = `sha256:${createHash('sha256').update(JSON.stringify(prompt)).digest('hex')}`;
++      await headers(supertest(server).post(`/session/${SESSION_ID}/prompt`))
++        .set('X-Qwen-Client-Id', clientId)
++        .send({ prompt, promptId: PROMPT_ID, payloadDigest })
++        .expect(202);
++      await vi.waitFor(
++        async () => {
++          const status = await headers(
++            supertest(server).get(`/session/${SESSION_ID}/status`),
++          ).set('X-Qwen-Client-Id', clientId);
++          expect(status.body.hasActivePrompt).toBe(false);
++          expect(status.body.recoveryBlocked).toBe(true);
++        },
++        { timeout: 10_000 },
++      );
++      write.mockRestore();
++      await headers(supertest(server).delete(`/session/${SESSION_ID}`));
++      const log = vi
++        .spyOn(stdio, 'writeStderrLineSafe')
++        .mockImplementation(() => {});
++      const taken = await replacementHeaders(
++        supertest(replacementApp()).post(`/session/${SESSION_ID}/load`),
++      ).send({
++        managedSessionStore: storeFor(BOOT_ID_2),
++        passiveManagedRuntimeRecovery: true,
++        cancellationTakeover: true,
++      });
++      const lines = log.mock.calls.map(([line]) => String(line));
++      console.log(
++        `RIG r9 profile=${toolProfile} status=${taken.status} code=${taken.body.code ?? '-'} lines=${JSON.stringify(lines.filter((l) => /settles the cancelled park|load refused/.test(l)).map((l) => l.replace(/Session \S+/, 'Session <id>')))}`,
++      );
++      expect(taken.status).toBe(200);
++      expect(
++        lines.some((line) => line.includes('settles the cancelled park on load')),
++      ).toBe(true);
++    },
++  );
++
+   it.each(['cancelled', 'decided'])(
+     'settles a cancellation takeover whose durable approval already ended (state=%s)',
+     async (durableState) => {
