@@ -132,10 +132,10 @@ index 69230ab2c1..8a56ac7329 100644
        detached.set(record.run.executionCallId, record.outputRef);
    }
 diff --git a/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json b/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
-index a3b17b1fe2..806b6de559 100644
+index a3b17b1fe2..190877846d 100644
 --- a/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
 +++ b/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
-@@ -1495,6 +1495,45 @@
+@@ -1495,6 +1495,105 @@
        "start": false,
        "error": "rootSessionId must use NFC normalization"
      },
@@ -178,14 +178,74 @@ index a3b17b1fe2..806b6de559 100644
 +      "start": false,
 +      "error": "workingDirectory must be a normalized relative directory"
 +    },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-dispatched-without-runtime",
++      "patch": {
++        "run": {
++          "state": "running",
++          "execution": "dispatch_started",
++          "dispatchId": "dispatch-1",
++          "runtime": null
++        }
++      },
++      "valid": false,
++      "start": false,
++      "error": "needs its Runtime binding once it dispatches"
++    },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-working-dir-device-name",
++      "patch": {
++        "workingDirectory": "logs/CON"
++      },
++      "valid": false,
++      "start": false,
++      "error": "workingDirectory must be a normalized relative directory"
++    },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-working-dir-device-name-ext",
++      "patch": {
++        "workingDirectory": "nul.txt"
++      },
++      "valid": false,
++      "start": false,
++      "error": "workingDirectory must be a normalized relative directory"
++    },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-working-dir-trailing-dot",
++      "patch": {
++        "workingDirectory": "child."
++      },
++      "valid": false,
++      "start": false,
++      "error": "workingDirectory must be a normalized relative directory"
++    },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-working-dir-trailing-space",
++      "patch": {
++        "workingDirectory": "child "
++      },
++      "valid": false,
++      "start": false,
++      "error": "workingDirectory must be a normalized relative directory"
++    },
      {
        "template": "child_agent",
        "domain": "child_run",
 diff --git a/packages/core/src/managed-runtime/managed-child-run-record.ts b/packages/core/src/managed-runtime/managed-child-run-record.ts
-index 72ca2cb5a3..1f3611e28c 100644
+index 72ca2cb5a3..811b463fe3 100644
 --- a/packages/core/src/managed-runtime/managed-child-run-record.ts
 +++ b/packages/core/src/managed-runtime/managed-child-run-record.ts
-@@ -615,6 +615,10 @@ function parseChildAgentRun(value: unknown): ChildAgentRun {
+@@ -615,6 +615,20 @@ function parseChildAgentRun(value: unknown): ChildAgentRun {
    if (stopReason === 'child_failed' && run.execution !== 'settled') {
      fail('Child run child_failed needs its settled execution.');
    }
@@ -193,10 +253,25 @@ index 72ca2cb5a3..1f3611e28c 100644
 +  if (childSessionId !== null && run.runtime === null) {
 +    fail('Child run childSessionId needs the Runtime binding that hosts it.');
 +  }
++  // The binding is recorded at dispatch; only a creation proven never to
++  // have started may lack one.
++  if (
++    run.execution !== null &&
++    run.execution !== 'intent' &&
++    run.execution !== 'not_started_proven' &&
++    run.runtime === null
++  ) {
++    fail('Child run needs its Runtime binding once it dispatches.');
++  }
    return Object.freeze({
      kind: 'child_agent',
      childRunId: id(body.childRunId, 'childRunId'),
-@@ -639,7 +643,12 @@ function parseChildAgentRun(value: unknown): ChildAgentRun {
+@@ -636,16 +650,30 @@ function parseChildAgentRun(value: unknown): ChildAgentRun {
+   });
+ }
+ 
++const WINDOWS_DEVICE_NAME = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
++
  /** A normalized relative directory: `.` or NFC text without `.`/`..` segments. */
  function isRelativeDirectory(value: string): boolean {
    if (value === '.') return true;
@@ -210,11 +285,27 @@ index 72ca2cb5a3..1f3611e28c 100644
      return false;
    }
    if (
+-    value
+-      .split('/')
+-      .some((segment) => segment === '' || segment === '.' || segment === '..')
++    value.split('/').some(
++      (segment) =>
++        segment === '' ||
++        segment === '.' ||
++        segment === '..' ||
++        // Win32 folds a trailing dot or space and reserves device names.
++        segment.endsWith('.') ||
++        segment.endsWith(' ') ||
++        WINDOWS_DEVICE_NAME.test(segment),
++    )
+   ) {
+     return false;
+   }
 diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java
-index 327515ba4f..c1c9a78514 100644
+index 327515ba4f..3a2304a5a1 100644
 --- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java
 +++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java
-@@ -941,6 +941,10 @@ public final class ManagedExtensionRecords {
+@@ -941,6 +941,16 @@ public final class ManagedExtensionRecords {
          require(!"child_failed".equals(stopReason)
                  || "settled".equals(execution),
                  "Child run child_failed needs its settled execution");
@@ -222,10 +313,27 @@ index 327515ba4f..c1c9a78514 100644
 +        require(session.isNull() || !run.get("runtime").isNull(),
 +                "Child run childSessionId needs the Runtime binding that"
 +                        + " hosts it");
++        // The binding is recorded at dispatch; only a creation proven never
++        // to have started may lack one.
++        require(execution == null || "intent".equals(execution)
++                || "not_started_proven".equals(execution)
++                || !run.get("runtime").isNull(),
++                "Child run needs its Runtime binding once it dispatches");
          // The identities last, as the TypeScript validator reads them, so a
          // doubly broken body reports the same clause in both languages.
          id(child.get("childRunId"), "childRunId");
-@@ -957,6 +961,7 @@ public final class ManagedExtensionRecords {
+@@ -948,6 +958,10 @@ public final class ManagedExtensionRecords {
+         id(child.get("rootSessionId"), "rootSessionId");
+     }
+ 
++    private static final Pattern WINDOWS_DEVICE_NAME = Pattern.compile(
++            "(con|prn|aux|nul|com[0-9]|lpt[0-9])(\\..*)?",
++            Pattern.CASE_INSENSITIVE);
++
+     /** A normalized relative directory: `.` or NFC text without `.`/`..` segments. */
+     private static void requireWorkingDirectory(JsonNode directory) {
+         String message = "Child run workingDirectory must be a normalized"
+@@ -957,10 +971,17 @@ public final class ManagedExtensionRecords {
          require(".".equals(value)
                  || !value.startsWith("/") && !value.endsWith("/")
                          && !value.contains("\\")
@@ -233,3 +341,14 @@ index 327515ba4f..c1c9a78514 100644
                          && Stream.of(value.split("/", -1))
                                  .noneMatch(segment -> segment.isEmpty()
                                          || segment.equals(".")
+-                                        || segment.equals("..")),
++                                        || segment.equals("..")
++                                        // Win32 folds a trailing dot or space
++                                        // and reserves device names.
++                                        || segment.endsWith(".")
++                                        || segment.endsWith(" ")
++                                        || WINDOWS_DEVICE_NAME.matcher(segment)
++                                                .matches()),
+                 message);
+         if (!".".equals(value)) {
+             try {

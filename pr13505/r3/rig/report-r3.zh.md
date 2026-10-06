@@ -6,45 +6,54 @@
 
 **试合并：** 把 `3261e4d4` 合入当前 main `ac497aee`（main 又多了 2 个提交）。装置与前两轮相同：Spring Session Store 跑在原生 MySQL 8.4.7 上，写入走真实 TS authority + HTTP，另有一个经原始 HTTP 提交的第二写入方。
 
-> **修订说明**：我首次发布本评论后才发现，第三轮进行期间（17:43），`/review` bot 对 `0a1b1d2e` 提交了 CHANGES_REQUESTED，我发布前没有读到。其中 4 条 Critical 在 `3261e4d4` 上全部复现，下面的结论取代原来的"可以合入"。
+> **修订说明**：我首次发布本评论后才发现，第三轮进行期间先后有两份 CHANGES_REQUESTED：`/review` bot 针对 `0a1b1d2e`（17:43），yiliang114 针对 `3261e4d4`（17:52）。前者我发布前没有读到。两份评审的阻塞项在 `3261e4d4` 上全部复现，下面的结论取代原来的"可以合入"。
 
 ### 结论
 
-**暂不能合入：需先处理 `/review` 的 Critical R1-1…R1-4。** 四条在当前 head 上全部复现，TS 与 Java 表现一致。R1-1、R1-2、R1-4 的候选补丁已验证（见英文部分）；R1-3 需要作者做一个设计取舍。
+**暂不能合入。** 两份评审阻塞在同样两个契约缺口上，两者都在当前 head 复现，TS 与 Java 表现一致：
+1. 已派发或已 attach 的 child_agent 可以没有 Runtime 绑定。
+2. `workingDirectory` 可以是 Windows 上的绝对路径或别名路径。
+
+下面的候选补丁两侧同时修复了这两项，外加 R1-1，并附共享 fixture。R1-3（派发时 pin definition）需要作者做取舍。
 
 第一、二轮的结论在 head 与试合并上仍成立：F1–F4 已关闭，与我验证过的内容一致。`3261e4d4` 上两条 CI 红腿在不含本 PR 的 main 上同样复现。
 
-### `/review` 在 `0a1b1d2e` 上的 Critical，在 `3261e4d4` 上复核
+### 评审发现在 `3261e4d4` 上的复核
 
 每条都用当前 head 的真实校验器（h3 的 TS dist + h3 jar）实测；R1-1 另外走了 Hosted Harness 的 `/session/:id/load` 路由。
 
-- **R1-1**：`verifyWorkspaceRestore` 对每一条 `child_run` 修订都调用 `parseChildShellRun`。
-  - Session 日志里只要多一条 child_agent 记录，加载就返回 **409 `hosted_turn_recovery_required`**；没有这条记录时同一 Session 返回 200。
-  - 改为按 kind 解析、跳过 child_agent（它没有输出 manifest）后返回 **200**，原有 4 个恢复用例照常通过。
-- **R1-2**：`running_attached` 带 `childSessionId` 但 `runtime: null` 时，两侧都**接受**；之后补 runtime 的修订会被拒，这个 run 永远无法绑定。候选补丁后两侧都拒绝。
-- **R1-3**：`dispatch_started` 时没有 `definition` 也会被**接受**，之后补 pin 会被拒。候选补丁未包含这一条。
-- **R1-4**：`C:/evil`、`c:/evil`、`C:evil`、`D:/outside`、`C:/Windows/System32` 两侧都**接受**。候选补丁后全部拒绝；`.`、`worktrees/child-1`、`/tmp`、`a\b` 的结果不变。
+- **Runtime 绑定**（R1-2 / yiliang114 P1）：
+  - 现状：`dispatch_started`，以及带 `childSessionId` 的 `running_attached`，在 `runtime: null` 时两侧都**接受**；之后补 runtime 的修订会被拒，这个 run 永远无法绑定。
+  - 候选：两种情况两侧都拒绝。`not_started_proven` 仍允许没有绑定，因为合法 fixture `agent-creation-failed`、`agent-cancel-before-dispatch` 需要这样。
+- **路径安全**（R1-4 / yiliang114 P1）：
+  - 现状：以下取值两侧都**接受**：`C:/evil`、`c:/evil`、`C:evil`、`D:/outside`、`C:/Windows/System32`、`CON`、`NUL.txt`、`a/CON`、`COM1`、`lpt1`、`childA.`、`childA `。
+  - 候选：全部拒绝，包括盘符、任意路径段中的设备名（带不带扩展名都算）、段尾的点或空格。`.`、`worktrees/child-1`、`/tmp`、`a\b` 的结果不变。
+- **恢复遍历**（R1-1）：
+  - 现状：`verifyWorkspaceRestore` 对每条 `child_run` 修订都调用 `parseChildShellRun`。Session 日志里只要多一条 child_agent 记录，加载就返回 **409 `hosted_turn_recovery_required`**；没有这条记录时同一 Session 返回 200。
+  - 候选：按 kind 解析、跳过 child_agent（它没有输出 manifest）后返回 **200**，原有 4 个恢复用例照常通过。
+  - 两份评审意见不一：bot 判为 Critical，yiliang114 认为 domain 未启用时不可达、应由 H4b 处理。它是本 PR 已修的 F3 的镜像，修复只需约 10 行，所以候选一并纳入。
+- **definition pin**（R1-3 / yiliang114 P2）：
+  - 现状：`dispatch_started` 时没有 `definition` 也会被**接受**，之后补 pin 会被拒。
+  - 候选未包含：如果强制要求，会有 13 个测试失败，因为 authority 套件的 `runBlock()` 派发时 `definition` 为 null。需要先改测试构造器，或者在文档里明确 pin 是可选的。
+- **`resultVersion: 1e400`**（yiliang114 P2，Java `decimalValue()`）：
+  - 经 HTTP 提交时，store 的读取器在任何校验器运行之前就拒绝非有限数：**409** "not a JSON object the Session authority can read"。Session 正常打开，服务端日志里没有 `NumberFormatException`；TS 也在读取器层拒绝。
+  - 所以 500 只有绕过读取器直接调用校验器时才会出现。
 
-**更正我第二轮的说法**：第二轮我把 cli 调用方列为已正确迁移。R1-1 是 F3 的镜像：这条恢复路径会遍历整个 domain，用 shell 专用解析器在这里会失败关闭。它和 F3 一样，在 H4b 启用 `child_run` 之前不会触发；启用后，所有跑过 child agent 的 Session 都会无法恢复。
+**更正我第二轮的说法**：第二轮我把 cli 调用方列为已正确迁移。这条恢复路径会遍历整个 domain，用 shell 专用解析器在这里会失败关闭。
 
-**建议守卫在 PR 自身套件上的影响（TS）**：
-- R1-4（正则 `/^[A-Za-z]:/`）：340/340，测试无需改动。
-- R1-2：按 bot 建议的位置放，判定结果不变，但 8 个非法 fixture 的报错条款会变，导致这些用例失败；放到最后（遵循 TS 的条款顺序，与 F1 相同）则 340/340。
-- R1-3（派发后必须有 definition）：13 个测试失败，因为 authority 套件的 `runBlock()` 派发时 `definition` 为 null。采纳的话，测试构造器要先 pin definition，这需要作者决定。
+**Runtime 守卫的位置有影响**：按 bot 建议的位置放，判定结果不变，但 8 个非法 fixture 的报错条款会变，导致这些用例失败；放到最后（遵循 TS 的条款顺序，与 F1 相同）则全部通过。
 
-**候选补丁（R1-1 + R1-2 + R1-4，基于 `3261e4d4`）**：TS + Java + 3 条共享 fixture + 1 个恢复测试，共 135 行。
+**候选补丁（基于 `3261e4d4`）**：R1-1 + 派发时要求 Runtime 绑定 + `workingDirectory` 路径安全，TS 与 Java 同步修改，附 8 条共享 fixture 和 1 个恢复测试（5 个文件，+234/−14）。
 - Java 契约 + store：36/36，checkstyle 通过。
-- TS 聚焦 6 个文件：381/381；cli 3 个文件：232/232。
-- core 与 cli 的 `tsc` 通过，eslint 与 prettier 通过。
+- TS 聚焦 6 个文件：386/386。
+- TS managed-runtime：2303/2304。唯一失败是 hook-scale 超时，复跑 6/6 通过。
+- cli 3 个文件：232/233。唯一失败是一个 takeover 用例，整个文件复跑 210/210 通过。
+- core 与 cli 的 `tsc`、eslint、prettier 都通过。
 - 差分（57.4 万条）：0 条分歧。
 - 见证：
-  - 去掉 Java 修复，Java 契约测试失败（`agent-attached-without-runtime`）。
-  - 去掉 TS 修复，3 条新 fixture 失败。
+  - 去掉 TS 修复，8 条新 fixture 全部失败。
+  - 去掉 Java 修复，Java 契约测试失败。
   - 去掉 R1-1 修复，恢复测试失败（`expected 409 to be 200`）。
-
-**候选补丁未覆盖的两个小缺口**：
-- `dispatch_started` 且 `runtime: null` 仍被接受，这种 run 永远无法 attach。如果要求派发时必须有 runtime，需要放过 `not_started_proven`：有两个合法 fixture（`agent-creation-failed`、`agent-cancel-before-dispatch`）就处于这个状态。
-- `workingDirectory` 仍接受 Windows 设备名（`CON`、`NUL.txt`）。
 
 ### 改动与核查
 
