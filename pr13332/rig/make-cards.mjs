@@ -173,7 +173,7 @@ function projClass(scenario, arm, text) {
     if (exit === 'exit=0') agg[k].pass += 1; else agg[k].fails.push(label);
   }
   let body = '<table><tr><th>repo runner mode (scripts/run-managed-agent-server-e2e.ts)</th><th>arm</th><th>passed</th><th>failures</th></tr>';
-  for (const v of Object.values(agg)) body += `<tr><td>${esc(v.mode)}</td><td class="mono">${v.arm}</td><td class="mono ${v.pass === v.n ? 'ok' : 'warn'}">${v.pass}/${v.n}</td><td class="mono dim">${esc(v.fails.map((f) => `${f}: model called a tool the Hosted Workspace profile refuses`).join('; ') || '—')}</td></tr>`;
+  for (const v of Object.values(agg)) body += `<tr><td>${esc(v.mode)}</td><td class="mono">${v.arm}</td><td class="mono ${v.pass === v.n ? 'ok' : 'warn'}">${v.pass}/${v.n}</td><td class="mono dim">${esc(v.fails.map((f) => `${f}: Hosted Workspace profile refused the model's tool call`).join('; ') || '—')}</td></tr>`;
   body += '</table>';
   const dm = (k) => (existsSync(`${S}/${k}.json`) ? JSON.parse(readFileSync(`${S}/${k}.json`, 'utf8')) : undefined);
   const rowsDirs = [];
@@ -190,12 +190,12 @@ function projClass(scenario, arm, text) {
   const fl = (k) => { const d = dm(k); return d ? new Set(d.testResults.flatMap((r) => r.assertionResults.filter((a) => a.status === 'failed').map((a) => a.fullName))) : new Set(); };
   const mo = fl('rerun-merge-only'), ms = fl('rerun-main-same'), mf = fl('dirs-cli-merge'), nf = fl('dirs-cli-main');
   const inter = (a, b) => [...a].filter((x) => b.has(x)).length;
-  if (mo.size || ms.size) body += `<div class="note">Noise check: the 15 cli files with a failure on merge but not on main were rerun alone on both trees — merge ${mo.size} failures, main ${ms.size}. The failing tests change from run to run (merge full vs rerun share ${inter(mf, mo)}, main full vs rerun share ${inter(nf, ms)}, merge vs main rerun share ${inter(mo, ms)}); they are 404/ECONNRESET route assertions in server/route suites under load average 30–88, none in a Managed session path.</div>`;
+  if (mo.size || ms.size) body += `<div class="note">Noise check: the 15 cli files with a failure on merge but not on main were rerun alone on both trees — merge ${mo.size} failures, main ${ms.size}. The failing tests change from run to run (merge full vs rerun share ${inter(mf, mo)}, main full vs rerun share ${inter(nf, ms)}, merge vs main rerun share ${inter(mo, ms)}); they are mostly 404/ECONNRESET route assertions under load average 30–88. The only Managed-named failure on merge (managed-runtime-session-worker.process › starts no worker for a session that calls no tool) fails on main too, where four more Managed-named process tests fail.</div>`;
   writeFileSync(`${FIG}/04-e2e.html`, page(
     'PR #13332 — end to end through the real stack',
     'Spring Managed Agent Server jar + Hosted Harness (each arm\'s dist/cli.js) + private mysqld 8.4.7, driven by the repo\'s own runner; runs are serial.',
     body,
-    'No regression end to end: the fence accepts every turn result the real Harness writes, failover restore works on all arms, and the real-model failure is the model calling a tool outside the hosted profile (seen on #13263 too; code path untouched by this PR).'));
+    'No regression end to end: the fence accepts every turn result the real Harness writes, failover restore works on all arms, and the one real-model failure is the Hosted Workspace profile refusing the tool call the model made (undeclared tool, duplicate call id or truncated arguments; hosted-workspace-tool-turn.ts:774, untouched by this PR).'));
 }
 
 const browser = await chromium.launch();
