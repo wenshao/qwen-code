@@ -6,9 +6,54 @@
 
 **Trial merge:** `3261e4d4` merged into current main `ac497aee` (2 more commits). Same rig as before: Spring Session Store on native MySQL 8.4.7, the real TS authority over HTTP, and a raw-HTTP second writer.
 
+> **Revised** after I first posted this comment: the `/review` bot's CHANGES_REQUESTED on `0a1b1d2e` landed (17:43) while round 3 was running, and I had not read it before publishing. Its four Criticals all reproduce on `3261e4d4`; the verdict below replaces "ready to merge".
+
 ### Verdict
 
-**Ready to merge from this PR's side.** F3 and F4 landed exactly as verified in round 2, and every round-1 and round-2 check still holds on the head and on the trial merge. The two red CI legs on `3261e4d4` reproduce on main without this PR, so they will clear with main.
+**Not ready yet: resolve the `/review` Criticals R1-1…R1-4 first.** All four reproduce on the current head, identically in TypeScript and Java. A verified candidate for R1-1, R1-2 and R1-4 is below. R1-3 needs a design choice from the author.
+
+Everything from rounds 1–2 still holds on the head and on the trial merge: F1–F4 are closed and match what I verified. The two red CI legs on `3261e4d4` reproduce on main without this PR.
+
+### The `/review` Criticals on `0a1b1d2e`, re-checked on `3261e4d4`
+
+I probed every finding through the real validators of the current head (h3 TS dist + h3 jar). R1-1 also went through the Hosted Harness `/session/:id/load` route.
+
+| Finding | On `3261e4d4` (TS / Java) | Candidate below |
+| --- | --- | --- |
+| [R1-1](https://github.com/QwenLM/qwen-code/pull/13505#discussion_r4198482609): `verifyWorkspaceRestore` walks every `child_run` revision with `parseChildShellRun` | A Session whose journal also holds one `child_agent` run fails to load: **409 `hosted_turn_recovery_required`**. Without it, the same Session loads with 200. | parse by kind and skip `child_agent` (it owns no output manifest): **200**. The 4 existing restore cases still pass. |
+| [R1-2](https://github.com/QwenLM/qwen-code/pull/13505#discussion_r4198482616): attached child Session without a Runtime binding | `running_attached` + `childSessionId` + `runtime: null` is **accepted** in both languages, and a later revision that adds the binding is refused, so the run can never be bound | refused in both languages |
+| [R1-3](https://github.com/QwenLM/qwen-code/pull/13505#discussion_r4198482592): no definition pin required at dispatch | `dispatch_started` without `definition` is **accepted**, and adding the pin later is refused | not in the candidate (see below) |
+| [R1-4](https://github.com/QwenLM/qwen-code/pull/13505#discussion_r4198482627): drive-qualified `workingDirectory` | `C:/evil`, `c:/evil`, `C:evil`, `D:/outside`, `C:/Windows/System32` are all **accepted** in both languages | all refused; `.`, `worktrees/child-1`, `/tmp`, `a\b` unchanged |
+
+**Correction to my round 2:** I listed the cli callers as already correct. R1-1 is the mirror image of F3: this restore walk enumerates the whole domain, so the shell-only parser fails closed there. Like F3, it is latent until H4b enables `child_run`; after that, every Session that ran a child agent would fail to restore.
+
+**How the suggested guards land on the PR's own suites (TS):**
+- **R1-4:** the regex `/^[A-Za-z]:/` passes 340/340 with no test changes.
+- **R1-2:** placed where the review suggests, it keeps every verdict but changes the reported clause of 8 invalid fixtures, which would make them fail. Placed last (the TS clause order, as for F1), it passes 340/340.
+- **R1-3:** "definition required once dispatched" fails 13 tests, because the authority suite's `runBlock()` dispatches with `definition: null`. Adopting it means the builders pin a definition first; that choice is the author's.
+
+**Candidate (R1-1 + R1-2 + R1-4), on top of `3261e4d4`:** TS + Java + 3 shared fixtures + 1 restore test, 135 lines.
+- Java contracts + store: 36/36, checkstyle clean.
+- TS focused (6 files): 381/381. cli (3 files): 232/232.
+- `tsc` for core and cli: clean. eslint and prettier: clean.
+- Differential: 0 disagreements over 573,903 rows.
+- Witnesses:
+  - Without the Java fix, the Java contract test fails (`agent-attached-without-runtime`).
+  - Without the TS fix, the 3 new fixtures fail.
+  - Without the R1-1 fix, the restore test fails (`expected 409 to be 200`).
+
+**Two smaller gaps the candidate leaves open:**
+- **`dispatch_started` with `runtime: null` is still accepted**, and such a run can never attach. Requiring the binding at dispatch must still allow `not_started_proven`, which two valid fixtures use (`agent-creation-failed`, `agent-cancel-before-dispatch`).
+- **Windows device names** (`CON`, `NUL.txt`) are still accepted as `workingDirectory`.
+
+![review Criticals](IMG3)
+
+<details><summary>Candidate patch: R1-1 + R1-2 + R1-4 (TS + Java + fixtures + restore test)</summary>
+
+```diff
+PATCH_R3
+```
+</details>
 
 ### What changed and what I checked
 

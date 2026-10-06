@@ -1,0 +1,39 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 69230ab2c1..8a56ac7329 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -43,7 +43,7 @@ import {
+   parseToolResultManifestBytes,
+   type ToolResultManifest,
+ } from '@qwen-code/qwen-code-core/managed-runtime/managed-tool-result.js';
+-import { parseChildShellRun } from '@qwen-code/qwen-code-core/managed-runtime/managed-child-run-record.js';
++import { parseChildRun } from '@qwen-code/qwen-code-core/managed-runtime/managed-child-run-record.js';
+ import { parseMonitorRun } from '@qwen-code/qwen-code-core/managed-runtime/managed-extension-record.js';
+ import {
+   ResourceToolResultSegmentStore,
+@@ -929,14 +929,17 @@ async function verifyWorkspaceRestore(
+       event.payload['recordRef'],
+       'domain record',
+     );
+-    const record =
+-      domain === 'child_run'
+-        ? parseChildShellRun(
+-            JSON.parse((await resources.read(recordRef)).toString('utf8')),
+-          )
+-        : parseMonitorRun(
+-            JSON.parse((await resources.read(recordRef)).toString('utf8')),
+-          );
++    const body = JSON.parse((await resources.read(recordRef)).toString('utf8'));
++    let record;
++    if (domain === 'child_run') {
++      const child = parseChildRun(body);
++      // A child agent owns no output manifest lineage; only a background
++      // Shell's revisions carry one into the verified population.
++      if (child.kind !== 'shell') continue;
++      record = child;
++    } else {
++      record = parseMonitorRun(body);
++    }
+     if (record.run.executionCallId !== null)
+       detached.set(record.run.executionCallId, record.outputRef);
+   }

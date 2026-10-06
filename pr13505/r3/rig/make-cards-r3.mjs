@@ -85,10 +85,38 @@ const card2 = () => {
     'Both failures reproduce identically on main without this PR. The store test is a merge-order collision on main: the test #13348 pinned at 15:51 commits a transaction that the stricter event-line check from #13355 (merged 16:29) now refuses. Main\'s own MariaDB lane at ac81c07d also hit the 15-minute ceiling. Nothing here blocks this PR; the same reds will clear once main is fixed.');
 };
 
+
+const card3 = () => {
+  const crit = tsv(`${RIG}/results/crit-r3.tsv`);
+  const r11 = tsv(`${RIG}/results/r1-1-probe.tsv`);
+  const cls = (v) => /refuse|succ=False/.test(v) ? 'ok' : 'bad';
+  const want = (id) => id.startsWith('R1-4') ? !/worktrees|'\.'|CON|NUL/.test(id) : !/repair/.test(id);
+  const rows = crit.map(([id, h, c]) => `<tr><td class="mono">${esc(id)}</td><td class="mono">${esc(h)}</td><td class="mono">${esc(c)}</td></tr>`).join('');
+  const r1 = r11.map(([arm, code, body]) => `<tr><td class="mono">${esc(arm)}</td><td class="mono ${code === '200' ? 'ok' : 'bad'}">${esc(code)}</td><td class="mono">${esc(body.slice(0, 90))}</td></tr>`).join('');
+  const g = [
+    ['R1-4: refuse /^[A-Za-z]:/ in isRelativeDirectory (TS) + requireWorkingDirectory (Java)', 'TS 340/340, 0 fixture or test changes', 'ok'],
+    ['R1-2: childSessionId needs run.runtime — placed first (as suggested)', '8 invalid fixtures now report a different clause', 'warn'],
+    ['R1-2: same guard placed last (TS clause order, like F1)', 'TS 340/340', 'ok'],
+    ['R1-3: definition required once dispatched', '13 tests fail: the authority suite\'s runBlock() dispatches with definition: null', 'warn'],
+  ].map(([a, b, c]) => `<tr><td>${esc(a)}</td><td class="mono ${c}">${esc(b)}</td></tr>`).join('');
+  return page('Round 3: the /review Criticals on 0a1b1d2e (R1-1…R1-4) reproduce on 3261e4d4',
+    'Posted 17:43 as a historical-head review (CHANGES_REQUESTED) while round 3 ran. Each finding probed on the current head through the real validators (h3 TS dist + h3 jar) and, for R1-1, through the Hosted Harness /session/:id/load route; candidate = R1-1 + R1-2 (late) + R1-4 on top of 3261e4d4',
+    `<div class="cols"><div><h2>R1-2 / R1-3 / R1-4 — verdict (TS / Java)</h2><table><tr><th>body or transition</th><th>h3 3261e4d4</th><th>candidate</th></tr>${rows}</table></div>
+     <div><h2>R1-1 — restore of a Session whose journal also holds a child_agent run</h2><table><tr><th>code</th><th>/load</th><th>body</th></tr>${r1}</table>
+     <h2>Guard impact on the PR's own suites (TS)</h2><table><tr><th>guard</th><th>result</th></tr>${g}</table>
+     <h2>Candidate (R1-1 + R1-2 late + R1-4, TS + Java + 3 fixtures + 1 restore test)</h2>
+     <table><tr><td>Java contracts + store</td><td class="mono ok">36/36 · checkstyle clean</td></tr>
+     <tr><td>TS focused 6 files · cli 3 files</td><td class="mono ok">381/381 · 232/232 · tsc core+cli clean · eslint/prettier clean</td></tr>
+     <tr><td>Differential 573,903 rows</td><td class="mono ok">0 disagreements</td></tr>
+     <tr><td>Witness: new fixtures without the fix</td><td class="mono ok">Java fails (agent-attached-without-runtime) · TS 3 fail</td></tr>
+     <tr><td>Witness: restore test without the R1-1 fix</td><td class="mono ok">expected 409 to be 200 (fails) · with fix 5/5</td></tr></table></div></div>`,
+    'All four reproduce on the current head, identically in both languages. R1-1 is the mirror image of F3: the restore walk enumerates every child_run revision and now refuses the whole Session on a child_agent one. My round-2 report listed the cli callers as already correct; this walk is not. R1-2 and R1-4 have drop-in guards. R1-3 needs the authority suite\'s builders to pin a definition before dispatch, which is the author\'s call. Two smaller follow-ups remain open: dispatch_started with no runtime (only not_started_proven may lack one), and Windows device names (CON, NUL.txt).');
+};
+
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ deviceScaleFactor: 2, viewport: { width: 1700, height: 1200 } });
 const pg = await ctx.newPage();
-for (const [name, fn] of [['r3-01-verification', card1], ['r3-02-ci-attribution', card2]]) {
+for (const [name, fn] of [['r3-01-verification', card1], ['r3-02-ci-attribution', card2], ['r3-03-review-criticals', card3]]) {
   const file = `${FIG}/${name}.html`;
   writeFileSync(file, fn());
   await pg.goto(`file://${file}`);

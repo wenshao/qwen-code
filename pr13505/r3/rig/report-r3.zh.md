@@ -6,9 +6,45 @@
 
 **试合并：** 把 `3261e4d4` 合入当前 main `ac497aee`（main 又多了 2 个提交）。装置与前两轮相同：Spring Session Store 跑在原生 MySQL 8.4.7 上，写入走真实 TS authority + HTTP，另有一个经原始 HTTP 提交的第二写入方。
 
+> **修订说明**：我首次发布本评论后才发现，第三轮进行期间（17:43），`/review` bot 对 `0a1b1d2e` 提交了 CHANGES_REQUESTED，我发布前没有读到。其中 4 条 Critical 在 `3261e4d4` 上全部复现，下面的结论取代原来的"可以合入"。
+
 ### 结论
 
-**从本 PR 角度看可以合入。** F3、F4 按第二轮验证过的内容原样落地；第一、二轮的所有检查在 head 和试合并上仍然成立。`3261e4d4` 上的两条 CI 红腿，在不含本 PR 的 main 上同样复现，会随 main 修复而消失。
+**暂不能合入：需先处理 `/review` 的 Critical R1-1…R1-4。** 四条在当前 head 上全部复现，TS 与 Java 表现一致。R1-1、R1-2、R1-4 的候选补丁已验证（见英文部分）；R1-3 需要作者做一个设计取舍。
+
+第一、二轮的结论在 head 与试合并上仍成立：F1–F4 已关闭，与我验证过的内容一致。`3261e4d4` 上两条 CI 红腿在不含本 PR 的 main 上同样复现。
+
+### `/review` 在 `0a1b1d2e` 上的 Critical，在 `3261e4d4` 上复核
+
+每条都用当前 head 的真实校验器（h3 的 TS dist + h3 jar）实测；R1-1 另外走了 Hosted Harness 的 `/session/:id/load` 路由。
+
+- **R1-1**：`verifyWorkspaceRestore` 对每一条 `child_run` 修订都调用 `parseChildShellRun`。
+  - Session 日志里只要多一条 child_agent 记录，加载就返回 **409 `hosted_turn_recovery_required`**；没有这条记录时同一 Session 返回 200。
+  - 改为按 kind 解析、跳过 child_agent（它没有输出 manifest）后返回 **200**，原有 4 个恢复用例照常通过。
+- **R1-2**：`running_attached` 带 `childSessionId` 但 `runtime: null` 时，两侧都**接受**；之后补 runtime 的修订会被拒，这个 run 永远无法绑定。候选补丁后两侧都拒绝。
+- **R1-3**：`dispatch_started` 时没有 `definition` 也会被**接受**，之后补 pin 会被拒。候选补丁未包含这一条。
+- **R1-4**：`C:/evil`、`c:/evil`、`C:evil`、`D:/outside`、`C:/Windows/System32` 两侧都**接受**。候选补丁后全部拒绝；`.`、`worktrees/child-1`、`/tmp`、`a\b` 的结果不变。
+
+**更正我第二轮的说法**：第二轮我把 cli 调用方列为已正确迁移。R1-1 是 F3 的镜像：这条恢复路径会遍历整个 domain，用 shell 专用解析器在这里会失败关闭。它和 F3 一样，在 H4b 启用 `child_run` 之前不会触发；启用后，所有跑过 child agent 的 Session 都会无法恢复。
+
+**建议守卫在 PR 自身套件上的影响（TS）**：
+- R1-4（正则 `/^[A-Za-z]:/`）：340/340，测试无需改动。
+- R1-2：按 bot 建议的位置放，判定结果不变，但 8 个非法 fixture 的报错条款会变，导致这些用例失败；放到最后（遵循 TS 的条款顺序，与 F1 相同）则 340/340。
+- R1-3（派发后必须有 definition）：13 个测试失败，因为 authority 套件的 `runBlock()` 派发时 `definition` 为 null。采纳的话，测试构造器要先 pin definition，这需要作者决定。
+
+**候选补丁（R1-1 + R1-2 + R1-4，基于 `3261e4d4`）**：TS + Java + 3 条共享 fixture + 1 个恢复测试，共 135 行。
+- Java 契约 + store：36/36，checkstyle 通过。
+- TS 聚焦 6 个文件：381/381；cli 3 个文件：232/232。
+- core 与 cli 的 `tsc` 通过，eslint 与 prettier 通过。
+- 差分（57.4 万条）：0 条分歧。
+- 见证：
+  - 去掉 Java 修复，Java 契约测试失败（`agent-attached-without-runtime`）。
+  - 去掉 TS 修复，3 条新 fixture 失败。
+  - 去掉 R1-1 修复，恢复测试失败（`expected 409 to be 200`）。
+
+**候选补丁未覆盖的两个小缺口**：
+- `dispatch_started` 且 `runtime: null` 仍被接受，这种 run 永远无法 attach。如果要求派发时必须有 runtime，需要放过 `not_started_proven`：有两个合法 fixture（`agent-creation-failed`、`agent-cancel-before-dispatch`）就处于这个状态。
+- `workingDirectory` 仍接受 Windows 设备名（`CON`、`NUL.txt`）。
 
 ### 改动与核查
 

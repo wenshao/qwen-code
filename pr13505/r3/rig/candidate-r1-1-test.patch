@@ -1,0 +1,94 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.test.ts b/packages/cli/src/serve/hosted-harness-session.test.ts
+index 9a1d965f75..ab3a7eb542 100644
+--- a/packages/cli/src/serve/hosted-harness-session.test.ts
++++ b/packages/cli/src/serve/hosted-harness-session.test.ts
+@@ -1136,6 +1136,7 @@ describe('Hosted Harness no-tool session', () => {
+   async function prewriteDetachedOutput(
+     family: DetachedFamily,
+     publication: boolean,
++    withChildAgent = false,
+   ): Promise<void> {
+     const key = {
+       tenantId: 'tenant',
+@@ -1260,6 +1261,55 @@ describe('Hosted Harness no-tool session', () => {
+           exitCode: 0,
+           exitSignal: null,
+         });
++        if (withChildAgent) {
++          // The same journal also holds an H4a child agent run.
++          const inputRef = await resources.publish(
++            'managed-input',
++            Buffer.from('{"prompt":"audit"}'),
++          );
++          await managed.authority.commitExtensionRecord(
++            {
++              operation: 'commitExtensionRecord',
++              commandId: 'agent-1:1',
++              sessionKey: key,
++              contentDigest: 'a'.repeat(64),
++            },
++            {
++              domain: 'child_run',
++              record: {
++                kind: 'child_agent',
++                childRunId: 'agent-1',
++                ownerScopeId: key.sessionId,
++                rootSessionId: key.sessionId,
++                depth: 1,
++                completion: 'sent',
++                inputRef,
++                workspaceMode: 'shared',
++                workingDirectory: '.',
++                childSessionId: null,
++                predecessorChildRunId: null,
++                resultVersion: 1,
++                resultRef: null,
++                terminalReceiptRef: null,
++                stopReason: null,
++                stopRequested: false,
++                run: {
++                  state: 'admitted',
++                  reason: null,
++                  definition: null,
++                  executionCallId: 'agent-call-1',
++                  effectId: null,
++                  dispatchId: null,
++                  deliveryId: null,
++                  execution: 'intent',
++                  runtime: null,
++                  delivery: { target: 'session', state: 'planned' },
++                },
++              },
++            },
++            { class: 'trusted_entry' },
++          );
++        }
+       } else {
+         const monitors = new HostedMonitorSession(
+           { authority: managed.authority, resources: managed.resources },
+@@ -1332,6 +1382,25 @@ describe('Hosted Harness no-tool session', () => {
+     },
+   );
+ 
++  it('restores a Session whose journal also holds a child agent run', async () => {
++    domainEnablement.childRun = true;
++    domainEnablement.monitorRun = true;
++    // A child_run domain holds two kinds since H4a: the restore walk reads
++    // a background Shell's manifest lineage and skips a child agent, which
++    // owns none, instead of refusing the whole Session.
++    await prewriteDetachedOutput('child_run', false, true);
++    const { server, loaded } = await loadDetachedSession();
++    expect(loaded.status).toBe(200);
++    expect(
++      (
++        await headers(supertest(server).delete(`/session/${SESSION_ID}`)).set(
++          'X-Qwen-Client-Id',
++          loaded.body.clientId as string,
++        )
++      ).status,
++    ).toBe(204);
++  });
++
+   it('still refuses the restore when a detached capture loses page content', async () => {
+     domainEnablement.childRun = true;
+     await prewriteDetachedOutput('child_run', false);
