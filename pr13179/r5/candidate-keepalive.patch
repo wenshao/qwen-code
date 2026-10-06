@@ -1,0 +1,238 @@
+diff --git a/packages/web-shell/client/components/managed/java-managed-agent-client.test.ts b/packages/web-shell/client/components/managed/java-managed-agent-client.test.ts
+index ed52c7082a..4f0499b4e4 100644
+--- a/packages/web-shell/client/components/managed/java-managed-agent-client.test.ts
++++ b/packages/web-shell/client/components/managed/java-managed-agent-client.test.ts
+@@ -99,6 +99,34 @@ describe('JavaManagedAgentClient', () => {
+     });
+   });
+ 
++  it('reports each keep-alive on an idle stream', async () => {
++    const body = new ReadableStream<Uint8Array>({
++      start(controller) {
++        controller.enqueue(
++          new TextEncoder().encode(':keepalive\n\n:keepalive\n\n:keep'),
++        );
++        controller.close();
++      },
++    });
++    const client = new JavaManagedAgentClient({
++      baseUrl: 'https://product.example',
++      fetch: vi
++        .fn<typeof fetch>()
++        .mockResolvedValue(new Response(body, { status: 200 })),
++    });
++    const onAlive = vi.fn();
++    const events = [];
++    for await (const event of client.streamEvents(
++      { sessionId: 'session-1', afterSequence: 8 },
++      undefined,
++      onAlive,
++    ))
++      events.push(event);
++    expect(events).toEqual([]);
++    // Two complete keep-alives; the trailing fragment is a mid-frame close.
++    expect(onAlive).toHaveBeenCalledTimes(2);
++  });
++
+   it('decodes the resync frame that ends an expired stream', async () => {
+     const client = new JavaManagedAgentClient({
+       baseUrl: 'https://product.example',
+diff --git a/packages/web-shell/client/components/managed/java-managed-agent-client.ts b/packages/web-shell/client/components/managed/java-managed-agent-client.ts
+index 806d9b402d..90c39c0025 100644
+--- a/packages/web-shell/client/components/managed/java-managed-agent-client.ts
++++ b/packages/web-shell/client/components/managed/java-managed-agent-client.ts
+@@ -362,6 +362,7 @@ export class JavaManagedAgentClient {
+   async *streamEvents(
+     request: Schemas['WebShellStreamRequest'],
+     signal?: AbortSignal,
++    onAlive?: () => void,
+   ): AsyncGenerator<JavaAgentEvent | JavaAgentResyncRequired> {
+     const response = await this.request(
+       '/events/stream',
+@@ -410,7 +411,11 @@ export class JavaManagedAgentClient {
+         const hasContent = frame
+           .split(/\r?\n/)
+           .some((line) => line && !line.startsWith(':'));
+-        if (!hasContent) return undefined; // heartbeat or comment
++        if (!hasContent) {
++          // heartbeat or comment: no event, but the connection is answering
++          if (!trailing) onAlive?.();
++          return undefined;
++        }
+         if (!trailing) {
+           // A mid-stream frame with id/event lines but no data line is
+           // malformed server output, not a heartbeat: count it as corrupt
+diff --git a/packages/web-shell/client/components/managed/java-managed-agent-provider.ts b/packages/web-shell/client/components/managed/java-managed-agent-provider.ts
+index a48583d53c..8c27318f6f 100644
+--- a/packages/web-shell/client/components/managed/java-managed-agent-provider.ts
++++ b/packages/web-shell/client/components/managed/java-managed-agent-provider.ts
+@@ -238,6 +238,7 @@ export function createJavaManagedAgentProvider(
+       for await (const event of client.streamEvents(
+         { sessionId, afterSequence: request.lastEventId },
+         request.signal,
++        request.onAlive,
+       )) {
+         if (isJavaAgentResyncRequired(event)) {
+           // Events after the cursor are gone: reload the transcript.
+diff --git a/packages/web-shell/client/components/managed/managed-agent-provider.ts b/packages/web-shell/client/components/managed/managed-agent-provider.ts
+index bab3361101..2ebccd477a 100644
+--- a/packages/web-shell/client/components/managed/managed-agent-provider.ts
++++ b/packages/web-shell/client/components/managed/managed-agent-provider.ts
+@@ -184,7 +184,12 @@ export interface ManagedAgentProvider {
+   ): Promise<void>;
+   subscribeEvents(
+     sessionId: string,
+-    options: ManagedAgentRequestOptions & { lastEventId?: number },
++    options: ManagedAgentRequestOptions & {
++      lastEventId?: number;
++      // Called for a keep-alive the server sends on an open stream: a live
++      // but idle connection answers only with these.
++      onAlive?: () => void;
++    },
+   ): AsyncIterable<ManagedAgentSessionEvent>;
+ }
+ 
+diff --git a/packages/web-shell/client/components/managed/use-managed-session.test.tsx b/packages/web-shell/client/components/managed/use-managed-session.test.tsx
+index f3c23a7c22..a11d149473 100644
+--- a/packages/web-shell/client/components/managed/use-managed-session.test.tsx
++++ b/packages/web-shell/client/components/managed/use-managed-session.test.tsx
+@@ -535,6 +535,102 @@ describe('useManagedSession', () => {
+     }
+   });
+ 
++  it('expires a transient stream failure once an idle reconnect answers with a keep-alive', async () => {
++    // This server resumes an idle Session with keep-alive comments only: no
++    // frame is ever delivered, so the keep-alive is the answer.
++    vi.useFakeTimers();
++    const restoreBackoff = deterministicBackoff();
++    try {
++      let calls = 0;
++      const provider = {
++        getSession: vi.fn().mockResolvedValue({ sessionId: 'session-1' }),
++        getTranscript: vi.fn().mockResolvedValue(transcript(1)),
++        subscribeEvents: vi.fn(async function* (
++          _sessionId: string,
++          request: { signal?: AbortSignal; onAlive?: () => void },
++        ) {
++          calls++;
++          if (calls === 1)
++            throw Object.assign(new Error('upstream unavailable'), {
++              status: 502,
++            });
++          // First keep-alive lands past the proof-of-life point.
++          await new Promise((resolve) => setTimeout(resolve, 5_000));
++          request.onAlive?.();
++          yield* [];
++          await new Promise((resolve) =>
++            request.signal?.addEventListener('abort', resolve),
++          );
++        }),
++      } as unknown as ManagedAgentProvider;
++      mountReact(<Probe provider={provider} />);
++      await flushReact();
++      expect(latest?.error).toBe('upstream unavailable');
++      // Reconnect at 3 s; open but nothing answered yet at 7.5 s.
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(7_500);
++      });
++      expect(calls).toBe(2);
++      expect(latest?.error).toBe('upstream unavailable');
++      // The keep-alive at 8 s answers for the idle connection.
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(1_000);
++      });
++      expect(latest?.error).toBeUndefined();
++      expect(latest?.stoppedReason).toBeUndefined();
++    } finally {
++      restoreBackoff();
++      vi.useRealTimers();
++    }
++  });
++
++  it('expires a terminal stream verdict once an idle reconnect answers with a keep-alive', async () => {
++    // This server resumes an idle Session with keep-alive comments only: no
++    // frame is ever delivered, so the keep-alive is the answer.
++    vi.useFakeTimers();
++    const restoreBackoff = deterministicBackoff();
++    try {
++      let calls = 0;
++      const provider = {
++        getSession: vi.fn().mockResolvedValue({ sessionId: 'session-1' }),
++        getTranscript: vi.fn().mockResolvedValue(transcript(1)),
++        subscribeEvents: vi.fn(async function* (
++          _sessionId: string,
++          request: { signal?: AbortSignal; onAlive?: () => void },
++        ) {
++          calls++;
++          if (calls === 1)
++            throw Object.assign(new Error('session gone'), { status: 404 });
++          // First keep-alive lands past the proof-of-life point.
++          await new Promise((resolve) => setTimeout(resolve, 5_000));
++          request.onAlive?.();
++          yield* [];
++          await new Promise((resolve) =>
++            request.signal?.addEventListener('abort', resolve),
++          );
++        }),
++      } as unknown as ManagedAgentProvider;
++      mountReact(<Probe provider={provider} />);
++      await flushReact();
++      expect(latest?.stoppedReason).toBe('session gone');
++      // Reconnect at 3 s; open but nothing answered yet at 7.5 s.
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(7_500);
++      });
++      expect(calls).toBe(2);
++      expect(latest?.stoppedReason).toBe('session gone');
++      // The keep-alive at 8 s answers for the idle connection.
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(1_000);
++      });
++      expect(latest?.error).toBeUndefined();
++      expect(latest?.stoppedReason).toBeUndefined();
++    } finally {
++      restoreBackoff();
++      vi.useRealTimers();
++    }
++  });
++
+   it('expires a terminal stream verdict on an error-free clean close', async () => {
+     vi.useFakeTimers();
+     const restoreBackoff = deterministicBackoff();
+diff --git a/packages/web-shell/client/components/managed/use-managed-session.ts b/packages/web-shell/client/components/managed/use-managed-session.ts
+index 6fb17d7589..2c6ed6dff1 100644
+--- a/packages/web-shell/client/components/managed/use-managed-session.ts
++++ b/packages/web-shell/client/components/managed/use-managed-session.ts
+@@ -353,6 +353,9 @@ export function useManagedSession(
+         // accompanies stands only if the attempt goes on to answer
+         // error-free, so a throw restores the verdict.
+         let expiredVerdictMessage: string | undefined;
++        // Set once the proof-of-life point has passed: a keep-alive arriving
++        // after it is the answer the timer waited for.
++        let proofDue = false;
+         const connectedAt = Date.now();
+         // The same duration that certifies a connection for the backoff
+         // ladder below (a throw before it stretches the rung) also
+@@ -366,12 +369,22 @@ export function useManagedSession(
+           // at React's flush, which an attempt failing right after the
+           // expiry would beat to the catch.
+           expiredVerdictMessage = streamVerdictMessageRef.current;
++          proofDue = true;
+           if (delivered) expireAnswered('stream');
+         }, BASE_RETRY_DELAY_MS);
+         try {
+           for await (const event of provider.subscribeEvents(sessionId, {
+             ...opts,
+             lastEventId,
++            // A keep-alive is the server answering on an idle stream — what
++            // a black-holed connection never sends. It counts as delivery,
++            // and past the proof-of-life point it completes the expiry.
++            onAlive: () => {
++              if (abort.signal.aborted) return;
++              const first = !delivered;
++              delivered = true;
++              if (first && proofDue) expireAnswered('stream');
++            },
+           })) {
+             if (abort.signal.aborted) return;
+             delivered = true;
