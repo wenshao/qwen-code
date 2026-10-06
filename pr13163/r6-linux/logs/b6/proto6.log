@@ -1,0 +1,38 @@
+model listening 18167
+tap 18166 -> 18165
+harness pid=595711 dist=head3 up after 2s log=/root/v13163/rig/run/p63/harness-0.log
+springb pid=595759 jar=proto store=http://127.0.0.1:18164 up after 31s log=/root/v13163/rig/run/p63/springb-0.log
+spring pid=597084 jar=proto store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/p63/spring-0.log
+### /usr/bin/node r62-rename-race.mjs bound ws-r62p d
+# r62-rename-race-bound  db=p63  2026-10-06T23:20:06.875Z
+PASS  initial Turn COMPLETED  -> e663325a-2679-4c8d-8df3-01a7dba58c56
+NOTE  1. K1 "Alpha", Harness answers 500  -> 503 hosted_harness_unavailable; rows ["K1:FAILED"]
+NOTE  2. K2 "Bravo"  -> 200 Bravo; rows ["K1:FAILED","K2:COMPLETED"]; SQL title=Bravo
+NOTE  3. K1 retry #1 (Harness call delayed 4 s)  -> 200 Alpha
+NOTE  4. K1 retry #2, overlapping (Harness answers 500)  -> 503 hosted_harness_unavailable; rows while #1 was in flight ["K1:PENDING","K2:COMPLETED"]
+NOTE  POST /title calls at the Harness  -> ["respond:500","pass:200","respond:500","delay:200"]
+NOTE  final: rows / public SQL title / Harness journal titles (in order)  -> ["K1:COMPLETED","K2:COMPLETED"] / Alpha / ["Bravo@r1","Alpha@r2"]
+NOTE  5. K1 retried once more after the race  -> 200 Alpha; SQL title=Alpha; public GET title=Alpha
+NOTE  session.* events  -> ["session.created ","session.update.requested control:RENAME_SESSION:k1-*:requested","session.update.requested control:RENAME_SESSION:k2-*:requested","session.updated control:RENAME_SESSION:k2-*:completed","session.updated control:RENAME_SESSION:k1-*:completed"]
+== r62-rename-race-bound: 1 passed, 0 failed
+RC=0
+### /usr/bin/node r63-older-inflight.mjs bound ws-r63p d
+# r63-older-inflight-bound  db=p63  2026-10-06T23:20:20.828Z
+PASS  initial Turn COMPLETED  -> 2f8aeff0-9971-469b-b12b-846423a83aa4
+NOTE  1. K1 attempt #1 "Alpha": Harness applied it, answer held 9 s  -> +103 ms; rows ["K1:PENDING"]; Harness titles ["Alpha@r1"]
+NOTE  2. K1 attempt #2 (same key), Harness answers 500  -> +265 ms 503 hosted_harness_unavailable; rows ["K1:FAILED"]
+NOTE  3. K2 "Bravo"  -> +720 ms 200 Bravo; rows ["K1:FAILED","K2:COMPLETED"]; SQL=Bravo; Harness titles ["Alpha@r1","Bravo@r2"]
+NOTE  4. K1 attempt #3 (same key, sent after Bravo), Harness answers 500  -> +1185 ms 503 hosted_harness_unavailable; rows ["K1:FAILED","K2:COMPLETED"]
+NOTE  5. K1 attempt #1 answer delivered  -> +9136 ms 409 session_mutation_superseded
+NOTE  after the race: rows / SQL title / public GET title / Harness titles  -> ["K1:FAILED","K2:COMPLETED"] / Bravo / Bravo / ["Alpha@r1","Bravo@r2"]
+NOTE  6. K1 retried once more  -> 200 Alpha replay=true; rows ["K1:COMPLETED","K2:COMPLETED"]; SQL=Alpha; Harness titles ["Alpha@r1","Bravo@r2","Alpha@r3"]
+NOTE  POST /title calls at the Harness  -> ["delay-after:200","respond:500","pass:200","respond:500","pass:200"]
+NOTE  session.* events  -> ["1 session.created ","11 session.update.requested control:RENAME_SESSION:k1-*:requested","12 session.update.requested control:RENAME_SESSION:k2-*:requested","13 session.updated control:RENAME_SESSION:k2-*:completed","14 session.updated control:RENAME_SESSION:k1-*:completed"]
+== r63-older-inflight-bound: 1 passed, 0 failed
+RC=0
+stopped spring pid=597084 sig=TERM
+stopped spring-b pid=595759 sig=TERM
+stopped harness pid=595711 sig=TERM
+stopped model pid=595683 sig=TERM
+stopped tap pid=595684 sig=TERM
+PROTO6-DONE 23:20:39

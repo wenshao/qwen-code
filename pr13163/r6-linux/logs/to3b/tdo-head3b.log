@@ -1,0 +1,32 @@
+model listening 18167
+tap 18166 -> 18165
+harness pid=579133 dist=head3 up after 2s log=/root/v13163/rig/run/to3b/harness-0.log
+springb pid=579186 jar=head3 store=http://127.0.0.1:18164 up after 31s log=/root/v13163/rig/run/to3b/springb-0.log
+spring pid=580324 jar=head3 store=http://127.0.0.1:18164 up after 8s log=/root/v13163/rig/run/to3b/spring-0.log
+# td-start-ws-to-head3b  db=to3b  2026-10-06T23:12:52.634Z
+PASS  initial Turn COMPLETED  -> 236ec35a-66c7-4fa1-9c29-4e9683e1647d
+PASS  Turn recovery-blocked in the live Harness  -> Turn=RUNNING one=step-one two=null
+== td-start-ws-to-head3b: 2 passed, 0 failed
+stopped spring pid=580324 sig=TERM
+spring pid=581741 jar=head3 store=http://127.0.0.1:18164 up after 12s log=/root/v13163/rig/run/to3b/spring-1.log
+# td-overlap-head3b-ws-to-head3b  db=to3b  2026-10-06T23:13:35.800Z
+NOTE  creator cancel (create restored, cold cache)  -> 202 accepted
+NOTE  L1 (Spring) acquire answered by the Broker, answer held 5 s  -> +27658 ms
+NOTE  L2 (overlapping passive load) acquire answered, answer held 15 s  -> +27813 ms
+NOTE  DELETE while both loads adopt  -> +27825 ms -> 409 {"error":"hosted_turn_active","code":"hosted_turn_active"}
+NOTE  L1 answered Spring  -> +32636 ms -> 200 
+NOTE  DELETE right after L1 answered, L2 still adopting  -> +32651 ms -> 409 {"error":"hosted_turn_active","code":"hosted_turn_active"}
+NOTE  L2 answer  -> +42814 ms -> 200 {"sessionId":"236ec35a-66c7-4fa1-9c29-4e9683e1647d","clientId":"ca0b1b77-0e1f-4384-94b1-91ac0e6dd93b","workspaceCwd":"/root/v13163/rig/run/to3b/decoy","lastEventId":65,"eventEpoch":"05062c73_942d_45e1
+NOTE  Turn end  -> CANCELLING  (not terminal)
+NOTE  Broker calls through the tap since the cancel  -> ["POST /internal/runtime-broker/v1/tool-sessions:acquire 200 [delay-after]","POST /internal/runtime-broker/v1/tool-sessions:acquire 200 [delay-after]"]
+NOTE  Spring -> Harness calls since the cancel  -> ["POST /session/:id/load 200 passive","POST /session/:id/managed-runtime/cancel 409 hosted_mcp_operation_active","POST /session/:id/managed-runtime/cancel 409 hosted_mcp_operation_active","POST /session/:id/managed-runtime/cancel 409 hosted_mcp_operation_active","POST /session/:id/managed-runtime/cancel 409 hosted_mcp_operation_active","POST /session/:id/managed-runtime/cancel 409 hosted_turn_recovery_required","POST /session/:id/managed-runtime/cancel 409 hosted_turn_recovery_required","POST /session/:id/managed-runtime/cancel 409 hosted_turn_recovery_required"]
+NOTE  Runtime Session records  -> [["bc202f1aa6a9","RELEASED","3"],["7680453c6e01","READY","1"]]
+NOTE  Turn history  -> [["turn_507ad744abe2478d91fabcf6c99cce8d","COMPLETED","","0"],["turn_e9e9c1016a834e57ac402d67a06cba98","CANCELLING","","7"]]
+== td-overlap-head3b-ws-to-head3b: 0 passed, 0 failed
+stopped spring pid=581741 sig=TERM
+stopped spring-b pid=579186 sig=TERM
+stopped harness pid=579133 sig=TERM
+stopped model pid=579101 sig=TERM
+stopped tap pid=579102 sig=TERM
+stopped btap pid=579098 sig=TERM
+TDO-DONE 23:15:37

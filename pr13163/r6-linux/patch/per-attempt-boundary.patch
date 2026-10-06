@@ -1,0 +1,296 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
+index 7f43998ddd..46c024b406 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
+@@ -328,7 +328,8 @@ public class ManagedAgentService {
+                 harness.rename(tenantId, sessionId, effectiveTitle);
+                 session = store.completeSessionMutation(tenantId, RENAME,
+                         idempotencyKey, sessionId, SessionMutationKind.RENAME,
+-                        effectiveTitle, attachment.bootId());
++                        effectiveTitle, attachment.bootId(),
++                        command.attemptSequence());
+                 return new SessionMutationResult<>(publicSession(session),
+                         command.replayed());
+             } catch (RuntimeException error) {
+@@ -391,7 +392,8 @@ public class ManagedAgentService {
+         if (!"COMPLETED".equals(command.status())) {
+             SessionRecord session = store.completeSessionMutation(tenantId,
+                     UNARCHIVE, idempotencyKey, sessionId,
+-                    SessionMutationKind.UNARCHIVE, null, null);
++                    SessionMutationKind.UNARCHIVE, null, null,
++                    command.attemptSequence());
+             return new StoreModels.SessionMutation(session, command.replayed());
+         }
+         return new StoreModels.SessionMutation(requireVisibleSession(tenantId, sessionId), true);
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/AgentStateStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/AgentStateStore.java
+index 6dc98b1ade..4520604362 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/AgentStateStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/AgentStateStore.java
+@@ -72,6 +72,11 @@ public interface AgentStateStore {
+             String idempotencyKey, String sessionId,
+             SessionMutationKind kind, String title, String harnessBootId);
+ 
++    SessionRecord completeSessionMutation(String tenantId, String operation,
++            String idempotencyKey, String sessionId,
++            SessionMutationKind kind, String title, String harnessBootId,
++            Long attemptSequence);
++
+     /**
+      * Retires the command row of a Session mutation the Harness refused
+      * before completion, so the refusal does not leave the Session's
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+index 44f8e1c528..cf2742a1b2 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+@@ -556,25 +556,20 @@ public class ManagedAgentStore implements AgentStateStore {
+                 requireNoOpenOperation(tenantId, sessionId);
+                 validateMutationStatus(session, kind);
+                 jdbc.update("UPDATE managed_agent_command SET command_status ="
+-                                + " 'PENDING', mutation_attempt_sequence = ?,"
+-                                + " updated_at = ? WHERE tenant_id = ?"
++                                + " 'PENDING', updated_at = ? WHERE tenant_id = ?"
+                                 + " AND operation = ? AND idempotency_key = ?",
+-                        session.lastSequence(), clock.millis(), tenantId,
+-                        operation, idempotencyKey);
+-                return new SessionMutationCommand(sessionId, "PENDING", true);
++                        clock.millis(), tenantId, operation, idempotencyKey);
++                return new SessionMutationCommand(sessionId, "PENDING", true,
++                        session.lastSequence());
+             }
+             return new SessionMutationCommand(sessionId, command.status(),
+-                    true);
++                    true, session.lastSequence());
+         }
+         requireNoOpenOperation(tenantId, sessionId);
+         validateMutationStatus(session, kind);
+         long now = clock.millis();
+         insertCommand(tenantId, operation, idempotencyKey, requestDigest,
+                 sessionId, null, "PENDING", session.status(), now);
+-        jdbc.update("UPDATE managed_agent_command SET mutation_attempt_sequence"
+-                        + " = ? WHERE tenant_id = ? AND operation = ?"
+-                        + " AND idempotency_key = ?",
+-                session.lastSequence(), tenantId, operation, idempotencyKey);
+         // Older retired commands may have left their requested event behind.
+         String requestedSource = mutationSource(operation, idempotencyKey,
+                 "requested");
+@@ -584,13 +579,24 @@ public class ManagedAgentStore implements AgentStateStore {
+                     Map.of("sessionId", sessionId), false,
+                     requestedSource, now);
+         }
+-        return new SessionMutationCommand(sessionId, "PENDING", false);
++        return new SessionMutationCommand(sessionId, "PENDING", false,
++                session.lastSequence());
+     }
+ 
+     @Transactional
+     public SessionRecord completeSessionMutation(String tenantId,
+             String operation, String idempotencyKey, String sessionId,
+             SessionMutationKind kind, String title, String harnessBootId) {
++        return completeSessionMutation(tenantId, operation, idempotencyKey,
++                sessionId, kind, title, harnessBootId, null);
++    }
++
++    @Override
++    @Transactional
++    public SessionRecord completeSessionMutation(String tenantId,
++            String operation, String idempotencyKey, String sessionId,
++            SessionMutationKind kind, String title, String harnessBootId,
++            Long attemptSequence) {
+         SessionRecord session = requireSessionForUpdate(tenantId, sessionId);
+         if (session.workspace() != null && !boundRenameAllowed(kind)) {
+             throw workspaceExecutionUnavailable();
+@@ -617,7 +623,8 @@ public class ManagedAgentStore implements AgentStateStore {
+         // while it was FAILED another key could begin and complete, and
+         // completing this one now would revert that newer outcome.
+         if ("FAILED".equals(command.status()) && supersededByLaterMutation(
+-                tenantId, sessionId, operation, idempotencyKey, kind)) {
++                tenantId, sessionId, operation, idempotencyKey, kind,
++                attemptSequence)) {
+             throw new ApiException(HttpStatus.CONFLICT,
+                     "session_mutation_superseded",
+                     "A later change to the Session completed after this"
+@@ -2777,30 +2784,29 @@ public class ManagedAgentStore implements AgentStateStore {
+                 + "." + phase;
+     }
+ 
+-    // The Session lock orders each new attempt against committed events.
+-    // Legacy receipts fall back to their original requested event; a
+-    // re-drive refreshes the boundary without appending another event.
++    // VERIFICATION PROTOTYPE (PR #13163 R6): the boundary belongs to the
++    // completing attempt, read under the Session lock when that attempt began;
++    // callers without one fall back to the original requested event.
+     private boolean supersededByLaterMutation(String tenantId,
+             String sessionId, String operation, String idempotencyKey,
+-            SessionMutationKind kind) {
+-        List<Long> attempts = jdbc.queryForList("SELECT COALESCE("
+-                        + " c.mutation_attempt_sequence, e.sequence_id) FROM"
+-                        + " managed_agent_command c LEFT JOIN managed_agent_event e"
+-                        + " ON e.tenant_id = c.tenant_id AND"
+-                        + " e.session_id = c.session_id AND e.source_key = ?"
+-                        + " WHERE c.tenant_id = ? AND c.session_id = ? AND"
+-                        + " c.operation = ? AND c.idempotency_key = ?",
+-                Long.class, mutationSource(operation, idempotencyKey,
+-                        "requested"), tenantId, sessionId, operation,
+-                idempotencyKey);
+-        if (attempts.isEmpty() || attempts.getFirst() == null) {
+-            return false;
++            SessionMutationKind kind, Long attemptSequence) {
++        Long boundary = attemptSequence;
++        if (boundary == null) {
++            List<Long> requested = jdbc.queryForList("SELECT sequence_id FROM"
++                            + " managed_agent_event WHERE tenant_id = ? AND"
++                            + " session_id = ? AND source_key = ?",
++                    Long.class, tenantId, sessionId,
++                    mutationSource(operation, idempotencyKey, "requested"));
++            if (requested.isEmpty()) {
++                return false;
++            }
++            boundary = requested.getFirst();
+         }
+         Integer later = jdbc.queryForObject("SELECT COUNT(*) FROM"
+                         + " managed_agent_event WHERE tenant_id = ? AND"
+                         + " session_id = ? AND sequence_id > ? AND"
+                         + " event_type = ? AND source_key LIKE 'control:%'",
+-                Integer.class, tenantId, sessionId, attempts.getFirst(),
++                Integer.class, tenantId, sessionId, boundary,
+                 mutationEvent(kind, "completed"));
+         return later != null && later > 0;
+     }
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/StoreModels.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/StoreModels.java
+index eac7f61ac0..be1c1a78b8 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/StoreModels.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/StoreModels.java
+@@ -79,7 +79,7 @@ public final class StoreModels {
+     }
+ 
+     public record SessionMutationCommand(String sessionId, String status,
+-            boolean replayed) {
++            boolean replayed, long attemptSequence) {
+     }
+ 
+     public record SessionMutation(SessionRecord session, boolean replayed) {
+diff --git a/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V48__managed_mutation_attempt_sequence.sql b/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V48__managed_mutation_attempt_sequence.sql
+deleted file mode 100644
+index ad3a0bf5ce..0000000000
+--- a/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V48__managed_mutation_attempt_sequence.sql
++++ /dev/null
+@@ -1,2 +0,0 @@
+--- Existing receipts retain their original requested-event boundary until retried.
+-ALTER TABLE managed_agent_command ADD COLUMN mutation_attempt_sequence BIGINT;
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedSessionLifecycleTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedSessionLifecycleTest.java
+index b1681bc80f..0e17ee165c 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedSessionLifecycleTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedSessionLifecycleTest.java
+@@ -498,9 +498,8 @@ class ManagedSessionLifecycleTest {
+                 Integer.class, tenant, sessionId)).isEqualTo(1);
+     }
+ 
+-    @ParameterizedTest
+-    @ValueSource(booleans = {false, true})
+-    void retiredRenameCannotCompleteOverALaterCompletedRename(boolean legacyReceipt)
++    @Test
++    void retiredRenameCannotCompleteOverALaterCompletedRename()
+             throws Exception {
+         String tenant = tenant();
+         String sessionId = attachedSession(tenant);
+@@ -512,17 +511,12 @@ class ManagedSessionLifecycleTest {
+                 java.util.Map.of("sessionId", sessionId, "title", "B"));
+         // K1 and its same-key retry both enter the Harness; one fails and
+         // retires K1, which frees the Session for a fresh key.
+-        store.beginSessionMutation(tenant, "RENAME_SESSION", "k1", first,
+-                sessionId, SessionMutationKind.RENAME);
++        long k1First = store.beginSessionMutation(tenant, "RENAME_SESSION",
++                "k1", first, sessionId, SessionMutationKind.RENAME)
++                .attemptSequence();
+         store.beginSessionMutation(tenant, "RENAME_SESSION", "k1", first,
+                 sessionId, SessionMutationKind.RENAME);
+         store.abandonSessionMutation(tenant, "RENAME_SESSION", "k1", sessionId);
+-        if (legacyReceipt) {
+-            jdbc.update("UPDATE managed_agent_command SET mutation_attempt_sequence"
+-                            + " = NULL WHERE tenant_id = ? AND operation = ?"
+-                            + " AND idempotency_key = ?",
+-                    tenant, "RENAME_SESSION", "k1");
+-        }
+         store.beginSessionMutation(tenant, "RENAME_SESSION", "k2", second,
+                 sessionId, SessionMutationKind.RENAME);
+         store.completeSessionMutation(tenant, "RENAME_SESSION", "k2", sessionId,
+@@ -532,7 +526,7 @@ class ManagedSessionLifecycleTest {
+         // not revert the newer committed title.
+         assertThatThrownBy(() -> store.completeSessionMutation(tenant,
+                 "RENAME_SESSION", "k1", sessionId, SessionMutationKind.RENAME,
+-                "A", bootId))
++                "A", bootId, k1First))
+                 .isInstanceOfSatisfying(ApiException.class, error ->
+                         assertThat(error.getCode())
+                                 .isEqualTo("session_mutation_superseded"));
+@@ -580,14 +574,14 @@ class ManagedSessionLifecycleTest {
+                             + " AND operation = ? AND idempotency_key = ?",
+                     tenant, "RENAME_SESSION", "k1");
+         }
+-        store.beginSessionMutation(tenant, "RENAME_SESSION", "k1", first,
+-                sessionId, SessionMutationKind.RENAME);
++        long newest = store.beginSessionMutation(tenant, "RENAME_SESSION", "k1",
++                first, sessionId, SessionMutationKind.RENAME).attemptSequence();
+         store.beginSessionMutation(tenant, "RENAME_SESSION", "k1", first,
+                 sessionId, SessionMutationKind.RENAME);
+         store.abandonSessionMutation(tenant, "RENAME_SESSION", "k1", sessionId);
+         harness.rename(tenant, sessionId, "A");
+         assertThat(store.completeSessionMutation(tenant, "RENAME_SESSION", "k1",
+-                sessionId, SessionMutationKind.RENAME, "A", bootId).title())
++                sessionId, SessionMutationKind.RENAME, "A", bootId, newest).title())
+                 .isEqualTo("A");
+         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM managed_agent_event"
+                         + " WHERE tenant_id = ? AND session_id = ? AND source_key = ?",
+@@ -605,6 +599,42 @@ class ManagedSessionLifecycleTest {
+                 .andExpect(header().string("X-Qwen-Idempotent-Replay", "true"));
+     }
+ 
++    // VERIFICATION PROTOTYPE (PR #13163 R6): an attempt that entered the
++    // Harness before K2 must not complete over K2 just because a later
++    // same-key attempt revived and then retired the receipt again.
++    @Test
++    void olderAttemptCannotCompleteAfterAFailedSameKeyRevival() throws Exception {
++        String tenant = tenant();
++        String sessionId = attachedSession(tenant);
++        String bootId = store.requireSession(tenant, sessionId).harnessBootId();
++        RequestDigests digests = new RequestDigests();
++        String first = digests.digest(
++                java.util.Map.of("sessionId", sessionId, "title", "A"));
++        String second = digests.digest(
++                java.util.Map.of("sessionId", sessionId, "title", "B"));
++        long oldest = store.beginSessionMutation(tenant, "RENAME_SESSION", "k1",
++                first, sessionId, SessionMutationKind.RENAME).attemptSequence();
++        harness.rename(tenant, sessionId, "A");
++        store.beginSessionMutation(tenant, "RENAME_SESSION", "k1", first,
++                sessionId, SessionMutationKind.RENAME);
++        store.abandonSessionMutation(tenant, "RENAME_SESSION", "k1", sessionId);
++        store.beginSessionMutation(tenant, "RENAME_SESSION", "k2", second,
++                sessionId, SessionMutationKind.RENAME);
++        harness.rename(tenant, sessionId, "B");
++        store.completeSessionMutation(tenant, "RENAME_SESSION", "k2", sessionId,
++                SessionMutationKind.RENAME, "B", bootId);
++        store.beginSessionMutation(tenant, "RENAME_SESSION", "k1", first,
++                sessionId, SessionMutationKind.RENAME);
++        store.abandonSessionMutation(tenant, "RENAME_SESSION", "k1", sessionId);
++        assertThatThrownBy(() -> store.completeSessionMutation(tenant,
++                "RENAME_SESSION", "k1", sessionId, SessionMutationKind.RENAME,
++                "A", bootId, oldest))
++                .isInstanceOfSatisfying(ApiException.class, error ->
++                        assertThat(error.getCode())
++                                .isEqualTo("session_mutation_superseded"));
++        assertThat(store.requireSession(tenant, sessionId).title()).isEqualTo("B");
++    }
++
+     @Test
+     void retryingFailedRenameAgainBlocksOtherLifecycleWork() throws Exception {
+         String tenant = tenant();
+@@ -642,7 +672,8 @@ class ManagedSessionLifecycleTest {
+         } else if ("completion".equals(phase)) {
+             doThrow(new IllegalStateException("completion unavailable"))
+                     .when(faulted).completeSessionMutation(anyString(), anyString(),
+-                            anyString(), anyString(), any(), anyString(), anyString());
++                            anyString(), anyString(), any(), anyString(), anyString(),
++                            any());
+         } else {
+             doThrow(new IllegalStateException("cleanup unavailable"))
+                     .when(faulted).abandonSessionMutation(tenant, "RENAME_SESSION",

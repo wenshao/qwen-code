@@ -1,0 +1,41 @@
+model listening 18167
+tap 18166 -> 18165
+harness pid=603206 dist=head2 up after 2s log=/root/v13163/rig/run/m48c/harness-0.log
+springb pid=603250 jar=head2 store=http://127.0.0.1:18164 up after 25s log=/root/v13163/rig/run/m48c/springb-0.log
+spring pid=603958 jar=head2 store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/m48c/spring-0.log
+### DB=m48c /usr/bin/node mig48-upgrade.mjs before ws-m48 a
+# mig48-before-ws-m48  db=m48c  2026-10-06T23:30:30.488Z
+PASS  initial Turn COMPLETED  -> 3595d5f7-a1d3-453c-a6b8-bc0684dba0fe
+NOTE  old jar: schema  -> ["V46:ok","V45:ok","V44:ok"]; mutation_attempt_sequence column present=false
+NOTE  old jar: K1 "Alpha" (Harness 500) / K2 "Bravo"  -> 503 hosted_harness_unavailable / 200 Bravo
+NOTE  old jar: command rows  -> [["k1","FAILED"],["k2","COMPLETED"]]
+== mig48-before-ws-m48: 1 passed, 0 failed
+RC=0
+### rolling upgrade: replica A -> head3 jar and Harness -> head3 bundle (Store replica B stays on head2)
+stopped spring pid=603958 sig=TERM
+stopped harness pid=603206 sig=TERM
+harness pid=604246 dist=head3 up after 2s log=/root/v13163/rig/run/m48c/harness-1.log
+spring pid=604458 jar=head3 store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/m48c/spring-1.log
+2026-10-06T23:30:44.686Z  INFO 604458 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 48 migrations (execution time 00:00.055s)
+2026-10-06T23:30:44.743Z  INFO 604458 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `m48c` to version "47 - managed channel route delivery"
+2026-10-06T23:30:44.993Z  INFO 604458 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `m48c` to version "48 - managed mutation attempt sequence"
+2026-10-06T23:30:45.055Z  INFO 604458 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 2 migrations to schema `m48c`, now at version v48 (execution time 00:00.225s)
+### DB=m48c /usr/bin/node mig48-upgrade.mjs after ws-m48 a
+# mig48-after-ws-m48  db=m48c  2026-10-06T23:30:46.874Z
+PASS  new jar: V47 and V48 applied  -> ["V48:ok","V47:ok","V46:ok"]
+PASS  new jar: mutation_attempt_sequence column present  -> [["bigint","YES"]]
+NOTE  legacy rows after the upgrade  -> ["K1:FAILED@null","K2:COMPLETED@null"]
+NOTE  legacy K1 retry #1 (Harness call delayed 4 s)  -> 503 hosted_harness_unavailable; rows while in flight ["K1:FAILED@13","K2:COMPLETED@null"]
+NOTE  legacy K1 retry #2, overlapping (Harness 500)  -> 503 hosted_harness_unavailable
+FAIL  newest K1 attempt completes on the legacy receipt  -> 503
+NOTE  final rows / SQL title / Harness titles  -> ["K1:FAILED@13","K2:COMPLETED@null"] / Bravo / ["Bravo@r1"]
+FAIL  a fresh rename after the upgrade  -> 503 hosted_harness_unavailable; rows ["K1:FAILED@13","K2:COMPLETED@null","K3:FAILED@13"]
+NOTE  POST /title calls at the Harness (both phases)  -> ["respond:500","pass:200"]
+== mig48-after-ws-m48: 2 passed, 2 failed
+RC=0
+stopped spring pid=604458 sig=TERM
+stopped spring-b pid=603250 sig=TERM
+stopped harness pid=604246 sig=TERM
+stopped model pid=603179 sig=TERM
+stopped tap pid=603180 sig=TERM
+MIG48C-DONE 23:30:51

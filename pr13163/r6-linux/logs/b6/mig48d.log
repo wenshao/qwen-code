@@ -1,0 +1,17 @@
+model listening 18167
+tap 18166 -> 18165
+harness pid=605203 dist=head2 up after 2s log=/root/v13163/rig/run/m48d/harness-0.log
+springb pid=605276 jar=head2 store=http://127.0.0.1:18164 up after 25s log=/root/v13163/rig/run/m48d/springb-0.log
+spring pid=606788 jar=head2 store=http://127.0.0.1:18164 up after 6s log=/root/v13163/rig/run/m48d/spring-0.log
+### DB=m48d /usr/bin/node mig48-upgrade.mjs before ws-m48 a
+# mig48-before-ws-m48  db=m48d  2026-10-06T23:31:42.958Z
+PASS  initial Turn COMPLETED  -> f8612649-27c0-4091-870b-f302586f466c
+NOTE  old jar: schema  -> ["V46:ok","V45:ok","V44:ok"]; mutation_attempt_sequence column present=false
+NOTE  old jar: K1 "Alpha" (Harness 500) / K2 "Bravo"  -> 503 hosted_harness_unavailable / 200 Bravo
+NOTE  old jar: command rows  -> [["k1","FAILED"],["k2","COMPLETED"]]
+== mig48-before-ws-m48: 1 passed, 0 failed
+RC=0
+### rolling upgrade: replica A -> head3 jar and Harness -> head3 bundle (Store replica B stays on head2)
+stopped spring pid=606788 sig=TERM
+stopped harness pid=605203 sig=TERM
+harness pid=606986 dist=head3 up after 2s log=/root/v13163/rig/run/m48d/harness-1.log

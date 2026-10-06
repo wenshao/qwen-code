@@ -1,0 +1,11 @@
+# r62-rename-race-bound  db=h63  2026-10-06T23:04:02.689Z
+PASS  initial Turn COMPLETED  -> 94ee9767-fac3-4313-a11d-7f325a58cfa8
+NOTE  1. K1 "Alpha", Harness answers 500  -> 503 hosted_harness_unavailable; rows ["K1:FAILED"]
+NOTE  2. K2 "Bravo"  -> 200 Bravo; rows ["K1:FAILED","K2:COMPLETED"]; SQL title=Bravo
+NOTE  3. K1 retry #1 (Harness call delayed 4 s)  -> 200 Alpha
+NOTE  4. K1 retry #2, overlapping (Harness answers 500)  -> 503 hosted_harness_unavailable; rows while #1 was in flight ["K1:PENDING","K2:COMPLETED"]
+NOTE  POST /title calls at the Harness  -> ["respond:500","pass:200","respond:500","delay:200"]
+NOTE  final: rows / public SQL title / Harness journal titles (in order)  -> ["K1:COMPLETED","K2:COMPLETED"] / Alpha / ["Bravo@r1","Alpha@r2"]
+NOTE  5. K1 retried once more after the race  -> 200 Alpha; SQL title=Alpha; public GET title=Alpha
+NOTE  session.* events  -> ["session.created ","session.update.requested control:RENAME_SESSION:k1-*:requested","session.update.requested control:RENAME_SESSION:k2-*:requested","session.updated control:RENAME_SESSION:k2-*:completed","session.updated control:RENAME_SESSION:k1-*:completed"]
+== r62-rename-race-bound: 1 passed, 0 failed
