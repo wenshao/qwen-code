@@ -1,0 +1,316 @@
+{
+  "name": "s1-basic",
+  "pass": 24,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "create bound Session 202/201",
+      "ok": true,
+      "detail": "status=202 id=fb62c64f-3aa1-41a4-8066-e1faf193b207"
+    },
+    {
+      "label": "initial G0 Turn completes in child/",
+      "ok": true,
+      "detail": "{\"status\":\"COMPLETED\",\"error\":\"\",\"ms\":2326}"
+    },
+    {
+      "label": "binding before = (child, rev 1)",
+      "ok": true,
+      "detail": "{\"cwd\":\"child\",\"rev\":1,\"version\":14,\"status\":\"ACTIVE\"}"
+    },
+    {
+      "label": "public Session read before (workspace field)",
+      "note": true,
+      "detail": "{\"workspace_id\":\"ws-a\",\"cwd_relative\":\"child\",\"context_revision\":1,\"state\":\"ready\"}"
+    },
+    {
+      "label": "public POST /cwd → 202 pending, normalized target",
+      "ok": true,
+      "detail": "202 {\"id\":\"op_db1a9d569ecc4b559f1edc8d0a3af147\",\"session_id\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"cwd_change\",\"status\":\"pending\",\"expected_context_revision\":1,\"target_cwd_relative\":\"child2\",\"replayed\":false}"
+    },
+    {
+      "label": "operation completes with result_context_revision=2",
+      "ok": true,
+      "detail": "119 ms {\"id\":\"op_db1a9d569ecc4b559f1edc8d0a3af147\",\"session_id\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expected_context_revision\":1,\"target_cwd_relative\":\"child2\",\"result_context_revision\":2,\"replayed\":false}"
+    },
+    {
+      "label": "DB binding after = (child2, rev 2)",
+      "ok": true,
+      "detail": "{\"cwd\":\"child2\",\"rev\":2,\"version\":16,\"status\":\"ACTIVE\"}"
+    },
+    {
+      "label": "DB op row COMPLETED/CONFIRMED with receipt",
+      "ok": true,
+      "detail": "{\"state\":\"COMPLETED\",\"delivery\":\"CONFIRMED\",\"error\":\"\",\"target\":\"child2\",\"expected\":\"1\",\"result\":\"2\",\"attempts\":0,\"gen\":1,\"receipt\":\"rcpt_dc657398a38342cd89445a43e475c19d\"}"
+    },
+    {
+      "label": "replay, other spelling child2/./ → 202 same id, replayed=true, completed",
+      "ok": true,
+      "detail": "202 {\"id\":\"op_db1a9d569ecc4b559f1edc8d0a3af147\",\"session_id\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expected_context_revision\":1,\"target_cwd_relative\":\"child2\",\"result_context_revision\":2,\"replayed\":true}"
+    },
+    {
+      "label": "replay ./child2 → same op",
+      "ok": true,
+      "detail": "202 op_db1a9d569ecc4b559f1edc8d0a3af147"
+    },
+    {
+      "label": "same key, different target → 409 idempotency_conflict",
+      "ok": true,
+      "detail": "409 {\"error\":{\"code\":\"idempotency_conflict\",\"message\":\"The idempotency key was reused with different content.\",\"request_id\":\"a259adf5-da13-4bac-90d1-2f534ec03a9a\"}}"
+    },
+    {
+      "label": "same key, different expected revision → 409 idempotency_conflict",
+      "ok": true,
+      "detail": "409 {\"error\":{\"code\":\"idempotency_conflict\",\"message\":\"The idempotency key was reused with different content.\",\"request_id\":\"4203426a-e4cb-400d-a42e-136c45c60272\"}}"
+    },
+    {
+      "label": "fresh key, stale expected revision 1 → 409 context_revision_conflict",
+      "ok": true,
+      "detail": "409 {\"error\":{\"code\":\"context_revision_conflict\",\"message\":\"The Session context revision has changed.\",\"request_id\":\"4211391b-d635-4d3f-841b-e25e53f956cc\"}}"
+    },
+    {
+      "label": "WebShell POST /sessions/cwd/change → 202 pending, camelCase",
+      "ok": true,
+      "detail": "202 {\"operationId\":\"op_9b9fa7b53cef43888f8ea22176997acc\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"cwd_change\",\"status\":\"pending\",\"expectedContextRevision\":2,\"targetCwdRelative\":\"child3/deep\",\"replayed\":false}"
+    },
+    {
+      "label": "WebShell echoes client request id header",
+      "ok": true,
+      "detail": "x-request-id=rig-req-s1"
+    },
+    {
+      "label": "WebShell operation completes with resultContextRevision=3",
+      "ok": true,
+      "detail": "123 ms {\"operationId\":\"op_9b9fa7b53cef43888f8ea22176997acc\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expectedContextRevision\":2,\"targetCwdRelative\":\"child3/deep\",\"resultContextRevision\":3,\"replayed\":false}"
+    },
+    {
+      "label": "WebShell replay (other spelling) → same op, replayed=true",
+      "ok": true,
+      "detail": "202 {\"operationId\":\"op_9b9fa7b53cef43888f8ea22176997acc\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expectedContextRevision\":2,\"targetCwdRelative\":\"child3/deep\",\"resultContextRevision\":3,\"replayed\":true}"
+    },
+    {
+      "label": "cross-surface read: public GET of WebShell op returns cwd shape",
+      "ok": true,
+      "detail": "{\"id\":\"op_9b9fa7b53cef43888f8ea22176997acc\",\"session_id\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expected_context_revision\":2,\"target_cwd_relative\":\"child3/deep\",\"result_context_revision\":3,\"replayed\":false}"
+    },
+    {
+      "label": "cross-surface read: WebShell query of public op returns cwd shape",
+      "ok": true,
+      "detail": "{\"operationId\":\"op_db1a9d569ecc4b559f1edc8d0a3af147\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"cwd_change\",\"status\":\"completed\",\"expectedContextRevision\":1,\"targetCwdRelative\":\"child2\",\"resultContextRevision\":2,\"replayed\":false}"
+    },
+    {
+      "label": "DB binding after = (child3/deep, rev 3)",
+      "ok": true,
+      "detail": "{\"cwd\":\"child3/deep\",\"rev\":3,\"version\":18,\"status\":\"ACTIVE\"}"
+    },
+    {
+      "label": "exactly two session.context.changed rows (one per completed change)",
+      "ok": true,
+      "detail": "[{\"seq\":9,\"data\":{\"operationId\":\"op_db1a9d569ecc4b559f1edc8d0a3af147\",\"contextRevision\":2,\"workspaceId\":\"ws-a\",\"cwdRelative\":\"child2\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\"},\"source\":\"operation:op_db1a9d569ecc4b559f1edc8d0a3af147:completed\"},{\"seq\":10,\"data\":{\"operationId\":\"op_9b9fa7b53cef43888f8ea22176997acc\",\"contextRevision\":3,\"workspaceId\":\"ws-a\",\"cwdRelative\":\"child3/deep\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\"},\"source\":\"operation:op_9b9fa7b53cef43888f8ea22176997acc:completed\"}]"
+    },
+    {
+      "label": "event data = {sessionId, operationId, workspaceId, cwdRelative, contextRevision}",
+      "ok": true,
+      "detail": "[{\"operationId\":\"op_db1a9d569ecc4b559f1edc8d0a3af147\",\"contextRevision\":2,\"workspaceId\":\"ws-a\",\"cwdRelative\":\"child2\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\"},{\"operationId\":\"op_9b9fa7b53cef43888f8ea22176997acc\",\"contextRevision\":3,\"workspaceId\":\"ws-a\",\"cwdRelative\":\"child3/deep\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\"}]"
+    },
+    {
+      "label": "public events read lists both context events",
+      "ok": true,
+      "detail": "[{\"schema_version\":1,\"projection_version\":1,\"sequence\":9,\"event_id\":\"evt_a08bd7380b8440d1b8ef3be51f409053\",\"session_id\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"session.context.changed\",\"created_at\":1791263189,\"data\":{\"operationId\":\"op_db1a9d569ecc4b559f1edc8d0a3af147\",\"contextRevision\":2,\"workspaceId\":\"ws-a\",\"cwdRelative\":\"child2\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\"},\"terminal\":false},{\"schema_version\":1,\"projection_version\":1,\"sequence\":10,\"event_id\":\"evt_39306e99ef1640d1bc18980be5eb9e38\",\"session_id\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"session.context.changed"
+    },
+    {
+      "label": "live public SSE delivered both context events once each",
+      "ok": true,
+      "detail": "status=200 total=10 ctx=2 [{\"ev\":\"session.context.changed\",\"data\":{\"schema_version\":1,\"projection_version\":1,\"sequence\":9,\"event_id\":\"evt_a08bd7380b8440d1b8ef3be51f409053\",\"session_id\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"session.context.changed\",\"created_at\":1791263189,\"data\":{\"operationId\":\"op_db1a9d569ecc4b559f1edc8d0a3af147\",\"contextRevision\":2,\"workspaceId\":\"ws-a\",\"cwdRelative\":\"child2\",\"sessionId\":\"fb62c64f"
+    },
+    {
+      "label": "live WebShell SSE delivered both context events once each",
+      "ok": true,
+      "detail": "status=200 total=10 ctx=2 [{\"ev\":\"session.context.changed\",\"data\":{\"schemaVersion\":1,\"projectionVersion\":1,\"sequence\":9,\"eventId\":\"evt_a08bd7380b8440d1b8ef3be51f409053\",\"sessionId\":\"fb62c64f-3aa1-41a4-8066-e1faf193b207\",\"type\":\"session.context.changed\",\"createdAt\":1791263189974,\"data\":{\"operationId\":\"op_db1a9d569ecc4b559f1edc8d0a3af147\",\"contextRevision\":2,\"workspaceId\":\"ws-a\",\"cwdRelative\":\"child2\",\"sessionId\":\"fb62c64f-3"
+    },
+    {
+      "label": "public Session read after (workspace field)",
+      "note": true,
+      "detail": "{\"workspace_id\":\"ws-a\",\"cwd_relative\":\"child3/deep\",\"context_revision\":3,\"state\":\"ready\"}"
+    }
+  ],
+  "session": "fb62c64f-3aa1-41a4-8066-e1faf193b207",
+  "op1": "op_db1a9d569ecc4b559f1edc8d0a3af147",
+  "op2": "op_9b9fa7b53cef43888f8ea22176997acc",
+  "events": [
+    {
+      "seq": 9,
+      "data": {
+        "operationId": "op_db1a9d569ecc4b559f1edc8d0a3af147",
+        "contextRevision": 2,
+        "workspaceId": "ws-a",
+        "cwdRelative": "child2",
+        "sessionId": "fb62c64f-3aa1-41a4-8066-e1faf193b207"
+      },
+      "source": "operation:op_db1a9d569ecc4b559f1edc8d0a3af147:completed"
+    },
+    {
+      "seq": 10,
+      "data": {
+        "operationId": "op_9b9fa7b53cef43888f8ea22176997acc",
+        "contextRevision": 3,
+        "workspaceId": "ws-a",
+        "cwdRelative": "child3/deep",
+        "sessionId": "fb62c64f-3aa1-41a4-8066-e1faf193b207"
+      },
+      "source": "operation:op_9b9fa7b53cef43888f8ea22176997acc:completed"
+    }
+  ],
+  "livePub": [
+    {
+      "ev": "session.context.changed",
+      "data": {
+        "schema_version": 1,
+        "projection_version": 1,
+        "sequence": 9,
+        "event_id": "evt_a08bd7380b8440d1b8ef3be51f409053",
+        "session_id": "fb62c64f-3aa1-41a4-8066-e1faf193b207",
+        "type": "session.context.changed",
+        "created_at": 1791263189,
+        "data": {
+          "operationId": "op_db1a9d569ecc4b559f1edc8d0a3af147",
+          "contextRevision": 2,
+          "workspaceId": "ws-a",
+          "cwdRelative": "child2",
+          "sessionId": "fb62c64f-3aa1-41a4-8066-e1faf193b207"
+        },
+        "terminal": false
+      },
+      "at": 1791263189996
+    },
+    {
+      "ev": "session.context.changed",
+      "data": {
+        "schema_version": 1,
+        "projection_version": 1,
+        "sequence": 10,
+        "event_id": "evt_39306e99ef1640d1bc18980be5eb9e38",
+        "session_id": "fb62c64f-3aa1-41a4-8066-e1faf193b207",
+        "type": "session.context.changed",
+        "created_at": 1791263190,
+        "data": {
+          "operationId": "op_9b9fa7b53cef43888f8ea22176997acc",
+          "contextRevision": 3,
+          "workspaceId": "ws-a",
+          "cwdRelative": "child3/deep",
+          "sessionId": "fb62c64f-3aa1-41a4-8066-e1faf193b207"
+        },
+        "terminal": false
+      },
+      "at": 1791263190270
+    }
+  ],
+  "liveWeb": [
+    {
+      "ev": "session.context.changed",
+      "data": {
+        "schemaVersion": 1,
+        "projectionVersion": 1,
+        "sequence": 9,
+        "eventId": "evt_a08bd7380b8440d1b8ef3be51f409053",
+        "sessionId": "fb62c64f-3aa1-41a4-8066-e1faf193b207",
+        "type": "session.context.changed",
+        "createdAt": 1791263189974,
+        "data": {
+          "operationId": "op_db1a9d569ecc4b559f1edc8d0a3af147",
+          "contextRevision": 2,
+          "workspaceId": "ws-a",
+          "cwdRelative": "child2",
+          "sessionId": "fb62c64f-3aa1-41a4-8066-e1faf193b207"
+        },
+        "terminal": false
+      },
+      "at": 1791263189997
+    },
+    {
+      "ev": "session.context.changed",
+      "data": {
+        "schemaVersion": 1,
+        "projectionVersion": 1,
+        "sequence": 10,
+        "eventId": "evt_39306e99ef1640d1bc18980be5eb9e38",
+        "sessionId": "fb62c64f-3aa1-41a4-8066-e1faf193b207",
+        "type": "session.context.changed",
+        "createdAt": 1791263190259,
+        "data": {
+          "operationId": "op_9b9fa7b53cef43888f8ea22176997acc",
+          "contextRevision": 3,
+          "workspaceId": "ws-a",
+          "cwdRelative": "child3/deep",
+          "sessionId": "fb62c64f-3aa1-41a4-8066-e1faf193b207"
+        },
+        "terminal": false
+      },
+      "at": 1791263190270
+    }
+  ],
+  "read0": {
+    "id": "fb62c64f-3aa1-41a4-8066-e1faf193b207",
+    "object": "agent.session",
+    "agent_id": "qwen-code",
+    "agent_revision": "1",
+    "status": "active",
+    "created_at": 1791263186,
+    "updated_at": 1791263189,
+    "metadata": {},
+    "last_event_id": 8,
+    "replay_floor_sequence": 0,
+    "snapshot_through_sequence": 8,
+    "capabilities": {
+      "items": true,
+      "snapshots": true,
+      "artifacts": false,
+      "resync": true,
+      "session_lifecycle": false,
+      "tasks": true,
+      "actions": false,
+      "session_close": false,
+      "session_archive": false,
+      "session_unarchive": false,
+      "session_delete": false
+    },
+    "workspace": {
+      "workspace_id": "ws-a",
+      "cwd_relative": "child",
+      "context_revision": 1,
+      "state": "ready"
+    }
+  },
+  "read1": {
+    "id": "fb62c64f-3aa1-41a4-8066-e1faf193b207",
+    "object": "agent.session",
+    "agent_id": "qwen-code",
+    "agent_revision": "1",
+    "status": "active",
+    "created_at": 1791263186,
+    "updated_at": 1791263190,
+    "metadata": {},
+    "last_event_id": 10,
+    "replay_floor_sequence": 0,
+    "snapshot_through_sequence": 8,
+    "capabilities": {
+      "items": true,
+      "snapshots": true,
+      "artifacts": false,
+      "resync": true,
+      "session_lifecycle": false,
+      "tasks": true,
+      "actions": false,
+      "session_close": false,
+      "session_archive": false,
+      "session_unarchive": false,
+      "session_delete": false
+    },
+    "workspace": {
+      "workspace_id": "ws-a",
+      "cwd_relative": "child3/deep",
+      "context_revision": 3,
+      "state": "ready"
+    }
+  }
+}

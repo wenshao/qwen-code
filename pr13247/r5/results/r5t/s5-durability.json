@@ -1,0 +1,82 @@
+{
+  "name": "s5-durability",
+  "pass": 10,
+  "fail": 1,
+  "rows": [
+    {
+      "label": "after the first injected failure the operation is open (pending/installing) and the Session refuses another change",
+      "ok": true,
+      "detail": "row={\"state\":\"RUNNING\",\"delivery\":\"PENDING\",\"error\":\"\",\"target\":\"trap-fail-51265\",\"expected\":\"1\",\"result\":\"\",\"attempts\":1,\"gen\":1} read=installing other=409 session_context_busy"
+    },
+    {
+      "label": "completes after two injected failures (attempt_count=2), rev 1→2, exactly one event",
+      "ok": true,
+      "detail": "3709 ms row={\"state\":\"COMPLETED\",\"delivery\":\"CONFIRMED\",\"error\":\"\",\"target\":\"trap-fail-51265\",\"expected\":\"1\",\"result\":\"2\",\"attempts\":2,\"gen\":3,\"receipt\":\"rcpt_00ebd0ebbbb04dbd9d385f9df6311c9b\"} events=1"
+    },
+    {
+      "label": "while the commit is held: operation reads \"installing\", Session still reads the old (cwd, revision)",
+      "ok": true,
+      "detail": "op=installing binding={\"cwd\":\"child\",\"rev\":1,\"version\":10,\"status\":\"ACTIVE\"}"
+    },
+    {
+      "label": "Spring kill -9 + restart",
+      "note": true,
+      "detail": "spring up after 4s in 3483 ms"
+    },
+    {
+      "label": "reclaimed after the lease and committed exactly once (claim generation 2, one event, rev 2)",
+      "ok": true,
+      "detail": "completed 58.8 s after the kill row={\"state\":\"COMPLETED\",\"delivery\":\"CONFIRMED\",\"error\":\"\",\"target\":\"trap-slow-51265\",\"expected\":\"1\",\"result\":\"2\",\"attempts\":0,\"gen\":2,\"receipt\":\"rcpt_2053a6424636433a91fe2c6812fcdf73\"} events=1"
+    },
+    {
+      "label": "Spring kill -9 + restart",
+      "note": true,
+      "detail": "row before kill {\"state\":\"PENDING\",\"delivery\":\"PENDING\",\"error\":\"\",\"target\":\"trap-claim-c-51265\",\"expected\":\"1\",\"result\":\"\",\"attempts\":0,\"gen\":0}; spring up after 5s in 4507 ms"
+    },
+    {
+      "label": "PENDING row survives the crash and completes once after restart",
+      "ok": true,
+      "detail": "completed 7.9 s after the kill row={\"state\":\"COMPLETED\",\"delivery\":\"CONFIRMED\",\"error\":\"\",\"target\":\"trap-claim-c-51265\",\"expected\":\"1\",\"result\":\"2\",\"attempts\":0,\"gen\":1,\"receipt\":\"rcpt_28dc86660d37400ebf684c9c83c8c8e1\"}"
+    },
+    {
+      "label": "Harness restart (Spring restarted twice)",
+      "note": true,
+      "detail": "harness pid=90357 up after 2s log=/Users/wenshao/pr13247-rig/run/r5t/harness-1.log"
+    },
+    {
+      "label": "creator loses can_create → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works",
+      "ok": true,
+      "detail": "3271 ms failed/workspace_unavailable binding {\"cwd\":\"child\",\"rev\":1,\"version\":4,\"status\":\"ACTIVE\"}→{\"cwd\":\"child\",\"rev\":1,\"version\":5,\"status\":\"ACTIVE\"} next=202/completed"
+    },
+    {
+      "label": "creator loses can_read → failed undefined; Session keeps (cwd, rev); a later change still works",
+      "ok": false,
+      "detail": "20077 ms undefined/undefined binding {\"cwd\":\"child\",\"rev\":1,\"version\":4,\"status\":\"ACTIVE\"}→{\"cwd\":\"child\",\"rev\":1,\"version\":5,\"status\":\"ACTIVE\"} next=202/completed"
+    },
+    {
+      "label": "registry → DRAINING → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works",
+      "ok": true,
+      "detail": "3282 ms failed/workspace_unavailable binding {\"cwd\":\"child\",\"rev\":1,\"version\":4,\"status\":\"ACTIVE\"}→{\"cwd\":\"child\",\"rev\":1,\"version\":5,\"status\":\"ACTIVE\"} next=202/completed"
+    },
+    {
+      "label": "registry generation bump → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works",
+      "ok": true,
+      "detail": "3285 ms failed/workspace_unavailable binding {\"cwd\":\"child\",\"rev\":1,\"version\":4,\"status\":\"ACTIVE\"}→{\"cwd\":\"child\",\"rev\":1,\"version\":5,\"status\":\"ACTIVE\"} next=202/completed"
+    },
+    {
+      "label": "target directory removed → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works",
+      "ok": true,
+      "detail": "3280 ms failed/workspace_unavailable binding {\"cwd\":\"child\",\"rev\":1,\"version\":4,\"status\":\"ACTIVE\"}→{\"cwd\":\"child\",\"rev\":1,\"version\":5,\"status\":\"ACTIVE\"} next=202/completed"
+    },
+    {
+      "label": "target directory replaced by a symlink to outside → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works",
+      "ok": true,
+      "detail": "3290 ms failed/workspace_unavailable binding {\"cwd\":\"child\",\"rev\":1,\"version\":4,\"status\":\"ACTIVE\"}→{\"cwd\":\"child\",\"rev\":1,\"version\":5,\"status\":\"ACTIVE\"} next=202/completed"
+    },
+    {
+      "label": "commit does not re-probe: the swapped path is committed (the next turn’s acquire is the guard)",
+      "note": true,
+      "detail": "completed rev=2 cwd=trap-slow-e-51265 isSymlink=true"
+    }
+  ]
+}
