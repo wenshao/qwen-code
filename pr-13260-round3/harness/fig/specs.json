@@ -1,0 +1,86 @@
+[
+{"name":"r3-01-acceptance-x86_64","title":"W1c at exact head f2a349be on x86_64 Linux: stop → retire → capture → prepare → promote → restart → write → undo",
+ "subtitle":"Debian 13 KVM guest, kernel 6.12.63 x86_64 · MySQL 8.4.11 · Zulu OpenJDK 21.0.10 · Node 22.22.2 · packaged Spring jar (embedded Broker, durable local workers) + bundled CLI as Hosted Harness/worker · all product processes run as a non-root service user · source and target on separate loop-backed ext4",
+ "sections":[
+  {"heading":"Storage st-a (2 Workspaces, 5 Files Sessions) + unrelated st-b on the same tenant","lines":[
+   "F1, U = ACTIVE · F2 = ARCHIVED · F3 = CLOSED · D1 = DELETED   (public close / archive / delete: 202 → completed)",
+   "U already carries a pre-migration undo receipt (rewind u2: undo.txt second → first)",
+   "durable workers before maintenance: st-a 2 alive (READY bindings), st-b 1 alive"]},
+  {"heading":"1  retire with Spring + Harness stopped and the old st-a workers still running        1.5 s","lines":[
+   "++ st-a workers pid 1583878, 1583828 → gone (/proc); all 5 st-a bindings RELEASED; storage fence installed",
+   "++ st-b worker pid 1584203 still ALIVE (unrelated storage untouched) · retire replay: identical receipt"]},
+  {"heading":"2–4  W1a fence · W1b capture · external copy · prepare · promote","lines":[
+   "== W1a fence 0.8 s · W1b capture 12.5 s → SEALED 5/5 Sessions, 897 assets, 446 entries, 0 pending refs",
+   "== cp -a /srv/pr13260/src/a (loop0 ext4, dev 1792) → /srv/pr13260/dst/a (loop1 ext4, dev 1793)",
+   "++ prepare 12.7 s → PREPARED (replay 0.7 s, identical receipt)",
+   "++ promote 12.7 s → COMPLETED, revision 1 → 2; promote replay identical, revision stays 2; storage fence cleared",
+   "++ 4 of 45 snapshot tables changed: execution_lease, workspace_migration, runtime_binding, runtime_binding_slot",
+   "++ source tree, source marker and retained history tree unchanged"]},
+  {"heading":"5  restart with st-a=/srv/pr13260/dst/a and the same QWEN_HOME","lines":[
+   "++ cold load B1 / F1 / U = 200 / 200 / 200",
+   "++ new writes land on the target only: notes.txt target=v3, source=v2 · fresh.txt only on target",
+   "++ undo new prompts (fresh.txt removed, notes.txt v3 → v2)",
+   "++ undo PRE-migration prompt f2 from retained backups → notes.txt v1, deep/x.txt removed; source still v2",
+   "++ U undo u1 (pre-migration file creation) → undo.txt removed on the target; source untouched"]},
+  {"heading":"Suites on this host (x86_64, JDK 21, MySQL 8.4)","lines":[
+   "++ Runtime Broker full suite 719 (4 skipped) · Managed Agent server full unit suite 963 · MySQL ITs 24 (Close 5, Retention 16, Migration 3)",
+   "++ server package incl. checkstyle · CLI: the PR's four test files 127/127 · Flyway 47 versions unique, fresh MySQL applies 47/47"]}],
+ "note":"First Linux process run at f2a349be (the merge that brings in main's #13289 CSI runtime / durable worker ACK) and the first on x86_64. Nothing in the product was modified for the run.","noteClass":"ok"},
+
+{"name":"r3-02-legacy-runtime-ownership","title":"Pre-migration Runtime status / cancel / release after promotion resolve their saved ownership",
+ "subtitle":"Same run as card 1, after the restart at the target: direct Broker calls with the IDs of the 11 Runtime Sessions and 10 executions recorded under the OLD root (/srv/pr13260/src/a). Control arm = identical run whose Spring jar carries the merge-base persistedSession() lookup.",
+ "sections":[
+  {"heading":"Broker responses","table":[
+   ["call","PR head f2a349be","control: merge-base lookup"],
+   ["POST /tool-sessions/{old}:release  ×11","++ 200 released=true ×11","-- 404 runtime_session_not_found ×7, 409 workspace_unavailable ×4"],
+   ["GET /executions/{old}  ×10","++ 200 state=settled, original result ×10","200 ×10"],
+   ["POST /executions/{old}:cancel  ×10","++ 200 settled, cancelRequested=false ×10","200 ×10"],
+   ["release, unknown Runtime Session id","404 runtime_session_not_found","404 runtime_session_not_found"],
+   ["release, old id under another Harness Session","404 runtime_session_not_found","409 workspace_unavailable"],
+   ["execution status with a wrong Runtime Session id","409 runtime_execution_conflict","409 runtime_execution_conflict"]]},
+  {"heading":"Side effects (PR head)","lines":[
+   "++ pre-migration runtime_session / tool_execution / binding rows byte-identical before and after the calls",
+   "++ no worker started at the source; source tree unchanged; the live Session then reloads (200) and writes on the target"]}],
+ "note":"Runtime scope keys include the canonical cwd, so after promotion the current scope can no longer find pre-migration rows. The PR's tenant/Harness/Runtime historical lookup is what lets release answer. Status and cancel of settled executions do not go through that path and are unchanged in both arms.","noteClass":"ok"},
+
+{"name":"r3-03-concurrent-commands","title":"Concurrent promote / abort / W1a restore-original on one storage: 13 cycles, 0 invariant violations",
+ "subtitle":"exact head f2a349be · every cycle prepares a fresh operation from the storage's CURRENT root (retire → W1a fence → capture → cp -a → prepare). D-cycles SIGSTOP the promote JVM the instant its marker temporary appears in the target (inotify), run the competing command to completion, then SIGCONT. R-cycles start abort at a fraction of the measured promote time.",
+ "sections":[
+  {"heading":"Cycles","table":[
+   ["#","interleaving","commands","final"],
+   ["1","D1 promote paused at its marker temp → abort → resume","abort ABORTED · resumed promote refused migration_conflict","ABORTED, rev 1→1, fence cleared; W1a restore-original → READY at source"],
+   ["2","D2 promote paused → second promote → resume first","second COMPLETED · first refused workspace_unavailable","COMPLETED, rev 2→3 (once)"],
+   ["3","D3 promote paused → W1a restore-original → resume","restore-original refused · promote COMPLETED","COMPLETED, rev 3→4"],
+   ["4","D4 restore-original while PREPARED → promote","restore-original refused · promote COMPLETED","COMPLETED, rev 4→5"],
+   ["5–10","R abort at 0.05 / 0.3 / 0.6 / 0.85 / 0.95 / 1.1 × promote time","4× abort first (promote refused migration_conflict) · 2× promote first (abort refused migration_already_completed)","ABORTED ×4 (rev unchanged) · COMPLETED ×2 (rev +1)"],
+   ["11–13","R promote ‖ promote, started together","one COMPLETED · other refused migration_not_writable","COMPLETED ×3, rev +1 each"]]},
+  {"heading":"Checked after every cycle","lines":[
+   "++ final state ∈ {COMPLETED, ABORTED}; storage fence cleared; source marker byte-identical",
+   "++ COMPLETED ⇒ READY at the target, revision +1 exactly once, target marker = migration marker, no temporary left",
+   "++ ABORTED ⇒ revision and root unchanged (W1a restore-original then returns the source to service)",
+   "++ end: fresh Spring at the final root (rev 14): cold load 200, write turn_complete"]},
+  {"heading":"Observed (non-blocking)","lines":[
+   "!! promote ‖ promote: the COMPLETED row keeps last_error_code=migration_not_writable written by the losing attempt (3/3)",
+   "== D1: the paused promote had already passed requireOwner(), so after abort it still published the migration marker",
+   "==     into the abandoned target before its SQL step was refused (README: abort leaves target artifacts; re-copy the target)"]}]},
+
+{"name":"r3-04-power-loss","title":"Power loss at every flush point of prepare → promote (dm-log-writes replay)",
+ "subtitle":"target ext4 on dm-log-writes (noatime, commit=60). Crash state k = log replayed through entry k onto a zero image, mounted via dm-linear with the SAME 253:214 (st_dev 64982) so the recorded identity still holds; the mount replays the ext4 journal as after a reboot. SQL + bundle restored to the snapshot of that moment (prepared / mid = promote paused at its temporary / post = after the SQL commit). Retry = plain `promote` with the shipped jar.",
+ "sections":[
+  {"heading":"PR head (shipped jar)","lines":[
+   "== log 229 entries; replayer self-check: replaying all entries reproduces the recorded device byte for byte",
+   "++ 25 crash prefixes between prepared and end: marker OLD ×24 / NEW ×1, never torn or missing",
+   "++ temporary none ×11 / complete ×14 (never empty or partial); e2fsck -fn clean 25/25",
+   "++ COMMIT POINT (last FLUSH/FUA before promote returned, entry 207): marker already NEW, no temporary",
+   "++ 10 retries at the 6 flush points × matching snapshot: all COMPLETED rev 2, marker NEW, no temporary, fence cleared",
+   "++ full stack after 3 representative cuts (old marker + complete temp · first NEW marker · commit point with SQL COMPLETED):",
+   "++   Spring with the new mapping + fresh Harness: cold load 200, write ok, pre-migration undo 200 (notes v1),",
+   "++   W1a inspect state=ready revision=2 identity=match marker=match"]},
+  {"heading":"Negative control: the four FileChannel.force() calls removed from publishMigrationMarker","lines":[
+   "== zero writes reach the target device between `prepared` and `promote returned` (publication stays in the page cache)",
+   "-- power cut right after the SQL commit: SQL READY rev 2 at the target, but the target marker is still the OLD one",
+   "-- retry returns the COMPLETED receipt without republishing; Turn → hosted_turn_failed, undo 409,",
+   "--   W1a inspect: state=ready revision=2 identity=match marker=mismatch   (storage stuck)",
+   "== with the mid snapshot instead (cut before the commit) the retry repairs it: COMPLETED rev 2, marker NEW"]}],
+ "note":"The shipped order (write temp → fsync → rename → fsync root → fsync parent → SQL commit) keeps the storage serviceable after a power cut at any flush point, and plain retry converges from every pre-commit state. The control shows the harness detects the failure mode those fsyncs prevent.","noteClass":"ok"}
+]

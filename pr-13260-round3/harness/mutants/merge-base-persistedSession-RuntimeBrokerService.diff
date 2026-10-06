@@ -1,0 +1,50 @@
+--- /root/verify/pr13260/head/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/RuntimeBrokerService.java	2026-10-06 07:20:35.757847168 +0800
++++ /root/verify/pr13260/mutant-legacy/src/RuntimeBrokerService.java	2026-10-06 07:50:23.383909585 +0800
+@@ -1454,33 +1454,20 @@
+ 
+     private CompletionStage<RuntimeSessionRecord> persistedSession(
+             String harnessSessionId, String runtimeSessionId) {
+-        return mapFailure(safeStage(() -> sessionResolver.resolveTenant(harnessSessionId)),
+-                "runtime_scope_resolution_failed", "Runtime scope resolution failed").thenCompose(tenant -> {
+-                    RuntimeSessionRecord record = sessionRepository.findHistorical(tenant, harnessSessionId, runtimeSessionId);
+-                    if (record == null) {
+-                        throw notFound("runtime_session_not_found",
+-                                "Runtime Session was not found");
+-                    }
+-                    if (!record.getSession().getHarnessSessionId().equals(
+-                            harnessSessionId)) {
+-                        throw conflict("runtime_session_conflict",
+-                                "Runtime Session belongs to another Harness Session");
+-                    }
+-                    var parent = bindingRepository.findById(record.getBindingId());
+-                    if (parent == null || parent.getGeneration() != record.getRuntimeGeneration()
+-                            || !parent.getRequest().getScope().equals(record.getSession().getScope())) {
+-                        throw conflict("runtime_session_conflict", "Historical Runtime parent differs");
+-                    }
+-                    if (!parent.getRequest().isManagedContext()) {
+-                        return resolveScope(harnessSessionId).thenApply(scope -> {
+-                            if (!scope.equals(record.getSession().getScope())) {
+-                                throw notFound("runtime_session_not_found", "Runtime Session was not found");
+-                            }
+-                            return record;
+-                        });
+-                    }
+-                    return CompletableFuture.completedFuture(record);
+-                });
++        return resolveScope(harnessSessionId).thenApply(scope -> {
++            RuntimeSessionRecord record = sessionRepository.findById(scope,
++                    runtimeSessionId);
++            if (record == null) {
++                throw notFound("runtime_session_not_found",
++                        "Runtime Session was not found");
++            }
++            if (!record.getSession().getHarnessSessionId().equals(
++                    harnessSessionId)) {
++                throw conflict("runtime_session_conflict",
++                        "Runtime Session belongs to another Harness Session");
++            }
++            return record;
++        });
+     }
+ 
+     private ToolExecutionRecord createExecution(SessionContext context,

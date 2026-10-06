@@ -1,0 +1,28 @@
+--- /root/verify/pr13260/WorkspaceStorageGuard.java	2026-10-06 07:19:38.205782353 +0800
++++ /root/verify/pr13260/mutant/src/WorkspaceStorageGuard.java	2026-10-06 07:34:52.446818220 +0800
+@@ -468,21 +468,21 @@
+                     while (buffer.hasRemaining()) {
+                         channel.write(buffer);
+                     }
+-                    channel.force(true);
++                    /* MUTANT: no fsync */
+                 }
+                 Files.setPosixFilePermissions(temporary, Files.getPosixFilePermissions(root.resolve(MARKER),
+                         LinkOption.NOFOLLOW_LINKS));
+             }
+             try (FileChannel channel = FileChannel.open(temporary, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS)) {
+-                channel.force(true);
++                /* MUTANT: no fsync */
+             }
+             Files.move(temporary, root.resolve(MARKER), java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                     java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+             try (FileChannel directory = FileChannel.open(root, StandardOpenOption.READ)) {
+-                directory.force(true);
++                /* MUTANT: no fsync */
+             }
+             try (FileChannel directory = FileChannel.open(root.getParent(), StandardOpenOption.READ)) {
+-                directory.force(true);
++                /* MUTANT: no fsync */
+             }
+             if (!expected.equals(readMarker(root))) {
+                 throw WorkspaceExecutionStore.unavailable();

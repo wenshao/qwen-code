@@ -1,0 +1,33 @@
+// PR #13260 S6: a never-attached public Session blocks W1c for its whole storage (migration_member_uninitialized).
+// Can an operator clear it through the public API (close / delete), and does W1c then accept the storage?
+import * as L from './lib.mjs';
+import * as P from './pop.mjs';
+import * as M from './w1c.mjs';
+import * as W from './w1bc.mjs';
+import fs from 'node:fs';
+L.openLog('s6-uninit');
+const { say } = L;
+const R = {};
+await P.rollout(['a']);
+L.seedWs('ws-a1', 'a');
+const rig = await L.startRig('s6');
+const F1 = new L.HSession(rig.h, await L.createSession('ws-a1'), 'ws-a1');
+say(`   F1 create=${(await F1.create(L.FILES)).status}`); say(`     F1: ${P.term(await F1.prompt('WRITE a.txt 1'))}`); say(`     F1: ${P.term(await F1.prompt('WRITE a.txt 2'))}`);
+await F1.detach();
+const D1 = await L.createSession('ws-a1'); say(`   D1 ${D1} public create only, never attached`);
+const st = () => `status=${L.one(`SELECT status FROM managed_agent_session WHERE session_id='${D1}'`)} head=${L.one(`SELECT COUNT(*) FROM qwen_managed_session_journal_head WHERE session_id='${D1}'`)} retirement=${L.one(`SELECT COUNT(*) FROM qwen_output_session_retirement WHERE session_id='${D1}'`)}`;
+await rig.h.stop(); L.svc('stop'); await W.waitLeasesExpired('a');
+L.sh(`touch -d '+1 second' ${W.historyRoot()}`);
+const req = () => M.migrationRequest({ revision: L.mountRow('a').revision, source: '/srv/pr13260/src/a', target: '/srv/pr13260/dst/a', bundle: '/srv/pr13260/bundles/s6' });
+const r0 = await M.mig('retire', M.writeRequest(req(), 's6-0'), { label: 's6-retire-before', quiet: true });
+R.before = `${st()} -> retire exit=${r0.code} ${M.migSummary(r0)}`; say(`   before: ${R.before}`);
+say('  ', L.svc('start').split('\n').at(-1).slice(0, 120));
+const h = await new L.Harness({ name: 's6-b', modelUrl: rig.model.baseUrl, brokerUrl: rig.proxy.url, port: 17288 }).start();
+R.close = await P.lifecycle(D1, 'close'); R.delete = await P.lifecycle(D1, 'delete');
+say(`   public close: ${R.close} | delete: ${R.delete} | ${st()}`);
+await h.stop(); L.svc('stop'); await W.waitLeasesExpired('a');
+const r1 = await M.mig('retire', M.writeRequest(req(), 's6-1'), { label: 's6-retire-after' });
+R.after = `${st()} -> retire exit=${r1.code} ${M.migSummary(r1)}`; say(`   after: ${R.after}`);
+await rig.stop();
+fs.writeFileSync(`${L.OUT}/s6.json`, JSON.stringify(R, null, 1));
+say('S6-DONE');
