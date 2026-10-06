@@ -1,0 +1,111 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContract.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContract.java
+index cec8694656..c41e5492ae 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContract.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContract.java
+@@ -1,6 +1,7 @@
+ package com.alibaba.qwen.code.managedagent;
+ 
+ import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertFalse;
+ import static org.junit.jupiter.api.Assertions.assertNotNull;
+ import static org.junit.jupiter.api.Assertions.assertNull;
+ import static org.junit.jupiter.api.Assertions.assertThrows;
+@@ -177,6 +178,11 @@ public final class ManagedChannelJdbcContract {
+         assertTrue(routes.listByChannel(tenant, channel, null, 100).hasMore());
+         assertTrue(routes.listByChannel(prefix + "-other", channel, null, 100)
+                 .routes().isEmpty());
++        assertTrue(routes.listByChannel(tenant, channel.toUpperCase(), null,
++                100).routes().isEmpty());
++        assertThrows(IllegalArgumentException.class,
++                () -> ChannelRouteRepository.routeKey(tenant, channel + "\0x",
++                        1, "event-1", 1));
+         assertThrows(IllegalArgumentException.class,
+                 () -> routes.listByChannel(tenant, channel, null, 0));
+         assertThrows(IllegalArgumentException.class,
+@@ -286,6 +292,20 @@ public final class ManagedChannelJdbcContract {
+         assertEquals("delivered", reconciled.state());
+         assertEquals("receipt-2", reconciled.providerReceipt());
+ 
++        // A step without a receipt keeps the one the provider returned.
++        deliveries.findOrCreate(delivery(tenant, channel, "delivery-4",
++                "segment-4", 0));
++        deliveries.transition(tenant, channel, "delivery-4", "planned",
++                "sending", null);
++        deliveries.transition(tenant, channel, "delivery-4", "sending",
++                "partial", "receipt-4");
++        assertEquals("receipt-4", deliveries.transition(tenant, channel,
++                "delivery-4", "partial", "sending", null).providerReceipt());
++
++        // Identities compare case-sensitively (utf8mb4_bin on MySQL).
++        assertEquals("DELIVERY-1", deliveries.findOrCreate(delivery(tenant,
++                channel, "DELIVERY-1", "segment-case", 0)).deliveryId());
++
+         // An explicit resend is a new deliveryId of the same segment.
+         deliveries.findOrCreate(delivery(tenant, channel, "delivery-3",
+                 "segment-1", 0));
+@@ -329,6 +349,8 @@ public final class ManagedChannelJdbcContract {
+         } while (page.hasMore());
+         assertEquals(3, pages);
+         assertEquals(205, all.size());
++        assertTrue(all.stream().anyMatch(row -> row.createdAt() % 1000 != 0),
++                "created_at carries the database clock's milliseconds");
+         Set<String> ids = new HashSet<>();
+         ChannelDelivery previous = null;
+         for (ChannelDelivery row : all) {
+@@ -371,6 +393,8 @@ public final class ManagedChannelJdbcContract {
+         assertEquals(tieIds, deliveries
+                 .listByChannel(tenant, tieChannel, null, 100).deliveries()
+                 .stream().map(ChannelDelivery::deliveryId).toList());
++        assertFalse(deliveries.listByChannel(tenant, tieChannel, null, 5)
++                .hasMore());
+     }
+ 
+     private static ChannelRoute route(String tenant, String channel,
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContractMySqlIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContractMySqlIT.java
+new file mode 100644
+index 0000000000..7ab60e4430
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContractMySqlIT.java
+@@ -0,0 +1,42 @@
++package com.alibaba.qwen.code.managedagent;
++
++import java.util.UUID;
++import javax.sql.DataSource;
++import org.flywaydb.core.Flyway;
++import org.junit.jupiter.api.Test;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.jdbc.datasource.DriverManagerDataSource;
++
++/**
++ * Runs the shared H5 channel persistence contract against the Flyway schema
++ * on the MySQL gate, where the utf8mb4_bin collation and the InnoDB
++ * duplicate-key path that H2 cannot model are real.
++ */
++class ManagedChannelJdbcContractMySqlIT {
++    @Test
++    void channelPersistenceKeepsItsContractOnMySql() {
++        String url = System.getProperty("mysql.url");
++        if (url == null || !url.matches("jdbc:mysql://[^/]+/[^?]+(?:\\?.*)?")) {
++            throw new IllegalArgumentException(
++                    "A MySQL test database URL is required");
++        }
++        String user = System.getProperty("mysql.user");
++        String password = System.getProperty("mysql.password", "");
++        JdbcTemplate admin = new JdbcTemplate(
++                new DriverManagerDataSource(url, user, password));
++        String schema = "channel_contract_"
++                + UUID.randomUUID().toString().replace("-", "");
++        admin.execute("CREATE DATABASE " + schema);
++        try {
++            DataSource dataSource = new DriverManagerDataSource(
++                    url.replaceFirst("/[^/?]+(?=\\?|$)", "/" + schema), user,
++                    password);
++            Flyway.configure().dataSource(dataSource)
++                    .locations("classpath:db/migration").load().migrate();
++            ManagedChannelJdbcContract.verify(dataSource,
++                    "mysql-" + UUID.randomUUID());
++        } finally {
++            admin.execute("DROP DATABASE " + schema);
++        }
++    }
++}

@@ -1,0 +1,255 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChannelStoreSupport.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChannelStoreSupport.java
+index d371cfac8c..647a690d4c 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChannelStoreSupport.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChannelStoreSupport.java
+@@ -25,4 +25,18 @@ final class ChannelStoreSupport {
+         }
+         return value;
+     }
++
++    /**
++     * An identity the store compares in SQL. The utf8mb4_bin collation pads
++     * with spaces, so MySQL and MariaDB treat "id" and "id " as one value:
++     * a trailing space would alias another identity's row, so it is refused.
++     */
++    static String requireKey(String value, String name) {
++        requireId(value, name);
++        if (value.endsWith(" ")) {
++            throw new IllegalArgumentException(name
++                    + " must not end with a space");
++        }
++        return value;
++    }
+ }
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/JdbcChannelDeliveryRepository.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/JdbcChannelDeliveryRepository.java
+index 8019a014ae..d2a5b89374 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/JdbcChannelDeliveryRepository.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/JdbcChannelDeliveryRepository.java
+@@ -73,9 +73,9 @@ public final class JdbcChannelDeliveryRepository
+     @Override
+     public Optional<ChannelDelivery> find(String tenantId,
+             String channelInstanceId, String deliveryId) {
+-        ChannelStoreSupport.requireId(tenantId, "tenantId");
+-        ChannelStoreSupport.requireId(channelInstanceId, "channelInstanceId");
+-        ChannelStoreSupport.requireId(deliveryId, "deliveryId");
++        ChannelStoreSupport.requireKey(tenantId, "tenantId");
++        ChannelStoreSupport.requireKey(channelInstanceId, "channelInstanceId");
++        ChannelStoreSupport.requireKey(deliveryId, "deliveryId");
+         return jdbc.query("SELECT " + COLUMNS
+                         + " FROM qwen_managed_channel_delivery"
+                         + " WHERE tenant_id = ? AND channel_instance_id = ?"
+@@ -88,9 +88,9 @@ public final class JdbcChannelDeliveryRepository
+     public ChannelDelivery transition(String tenantId,
+             String channelInstanceId, String deliveryId,
+             String expectedState, String state, String providerReceipt) {
+-        ChannelStoreSupport.requireId(tenantId, "tenantId");
+-        ChannelStoreSupport.requireId(channelInstanceId, "channelInstanceId");
+-        ChannelStoreSupport.requireId(deliveryId, "deliveryId");
++        ChannelStoreSupport.requireKey(tenantId, "tenantId");
++        ChannelStoreSupport.requireKey(channelInstanceId, "channelInstanceId");
++        ChannelStoreSupport.requireKey(deliveryId, "deliveryId");
+         ChannelStoreSupport.requireId(expectedState, "expectedState");
+         ChannelStoreSupport.requireId(state, "state");
+         if (!ChannelDeliveryRepository.isLegalStep(expectedState, state)) {
+@@ -118,8 +118,8 @@ public final class JdbcChannelDeliveryRepository
+     @Override
+     public DeliveryPage listByChannel(String tenantId,
+             String channelInstanceId, DeliveryCursor before, int limit) {
+-        ChannelStoreSupport.requireId(tenantId, "tenantId");
+-        ChannelStoreSupport.requireId(channelInstanceId, "channelInstanceId");
++        ChannelStoreSupport.requireKey(tenantId, "tenantId");
++        ChannelStoreSupport.requireKey(channelInstanceId, "channelInstanceId");
+         if (limit < 1 || limit > 100) {
+             throw new IllegalArgumentException("limit must be in [1, 100]");
+         }
+@@ -158,11 +158,11 @@ public final class JdbcChannelDeliveryRepository
+         if (candidate == null) {
+             throw new IllegalArgumentException("candidate is required");
+         }
+-        ChannelStoreSupport.requireId(candidate.tenantId(), "tenantId");
+-        ChannelStoreSupport.requireId(candidate.channelInstanceId(),
++        ChannelStoreSupport.requireKey(candidate.tenantId(), "tenantId");
++        ChannelStoreSupport.requireKey(candidate.channelInstanceId(),
+                 "channelInstanceId");
+-        ChannelStoreSupport.requireId(candidate.deliveryId(), "deliveryId");
+-        ChannelStoreSupport.requireId(candidate.segmentId(), "segmentId");
++        ChannelStoreSupport.requireKey(candidate.deliveryId(), "deliveryId");
++        ChannelStoreSupport.requireKey(candidate.segmentId(), "segmentId");
+         if (candidate.ordinal() < 0) {
+             throw new IllegalArgumentException("ordinal must not be negative");
+         }
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/JdbcChannelRouteRepository.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/JdbcChannelRouteRepository.java
+index 5353284379..5075ab6e8e 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/JdbcChannelRouteRepository.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/JdbcChannelRouteRepository.java
+@@ -97,8 +97,8 @@ public final class JdbcChannelRouteRepository implements ChannelRouteRepository
+ 
+     @Override
+     public Optional<ChannelRoute> find(String tenantId, String routeKey) {
+-        ChannelStoreSupport.requireId(tenantId, "tenantId");
+-        ChannelStoreSupport.requireId(routeKey, "routeKey");
++        ChannelStoreSupport.requireKey(tenantId, "tenantId");
++        ChannelStoreSupport.requireKey(routeKey, "routeKey");
+         return jdbc.query("SELECT " + COLUMNS
+                         + " FROM qwen_managed_channel_route"
+                         + " WHERE tenant_id = ? AND route_key = ?",
+@@ -108,8 +108,8 @@ public final class JdbcChannelRouteRepository implements ChannelRouteRepository
+     @Override
+     public ChannelRoute admit(String tenantId, String routeKey,
+             String inputId) {
+-        ChannelStoreSupport.requireId(tenantId, "tenantId");
+-        ChannelStoreSupport.requireId(routeKey, "routeKey");
++        ChannelStoreSupport.requireKey(tenantId, "tenantId");
++        ChannelStoreSupport.requireKey(routeKey, "routeKey");
+         ChannelStoreSupport.requireId(inputId, "inputId");
+         int updated = jdbc.update("UPDATE qwen_managed_channel_route SET"
+                         + " state = 'admitted', input_id = ?, updated_at = ?"
+@@ -128,8 +128,8 @@ public final class JdbcChannelRouteRepository implements ChannelRouteRepository
+     @Override
+     public RoutePage listByChannel(String tenantId, String channelInstanceId,
+             RouteCursor before, int limit) {
+-        ChannelStoreSupport.requireId(tenantId, "tenantId");
+-        ChannelStoreSupport.requireId(channelInstanceId, "channelInstanceId");
++        ChannelStoreSupport.requireKey(tenantId, "tenantId");
++        ChannelStoreSupport.requireKey(channelInstanceId, "channelInstanceId");
+         if (limit < 1 || limit > 100) {
+             throw new IllegalArgumentException("limit must be in [1, 100]");
+         }
+@@ -167,8 +167,8 @@ public final class JdbcChannelRouteRepository implements ChannelRouteRepository
+         if (candidate == null) {
+             throw new IllegalArgumentException("candidate is required");
+         }
+-        ChannelStoreSupport.requireId(candidate.tenantId(), "tenantId");
+-        ChannelStoreSupport.requireId(candidate.channelInstanceId(),
++        ChannelStoreSupport.requireKey(candidate.tenantId(), "tenantId");
++        ChannelStoreSupport.requireKey(candidate.channelInstanceId(),
+                 "channelInstanceId");
+         ChannelStoreSupport.requireId(candidate.platformEventId(),
+                 "platformEventId");
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContract.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContract.java
+index cec8694656..8e1582e765 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContract.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContract.java
+@@ -1,6 +1,7 @@
+ package com.alibaba.qwen.code.managedagent;
+ 
+ import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertFalse;
+ import static org.junit.jupiter.api.Assertions.assertNotNull;
+ import static org.junit.jupiter.api.Assertions.assertNull;
+ import static org.junit.jupiter.api.Assertions.assertThrows;
+@@ -177,6 +178,13 @@ public final class ManagedChannelJdbcContract {
+         assertTrue(routes.listByChannel(tenant, channel, null, 100).hasMore());
+         assertTrue(routes.listByChannel(prefix + "-other", channel, null, 100)
+                 .routes().isEmpty());
++        assertTrue(routes.listByChannel(tenant, channel.toUpperCase(), null,
++                100).routes().isEmpty());
++        assertThrows(IllegalArgumentException.class,
++                () -> ChannelRouteRepository.routeKey(tenant, channel + "\0x",
++                        1, "event-1", 1));
++        assertThrows(IllegalArgumentException.class,
++                () -> routes.listByChannel(tenant, channel + " ", null, 100));
+         assertThrows(IllegalArgumentException.class,
+                 () -> routes.listByChannel(tenant, channel, null, 0));
+         assertThrows(IllegalArgumentException.class,
+@@ -237,6 +245,13 @@ public final class ManagedChannelJdbcContract {
+         assertTrue(deliveries.find(tenant, channel, "delivery-1").isPresent());
+         assertTrue(deliveries.find(prefix + "-other", channel, "delivery-1")
+                 .isEmpty());
++        // utf8mb4_bin pads with spaces: "delivery-1 " would alias the
++        // delivery-1 row on MySQL and MariaDB, so key identities refuse it.
++        assertThrows(IllegalArgumentException.class,
++                () -> deliveries.findOrCreate(delivery(tenant, channel,
++                        "delivery-1 ", "segment-1", 0)));
++        assertThrows(IllegalArgumentException.class,
++                () -> deliveries.find(tenant, channel + " ", "delivery-1"));
+ 
+         ChannelDelivery sending = deliveries.transition(tenant, channel,
+                 "delivery-1", "planned", "sending", null);
+@@ -286,6 +301,20 @@ public final class ManagedChannelJdbcContract {
+         assertEquals("delivered", reconciled.state());
+         assertEquals("receipt-2", reconciled.providerReceipt());
+ 
++        // A step without a receipt keeps the one the provider returned.
++        deliveries.findOrCreate(delivery(tenant, channel, "delivery-4",
++                "segment-4", 0));
++        deliveries.transition(tenant, channel, "delivery-4", "planned",
++                "sending", null);
++        deliveries.transition(tenant, channel, "delivery-4", "sending",
++                "partial", "receipt-4");
++        assertEquals("receipt-4", deliveries.transition(tenant, channel,
++                "delivery-4", "partial", "sending", null).providerReceipt());
++
++        // Identities compare case-sensitively (utf8mb4_bin on MySQL).
++        assertEquals("DELIVERY-1", deliveries.findOrCreate(delivery(tenant,
++                channel, "DELIVERY-1", "segment-case", 0)).deliveryId());
++
+         // An explicit resend is a new deliveryId of the same segment.
+         deliveries.findOrCreate(delivery(tenant, channel, "delivery-3",
+                 "segment-1", 0));
+@@ -329,6 +358,8 @@ public final class ManagedChannelJdbcContract {
+         } while (page.hasMore());
+         assertEquals(3, pages);
+         assertEquals(205, all.size());
++        assertTrue(all.stream().anyMatch(row -> row.createdAt() % 1000 != 0),
++                "created_at carries the database clock's milliseconds");
+         Set<String> ids = new HashSet<>();
+         ChannelDelivery previous = null;
+         for (ChannelDelivery row : all) {
+@@ -371,6 +402,8 @@ public final class ManagedChannelJdbcContract {
+         assertEquals(tieIds, deliveries
+                 .listByChannel(tenant, tieChannel, null, 100).deliveries()
+                 .stream().map(ChannelDelivery::deliveryId).toList());
++        assertFalse(deliveries.listByChannel(tenant, tieChannel, null, 5)
++                .hasMore());
+     }
+ 
+     private static ChannelRoute route(String tenant, String channel,
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContractMySqlIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContractMySqlIT.java
+new file mode 100644
+index 0000000000..7ab60e4430
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedChannelJdbcContractMySqlIT.java
+@@ -0,0 +1,42 @@
++package com.alibaba.qwen.code.managedagent;
++
++import java.util.UUID;
++import javax.sql.DataSource;
++import org.flywaydb.core.Flyway;
++import org.junit.jupiter.api.Test;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.jdbc.datasource.DriverManagerDataSource;
++
++/**
++ * Runs the shared H5 channel persistence contract against the Flyway schema
++ * on the MySQL gate, where the utf8mb4_bin collation and the InnoDB
++ * duplicate-key path that H2 cannot model are real.
++ */
++class ManagedChannelJdbcContractMySqlIT {
++    @Test
++    void channelPersistenceKeepsItsContractOnMySql() {
++        String url = System.getProperty("mysql.url");
++        if (url == null || !url.matches("jdbc:mysql://[^/]+/[^?]+(?:\\?.*)?")) {
++            throw new IllegalArgumentException(
++                    "A MySQL test database URL is required");
++        }
++        String user = System.getProperty("mysql.user");
++        String password = System.getProperty("mysql.password", "");
++        JdbcTemplate admin = new JdbcTemplate(
++                new DriverManagerDataSource(url, user, password));
++        String schema = "channel_contract_"
++                + UUID.randomUUID().toString().replace("-", "");
++        admin.execute("CREATE DATABASE " + schema);
++        try {
++            DataSource dataSource = new DriverManagerDataSource(
++                    url.replaceFirst("/[^/?]+(?=\\?|$)", "/" + schema), user,
++                    password);
++            Flyway.configure().dataSource(dataSource)
++                    .locations("classpath:db/migration").load().migrate();
++            ManagedChannelJdbcContract.verify(dataSource,
++                    "mysql-" + UUID.randomUUID());
++        } finally {
++            admin.execute("DROP DATABASE " + schema);
++        }
++    }
++}
