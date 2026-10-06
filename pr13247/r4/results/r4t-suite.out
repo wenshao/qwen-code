@@ -1,0 +1,245 @@
+spring up after 8s
+harness pid=10538 up after 2s log=/Users/wenshao/pr13247-rig/run/r4t/harness-0.log
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s1-basic.mjs
+PASS  create bound Session 202/201  -> status=202 id=42c3e2ba-962d-40b3-98a2-46504bda2578
+PASS  initial G0 Turn completes in child/  -> {"status":"COMPLETED","error":"","ms":1836}
+PASS  binding before = (child, rev 1)  -> {"cwd":"child","rev":1,"version":14,"status":"ACTIVE"}
+NOTE  public Session read before (workspace field)  -> {"workspace_id":"ws-a","cwd_relative":"child","context_revision":1,"state":"ready"}
+PASS  public POST /cwd → 202 pending, normalized target  -> 202 {"id":"op_6467d2e8c4784b66a0a12890673b0b3e","session_id":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"cwd_change","status":"pending","expected_context_revision":1,"target_cwd_relative":"child2","replayed":false}
+PASS  operation completes with result_context_revision=2  -> 114 ms {"id":"op_6467d2e8c4784b66a0a12890673b0b3e","session_id":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"cwd_change","status":"completed","expected_context_revision":1,"target_cwd_relative":"child2","result_context_revision":2,"repla
+PASS  DB binding after = (child2, rev 2)  -> {"cwd":"child2","rev":2,"version":16,"status":"ACTIVE"}
+PASS  DB op row COMPLETED/CONFIRMED with receipt  -> {"state":"COMPLETED","delivery":"CONFIRMED","error":"","target":"child2","expected":"1","result":"2","attempts":0,"gen":1,"receipt":"rcpt_234149e1b4e8471bb9032d8679bf9c7e"}
+PASS  replay, other spelling child2/./ → 202 same id, replayed=true, completed  -> 202 {"id":"op_6467d2e8c4784b66a0a12890673b0b3e","session_id":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"cwd_change","status":"completed","expected_context_revision":1,"target_cwd_relative":"child2","result_context
+PASS  replay ./child2 → same op  -> 202 op_6467d2e8c4784b66a0a12890673b0b3e
+PASS  same key, different target → 409 idempotency_conflict  -> 409 {"error":{"code":"idempotency_conflict","message":"The idempotency key was reused with different content.","request_id":"0f38ddb2-4ad2-4739-8625-c7d1167daebd"}}
+PASS  same key, different expected revision → 409 idempotency_conflict  -> 409 {"error":{"code":"idempotency_conflict","message":"The idempotency key was reused with different content.","request_id":"889f07e9-635a-465a-9968-a965b3b5e86c"}}
+PASS  fresh key, stale expected revision 1 → 409 context_revision_conflict  -> 409 {"error":{"code":"context_revision_conflict","message":"The Session context revision has changed.","request_id":"b0322cd3-2c6e-434a-ab61-1bb142fc2428"}}
+PASS  WebShell POST /sessions/cwd/change → 202 pending, camelCase  -> 202 {"operationId":"op_dc7242a851f24334b8b6fffb70517215","sessionId":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"cwd_change","status":"pending","expectedContextRevision":2,"targetCwdRelative":"child3/deep","replayed":false}
+PASS  WebShell echoes client request id header  -> x-request-id=rig-req-s1
+PASS  WebShell operation completes with resultContextRevision=3  -> 126 ms {"operationId":"op_dc7242a851f24334b8b6fffb70517215","sessionId":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"cwd_change","status":"completed","expectedContextRevision":2,"targetCwdRelative":"child3/deep","resultContextRevi
+PASS  WebShell replay (other spelling) → same op, replayed=true  -> 202 {"operationId":"op_dc7242a851f24334b8b6fffb70517215","sessionId":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"cwd_change","status":"completed","expectedContextRevision":2,"targetCwdRelative":"child3/deep","resultContextRevisio
+PASS  cross-surface read: public GET of WebShell op returns cwd shape  -> {"id":"op_dc7242a851f24334b8b6fffb70517215","session_id":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"cwd_change","status":"completed","expected_context_revision":2,"target_cwd_relative":"child3/deep","result_context_revisio
+PASS  cross-surface read: WebShell query of public op returns cwd shape  -> {"operationId":"op_6467d2e8c4784b66a0a12890673b0b3e","sessionId":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"cwd_change","status":"completed","expectedContextRevision":1,"targetCwdRelative":"child2","resultContextRevision
+PASS  DB binding after = (child3/deep, rev 3)  -> {"cwd":"child3/deep","rev":3,"version":18,"status":"ACTIVE"}
+PASS  exactly two session.context.changed rows (one per completed change)  -> [{"seq":9,"data":{"contextRevision":2,"workspaceId":"ws-a","cwdRelative":"child2","sessionId":"42c3e2ba-962d-40b3-98a2-46504bda2578","operationId":"op_6467d2e8c4784b66a0a12890673b0b3e"},"source":"operation:op_6467d2e8c4784
+PASS  event data = {sessionId, operationId, workspaceId, cwdRelative, contextRevision}  -> [{"contextRevision":2,"workspaceId":"ws-a","cwdRelative":"child2","sessionId":"42c3e2ba-962d-40b3-98a2-46504bda2578","operationId":"op_6467d2e8c4784b66a0a12890673b0b3e"},{"contextRevision":3,"workspaceId":"ws-
+PASS  public events read lists both context events  -> [{"schema_version":1,"projection_version":1,"sequence":9,"event_id":"evt_35fb24b069cb4156ab0cc4741eb53ee1","session_id":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"session.context.changed","created_at":1791250891,"data":{"contextRevision":2,"
+PASS  live public SSE delivered both context events once each  -> status=200 total=10 ctx=2 [{"ev":"session.context.changed","data":{"schema_version":1,"projection_version":1,"sequence":9,"event_id":"evt_35fb24b069cb4156ab0cc4741eb53ee1","session_id":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"se
+PASS  live WebShell SSE delivered both context events once each  -> status=200 total=10 ctx=2 [{"ev":"session.context.changed","data":{"schemaVersion":1,"projectionVersion":1,"sequence":9,"eventId":"evt_35fb24b069cb4156ab0cc4741eb53ee1","sessionId":"42c3e2ba-962d-40b3-98a2-46504bda2578","type":"sess
+NOTE  public Session read after (workspace field)  -> {"workspace_id":"ws-a","cwd_relative":"child3/deep","context_revision":3,"state":"ready"}
+== s1-basic: 24 passed, 0 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s2-admission.mjs
+PASS  no actor (tenant only) → 401  -> 401 actor_required
+FAIL  no tenant, no actor → 401  -> 400 invalid_tenant
+PASS  missing Idempotency-Key header → 400  -> 400 invalid_request
+PASS  Idempotency-Key with a space → 400 invalid_idempotency_key  -> 400 invalid_idempotency_key
+PASS  Idempotency-Key 129 chars → 400 invalid_idempotency_key  -> 400 invalid_idempotency_key
+PASS  missing cwd_relative → 400 invalid_request  -> 400 invalid_request
+PASS  missing expected_context_revision → 400 invalid_request  -> 400 invalid_request
+PASS  expected_context_revision 0 → 400 invalid_request  -> 400 invalid_request
+PASS  expected_context_revision -1 → 400 invalid_request  -> 400 invalid_request
+PASS  malformed JSON body → 400  -> 400 invalid_request
+NOTE  type coercion: cwd_relative as number 7  -> 202 pending target=7 expected=1
+NOTE  type coercion: cwd_relative as array  -> 400 invalid_request
+NOTE  type coercion: expected_context_revision as string "1"  -> 202 pending target=child2 expected=1
+NOTE  type coercion: expected_context_revision as float 1.9  -> 409 context_revision_conflict
+NOTE  type coercion: expected_context_revision as true  -> 400 invalid_request
+NOTE  type coercion: expected_context_revision 2^63 overflow  -> 400 invalid_request
+PASS  invalid cwd: absolute → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: dot-dot → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: inner dot-dot → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: backslash → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: empty → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: drive C:x → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: drive ./C:x → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: BEL control → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: NUL → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: DEL control → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: 1025 code points → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd: lone surrogate → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  invalid cwd on an unknown Session (lexical first) → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  no operation row was written by any 4xx above (excluding coerced 202s)  -> cwd ops now 4 (before 2)
+PASS  unknown Session → 404 session_not_found  -> 404 session_not_found
+PASS  other tenant (alice@t-other) → 404 session_not_found  -> 404 session_not_found
+PASS  stranger mallory (no grant) → 404 session_not_found  -> 404 session_not_found
+PASS  reader bob (can_read only) → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  carol (Workspace creator, not this Session’s creator) → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  stranger, stale revision (no state leak) → 404 session_not_found  -> 404 session_not_found
+PASS  reader, stale revision (no state leak) → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  creator, stale revision → 409 context_revision_conflict  -> 409 context_revision_conflict
+PASS  WebShell idempotencyKey 129 chars → 400  -> 400 invalid_request
+PASS  WebShell blank idempotencyKey → 400  -> 400 invalid_request
+PASS  WebShell key with a space (public would say invalid_idempotency_key) → 400 invalid_idempotency_key  -> 400 invalid_idempotency_key
+PASS  WebShell missing cwdRelative → 400  -> 400 invalid_request
+PASS  WebShell missing sessionId → 400  -> 400 invalid_request
+PASS  WebShell invalid cwd → 400 invalid_cwd  -> 400 invalid_cwd
+PASS  WebShell stranger → 404 session_not_found  -> 404 session_not_found
+PASS  WebShell reader → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+NOTE  legacy Session created  -> 202 a324aa20-eb6c-43c8-9abb-2105881f21d1
+PASS  legacy Session, creator → 400 unsupported_feature  -> 400 unsupported_feature
+NOTE  legacy Session, stranger mallory (cwd)  -> 400 unsupported_feature
+NOTE  legacy Session, stranger mallory (sibling close route)  -> 202 undefined
+NOTE  legacy Session, stranger mallory (GET read)  -> 200 
+NOTE  close for the state test  -> 409 -> ACTIVE
+FAIL  closed Session, creator → 409 session_state_conflict  -> 202 {"id":"op_8bcf74404cb3426fa4166f5d87c72e27","session_id":"52ca59dc-48b9-4916-b581-c6ca472aba49","type":"cwd_change","status":"pending","expected_context_revisio
+PASS  closed Session, stranger → 404 session_not_found  -> 404 session_not_found
+NOTE  archive  -> 409 -> ACTIVE
+FAIL  archived Session, creator → 409 session_state_conflict  -> 409 context_revision_conflict
+NOTE  delete  -> 409 -> ACTIVE
+FAIL  deleted Session, creator → 404 session_not_found  -> 409 context_revision_conflict
+PASS  creator lost can_create (still can_read) → 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  registry DRAINING → 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  registry DRAINING, reader (no leak) → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  registry generation drift → 409 workspace_unavailable  -> 409 workspace_unavailable
+PASS  facts restored → change admitted and completes  -> 202 completed
+NOTE  initial Turn held by the model  -> RUNNING
+PASS  active initial Turn → 409 session_context_busy  -> 409 session_context_busy
+PASS  active Turn, stale revision → CAS answers first → 409 context_revision_conflict  -> 409 context_revision_conflict
+PASS  active Turn, reader → 403 first → 403 session_operation_forbidden  -> 403 session_operation_forbidden
+PASS  no operation row on the busy Session
+NOTE  coerced 202 admissions in this probe  -> 2
+== s2-admission: 50 passed, 4 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s2b-states.mjs
+PASS  setup: one completed change (rev 2)  -> completed
+PASS  CLOSING: creator 409 session_state_conflict (both surfaces); stranger 404; reader 403  -> creator 409 session_state_conflict | web 409 session_state_conflict | mallory 404 | bob 403 session_operation_forbidden
+PASS  CLOSING: replay of the completed change still answers the original operation (replay precedes the status gate)  -> 202 true 
+PASS  CLOSED: creator 409 session_state_conflict (both surfaces); stranger 404; reader 403  -> creator 409 session_state_conflict | web 409 session_state_conflict | mallory 404 | bob 403 session_operation_forbidden
+PASS  CLOSED: replay of the completed change still answers the original operation (replay precedes the status gate)  -> 202 true 
+PASS  ARCHIVING: creator 409 session_state_conflict (both surfaces); stranger 404; reader 403  -> creator 409 session_state_conflict | web 409 session_state_conflict | mallory 404 | bob 403 session_operation_forbidden
+PASS  ARCHIVING: replay of the completed change still answers the original operation (replay precedes the status gate)  -> 202 true 
+PASS  ARCHIVED: creator 409 session_state_conflict (both surfaces); stranger 404; reader 403  -> creator 409 session_state_conflict | web 409 session_state_conflict | mallory 404 | bob 403 session_operation_forbidden
+PASS  ARCHIVED: replay of the completed change still answers the original operation (replay precedes the status gate)  -> 202 true 
+PASS  DELETING: creator 409 session_state_conflict (both surfaces); stranger 404; reader 403  -> creator 409 session_state_conflict | web 409 session_state_conflict | mallory 404 | bob 403 session_operation_forbidden
+PASS  DELETING: replay of the completed change still answers the original operation (replay precedes the status gate)  -> 202 true 
+FAIL  DELETED: creator 404 session_not_found (both surfaces); stranger 404; reader 404  -> creator 404 session_not_found | web 404 session_not_found | mallory 404 | bob 403 session_operation_forbidden
+PASS  DELETED: replay of the completed change still answers the original operation (replay precedes the status gate)  -> 202 true 
+PASS  status restored; binding untouched by all refusals  -> {"cwd":"child2","rev":2,"version":12,"status":"ACTIVE"}
+== s2b-states: 13 passed, 1 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s3-settlement.mjs
+PASS  missing directory → failed workspace_unavailable; binding+revision unchanged; no event  -> 5 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  regular file → failed workspace_unavailable; binding+revision unchanged; no event  -> 5 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  FIFO → failed workspace_unavailable; binding+revision unchanged; no event  -> 4 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  symlink → dir inside the Workspace (alias) → failed workspace_unavailable; binding+revision unchanged; no event  -> 5 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  symlink → dir outside the Workspace → failed workspace_unavailable; binding+revision unchanged; no event  -> 3 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  path through an inner symlink (link-in/sub) → failed workspace_unavailable; binding+revision unchanged; no event  -> 4 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  symlink → nested dir → failed workspace_unavailable; binding+revision unchanged; no event  -> 3 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  case alias of an existing dir (APFS case-insensitive) → failed workspace_unavailable; binding+revision unchanged; no event  -> 3 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  Unicode NFD alias of an NFC dir → failed workspace_unavailable; binding+revision unchanged; no event  -> 3 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  ancestor is a regular file (ENOTDIR) → failed workspace_unavailable; binding+revision unchanged; no event  -> 110 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  ancestor is a symlink loop (ELOOP) → failed workspace_unavailable; binding+revision unchanged; no event  -> 4 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  ancestor has mode 000 (EACCES) → failed workspace_unavailable; binding+revision unchanged; no event  -> 3 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  ancestor is a dangling symlink → failed workspace_unavailable; binding+revision unchanged; no event  -> 3 ms failed/workspace_unavailable cwd child→child rev 1→1 events 0→0 attempts=0
+PASS  valid NFC Unicode dir → completed; rev 1→2; one event  -> 109 ms completed cwd child→café-37964 rev 1→2 events 0→1
+PASS  valid dir with CJK + spaces → completed; rev 2→3; one event  -> 108 ms completed cwd café-37964→目录 with space-37964 rev 2→3 events 1→2
+PASS  nested valid dir → completed; rev 3→4; one event  -> 108 ms completed cwd 目录 with space-37964→s3-37964-ok/b/c/d/e/f/g/h rev 3→4 events 2→3
+PASS  Workspace root "." → completed; rev 4→5; one event  -> 109 ms completed cwd s3-37964-ok/b/c/d/e/f/g/h→. rev 4→5 events 3→4
+PASS  same directory again (re-validation) → completed; rev 5→6; one event  -> 109 ms completed cwd .→. rev 5→6 events 4→5
+PASS  dir with mode 000 (refused since the F1 fix) → failed workspace_unavailable; binding+revision unchanged; no event  -> 4 ms failed/workspace_unavailable cwd .→. rev 6→6 events 5→5 attempts=0
+== s3-settlement: 19 passed, 0 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s4-races.mjs
+PASS  10 rounds × 20 concurrent distinct-key admissions (public/WebShell interleaved): exactly one 202, one commit, one event per round  -> 10/10 outcome tally {"409 session_context_busy":190,"202 pending":10}
+PASS  20 concurrent same-key same-payload (mixed surfaces, mixed spellings) → all 202, one operation id, one row  -> {"202 pending":3,"202 installing":17} ids=1 rows=1 replayed=19
+PASS  20 concurrent same-key different-payload → one row; same-payload callers replay, others 409 idempotency_conflict  -> {"202 installing":4,"409 idempotency_conflict":15,"202 pending":1} rows=1 winner=race0
+== s4-races: 3 passed, 0 failed
+### env SKIP_LOCKED=1 NAME=s9-later-turns-nolock /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s9-later-turns.mjs
+PASS  initial Turn writes into child/  -> COMPLETED ["child/t0-45138.txt"]
+PASS  change child → child2 completes; next later Turn writes into child2/ (not child/)  -> completed turn=202/COMPLETED at ["child2/t1-45138.txt"]
+PASS  refused change (missing dir) → next Turn still writes into child2/  -> failed/workspace_unavailable turn=COMPLETED at ["child2/t2-45138.txt"]
+PASS  change → "." (Workspace root) → next Turn writes at the root  -> turn=COMPLETED at ["t3-45138.txt"]
+PASS  committed dir later replaced by a symlink to outside → next Turn refused, nothing written outside  -> completed turn=202/FAILED error=hosted_turn_failed files=[] outside=[]
+PASS  …and the Session recovers with another change  -> completed turn=COMPLETED error= at ["child2/t5b-45138.txt"]
+NOTE  later Turn submitted while the cwd operation is open  -> submit=409 session_context_busy → turn COMPLETED, file at []; cwd op completed/; binding {"cwd":"trap-claim-s9-45138","rev":6,"version":68,"status":"ACTIVE"}
+PASS  exactly one side wins: either the Turn is refused or the cwd op fails session_context_busy (never both run)  -> submit=409 op=completed/
+NOTE  session.context.changed rows  -> 5
+== s9-later-turns-nolock: 7 passed, 0 failed
+### env NAME=s11-unreadable /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s11-unreadable.mjs
+NOTE  trial 0 st-e mode 000  -> {"st":"e","mode":"000","change":"failed/workspace_unavailable","laterTurn":"202→COMPLETED","neighbour":"COMPLETED","nextChange":"202 pending"}
+NOTE  trial 1 st-g mode 444 (read, no search)  -> {"st":"g","mode":"444 (read, no search)","change":"failed/workspace_unavailable","laterTurn":"202→COMPLETED","neighbour":"COMPLETED","nextChange":"202 pending"}
+NOTE  trial 2 st-h mode 111 (search, no read)  -> {"st":"h","mode":"111 (search, no read)","change":"failed/workspace_unavailable","laterTurn":"202→COMPLETED","neighbour":"COMPLETED","nextChange":"202 pending"}
+== s11-unreadable: 0 passed, 0 failed
+### env ST=f NAME=s10-g0-locked /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s10-g0-locked.mjs
+NOTE  G0 create with cwd = mode-000 dir  -> create=202  turn=FAILED hosted_turn_failed after 671 ms (timeout=false) held storage leases=0 last=["turn_8caad186a9ee482795c32c80d4be8bc5","FAILED","hosted_turn_failed","0"]
+== s10-g0-locked: 0 passed, 0 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s13-reverse-race.mjs
+PASS  Turn refused 409 session_context_busy during the open change; change completes; no new Turn ran  -> submit=409 session_context_busy op=completed {"cwd":"trap-claim-s13-63424","rev":2,"version":12,"status":"ACTIVE"} file=nowhere
+== s13-reverse-race: 1 passed, 0 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s16-destroyed-current.mjs
+NOTE  later Turn while the current dir is gone  -> 202 → FAILED hosted_turn_failed
+PASS  change away from a destroyed current directory completes, and the next Turn writes into the new one  -> 202 completed/ later=202 COMPLETED file=true
+== s16-destroyed-current: 1 passed, 0 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s17-interplay.mjs
+PASS  later Turn during the open change → 409 session_context_busy; change completes  -> 409 session_context_busy op=completed
+PASS  …and is admitted again once the change settled  -> 202 COMPLETED
+NOTE  cancel of a finished Turn during the open change  -> cancel=202 accepted cmd=COMPLETED → op completed/ rev=2
+PASS  rename during the open change → 409 session_operation_active; change completes  -> 409 session_operation_active op=completed
+NOTE  rename after the change settled  -> 200 
+== s17-interplay: 3 passed, 0 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s18-deleted-reader.mjs
+NOTE  alice  -> {"actor":"alice","cwd":"404 session_not_found","webCwd":"404 session_not_found","get":"404 session_not_found","close":"404 session_not_found","archive":"404 session_not_found","delete":"404 session_not_found","turn":"409 workspace_unavailable"}
+NOTE  bob  -> {"actor":"bob","cwd":"403 session_operation_forbidden","webCwd":"403 session_operation_forbidden","get":"404 session_not_found","close":"403 session_operation_forbidden","archive":"403 session_operation_forbidden","delete":"403 session_operation_forbidden","turn":"409 workspace_unavail
+NOTE  mallory  -> {"actor":"mallory","cwd":"404 session_not_found","webCwd":"404 session_not_found","get":"404 session_not_found","close":"404 session_not_found","archive":"404 session_not_found","delete":"404 session_not_found","turn":"404 session_not_found"}
+== s18-deleted-reader: 0 passed, 0 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s19-barrier-population.mjs
+PASS  stuck PENDING rename: later Turn admitted (barrier ignores display mutations); cwd change refused 409 session_context_busy  -> turn=202 COMPLETED cwd=409 session_context_busy
+PASS  …released once the command is no longer PENDING  -> 202 completed
+PASS  open ACTION_RESPONSE operation: later Turn admitted; cwd change refused 409 session_context_busy  -> turn=202 COMPLETED cwd=409 session_context_busy
+== s19-barrier-population: 3 passed, 0 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s20-tenant-burst.mjs
+PASS  4 rounds × (8 cwd changes + 8 later Turns + 8 creations), same tenant, barrier-released: all 202, every change completes once  -> {"202":96}
+PASS  no InnoDB deadlock during the bursts (information_schema lock_deadlocks)  -> lock_deadlocks 0 → 0
+== s20-tenant-burst: 2 passed, 0 failed
+### env ST=g /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s15b-mount-root.mjs
+PASS  vanished mount root → FAILED workspace_unavailable without retries; binding kept  -> 3277 ms failed/workspace_unavailable attempts=0 {"cwd":"child","rev":1,"version":10,"status":"ACTIVE"}
+PASS  …the root back, a re-issued change completes  -> 202 completed
+== s15b-mount-root: 2 passed, 0 failed
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s21-retry-budget.mjs
+NOTE  ascii: attempt timeline  -> [{"t":0,"status":"installing","attempts":0},{"t":1,"status":"installing","attempts":1},{"t":2,"status":"installing","attempts":2},{"t":4,"status":"installing","attempts":3},{"t":8,"status":"installing","attempts":4},{"t":17,"status":"installing","attempts":5},{"t":3
+PASS  ascii: lexically valid (202), then retried through the budget and ended FAILED workspace_unavailable (attempt_count 7 → 8 probes)  -> 202 → failed/workspace_unavailable after 124 s, attempts=7
+NOTE  ascii: the Session meanwhile  -> later Turn 409 session_context_busy; another change 409 session_context_busy; held busy ≈ 124 s
+PASS  ascii: afterwards the Session is unchanged and usable  -> {"cwd":"child","rev":1,"version":18,"status":"ACTIVE"} later=202 COMPLETED
+NOTE  cjk: attempt timeline  -> [{"t":0,"status":"installing","attempts":0},{"t":1,"status":"failed","attempts":0}]
+FAIL  cjk: lexically valid (202), then retried through the budget and ended FAILED workspace_unavailable (attempt_count 7 → 8 probes)  -> 202 → failed/workspace_unavailable after 1 s, attempts=0
+NOTE  cjk: the Session meanwhile  -> later Turn undefined ; another change undefined ; held busy ≈ 1 s
+PASS  cjk: afterwards the Session is unchanged and usable  -> {"cwd":"child","rev":1,"version":19,"status":"ACTIVE"} later=202 COMPLETED
+== s21-retry-budget: 3 passed, 1 failed
+### env ST=f /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s22-acquire-legacy.mjs
+PASS  ancestor replaced by a regular file (ENOTDIR): change completed; next later Turn fails fast and typed, no lease held  -> turn=202/FAILED hosted_turn_failed in 471 ms, held leases=0 last=["turn_abfda39f5d5e4c318ded395c97049598","FAILED","hosted_turn_failed","0"]
+PASS  ancestor replaced by a regular file (ENOTDIR): recoverable — change back to child, next Turn completes there  -> completed turn=COMPLETED
+PASS  ancestor replaced by a dangling symlink: change completed; next later Turn fails fast and typed, no lease held  -> turn=202/FAILED hosted_turn_failed in 729 ms, held leases=0 last=["turn_be33504676684eb38b5e82fe92dcbc98","FAILED","hosted_turn_failed","0"]
+PASS  ancestor replaced by a dangling symlink: recoverable — change back to child, next Turn completes there  -> completed turn=COMPLETED
+== s22-acquire-legacy: 4 passed, 0 failed
+### env JAR=r4 /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s5-durability.mjs
+PASS  after the first injected failure the operation is open (pending/installing) and the Session refuses another change  -> row={"state":"RUNNING","delivery":"PENDING","error":"","target":"trap-fail-60229","expected":"1","result":"","attempts":1,"gen":1} read=installing other=409 session_context_bu
+PASS  completes after two injected failures (attempt_count=2), rev 1→2, exactly one event  -> 4451 ms row={"state":"COMPLETED","delivery":"CONFIRMED","error":"","target":"trap-fail-60229","expected":"1","result":"2","attempts":2,"gen":3,"receipt":"rcpt_fec80927a8e344b4acbfe1594602e5fa"} events=1
+PASS  while the commit is held: operation reads "installing", Session still reads the old (cwd, revision)  -> op=installing binding={"cwd":"child","rev":1,"version":9,"status":"ACTIVE"}
+NOTE  Spring kill -9 + restart  -> spring up after 5s in 4788 ms
+PASS  reclaimed after the lease and committed exactly once (claim generation 2, one event, rev 2)  -> completed 59.1 s after the kill row={"state":"COMPLETED","delivery":"CONFIRMED","error":"","target":"trap-slow-60229","expected":"1","result":"2","attempts":0,"gen":2,"receipt":"rcpt_93ce2e66f6b3480
+NOTE  Spring kill -9 + restart  -> row before kill {"state":"PENDING","delivery":"PENDING","error":"","target":"trap-claim-c-60229","expected":"1","result":"","attempts":0,"gen":0}; spring up after 7s in 6462 ms
+PASS  PENDING row survives the crash and completes once after restart  -> completed 10.4 s after the kill row={"state":"COMPLETED","delivery":"CONFIRMED","error":"","target":"trap-claim-c-60229","expected":"1","result":"2","attempts":0,"gen":1,"receipt":"rcpt_4ce990f8d1284d2988ebc37d430f878f"}
+NOTE  Harness restart (Spring restarted twice)  -> harness pid=23044 up after 2s log=/Users/wenshao/pr13247-rig/run/r4t/harness-1.log
+PASS  creator loses can_create → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3217 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+FAIL  creator loses can_read → failed undefined; Session keeps (cwd, rev); a later change still works  -> 20025 ms undefined/undefined binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+PASS  registry → DRAINING → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3248 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+PASS  registry generation bump → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3214 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+PASS  target directory removed → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3239 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} next=202/completed
+PASS  target directory replaced by a symlink to outside → failed workspace_unavailable; Session keeps (cwd, rev); a later change still works  -> 3267 ms failed/workspace_unavailable binding {"cwd":"child","rev":1,"version":4,"status":"ACTIVE"}→{"cwd":"child","rev":1,"version":5,"status":"ACTIVE"} ne
+NOTE  commit does not re-probe: the swapped path is committed (the next turn’s acquire is the guard)  -> completed rev=2 cwd=trap-slow-e-60229 isSymlink=true
+== s5-durability: 10 passed, 1 failed
+spring up after 7s
+### env SESSION=36046e4b-c286-420c-bc0d-1fb5bdcf786a /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s8-optin-off.mjs
+PASS  creator: 409 workspace_unavailable on both surfaces  -> 409 workspace_unavailable / 409 workspace_unavailable
+PASS  stranger: 404 like an unknown id and GET (no existence oracle)  -> 404 session_not_found | unknown 404 session_not_found | GET 404 session_not_found
+PASS  replay of a completed change after the opt-in was turned off → 202 replayed  -> 202 replayed
+PASS  operation read still works with the opt-in off  -> 200 completed
+== s8-optin-off: 4 passed, 0 failed
+spring up after 5s
+harness pid=25145 up after 2s log=/Users/wenshao/pr13247-rig/run/r4t/harness-2.log
+### /Users/wenshao/.local/share/fnm/node-versions/v22.23.2/installation/bin/node probe/s14-actions.mjs
+NOTE  A: Action requested  -> tool_approval_864018b8411f28a3a92221fe52383708 rows=[["tool_approval_864018b8411f28a3a92221fe52383708","requested","599682"]]
+PASS  A: cwd change while the approval waits → 409 session_context_busy  -> 409 session_context_busy
+PASS  A: after the cancel settles, the Action is no longer requested and the change completes  -> cancel=202 turn=CANCELLED actions=[["tool_approval_864018b8411f28a3a92221fe52383708","cancelled","598621"]] change=202 completed
+PASS  B: approved Action, Turn completes → change completes  -> respond=202 turn=COMPLETED actions=[["tool_approval_abe2b30a57c296d63483b84ba4b0d35c","decided","599055"]] change=202 completed
+PASS  C: requested, unexpired Action with no active Turn → 409 session_context_busy (R3-1 gate itself)  -> 409 session_context_busy actions=[["tool_approval_7fc32114d957997281960b06d58fb9b4","requested","599832"]]
+PASS  C: same Action past expiresAt → change admitted and completes  -> 202 completed
+== s14-actions: 5 passed, 0 failed
+SUITE-DONE 01:48:41

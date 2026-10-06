@@ -1,0 +1,118 @@
+{
+  "name": "s7-upgrade-r4",
+  "pass": 8,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "start base",
+      "note": true,
+      "detail": "spring up after 6s"
+    },
+    {
+      "label": "base: bound Session created, initial Turn completes",
+      "ok": true,
+      "detail": "{\"status\":\"COMPLETED\",\"error\":\"\",\"ms\":902}"
+    },
+    {
+      "label": "base: POST /v1/agents/sessions/{id}/cwd",
+      "note": true,
+      "detail": "404 not_found"
+    },
+    {
+      "label": "base: POST /api/agent/web-shell/v1/sessions/cwd/change",
+      "note": true,
+      "detail": "404 not_found"
+    },
+    {
+      "label": "base: neither cwd route is mapped (no 202)",
+      "ok": true,
+      "detail": "404/404"
+    },
+    {
+      "label": "base schema at V44",
+      "ok": true,
+      "detail": "flyway=44"
+    },
+    {
+      "label": "start head",
+      "note": true,
+      "detail": "spring up after 5s"
+    },
+    {
+      "label": "traps installed",
+      "note": true,
+      "detail": "0"
+    },
+    {
+      "label": "head applied V45 on the base database",
+      "ok": true,
+      "detail": "flyway=45"
+    },
+    {
+      "label": "pre-upgrade Session changes directory on head (rev 1→2, one event)",
+      "ok": true,
+      "detail": "202 completed {\"cwd\":\"child2\",\"rev\":2,\"version\":13,\"status\":\"ACTIVE\"}"
+    },
+    {
+      "label": "non-cwd operation rows carried over",
+      "note": true,
+      "detail": "0"
+    },
+    {
+      "label": "start base again",
+      "note": true,
+      "detail": "spring up after 4s"
+    },
+    {
+      "label": "base starts on the V45 database (future migration ignored)",
+      "ok": true,
+      "detail": "flyway=45"
+    },
+    {
+      "label": "base: Session read after rollback",
+      "note": true,
+      "detail": "200 workspace={\"workspace_id\":\"ws-up\",\"cwd_relative\":\"child2\",\"context_revision\":2,\"state\":\"ready\"}"
+    },
+    {
+      "label": "base: GET the completed cwd operation (public / WebShell)",
+      "note": true,
+      "detail": "400 invalid_request / 400 invalid_request"
+    },
+    {
+      "label": "start head",
+      "note": true,
+      "detail": "spring up after 4s"
+    },
+    {
+      "label": "open operation after head crash",
+      "note": true,
+      "detail": "{\"state\":\"PENDING\",\"delivery\":\"PENDING\",\"error\":\"\",\"target\":\"trap-claim-s7\",\"expected\":\"2\",\"result\":\"\",\"attempts\":0,\"gen\":0}"
+    },
+    {
+      "label": "start base",
+      "note": true,
+      "detail": "spring up after 4s"
+    },
+    {
+      "label": "base, 8 s later: operation row / log",
+      "note": true,
+      "detail": "row={\"state\":\"PENDING\",\"delivery\":\"PENDING\",\"error\":\"\",\"target\":\"trap-claim-s7\",\"expected\":\"2\",\"result\":\"\",\"attempts\":0,\"gen\":0} \"No enum constant …CWD_CHANGE\" lines=1 GET=400 invalid_request"
+    },
+    {
+      "label": "base leaves the open cwd operation open (no settlement) while it runs",
+      "ok": true,
+      "detail": "PENDING rev=2"
+    },
+    {
+      "label": "start head again",
+      "note": true,
+      "detail": "spring up after 5s"
+    },
+    {
+      "label": "head picks it up again and completes once (rev 3, two events total)",
+      "ok": true,
+      "detail": "3130 ms completed {\"state\":\"COMPLETED\",\"delivery\":\"CONFIRMED\",\"error\":\"\",\"target\":\"trap-claim-s7\",\"expected\":\"2\",\"result\":\"3\",\"attempts\":0,\"gen\":1,\"receipt\":\"rcpt_a5454e2c9bd94b8d8d426acbe5fb4d67\"}"
+    }
+  ],
+  "session": "3034bc0c-b9aa-4d3b-9394-705328180252"
+}
