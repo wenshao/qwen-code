@@ -1,0 +1,102 @@
+[
+ {
+  "name": "e-01-files2-scope",
+  "title": "14b579d1: what the \"files/1 only\" scope decision means on the real stack",
+  "subtitle": "Exact head, packaged Spring + Harness + workers, Ubuntu 24.04 aarch64, MySQL 8.4.11 · Sessions created through the real Harness with toolProfile files/1 or files/2 · retire is W1c's first command",
+  "sections": [
+   {
+    "heading": "retire per storage",
+    "table": [
+     [
+      "storage",
+      "members (profile, status)",
+      "retire",
+      "after"
+     ],
+     [
+      "st-a",
+      "files/1 ACTIVE",
+      "++ RETIRED",
+      "++ row + fence; its live worker stopped"
+     ],
+     [
+      "st-b",
+      "files/2 ACTIVE",
+      "++ migration_profile_unsupported",
+      "++ 0 rows, no fence, workers untouched"
+     ],
+     [
+      "st-c",
+      "files/1 ACTIVE + files/2 ACTIVE",
+      "++ migration_profile_unsupported",
+      "++ 0 rows, no fence"
+     ],
+     [
+      "st-d",
+      "files/1 ACTIVE + files/2 closed + DELETED (public API)",
+      "!! migration_profile_unsupported",
+      "!! 0 rows — the deleted /2 Session still blocks"
+     ]
+    ]
+   },
+   {
+    "heading": "Context",
+    "lines": [
+     "== W1c includes retained members (closed, archived, deleted) — a deleted Session keeps its journal head (state DELETED)",
+     "== preflight skips only members with no head and a retirement row; a deleted /2 Session has a head, so its profile is checked",
+     "++ plain W1b capture of the files/2 storage (st-b) still SEALS (main widened recovery to /1 and /2)",
+     "!! consequence: once any files/2 Session has existed in a storage, W1c cannot migrate that storage; I found no in-product way to clear the deleted member"
+    ]
+   }
+  ],
+  "note": "Fail-closed and consistent with the stated scope. Whether a deleted /2 member should block forever is worth an explicit maintainer decision (or a README line).",
+  "noteClass": ""
+ },
+ {
+  "name": "e-02-head-and-merge",
+  "title": "14b579d1 on Linux: head flows hold, and the trial merge with today's main runs clean",
+  "subtitle": "Head jars + dist/cli.js from 14b579d1 · trial merge with main ac81c07d built with its own server jars and its own CLI (incl. #13355 extension records, #13376 domain-record replay check)",
+  "sections": [
+   {
+    "heading": "Flyway",
+    "table": [
+     [
+      "tree",
+      "checker",
+      "fresh MySQL 8.4"
+     ],
+     [
+      "PR head 14b579d1 (W1c V48–V50)",
+      "++ 50 unique",
+      "++ applied 50, now at v50"
+     ],
+     [
+      "trial merge with main ac81c07d",
+      "++ 50 unique (git: no conflict)",
+      "++ full S1 below runs on it"
+     ]
+    ]
+   },
+   {
+    "heading": "Process flows",
+    "lines": [
+     "++ S1 head: 5 Files Sessions (ACTIVE ×2, ARCHIVED, CLOSED, DELETED) · retire stops 2 live workers · rev 1→2 once · 4/49 tables change",
+     "++    restart: cold loads 200, writes on the target, undo of new and pre-migration prompts; source and history unchanged",
+     "++ S1 trial merge (merge jars + merge CLI): the same, 4/49 tables, undo of pre-migration prompts on the target",
+     "++ W2 vs fence: after retire / after W1a fence → 409, 0 ops · lock-queued cwd-first → completes + retire migration_work_unsettled · retire-first → fence + 409",
+     "++ W2 after promotion: QWEN_HOME unset → 202 then probe-failed, binding unchanged · canonical → completes, Turn writes in the new cwd",
+     "++ R7-1: queued create behind retire → 409 ×3, no stray member"
+    ]
+   },
+   {
+    "heading": "PR's Java suites on Linux + MySQL 8.4.11 (14b579d1)",
+    "lines": [
+     "++ broker focused 162 (2 skipped) · server unit incl. ManagedCwdChangeOperationTest 34: 118 (1 skipped)",
+     "++ MySQL IT: WorkspaceSessionRetentionMySqlIT 16, WorkspaceMigrationMySqlIT 5, WorkspaceSessionCloseMySqlIT 5 — 26, 0 failures"
+    ]
+   }
+  ],
+  "note": "Nothing I can test blocks 14b579d1, and in my runs its merge with today's main needed no further change.",
+  "noteClass": "ok"
+ }
+]
