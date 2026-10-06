@@ -1,0 +1,33 @@
+[
+{"name":"c-01-w2-gates-on-head","title":"Exact head: W2's cwd change now honors W1c's storage fence (public HTTP, packaged Linux stack)",
+ "subtitle":"Runtime on eda1f543 = a4b85140 (the later commit only edits WorkspaceSessionRetentionMySqlIT) · Spring admitting throughout · Ubuntu 24.04 aarch64, MySQL 8.4.11",
+ "sections":[
+  {"heading":"POST /v1/agents/sessions/{id}/cwd at each maintenance step (same probe that showed the bypass on the fcf8cc4e trial merge)","table":[
+   ["step","result","binding","cwd ops created"],
+   ["after retire (storage fence up, W1a mount READY)","++ 409 workspace_unavailable","++ unchanged project@1","++ 0"],
+   ["same moment: other storage st-b (control)","++ 202 · completed","project@1 → project/sub@2","1"],
+   ["same moment: W1c sibling close on st-a","++ 409 workspace_unavailable","unchanged","-"],
+   ["after the W1a fence","++ 409 workspace_unavailable","++ unchanged","++ 0"],
+   ["after promotion, Broker QWEN_HOME unset","++ 202 · failed workspace_unavailable (probe gate)","++ unchanged project/sub2@2","1 (failed)"],
+   ["after promotion, canonical QWEN_HOME","++ 202 · completed","project/sub2@2 → project@3","1"]]},
+  {"heading":"Lock-queued on the tenant placement-guard row (X holds it; both queue; X commits)","table":[
+   ["queue order","cwd change","retire","outcome"],
+   ["cwd first, retire second","++ 202 · completed (project@1 → project/sub@2)","++ migration_work_unsettled, no fence","++ consistent: no migration started"],
+   ["retire first, cwd second","++ 409 workspace_unavailable, 0 ops","++ RETIRED, fence installed","++ consistent: binding unchanged"]]}],
+ "note":"The addendum-2 gap is closed: admission, settlement and the probe all respect the fence, and the probe now carries the post-migration QWEN_HOME/history gate.","noteClass":"ok"},
+{"name":"c-02-head-flows-and-ci-test","title":"Exact head: Flyway, full flow, R7-1, Java suites — and the MariaDB CI test fixed in a4b85140",
+ "subtitle":"jars + dist/cli.js built from eda1f543 (production-identical to a4b85140) · includes main 9cdb0f38 with W2 (V46)",
+ "sections":[
+  {"heading":"Exact head","lines":[
+   "++ Flyway: 49 unique versions (W2 V46 + W1c V47–V49); fresh MySQL 8.4 database applies 49",
+   "++ S1: 5 Files Sessions (ACTIVE ×2, ARCHIVED, CLOSED, DELETED) · retire stops 2 live workers, st-b's survives · rev 1→2 once",
+   "++    4/47 tables change · source and history unchanged · restart: writes on the target, undo of new and pre-migration prompts",
+   "++ R7-1: queued create behind retire → 409 ×3, no stray member; pre-fence receipt replays 202",
+   "++ Java (Linux, MySQL 8.4): broker focused 162 (2 skipped) · server unit incl. ManagedCwdChangeOperationTest 34, WorkspaceStorageGuardTest 15: 118 (1 skipped)",
+   "!! host load average ~30–65 during these runs (shared Mac): prepare took 55 s instead of ~20 s; outcomes unaffected"]},
+  {"heading":"WorkspaceSessionRetentionMySqlIT.prerequisiteMigrationsPreserveExistingCloseEvidenceAndAllowRetirement","table":[
+   ["commit","MySQL 8.4.11","MariaDB 10.11.18","why"],
+   ["eda1f543","-- fails (2/2 runs)","-- fails","strict isEqualTo on the V31 close row; W2's V46 adds 3 NULL columns"],
+   ["a4b85140 (author's fix)","++ 16/16","++ 16/16","old fields unchanged + exactly the 3 V46 columns, each NULL"]]}],
+ "note":"The author found and fixed the IT from CI before this report; this independently confirms the cause and the fix on both databases.","noteClass":"ok"}
+]
