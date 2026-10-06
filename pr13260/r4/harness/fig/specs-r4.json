@@ -1,0 +1,104 @@
+[
+ {
+  "name": "b-01-v46-collision-and-head",
+  "title": "fcf8cc4e: V45 fix holds and the head is clean — but main's W2 (#13247, merged 06:28 UTC) took V46",
+  "subtitle": "Ubuntu 24.04 aarch64, kernel 6.8, loop-backed ext4, MySQL 8.4.11 · jars + dist/cli.js from fcf8cc4e · trial merge with main 43a6e1e5",
+  "sections": [
+   {
+    "heading": "Flyway: checker + packaged server jar on a fresh database",
+    "table": [
+     [
+      "tree",
+      "scripts/check-flyway-migrations.js",
+      "startup"
+     ],
+     [
+      "PR head fcf8cc4e (W1c = V46–V48)",
+      "++ 48 migrations, all unique",
+      "++ applied 48, now at v48"
+     ],
+     [
+      "trial merge with main 43a6e1e5 as is",
+      "-- 2 migrations claim version 46 (exit 1)",
+      "-- Found more than one migration with version 46"
+     ],
+     [
+      "trial merge, W1c renumbered V47–V49 (rig-only)",
+      "++ 49 migrations, all unique",
+      "++ applied 49, now at v49"
+     ]
+    ]
+   },
+   {
+    "heading": "Exact head fcf8cc4e",
+    "lines": [
+     "++ S1: 5 Files Sessions (ACTIVE ×2, ARCHIVED, CLOSED, DELETED) · retire stops 2 live workers, st-b's survives · capture SEALED 5/5",
+     "++ prepare/promote → READY rev2 once · 4/47 tables change · source, marker, history unchanged",
+     "++ restart: cold loads 200 · writes on the target · undo of new and pre-migration prompts",
+     "++ R7-1 (public API, queued create behind retire): 409 workspace_unavailable ×3, no stray member; pre-fence receipt replays 202",
+     "++ Java on Linux + MySQL 8.4: broker focused 162 (2 skipped) · server unit 51 · MySQL IT 25 · 0 failures"
+    ]
+   }
+  ],
+  "note": "Third collision in two days (V40, V45, now V46). The fix is the same renumbering — but this time the merge also needs W1c's fence on W2's new paths (next card).",
+  "noteClass": "bad"
+ },
+ {
+  "name": "b-02-w2-bypasses-fence",
+  "title": "Trial merge with main: W2's cwd change bypasses W1c's storage fence",
+  "subtitle": "Renumbered trial merge (fcf8cc4e + main 43a6e1e5, W1c V47–V49), merge jar + merge CLI · Spring keeps admitting during maintenance (the case the fence exists for) · same result in 2 of 2 runs",
+  "sections": [
+   {
+    "heading": "POST /v1/agents/sessions/{id}/cwd at each maintenance step",
+    "table": [
+     [
+      "step",
+      "request",
+      "result",
+      "binding (cwd@context_revision)"
+     ],
+     [
+      "no maintenance (control, st-b)",
+      "cwd → project/sub",
+      "++ 202 · completed",
+      "project@1 → project/sub@2"
+     ],
+     [
+      "after retire: storage fence installed, W1a mount still READY",
+      "st-a cwd → project/sub",
+      "-- 202 · completed",
+      "-- project@1 → project/sub@2 on the migrating storage"
+     ],
+     [
+      "same moment, W1c-gated sibling",
+      "st-a close",
+      "++ 409 workspace_unavailable (fence)",
+      "unchanged"
+     ],
+     [
+      "same moment, other storage (control)",
+      "st-b cwd → project/sub2",
+      "++ 202 · completed",
+      "project/sub@2 → project/sub2@3"
+     ],
+     [
+      "after the W1a fence",
+      "st-a cwd → project/sub2",
+      "!! 202 · failed workspace_unavailable (probe sees FENCED)",
+      "unchanged"
+     ]
+    ]
+   },
+   {
+    "heading": "Why (merged code)",
+    "lines": [
+     "!! beginCwdChangeOperation / completeCwdChangeOperation: no WorkspaceMigrationAdmission.lockTenant / requireOpen",
+     "!! WorkspaceStorageGuard.verifyProbe copies verify() but not W1c's additions (requireOpen, post-migration QWEN_HOME/history gate)",
+     "== this ordering stays consistent: capture after the change records project/sub; promote → READY rev2; Turn writes project/sub/where.txt on the target"
+    ]
+   }
+  ],
+  "note": "Not a defect in fcf8cc4e itself (W2 isn't in it yet), but the next main integration must gate W2's admission (lock before first read, as R7-1) and mirror W1c's verify() additions in verifyProbe.",
+  "noteClass": ""
+ }
+]
