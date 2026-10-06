@@ -1,0 +1,47 @@
+# w1-worker arm=base cli=/root/verify/pr13166/base/dist/cli.js 2026-10-06T12:33:03.474Z
+== r10_build_vs_boundary (arm base)
+  session-1@services/api install=200 activate=200; session-2@services/web install=200 activate=-
+  session-1    write_file({"file_path":"../web","content":"x"}) -> error [LEAKS MOUNT PATH] :: Path is a directory, not a file: <MOUNT>/services/web
+  session-1    write_file({"file_path":"../web/assets","content":"x"}) -> error [LEAKS MOUNT PATH] :: Path is a directory, not a file: <MOUNT>/services/web/assets
+  session-1    write_file({"file_path":"../web/nope","content":"x"}) -> error :: Path '../web/nope' is not within the Session working directory.
+  session-1    read_file({"file_path":"../web/x.ipynb","offset":1}) -> error [LEAKS MOUNT PATH] :: For Jupyter notebooks (.ipynb), omit 'offset', 'limit', and 'pages' or set them to null. Retry with: {"file_path":"<MOUNT>/services/web/x.ipynb","offset":null,"limit":nul
+  fs: services/web/nope exists=false; worker exit=0
+== r11_1_glob_input (arm base)
+  session-root@. install=200 activate=200; session-1@services/api install=200 activate=-
+  session-root glob({"pattern":"**/*.ts","path":"services/api"}) -> error :: Glob results must stay within the Session working directory.
+  session-root glob({"pattern":"**/*.md","path":"services/api"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"No files found matching pattern \"**/*.md\" within se
+  session-root glob({"pattern":"**/*.txt","path":"shared"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"Found 1 file(s) matching \"**/*.txt\" within shared, 
+  worker exit=0
+== r11_1_glob_pattern_oracle (arm base)
+  session-root@. install=200 activate=200; session-1@services/api install=200 activate=-
+  session-root glob({"pattern":"services/api/**/billing-v2.ts"}) -> error :: Glob results must stay within the Session working directory.
+  session-root glob({"pattern":"services/api/**/billing-v3.ts"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"No files found matching pattern \"services/api/**/bil
+  session-root glob({"pattern":"services/api/src/b*"}) -> error :: Glob results must stay within the Session working directory.
+  session-root glob({"pattern":"services/api/src/c*"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"No files found matching pattern \"services/api/src/c*
+  session-root read_file({"file_path":"services/api/src/billing-v2.ts"}) -> error :: Path 'services/api/src/billing-v2.ts' is not within the Session working directory.
+  session-root read_file({"file_path":"services/api/src/billing-v3.ts"}) -> error :: Path 'services/api/src/billing-v3.ts' is not within the Session working directory.
+  worker exit=0
+== r11_2_escaped_path (arm base)
+  session-1@services/api install=200 activate=200; session-2@services/web install=200 activate=-
+  session-1    glob({"pattern":"*","path":"shared notes"}) -> error :: Path 'shared notes' is not within the Session working directory.
+  session-1    glob({"pattern":"*","path":"shared\\ notes"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"No files found matching pattern \"*\" within shared n
+  worker exit=0
+== r11_3_nested (arm base)
+  session-a@services install=200 activate=200; session-b@services/api install=200 activate=200
+  session-a    read_file({"file_path":"api/src/index.ts"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"NESTED_PRIVATE"}]}}
+  session-a    write_file({"file_path":"api/src/pwned.txt","content":"pwned"}) -> success [LEAKS MOUNT PATH] :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"Successfully created and wrote to new file: <MOUNT>/s
+  session-a    edit({"file_path":"api/src/index.ts","old_string":"NESTED_PRIVATE","new_string":"EDITED"}) -> success [LEAKS MOUNT PATH] :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"The file: <MOUNT>/services/api/src/index.ts has been 
+  session-a    glob({"pattern":"**/*.ts"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"Found 2 file(s) matching \"**/*.ts\" within ., sorted
+  session-b    read_file({"file_path":"src/index.ts"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"EDITED"}]}}
+  session-a    read_file({"file_path":"top.ts"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"ancestor own ts"}]}}
+  session-a    read_file({"file_path":"../shared/note.txt"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"shared text"}]}}
+  fs: api/src/pwned.txt exists=true; index.ts="EDITED"; worker exit=0
+== r11_3_ancestor_glob (arm base)
+  session-a@services install=200 activate=200; session-b@services/api install=200 activate=-
+  session-a    glob({"pattern":"**/*.md"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"Found 1 file(s) matching \"**/*.md\" within ., sorted
+  session-a    glob({"pattern":"*.ts"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"Found 1 file(s) matching \"*.ts\" within ., sorted by
+  session-a    glob({"pattern":"**/*"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"Found 4 file(s) matching \"**/*\" within ., sorted by
+  session-a    glob({"pattern":"api/**/billing-v2.ts"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"Found 1 file(s) matching \"api/**/billing-v2.ts\" wit
+  session-a    glob({"pattern":"api/**/billing-v3.ts"}) -> success :: {"protocolVersion":2,"state":"settled","result":{"executionStatus":"success","responseParts":[{"type":"text","text":"No files found matching pattern \"api/**/billing-v3.t
+  worker exit=0
+# 27 calls recorded -> /root/verify/pr13166/rig/out/w1/w1-base.jsonl
