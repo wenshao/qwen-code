@@ -1,10 +1,32 @@
 ## Maintainer verification: QwenLM/qwen-code#13548 at `8b283d1c` (H5a channel record contract)
 
-**Verdict: the two validators agree exactly and the slice is inert, as described. It's mergeable once the branch is updated with `main`, but I'd settle F1 before merging (or record it explicitly for H5c), because this PR is what freezes the corpus.**
+**Verdict: one more round before merging.** The two validators agree exactly, and the slice is inert as described. Nothing below has runtime impact today, because both domains stay disabled. Still, this PR freezes the contract and the store support, so these gaps are cheapest to close here:
+- the two P2s from the [05:36Z review](https://github.com/QwenLM/qwen-code/pull/13548#pullrequestreview-5438083905), which I reproduced by execution (§0);
+- F1, a third gap of the same kind.
 
+After that, update the branch with `main` and I'd merge.
+
+- **R1-1 and R1-2 (05:36Z review), both reproduced.**
+  - R1-1: the Java store indexes channel records with none of their referenced resources stored.
+  - R1-2: the real TS authority commits a sparse plan, then cannot reopen the Session it wrote.
 - **F1 (contract gap, Suggestion).** "An `unknown` delivery never returns to `sending`" is enforced only for the direct step. The shipped corpus itself accepts `unknown → partial` without a new receipt, followed by `partial → sending`. Both the real TS Session authority and the real Java Session store commit that chain (§3).
 - **F2 (corpus strength, non-blocking).** Twelve rules are enforced identically by both validators but pinned by no fixture. Two fixtures are refused by a different rule than the one they name (§4).
 - **CI.** Both lanes that run `managed-agent-server` are cancelled on this head. The cause is the stale base, not this diff. A test that is broken on the base, and fixed on `main` by #13551, prints a 1.3 MB log line that stalls the runner until the job limit. The head merged with `main` is green locally: 1248 module tests, 0 failures (§5).
+
+### 0. The 05:36Z review, reproduced
+
+![review repro](fig7-review-repro.png)
+
+- **[R1-2](https://github.com/QwenLM/qwen-code/pull/13548#discussion_r4203448106), sparse segments.** I passed a two-slot plan with a hole at index 1 through the real TS Session authority (enablement mocked as in the PR suite).
+  - The plan is accepted and committed as revision 1, and the journal holds `[seg-1, null]`.
+  - Reopening that journal fails with `ManagedSessionRecordError: Channel record must have exactly the keys segmentId, ordinal, contentRef, receipt.`
+  - So this is worse than a failed round trip: the authority commits a record its own reader refuses, and the Session cannot be reopened.
+  - My byte-level differential (§2) cannot express holes, because JSON has none. That is why only an in-process probe sees this.
+- **[R1-1](https://github.com/QwenLM/qwen-code/pull/13548#discussion_r4203448098), resource closure.** I committed through the real Java Session store (Spring + H2) with none of the referenced resources sent:
+  - a route whose `policyRef` resource is absent;
+  - a delivery whose `contentRef` and both segment `contentRef`s are absent.
+
+  Both are accepted and indexed, with 0/1 and 0/3 of the referenced resources stored. The control, a `hook_registration` with the same omission, is refused with `409 managed_session_resource_missing`.
 
 Everything below was executed. **Environment:** Linux x86_64 (16 cores), JDK 21.0.10, Maven 3.9.9, Node 22.22.2. **Trees:** merge-base `ac497aee`, head `8b283d1c`, and head merged with `main` `f07c190c` (merge `317feb8c`, clean, no conflicts).
 

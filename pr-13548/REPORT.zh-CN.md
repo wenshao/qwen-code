@@ -1,10 +1,30 @@
 ## 维护者验证：QwenLM/qwen-code#13548 @ `8b283d1c`（H5a Channel 记录契约）
 
-**结论：两个语言的验证器判定完全一致，本切片如描述所说处于惰性状态。把分支更新到 `main` 后即可合入；但建议先处理 F1（或明确记录给 H5c），因为正是本 PR 冻结了这份语料。**
+**结论：合入前再修一轮。** 两个语言的验证器判定完全一致，本切片也如描述所说处于惰性状态。两个 domain 都仍禁用，所以下面各项今天都没有运行时影响。但契约与 store 支持正是由本 PR 冻结的，在这里补上成本最低：
+- [05:36Z 评审](https://github.com/QwenLM/qwen-code/pull/13548#pullrequestreview-5438083905)的两条 P2，我已用执行复现（§0）；
+- F1，同类的第三个缺口。
 
+补完之后把分支更新到 `main`，我就会合入。
+
+- **R1-1、R1-2（05:36Z 评审）均已复现。**
+  - R1-1：Java store 会为一个引用资源都没存的 channel 记录建立索引。
+  - R1-2：真实 TS authority 会提交稀疏计划，之后却无法重新打开它自己写出的 Session。
 - **F1（契约缺口，Suggestion）。** "`unknown` 的交付绝不回到 `sending`"只在直接一步上生效。已提交的语料自身就接受"无新回执的 `unknown → partial`"再接 `partial → sending`；真实 TS Session authority 与真实 Java Session store 都会提交这条链（§3）。
 - **F2（语料强度，非阻塞）。** 有 12 条规则两种语言实现一致，却没有任何 fixture 钉住；另有 2 个 fixture 实际被拒的规则与其名字所指的不同（§4）。
 - **CI。** 本 head 上两条运行 `managed-agent-server` 的车道都被取消。原因是基线过旧，与本 diff 无关：一个在 PR 基线上坏掉、已由 `main` 上的 #13551 修复的测试，会打出一条 1.3 MB 的日志行，把 runner 拖到 job 时限。head 合入 `main` 后本地全绿：1248 个模块测试，0 失败（§5）。
+
+### 0. 05:36Z 评审的复现
+
+- **[R1-2](https://github.com/QwenLM/qwen-code/pull/13548#discussion_r4203448106)，稀疏分段。** 我把一个下标 1 处为空洞的两槽计划送进真实 TS Session authority（按 PR 套件的方式 mock 掉启用检查）。
+  - 计划被接受，并作为 revision 1 提交；日志里写的是 `[seg-1, null]`。
+  - 重新打开这份日志时失败：`ManagedSessionRecordError: Channel record must have exactly the keys segmentId, ordinal, contentRef, receipt.`
+  - 所以这比"往返失败"更严重：authority 提交了一条连它自己的读取器都拒绝的记录，导致该 Session 无法重新打开。
+  - 我在 §2 做的字节级差分表达不了空洞，因为 JSON 里没有空洞，只有进程内探针才能看到这个问题。
+- **[R1-1](https://github.com/QwenLM/qwen-code/pull/13548#discussion_r4203448098)，资源闭包。** 我经真实 Java Session store（Spring + H2）提交了两条记录，所引用的资源一个都没有发送：
+  - 一条 route，其 `policyRef` 资源缺失；
+  - 一条 delivery，其 `contentRef` 和两个分段的 `contentRef` 都缺失。
+
+  两条都被接受并建立了索引，引用资源实际存储分别为 0/1 和 0/3。作为对照，同样缺资源的 `hook_registration` 被 `409 managed_session_resource_missing` 拒绝。
 
 以下全部为实际执行结果。**环境：** Linux x86_64（16 核）、JDK 21.0.10、Maven 3.9.9、Node 22.22.2。**三棵树：** merge-base `ac497aee`、head `8b283d1c`、head 合入 `main` `f07c190c`（合并提交 `317feb8c`，干净，无冲突）。
 
