@@ -1,0 +1,145 @@
+diff --git a/packages/cli/src/serve/hosted-child-agent-session.test.ts b/packages/cli/src/serve/hosted-child-agent-session.test.ts
+index d2a20891d7..3f49d673f7 100644
+--- a/packages/cli/src/serve/hosted-child-agent-session.test.ts
++++ b/packages/cli/src/serve/hosted-child-agent-session.test.ts
+@@ -13,6 +13,7 @@ import { LocalManagedSessionAuthority } from '@qwen-code/qwen-code-core/managed-
+ import { LocalManagedSessionResourceStore } from '@qwen-code/qwen-code-core/managed-runtime/managed-session-resources.js';
+ import { managedExtensionRecordKey } from '@qwen-code/qwen-code-core/managed-runtime/managed-extension-projection.js';
+ import {
++  CHILD_NOTIFICATION_BUDGET,
+   CHILD_NOTIFICATION_INLINE_LIMIT,
+   childResultNotificationText,
+   HostedChildAgentSession,
+@@ -143,6 +144,10 @@ async function settleThroughAttach(
+   await children.attach('run-1', 'session-child');
+ }
+ 
++/** The bytes buildResultNotification publishes for a notification. */
++const publishedBytes = (notification: string): number =>
++  Buffer.byteLength(JSON.stringify({ text: notification }), 'utf8');
++
+ describe('childResultNotificationText', () => {
+   it('round-trips a result far below the inline cap untouched', () => {
+     const notification = childResultNotificationText({
+@@ -167,8 +172,9 @@ describe('childResultNotificationText', () => {
+       description: 'audit',
+       text: '<'.repeat(20 * 1024),
+     });
+-    expect(Buffer.byteLength(notification, 'utf8')).toBeLessThanOrEqual(
+-      CHILD_NOTIFICATION_INLINE_LIMIT,
++    // The budget binds the published input body, not the bare text.
++    expect(publishedBytes(notification)).toBeLessThanOrEqual(
++      CHILD_NOTIFICATION_BUDGET,
+     );
+     expect(notification).toContain('&lt;');
+     expect(notification).toContain('truncated: the full result is on the');
+@@ -176,6 +182,40 @@ describe('childResultNotificationText', () => {
+   });
+ });
+ 
++describe('childResultNotificationText published bytes', () => {
++  it.each([
++    ['newline-heavy markup', '<div class="row">x</div>\n'.repeat(2_000)],
++    ['backslashes before markup', '\\'.repeat(20_000) + '<'.repeat(20_000)],
++    // Fits the input cap untruncated on its own, but the wake turn's user
++    // message adds an envelope that crosses it and wedges the parent.
++    ['just-under-the-cap', '<'.repeat(16_290)],
++  ])('keeps the %s notification body within the budget', (_, text) => {
++    const notification = childResultNotificationText({
++      taskId: TASK_ID,
++      description: 'audit',
++      text,
++    });
++    expect(notification).toContain('truncated: the full result is on the');
++    expect(publishedBytes(notification)).toBeLessThanOrEqual(
++      CHILD_NOTIFICATION_BUDGET,
++    );
++    expect(CHILD_NOTIFICATION_BUDGET).toBeLessThan(
++      CHILD_NOTIFICATION_INLINE_LIMIT,
++    );
++  });
++
++  it('keeps the line structure of a multi-line result', () => {
++    const notification = childResultNotificationText({
++      taskId: TASK_ID,
++      description: 'list',
++      text: 'first line\nsecond line\r\n- item A\x1b[31m\n- item B',
++    });
++    expect(notification).toContain(
++      '<result>first line\nsecond line\n- item A[31m\n- item B</result>',
++    );
++  });
++});
++
+ describe('hosted child agent session (H4b)', () => {
+   it('chains the sent arm into a wake-carrying acceptance', async () => {
+     const harness = await createHarness();
+diff --git a/packages/cli/src/serve/hosted-child-agent-session.ts b/packages/cli/src/serve/hosted-child-agent-session.ts
+index 38aa69fa56..79c8f62de2 100644
+--- a/packages/cli/src/serve/hosted-child-agent-session.ts
++++ b/packages/cli/src/serve/hosted-child-agent-session.ts
+@@ -135,6 +135,22 @@ export function childLaunchAdmission(params: {
+ /** The inline byte cap of a bundled notification input. */
+ export const CHILD_NOTIFICATION_INLINE_LIMIT = 64 * 1024;
+ 
++/** The published-bytes budget of a notification. The input is published
++ * as `JSON.stringify({ text })`, and the wake turn then persists the same
++ * text again as its user message, inside an envelope (ids, cwd, version)
++ * under the same inline cap: bound well below the cap, not at it. */
++export const CHILD_NOTIFICATION_BUDGET = 48 * 1024;
++
++/** The bytes buildResultNotification publishes for a notification. */
++function childNotificationInputBytes(text: string): number {
++  return Buffer.byteLength(JSON.stringify({ text }), 'utf8');
++}
++
++/** Display controls go; the result's own line structure stays. */
++function stripResultControlChars(text: string): string {
++  return text.split('\n').map(stripDisplayControlChars).join('\n');
++}
++
+ const TRUNCATION_MARKER =
+   '\n… (truncated: the full result is on the acceptance record, H4b decision 5)';
+ 
+@@ -156,26 +172,25 @@ export function childResultNotificationText(params: {
+     '<result>',
+   ].join('\n');
+   const tail = '</result>\n</task-notification>';
+-  const escaped = escapeXml(stripDisplayControlChars(params.text));
++  const escaped = escapeXml(stripResultControlChars(params.text));
+   // Design 5 names the notification the summary, not the full bytes: an
+   // XML-hostile result that only dwells below 64 KiB must still fit the
+   // inline cap of the acceptance transaction's bundled input.
+   if (
+-    Buffer.byteLength(head + escaped + tail, 'utf8') <=
+-    CHILD_NOTIFICATION_INLINE_LIMIT
++    childNotificationInputBytes(head + escaped + tail) <=
++    CHILD_NOTIFICATION_BUDGET
+   ) {
+     return head + escaped + tail;
+   }
+   const fits = (chars: number): boolean =>
+-    Buffer.byteLength(
++    childNotificationInputBytes(
+       head +
+         escapeXml(
+-          stripDisplayControlChars(params.text.slice(0, chars)) +
++          stripResultControlChars(params.text.slice(0, chars)) +
+             TRUNCATION_MARKER,
+         ) +
+         tail,
+-      'utf8',
+-    ) <= CHILD_NOTIFICATION_INLINE_LIMIT;
++    ) <= CHILD_NOTIFICATION_BUDGET;
+   let low = 0;
+   let high = params.text.length;
+   while (low < high) {
+@@ -186,7 +201,7 @@ export function childResultNotificationText(params: {
+   return (
+     head +
+     escapeXml(
+-      stripDisplayControlChars(params.text.slice(0, low)) + TRUNCATION_MARKER,
++      stripResultControlChars(params.text.slice(0, low)) + TRUNCATION_MARKER,
+     ) +
+     tail
+   );

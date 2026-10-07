@@ -48,6 +48,26 @@ const server = await startFakeOpenAIServer(
     let reply: FakeOpenAIResponse = { content: 'UNSCRIPTED' };
     if (parent) {
       const [, mode, id, spec] = parent;
+      const calledAgent = messages.some(
+        (m) => m.role === 'assistant' && Array.isArray(m.tool_calls) &&
+          (m.tool_calls as Array<{ function?: { name?: string } }>).some((c) => c.function?.name === 'agent'),
+      );
+      const fgArgs = {
+        description: `child task ${id}`,
+        prompt: `CHILD::${spec}::${id} Compute the answer and reply with one line.`,
+        run_in_background: false,
+      };
+      if (mode === 'pre' && last?.role === 'tool' && !calledAgent) {
+        // Second batch: the agent call after an earlier non-agent batch.
+        return logAnd({ toolCalls: [fakeToolCall('agent', fgArgs, `call_${id}_agent`)] }, 'parent-pre-agent');
+      }
+      if ((mode === 'pre' || mode === 'mixed') && last?.role !== 'tool' && lastUser.includes('PARENT::')) {
+        const shell = fakeToolCall('run_shell_command', { command: `echo parent-${id} > parent-${id}.txt; ls` }, `call_${id}_shell`);
+        return logAnd(
+          { toolCalls: mode === 'pre' ? [shell] : [shell, fakeToolCall('agent', fgArgs, `call_${id}_agent`)] },
+          `parent-${mode}-first`,
+        );
+      }
       if (last?.role === 'tool') {
         role = 'parent-after-tool';
         reply = { content: `PARENT_FINAL::${id}|saw=${text(last.content).slice(0, 240)}` };
@@ -120,6 +140,13 @@ const server = await startFakeOpenAIServer(
       } else if (/^fill\d+c\d+$/.test(spec)) {
         const [, n, c] = /^fill(\d+)c(\d+)$/.exec(spec)!;
         reply = { content: `CHILD_RESULT::${id}::` + String.fromCharCode(Number(c)).repeat(Number(n)) };
+      } else if (/^mix\d+c\d+x\d+c\d+$/.test(spec)) {
+        const [, n, c, m2, d] = /^mix(\d+)c(\d+)x(\d+)c(\d+)$/.exec(spec)!;
+        reply = {
+          content: `CHILD_RESULT::${id}::` + String.fromCharCode(Number(c)).repeat(Number(n)) + String.fromCharCode(Number(d)).repeat(Number(m2)),
+        };
+      } else if (spec === 'lines') {
+        reply = { content: `CHILD_RESULT::${id}::first line\nsecond line\n- item A\n- item B` };
       } else if (spec === 'mid') {
         reply = { content: `CHILD_RESULT::${id}::` + 'y'.repeat(100 * 1024) };
       } else if (spec === 'big') {

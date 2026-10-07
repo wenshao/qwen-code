@@ -115,7 +115,7 @@ if (cmd === 'init') {
   const st = {
     arm, db, wt, dir,
     cli: process.env.CLI ?? path.join(wt, 'dist', 'cli.js'),
-    jar: path.join(wt, 'packages/sdk-java/managed-agent-server/target/qwen-managed-agent-server-0.1.0-alpha.jar'),
+    jar: process.env.JAR ?? path.join(wt, 'packages/sdk-java/managed-agent-server/target/qwen-managed-agent-server-0.1.0-alpha.jar'),
     springPort: Number(a3), harnessPort: Number(a4), brokerPort: Number(a5),
     workspace: path.join(dir, 'workspace'), mount: path.join(dir, 'workspace-mount'),
     runtimeHome: path.join(dir, 'runtime-home'), harnessHome: path.join(dir, 'harness-home'),
