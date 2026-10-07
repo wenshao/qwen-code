@@ -1,0 +1,56 @@
+# VERIFICATION RIG ONLY (PR #13536): mutants of the H6a validators. Each: id, lang, old, new.
+# TS mutants apply to packages/core/src/managed-runtime/managed-automation-record.ts (and, for the
+# differential, to the tsc output dist/src/managed-runtime/managed-automation-record.js — same text
+# once types are gone; ts-only snippets carry a separate js form).
+TS = [
+ ('T1-webhook-allowed', "  if (kind === 'webhook') {\n    fail(\n      'AutomationRun webhook occurrences are reserved until their slice lands.',\n    );\n  }", "  if (kind === 'webhook') {\n    return key;\n  }"),
+ ('T2-slot-no-canonical', "      parsed === null ||\n      parsed.toISOString() !== `${valuePart.slice(0, 19)}.000Z`", "      parsed === null"),
+ ('T3-delivery-gate-off', "    run.delivery !== null &&\n    run.delivery.state !== 'planned' &&\n    !TERMINAL_RUN_STATES.includes(run.state)", "    false"),
+ ('T4-revision-skip', "      after.definitionRevision !== before.definitionRevision + 1", "      after.definitionRevision <= before.definitionRevision"),
+ ('T5-no-terminal-freeze', "    if (TERMINAL_RUN_STATES.includes(before.run.state)) {\n      return same({ ...before, run: null }, { ...after, run: null });\n    }", ""),
+ ('T6-range-equal-ok', "      if (from >= to) {", "      if (from > to) {"),
+ ('T7-no-step-max', "      if (step < 1 || step > max) {", "      if (step < 1) {"),
+ ('T8-dom-min-0', "{ name: 'day-of-month', min: 1, max: 31 }", "{ name: 'day-of-month', min: 0, max: 31 }"),
+ ('T9-month-max-13', "{ name: 'month', min: 1, max: 12 }", "{ name: 'month', min: 1, max: 13 }"),
+ ('T10-dow-max-6', "{ name: 'day-of-week', min: 0, max: 7 }", "{ name: 'day-of-week', min: 0, max: 6 }"),
+ ('T11-tz-4-segments', "(\\/[A-Za-z0-9_+-]{1,64}){0,2}$/", "(\\/[A-Za-z0-9_+-]{1,64}){0,3}$/"),
+ ('T12-schedule-runtime-ok', "    run.runtime !== null ||\n    run.delivery !== null\n  ) {\n    fail(`${label} run must stay", "    run.delivery !== null\n  ) {\n    fail(`${label} run must stay"),
+ ('T13-schedule-delivery-ok', "    run.runtime !== null ||\n    run.delivery !== null\n  ) {\n    fail(`${label} run must stay", "    run.runtime !== null\n  ) {\n    fail(`${label} run must stay"),
+ ('T14-schedule-effect-ok', "    run.executionCallId !== null ||\n    run.effectId !== null ||\n    run.dispatchId !== null ||", "    run.executionCallId !== null ||\n    run.dispatchId !== null ||"),
+ ('T15-schedule-dispatch-ok', "    run.effectId !== null ||\n    run.dispatchId !== null ||\n    run.deliveryId !== null ||", "    run.effectId !== null ||\n    run.deliveryId !== null ||"),
+ ('T16-schedule-deliveryId-ok', "    run.dispatchId !== null ||\n    run.deliveryId !== null ||\n    run.definition !== null ||", "    run.dispatchId !== null ||\n    run.definition !== null ||"),
+ ('T17-run-scheduleId-mutable', "const AUTOMATION_RUN_FIXED_KEYS = [\n  'automationRunId',\n  'definitionRevision',\n  'kind',\n  'occurrenceKey',\n  'scheduleId',", "const AUTOMATION_RUN_FIXED_KEYS = [\n  'automationRunId',\n  'definitionRevision',\n  'kind',\n  'occurrenceKey',"),
+ ('T18-manual-no-id-check', "  if (kind === 'manual') {\n    id(valuePart, 'occurrenceKey commandId');", "  if (kind === 'manual') {"),
+ ('T19-run-target-unpaired', "  targetSession(sessionMode, targetSessionId, 'AutomationRun');", ""),
+ ('T20-catchup-limit-min-0', "    count(each, 'catchUpLimit', 1),", "    count(each, 'catchUpLimit', 0),"),
+ ('T21-schedule-run-succ-off', "      !isExtensionRunSuccessor(before.run, after.run) ||\n      after.definitionRevision", "      after.definitionRevision"),
+ ('T22-schedule-owner-mutable', "const SCHEDULE_FIXED_KEYS = ['kind', 'ownerScopeId', 'scheduleId'] as const;", "const SCHEDULE_FIXED_KEYS = ['kind', 'scheduleId'] as const;"),
+ ('T23-tz-shape-off', "  if (!TIMEZONE.test(name)) {", "  if (false) {"),
+ ('T24-cron-digits-2', "const CRON_DIGITS = /^[0-9]{1,10}$/;", "const CRON_DIGITS = /^[0-9]{1,2}$/;"),
+ ('T25-run-start-ignores-run', "    const record = parseAutomationRunRecord(value);\n    return isExtensionRunStart(record.run);", "    parseAutomationRunRecord(value);\n    return true;"),
+ ('T26-run-definition-ok', "    run.dispatchId === null ||\n    run.definition !== null\n  ) {", "    run.dispatchId === null\n  ) {"),
+]
+JAVA = [
+ ('J1-webhook-allowed', 'require(!"webhook".equals(kind),', 'require(true || !"webhook".equals(kind),'),
+ ('J2-slot-no-canonical', '            return java.time.Instant.parse(value).toString().equals(value);', '            java.time.Instant.parse(value); return true;'),
+ ('J3-delivery-gate-off', '        require(delivery.isNull()\n                || "planned".equals(delivery.get("state").textValue())', '        require(true || delivery.isNull()\n                || "planned".equals(delivery.get("state").textValue())'),
+ ('J4-revision-skip', '                || next.get("definitionRevision").asLong()\n                        != previous.get("definitionRevision").asLong() + 1) {', '                || next.get("definitionRevision").asLong()\n                        <= previous.get("definitionRevision").asLong()) {'),
+ ('J5-no-terminal-freeze', '        if (TERMINAL.contains(text(previous.get("run"), "state"))) {\n            return same(without(previous, "run"), without(next, "run"));\n        }', ''),
+ ('J6-range-equal-ok', '                require(from < to,', '                require(from <= to,'),
+ ('J7-no-step-max', '                require(step >= 1 && step <= max, "cron "', '                require(step >= 1, "cron "'),
+ ('J8-dom-min-0', 'new int[]{1, 31},', 'new int[]{0, 31},'),
+ ('J9-month-max-13', 'new int[]{1, 12}, new int[]{0, 7});', 'new int[]{1, 13}, new int[]{0, 7});'),
+ ('J10-dow-max-6', 'new int[]{1, 12}, new int[]{0, 7});', 'new int[]{1, 12}, new int[]{0, 6});'),
+ ('J11-tz-4-segments', '"[A-Za-z][A-Za-z0-9_+\\\\-]{0,63}(/[A-Za-z0-9_+\\\\-]{1,64}){0,2}"', '"[A-Za-z][A-Za-z0-9_+\\\\-]{0,63}(/[A-Za-z0-9_+\\\\-]{1,64}){0,3}"'),
+ ('J12-schedule-runtime-ok', '                && run.get("runtime").isNull()\n                && run.get("delivery").isNull(),', '                && run.get("delivery").isNull(),'),
+ ('J17-run-scheduleId-mutable', '"automationRunId", "scheduleId", "definitionRevision",\n            "occurrenceKey", "sessionMode", "targetSessionId");\n\n    private ManagedExtensionRecords', '"automationRunId", "definitionRevision",\n            "occurrenceKey", "sessionMode", "targetSessionId");\n\n    private ManagedExtensionRecords'),
+ ('J18-manual-no-id-check', '            id(com.fasterxml.jackson.databind.node.TextNode\n                    .valueOf(valuePart),\n                    "automationRun.occurrenceKey commandId");', ''),
+ ('J22-schedule-owner-mutable', 'private static final List<String> SCHEDULE_FIXED = List.of("kind",\n            "scheduleId", "ownerScopeId");', 'private static final List<String> SCHEDULE_FIXED = List.of("kind",\n            "scheduleId");'),
+ ('J27-surrogate-charge-off', '                + 2L * loneSurrogates <= MAX_TEXT_BYTES,', '                + 0L * loneSurrogates <= MAX_TEXT_BYTES,'),
+]
+JAVA += [
+ ('J13-schedule-delivery-ok', '                && run.get("runtime").isNull()\n                && run.get("delivery").isNull(),\n                label + " run must stay', '                && run.get("runtime").isNull(),\n                label + " run must stay'),
+ ('J14-schedule-effect-ok', '        requireRun(run);\n        require(run.get("executionCallId").isNull()\n                && run.get("effectId").isNull()\n                && run.get("dispatchId").isNull()\n                && run.get("deliveryId").isNull()\n                && run.get("definition").isNull()', '        requireRun(run);\n        require(run.get("executionCallId").isNull()\n                && run.get("dispatchId").isNull()\n                && run.get("deliveryId").isNull()\n                && run.get("definition").isNull()'),
+ ('J15-schedule-dispatch-ok', '        requireRun(run);\n        require(run.get("executionCallId").isNull()\n                && run.get("effectId").isNull()\n                && run.get("dispatchId").isNull()\n                && run.get("deliveryId").isNull()\n                && run.get("definition").isNull()', '        requireRun(run);\n        require(run.get("executionCallId").isNull()\n                && run.get("effectId").isNull()\n                && run.get("deliveryId").isNull()\n                && run.get("definition").isNull()'),
+ ('J21-schedule-run-succ-off', '        if (!isRunSuccessor(previous.get("run"), next.get("run"))\n                || next.get("definitionRevision").asLong()', '        if (next.get("definitionRevision").asLong()'),
+]

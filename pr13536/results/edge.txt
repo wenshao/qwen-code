@@ -1,0 +1,41 @@
+cron 5-5 * * * *                           | TS refuse: cron minute field ranges must not wrap.                    | JV refuse: cron minute field ranges must not wrap.
+cron 0 0 31 2 *                            | TS ACCEPT                                                             | JV ACCEPT
+cron 0 0 30 2 *                            | TS ACCEPT                                                             | JV ACCEPT
+cron 0 0 31 4 *                            | TS ACCEPT                                                             | JV ACCEPT
+cron * * * * 7                             | TS ACCEPT                                                             | JV ACCEPT
+cron 0 0 * * 0-7                           | TS ACCEPT                                                             | JV ACCEPT
+cron 0 0 * * 7-7                           | TS refuse: cron day-of-week field ranges must not wrap.               | JV refuse: cron day-of-week field ranges must not wrap.
+cron 00 09 * * 01-05                       | TS ACCEPT                                                             | JV ACCEPT
+cron 0000000005 * * * *                    | TS ACCEPT                                                             | JV ACCEPT
+cron 1-59/59 * * * *                       | TS ACCEPT                                                             | JV ACCEPT
+cron */59 * * * *                          | TS ACCEPT                                                             | JV ACCEPT
+cron 0 */23 * * *                          | TS ACCEPT                                                             | JV ACCEPT
+cron 0 0 */31 * *                          | TS ACCEPT                                                             | JV ACCEPT
+cron 0 0 1 */12 *                          | TS ACCEPT                                                             | JV ACCEPT
+cron 0 0 * * */7                           | TS ACCEPT                                                             | JV ACCEPT
+cron 1,1 * * * *                           | TS ACCEPT                                                             | JV ACCEPT
+cron 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 | TS ACCEPT                                                             | JV ACCEPT
+tz a                                       | TS ACCEPT                                                             | JV ACCEPT
+tz Z                                       | TS ACCEPT                                                             | JV ACCEPT
+tz UTC                                     | TS ACCEPT                                                             | JV ACCEPT
+tz EST5EDT                                 | TS ACCEPT                                                             | JV ACCEPT
+tz Etc/GMT+14                              | TS ACCEPT                                                             | JV ACCEPT
+tz Etc/GMT+99                              | TS ACCEPT                                                             | JV ACCEPT
+tz A/B/C                                   | TS ACCEPT                                                             | JV ACCEPT
+tz Foo_Bar/Baz-9+1                         | TS ACCEPT                                                             | JV ACCEPT
+tz xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx          | TS ACCEPT                                                             | JV ACCEPT
+tz xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx          | TS ACCEPT                                                             | JV ACCEPT
+goal 4097B+ctrl                            | TS refuse: goal exceeds 4096 UTF-8 bytes.                             | JV refuse: schedule.goal must not contain control characters.
+goal 4096B                                 | TS ACCEPT                                                             | JV ACCEPT
+goal ctrl                                  | TS refuse: goal must not contain control characters.                  | JV refuse: schedule.goal must not contain control characters.
+goal U+2028                                | TS ACCEPT                                                             | JV ACCEPT
+okey schedule:0000-01-01T00:00:00Z         | TS ACCEPT                                                             | JV ACCEPT
+okey schedule:9999-12-31T23:59:59Z         | TS ACCEPT                                                             | JV ACCEPT
+okey schedule:2016-12-31T23:59:60Z         | TS refuse: AutomationRun occurrenceKey slot must be a canonical UTC i | JV refuse: automationRun.occurrenceKey slot must be a canonical UTC i
+okey schedule:2026-01-01T24:00:00Z         | TS refuse: AutomationRun occurrenceKey slot must be a canonical UTC i | JV refuse: automationRun.occurrenceKey slot must be a canonical UTC i
+okey schedule:1900-02-29T00:00:00Z         | TS refuse: AutomationRun occurrenceKey slot must be a canonical UTC i | JV refuse: automationRun.occurrenceKey slot must be a canonical UTC i
+okey manual:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx  | TS ACCEPT                                                             | JV ACCEPT
+okey manual:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx  | TS refuse: occurrenceKey commandId exceeds 512 UTF-8 bytes.           | JV refuse: automationRun.occurrenceKey commandId exceeds 512 UTF-8 by
+okey manual:a:b                            | TS ACCEPT                                                             | JV ACCEPT
+okey manual:café                           | TS ACCEPT                                                             | JV ACCEPT
+okey webhook:x                             | TS refuse: AutomationRun webhook occurrences are reserved until their | JV refuse: automationRun webhook occurrences are reserved until their
