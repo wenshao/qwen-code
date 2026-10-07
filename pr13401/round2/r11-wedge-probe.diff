@@ -1,0 +1,27 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerRenewalPinningTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerRenewalPinningTest.java
+index 19e1ad91c3..028129ad89 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerRenewalPinningTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerRenewalPinningTest.java
+@@ -141,6 +141,22 @@ class BrokerRenewalPinningTest {
+             }
+         }
+ 
++        // R1-1 probe: the first three callers wedge before the guarded write.
++        private final AtomicInteger wedgeBudget = new AtomicInteger(3);
++        private final CountDownLatch never = new CountDownLatch(1);
++
++        @Override
++        public RuntimeBindingRecord findOrCreate(RuntimeProvisionRequest request) {
++            if (wedgeBudget.getAndDecrement() > 0) {
++                try {
++                    never.await();
++                } catch (InterruptedException interrupted) {
++                    Thread.currentThread().interrupt();
++                }
++            }
++            return delegate.findOrCreate(request);
++        }
++
+         @Override
+         public RuntimeBindingRecord compareAndSet(
+                 RuntimeBindingRecord expected,
