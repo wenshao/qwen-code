@@ -45,14 +45,14 @@ const grab = (db, f, re) => {
 
 const figs = {};
 figs['r6-01-reach'] = page(
-  'Round 6 (0d6a6307): which of the four containment fixes the real stack can reach',
+  'Round 6 (0d6a6307): the containment fixes through the Harness, for the spellings probed here',
   'Hosted Harness → Spring Broker → local-process Runtime worker, files/2 Sessions. A/B: the same probe on 0ce55064 (round 5, DB g16) and 0d6a6307 (DB g17). Host paths are shown as &lt;HOST&gt;.',
   '<h2>The sibling-ownership arms (R9-1, R11-1, R11-3) need two Sessions in one Runtime worker</h2>' +
     pre(log('g17w', 'isolation-refusal.log').filter(Boolean).map(esc)) +
     '<h2>R10-1: write/edit never reach build() through the Harness; read_file builds do not fail here</h2>' +
     pre([tag('0ce55064', 'y'), ...pick('g16', 's25-build-errors-head5.log', /^\[(wDir|wLinkDir|rootWDir|gBackslash|gSpace)\]/, 5, 190), tag('0d6a6307', 'y'), ...pick('g17', 's25-build-errors-head6.log', /^\[(wDir|wLinkDir|rootWDir|gBackslash|gSpace)\]/, 5, 190)]) +
     pre([tag('S26: targets beyond the Session through peek → ../web — 0ce55064', 'y'), ...pick('g16', 's26-outside-build-head5.log', /^\[(gMissing|gFile|gDir)\]/, 3, 190), tag('0d6a6307', 'y'), ...pick('g17', 's26-outside-build-head6.log', /^\[(gMissing|gFile|gDir)\]/, 3, 190)]) +
-    '<div class="note info">Same answers on both heads. R11-2 needs a backslash in glob <code>path</code>, which the Harness refuses before acquisition (prepared=0). These fixes are defence in depth for a co-installed worker or a direct worker caller; the unit tests are their only witness.</div>',
+    '<div class="note info">Same answers on both heads. R11-2 needs a backslash in glob <code>path</code>, which the Harness refuses before acquisition (prepared=0). None of these spellings shows a difference. The Linux round-6 report found a Harness path that does: read_file of a .ipynb behind an outward link with an offset, whose retry hint quoted the host path before R10-1. The sibling-ownership arms still need a co-installed worker.</div>',
 );
 figs['r6-02-hostpath'] = page(
   'Pre-existing, not introduced here: read_file errors carry the Runtime host path into durable records',

@@ -6,7 +6,7 @@ Lockfile unchanged since round 5; bundle and jar (migrations to V45) rebuilt fro
 
 | File | What |
 | --- | --- |
-| `r6-01-reach.png` | Which round-6 fixes the Harness path can reach: Spring refuses `isolation-class=workspace` with Workspace mounts (`logs/g17w`), one worker per Session (`logs/g17/worker-launches.log`), S25/S26 A/B 0ce55064 (`logs/g16`) vs 0d6a6307 (`logs/g17`) |
+| `r6-01-reach.png` | The round-6 fixes through the Harness for the spellings probed here (the Linux round-6 report, issuecomment-6016671130, found a read_file .ipynb + offset path that reaches R10-1): Spring refuses `isolation-class=workspace` with Workspace mounts (`logs/g17w`), one worker per Session (`logs/g17/worker-launches.log`), S25/S26 A/B 0ce55064 (`logs/g16`) vs 0d6a6307 (`logs/g17`) |
 | `r6-02-hostpath.png` | Pre-existing: `read_file` not-found / directory errors keep the Runtime host path in `runtimeError.message` and the durable records (S25, S25b, S25c, S26) |
 | `r6-03-regression.png` | Regression on 0d6a6307, round-5 deadline/brace checks (S22, S19), mutation ledger (`logs/mutation`), R10b mutant bundle on the stack (`logs/g18`) |
 | `logs/r6-regression.log` | first regression pass (S5 with its original 3 s window, S6 with the pre-merge tool list) |
