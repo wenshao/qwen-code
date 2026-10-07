@@ -1,0 +1,14 @@
+# MUTATION A — revert the file-tool boundary to strict boot-v1
+# managed-runtime-tool-executor.ts:1913  outOfBoundary = true; void workspaceRoot;  (was: workspaceRoot===undefined || escapesSession(relative-to-mount))
+$ npx vitest run src/serve/managed-context-worker.test.ts -t "activation"
+ FAIL  src/serve/managed-context-worker.test.ts > Managed Workspace execution activation > requires activation, writes from a subdirectory, and permanently closes on release
+AssertionError: expected 'error' to be 'success' // Object.is equality
+Expected: "success"
+Received: "error"
+ ❯ src/serve/managed-context-worker.test.ts:2769:7
+    2767|       (await (await post(origin, EXECUTE, readRoot)).json()).result
+    2768|         .executionStatus,
+    2769|     ).toBe('success');
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed | 798 skipped (805)
+# => the tip commit's new "outside Session dir but inside mount -> success" assertion goes RED. Pin is non-vacuous. Reverted.

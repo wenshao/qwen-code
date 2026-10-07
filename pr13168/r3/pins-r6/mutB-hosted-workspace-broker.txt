@@ -1,0 +1,13 @@
+# MUTATION B — drop the Workspace-context result name-allowlist/order gate
+# managed-runtime-provider-protocol.ts:435  `index < next` -> `false`  (accept names outside MANAGED_WORKSPACE_CONTEXT_FILES)
+$ npx vitest run src/serve/hosted-workspace-broker.test.ts -t "tool-session route"
+ FAIL  src/serve/hosted-workspace-broker.test.ts > reads Workspace context on its own tool-session route, through the result parser
+- Expected: Error { "message": "rejected promise" }
++ Received: [ { "name": "../etc/passwd", "text": "host" } ]
+ ❯ src/serve/hosted-workspace-broker.test.ts:682:41
+    681|   files = [{ name: '../etc/passwd', text: 'host' }];
+    682|   await expect(broker.workspaceContext()).rejects.toThrow(
+    683|     'Invalid Workspace context result.',
+ Test Files  1 failed (1)
+      Tests  1 failed | 34 skipped (35)
+# => the tip commit's new "workspaceContext() rejects ../etc/passwd" assertion goes RED. Pin is non-vacuous. Reverted.
