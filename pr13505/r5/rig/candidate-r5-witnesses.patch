@@ -1,0 +1,81 @@
+diff --git a/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json b/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
+index a4a0ad3d54..bcf06d1050 100644
+--- a/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
++++ b/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
+@@ -1258,6 +1258,16 @@
+       "valid": true,
+       "start": true
+     },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-working-dir-drive-later-segment",
++      "patch": {
++        "workingDirectory": "a/C:x"
++      },
++      "valid": true,
++      "start": true
++    },
+     {
+       "template": "child_agent",
+       "domain": "child_run",
+diff --git a/packages/core/src/managed-runtime/managed-session-authority.child-agent.test.ts b/packages/core/src/managed-runtime/managed-session-authority.child-agent.test.ts
+index 849fd21be3..c1601ea4b2 100644
+--- a/packages/core/src/managed-runtime/managed-session-authority.child-agent.test.ts
++++ b/packages/core/src/managed-runtime/managed-session-authority.child-agent.test.ts
+@@ -635,6 +635,28 @@ describe('managed session authority child_agent records', () => {
+     });
+   });
+ 
++  it('admits a nested child agent rooted at another Session', async () => {
++    const harness = await createHarness();
++    const refs = await publishRefs(harness);
++    await withAuthority(harness, async (authority) => {
++      // Only a first-level child is rooted here; a nested child carries the
++      // root of the tree it was spawned in.
++      await authority.commitExtensionRecord(
++        command('run-1:1'),
++        {
++          domain: 'child_run',
++          record: childAgent(
++            refs,
++            {},
++            { depth: 2, rootSessionId: 'session-other' },
++          ),
++        },
++        TRUSTED,
++      );
++      expect(await publishedBodies(harness, 'child_run')).toBe(1);
++    });
++  });
++
+   it('refuses an acceptance without its child run', async () => {
+     const harness = await createHarness();
+     const refs = await publishRefs(harness);
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedExtensionRecordStoreTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedExtensionRecordStoreTest.java
+index 5b78a88f80..b9cf28f1a1 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedExtensionRecordStoreTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedExtensionRecordStoreTest.java
+@@ -422,6 +422,22 @@ class ManagedExtensionRecordStoreTest {
+                         "child_run", foreign, List.of(inputResource), 1_000)));
+     }
+ 
++    @Test
++    void admitsANestedChildAgentRootedAtAnotherSession() throws Exception {
++        CommitResource inputResource = hookResource("input-n", "managed-input",
++                "{}".getBytes(StandardCharsets.UTF_8));
++        String sessionId = UUID.randomUUID().toString();
++        ExtensionRecordJournal journal = journal(sessionId);
++        // Only a first-level child is rooted here; a nested child carries
++        // the root of the tree it was spawned in.
++        ObjectNode nested = childAgent(sessionId, "sent", "admitted",
++                "intent", null, inputResource);
++        nested.put("depth", 2);
++        nested.put("rootSessionId", "session-other");
++        commitDomain(journal, "agent-1", "child_run", nested,
++                List.of(inputResource));
++    }
++
+     @Test
+     void bindsAToolCompletionAcceptanceToItsCompletionCall()
+             throws Exception {
