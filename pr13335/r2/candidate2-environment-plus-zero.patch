@@ -1,0 +1,105 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
+index 2b6ac16d87..6a07109c73 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
+@@ -14,13 +14,13 @@ import java.util.Locale;
+ import java.util.Set;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
++import org.springframework.beans.factory.annotation.Autowired;
+ import org.springframework.boot.context.properties.ConfigurationProperties;
+ import org.springframework.boot.convert.DurationUnit;
+-import org.springframework.context.EnvironmentAware;
+ import org.springframework.core.env.Environment;
+ 
+ @ConfigurationProperties("qwen.managed-agent")
+-public class ManagedAgentProperties implements EnvironmentAware {
++public class ManagedAgentProperties {
+     private static final Logger LOG = LoggerFactory.getLogger(
+             ManagedAgentProperties.class);
+ 
+@@ -90,8 +90,11 @@ public class ManagedAgentProperties implements EnvironmentAware {
+         this.trustedActorHeader = trustedActorHeader;
+     }
+ 
+-    @Override
+-    public void setEnvironment(Environment environment) {
++    // Not a JavaBean setter on purpose: a public setEnvironment would make
++    // qwen.managed-agent.environment a bindable property, and any value
++    // under that key would then refuse the boot.
++    @Autowired
++    void useEnvironment(Environment environment) {
+         this.environment = environment;
+     }
+ 
+@@ -182,17 +185,21 @@ public class ManagedAgentProperties implements EnvironmentAware {
+                     if (written != null) {
+                         // A bare integer is the stale milliseconds-style
+                         // override; a suffixed value never flips units.
++                        // Mirrors DurationStyle.SIMPLE's sign; zero means
++                        // the same in either unit, so it never warns.
+                         String text = written.trim();
+-                        if (text.matches("-?\\d+")) {
++                        if (text.matches("[+-]?\\d+")
++                                && Long.parseLong(text) != 0) {
++                            long number = Long.parseLong(text);
+                             LOG.warn("{}={} binds as {} (seconds); before"
+                                     + " the @DurationUnit sweep the same"
+                                     + " suffix-less value bound as"
+-                                    + " milliseconds ({}). Write an"
+-                                    + " explicit suffix (for example"
+-                                    + " 1800000ms or 30m) to confirm"
+-                                    + " the intent.",
++                                    + " milliseconds ({}). Write {}ms to"
++                                    + " keep that meaning, or {}s to"
++                                    + " confirm the new one.",
+                                     property, text, boundValue,
+-                                    Duration.ofMillis(Long.parseLong(text)));
++                                    Duration.ofMillis(number), number,
++                                    number);
+                         }
+                     } else if (environment == null && basisDefault != null
+                             && boundValue.compareTo(
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+index e5d54cdc5f..ce356b219e 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+@@ -296,6 +296,38 @@ class ManagedAgentPropertiesTest {
+                 });
+     }
+ 
++    @Test
++    @ExtendWith(OutputCaptureExtension.class)
++    void theWrittenShapeSweepMatchesTheBinderAndLeavesOtherKeysAlone(
++            CapturedOutput output) {
++        // The binder accepts a leading '+', so the sweep must too.
++        new ApplicationContextRunner()
++                .withPropertyValues(
++                        "qwen.managed-agent.harness.turn-deadline=+600000")
++                .withUserConfiguration(PropertiesConfiguration.class)
++                .run(started -> {
++                    assertThat(started).hasNotFailed();
++                    assertThat(output).contains(
++                            "qwen.managed-agent.harness.turn-deadline=+600000");
++                });
++        // A bare 0 meant the same before and after the unit flip.
++        new ApplicationContextRunner()
++                .withPropertyValues(
++                        "qwen.managed-agent.artifacts.read-revalidation-interval=0")
++                .withUserConfiguration(PropertiesConfiguration.class)
++                .run(started -> {
++                    assertThat(started).hasNotFailed();
++                    assertThat(output).doesNotContain(
++                            "qwen.managed-agent.artifacts.read-revalidation-interval");
++                });
++        // Reading the Environment must not turn an unrelated key under the
++        // prefix into a bindable property that refuses the boot.
++        new ApplicationContextRunner()
++                .withPropertyValues("qwen.managed-agent.environment=prod")
++                .withUserConfiguration(PropertiesConfiguration.class)
++                .run(started -> assertThat(started).hasNotFailed());
++    }
++
+     @Test
+     @ExtendWith(OutputCaptureExtension.class)
+     void aZeroOverrideStaysOutsideTheSweep(CapturedOutput output) {
