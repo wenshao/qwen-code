@@ -1,0 +1,38 @@
+# p1-central-r6head-v2-b db=r6 arm=r6head 2026-10-07T05:15:47.720Z
+[create] hosted-workspace-files/2 -> 200 
+[T1 tool] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1027ms
+[T1 tool req#0] round=0 tools=["read_file","write_file","edit","glob"] markers=[] hostPathInSystem=false
+[T1 tool req#1] round=1 tools=["read_file","write_file","edit","glob"] markers=["R2-QWEN-MARKER","R2-AGENTS-MARKER"] hostPathInSystem=false
+[T1 tool broker] POST /runtimes:warm -> 200 | POST /tool-sessions:acquire -> 200 | POST /tool-sessions/<id>/control{raw-file-history} -> 200 | POST /tool-sessions/<id>/control{workspace-context} -> 200 | POST /executions:prepare -> 200 | POST /executions/63d76c81-6f10-4e3f-bed6-a06d530feca5:start -> 200 | GET /executions/63d76c81-6f10-4e3f-bed6-a06d530feca5 -> 200 | GET /executions/63d76c81-6f10-4e3f-bed6-a06d530feca5 -> 200 | POST /tool-sessions/<id>:release -> 200
+[T2 plain] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 245ms
+[T2 plain req#0] round=0 tools=["read_file","write_file","edit","glob"] markers=["R2-QWEN-MARKER","R2-AGENTS-MARKER"] hostPathInSystem=false
+[T2 plain broker] POST /runtimes:warm -> 200
+[T3 tool] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 598ms
+[T3 tool req#0] round=0 tools=["read_file","write_file","edit","glob"] markers=["R2-QWEN-MARKER","R2-AGENTS-MARKER"] hostPathInSystem=false
+[T3 tool req#1] round=1 tools=["read_file","write_file","edit","glob"] markers=["R2-QWEN-MARKER","R2-AGENTS-MARKER"] hostPathInSystem=false
+[T3 tool broker] POST /runtimes:warm -> 200 | POST /tool-sessions:acquire -> 200 | POST /tool-sessions/<id>/control{raw-file-history} -> 200 | POST /executions:prepare -> 200 | POST /executions/ef06fe9a-95d5-4cc3-8a3d-aa83ca6592db:start -> 200 | GET /executions/ef06fe9a-95d5-4cc3-8a3d-aa83ca6592db -> 200 | GET /executions/ef06fe9a-95d5-4cc3-8a3d-aa83ca6592db -> 200 | POST /tool-sessions/<id>:release -> 200
+[qwen_tool_execution rows] before=24 after=26 (model tool calls in A: 2)
+[assembled section (A, last request)] "--- Context from: QWEN.md ---\nR2-QWEN-MARKER: project rule from services/api/QWEN.md\n--- End of Context from: QWEN.md ---\n\n--- Context from: AGENTS.md ---\nR2-AGENTS-MARKER: agent note from services/api/AGENTS.md\n--- End of Context from: AGENTS.md ---"
+[harness A stderr context failures] <none>
+[detach A] 204
+[load on B] 200 
+[B1 tool (cold)] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 1120ms
+[B1 req#0] round=0 markers=[]
+[B1 req#1] round=1 markers=["R2-QWEN-MARKER","R2-AGENTS-MARKER"]
+[B1 broker] POST /runtimes:warm -> 200 | POST /tool-sessions:acquire -> 200 | POST /tool-sessions/<id>/control{raw-file-history} -> 200 | POST /tool-sessions/<id>/control{workspace-context} -> 200 | POST /executions:prepare -> 200 | POST /executions/4d28a858-f019-4576-9c8f-412ddf39edb1:start -> 200 | GET /executions/4d28a858-f019-4576-9c8f-412ddf39edb1 -> 200 | GET /executions/4d28a858-f019-4576-9c8f-412ddf39edb1 -> 200 | POST /tool-sessions/<id>:release -> 200
+[qwen_tool_execution rows after B] 27
+[lease holders] [["1149b1ee4123e3af97a26d417375933fe251462dbd6c402d7654c396cac9a6bd","<none>"],["1feb5a8ebfbefe88750b440d905d8ab5a8abd81c930c2f4472977eb281baa258","<none>"],["37735772167fedca8099b2d71864549d8a515c05968489904f054905d3ec773a","<none>"],["7723b9eba0030c27ab336952df956b070f4bd18717549437491f1be09861a3dc","<none>"],["a29656f1b961f9406adde4d20b3ff7d099fde4918ae992dd612e68c57135d664","<none>"],["ddadb8f76f1c384cad01108a6bb3b91af9a858dd861615a68a59b1c645b48ca2","<none>"]]
+[PASS] T1 request #1 has no context (first request never waits)
+[PASS] T1 request #2 carries QWEN.md + AGENTS.md
+[PASS] T2 first request carries context (latched)
+[PASS] T3 requests carry context
+[PASS] Workspace-root QWEN.md never loaded (no ancestor traversal)
+[PASS] exactly one workspace-context control on attachment A  -> [1,0,0,1]
+[T1 order] workspace-context@3 first-prepare@4
+[PASS] context read happens before the first tool dispatch  -> 3 vs 4
+[PASS] context read is not a tool execution (rows == model tool calls)  -> 24->26
+[PASS] cold attachment B: first request without, second with context
+[PASS] cold attachment B refetches once  -> 1
+[PASS] no host path in system instruction
+[PASS] Harness stderr has no context failure
+[RESULT] p1-central-r6head-v2-b: 12 passed, 0 failed

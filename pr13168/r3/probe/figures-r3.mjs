@@ -214,6 +214,46 @@ const RES5 = (f) => resTxt(`r5b/${f}`);
   );
 }
 
+const R6 = (f) => J(`r6/${f}`);
+const RES6 = (f) => resTxt(`r6/${f}`);
+
+// ---------------------------------------------------------------- 09 round 5: boundary widened by #13166 merge
+{
+  const p5 = R6('p5-boundary-r6head-d.json');
+  const p12 = R6('p12-ancestor-r6head-g.json');
+  const p13 = R6('p13-install-order-r6head-h.json');
+  const p8 = R6('p8-continue-r6head-j.json');
+  const p3 = R6('p3-cancel-r6head-e.json');
+  const p7 = R6('p7-real-r6head-i.json');
+  const r4p5 = J('r5b/p5-boundary-r5head-d.json');
+  const cnt = (p2, k) => `${p2.reps.filter((r) => r[k].token).length}/${p2.reps.length}`;
+  figs['09-round5'] = page(
+    'Round 5, head <code>6e151e6</code> — #13166 merged: file-tool boundary widened as its design doc declares',
+    `${STACK} #13166 is now MERGED (on main); #13168 merged it in. Rebuilt: new bundle + new server jar (broker protocol changed, migrations→V46). The file-tool boundary changed from R4's strict Session-directory realpath to #13166's boot-v2 containment: shared mount reads are permitted, only another Session's directory is excluded — and that exclusion is <b>worker-local</b>.`,
+    table(
+      ['#13168 workspace-context feature + regression', 'Result on 6e151e6'],
+      [
+        ['workspace-context never injects a sibling file', P('not injected (p5: escape-Session links are skipped before the mount-wide arm)')],
+        ['Central A/B: files/1 · files/2 · shell/1', P(`${RES6('p1-central-r6head-v1-a.log')} · ${RES6('p1-central-r6head-v2-b.log')} · ${RES6('p1-central-r6head-v1-c.log')}`)],
+        ['Cancel during a stalled read', P(`${RES6('p3-cancel-r6head-e.log')}, ${p3.settleMs} ms`)],
+        ['Takeover continuation carries the context', P(`${JSON.stringify(p8.cont.requests.map((q) => q.markers.length))}, ${p8.cont.ctxOps} read`)],
+        ['Real model follows QWEN.md', P(`${cnt(p7, 't1')} / ${cnt(p7, 't2')}`)],
+      ],
+    ) +
+      table(
+        ['File-tool boundary (merged from #13166, now on main)', 'R4 (d2b1845)', '6e151e6'],
+        [
+          ['read_file through a link to a sibling Session (p5/s3)', P('refused'), F(`${p5['services/api rq'].status} — read the sibling file`)],
+          ['read_file to an ancestor Session via a link (p12)', P('refused'), F(`${p12.throughLink.status}, leaked=${p12.throughLink.leaked}`)],
+          ['real model recites a sibling Session\'s file (p9)', P('no'), F('yes — recited SIBLING_SECRET')],
+          ['sibling installed (ran a tool) → excluded? (p13)', D('n/a'), F(`uninstalled ${p13['A-ancestor-never-ran'].leaked ? 'LEAKED' : 'refused'} · installed ${p13['B-ancestor-installed'].leaked ? 'LEAKED' : 'refused'}`)],
+        ],
+      ) +
+      '<div class="note info"><b>This is declared design, not a hidden bug.</b> The search-profile doc states the boot-v2 boundary verbatim: it "permits shared locations inside the mount and excludes directories owned by another Session installed in the same worker… <b>That registry check is worker-local, not a confidentiality guarantee across separate workers… Boot v1 keeps the stricter Session boundary.</b>" My R4 strict boundary was boot v1; Hosted Workspace files use boot v2.</div>' +
+      '<div class="note bad"><b>Why the exclusion never fires here.</b> Hosted Workspace files <b>require</b> <code>isolation=session</code> (<code>ManagedAgentProperties.validateWorkspaceFiles</code> throws otherwise), i.e. one worker process per Session. This rig confirms it: 15 live worker processes. <code>ownsAnotherSessionDir</code> iterates the worker\'s own <code>installations.bindings()</code>, so a sibling is always in a different worker and is never seen — the "same worker" exclusion covers the empty set. Any Session can read any other Session\'s files through an in-Session symlink (git-preserved, or shell-created under a shell profile), and the model recites them. <b>For the maintainers: confirm this cross-Session read trade-off is acceptable for Hosted (multi-tenant), since the doc declares no cross-worker confidentiality.</b> #13168\'s own workspace-context injection is unaffected.</div>',
+  );
+}
+
 const ids = process.argv.slice(2);
 const want = ids.length ? ids : Object.keys(figs);
 const browser = await chromium.launch();
