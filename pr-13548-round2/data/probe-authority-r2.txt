@@ -1,0 +1,41 @@
+
+ RUN  v3.2.7 /root/verify/pr13548/head-r2/packages/core
+
+stdout | src/managed-runtime/zz-probe-sparse.test.ts > probe: sparse segments through the authority > commits a holey plan and reopens
+in-memory plan: length=2, 1 in holey=false, JSON=["seg-1",null]
+commit: REFUSED ManagedSessionRecordError: Channel record must have exactly the keys segmentId, ordinal, contentRef, receipt.
+journal bytes=1213; resource files=17
+reopen: OK, revision undefined
+
+ ✓ src/managed-runtime/zz-probe-sparse.test.ts (1 test) 22ms
+stdout | src/managed-runtime/zz-probe-authority.test.ts > probe: unknown -> partial -> sending through the authority > refuses the direct unknown -> sending step with nothing committed
+direct unknown -> sending: refused (ManagedSessionRecordError), committedSequence stays 4
+
+ ❯ src/managed-runtime/zz-probe-authority.test.ts (2 tests | 1 failed) 58ms
+   × probe: unknown -> partial -> sending through the authority > commits every step and rebuilds the re-sent delivery after reopen 36ms
+     → channel_delivery record delivery-1 cannot follow its revision 4.
+   ✓ probe: unknown -> partial -> sending through the authority > refuses the direct unknown -> sending step with nothing committed 21ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/managed-runtime/zz-probe-authority.test.ts > probe: unknown -> partial -> sending through the authority > commits every step and rebuilds the re-sent delivery after reopen
+ManagedSessionConflictError: channel_delivery record delivery-1 cannot follow its revision 4.
+ ❯ src/managed-runtime/managed-session-authority.ts:1467:17
+    1465|         command.commandId,
+    1466|         (message) => {
+    1467|           throw new ManagedSessionConflictError(message);
+       |                 ^
+    1468|         },
+    1469|       );
+ ❯ LocalManagedSessionAuthority.assertExtensionRevision src/managed-runtime/managed-session-authority.ts:1878:7
+ ❯ src/managed-runtime/managed-session-authority.ts:1461:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 2 passed (3)
+   Start at  15:44:37
+   Duration  716ms (transform 361ms, setup 34ms, collect 762ms, tests 80ms, environment 0ms, prepare 141ms)
+
+JUNIT report written to /root/verify/pr13548/head-r2/packages/core/junit.xml
