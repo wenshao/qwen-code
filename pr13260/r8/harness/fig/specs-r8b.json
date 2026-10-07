@@ -1,0 +1,170 @@
+[
+ {
+  "name": "h-01-three-fixes",
+  "title": "The three Critical fixes, each against the previous head on the same Linux stack",
+  "subtitle": "b40a2801 (previous head) vs 5120e58a (this head) \u00b7 packaged jars + dist/cli.js \u00b7 Ubuntu 24.04 aarch64, kernel 6.8, MySQL 8.4.11 \u00b7 history volume = ext4 on a device-mapper target",
+  "sections": [
+   {
+    "heading": "R1-1 \u00b7 W2 cwd change after a COMPLETED migration, real faults on the retained file-history volume",
+    "table": [
+     [
+      "fault during the settlement probe",
+      "b40a2801",
+      "5120e58a"
+     ],
+     [
+      "none (control)",
+      "++ completed",
+      "++ completed"
+     ],
+     [
+      "kernel EIO on $QWEN_HOME/file-history (dm table \u2192 error, healed after ~12 s)",
+      "-- failed on the first attempt (84 ms), binding unchanged",
+      "++ deferred \u00d74, completed within 6 s of the heal; cause logged: FileSystemException \u2026: Input/output error"
+     ],
+     [
+      "history volume unmounted (ENOENT)",
+      "== failed at once",
+      "== failed at once (NoSuchFile stays terminal)"
+     ],
+     [
+      "history root replaced by a symlink (structural)",
+      "== failed at once",
+      "!! deferred \u00d77 (IOException \"not canonical\"), failed after the 8-attempt budget, 125 s"
+     ],
+     [
+      "Turn + undo after all faults",
+      "++ load 200, write + undo",
+      "++ load 200, write + undo"
+     ]
+    ]
+   },
+   {
+    "heading": "R1-2 \u00b7 maintenance QWEN_HOME spelling (request fileHistoryRoot always canonical)",
+    "table": [
+     [
+      "QWEN_HOME",
+      "b40a2801",
+      "5120e58a"
+     ],
+     [
+      "canonical",
+      "++ prepare + promote",
+      "++ prepare + promote"
+     ],
+     [
+      "trailing slash  \u2026/home-db/",
+      "-- prepare and promote: migration_history_environment_mismatch",
+      "++ prepare + promote"
+     ],
+     [
+      "doubled  /var/lib//qwen-w1c//home-db//",
+      "-- prepare and promote: migration_history_environment_mismatch",
+      "++ prepare + promote"
+     ],
+     [
+      "dot \u00b7 parent \u00b7 symlink alias \u00b7 relative \u00b7 unset",
+      "++ all refused",
+      "++ all refused, then canonical completes"
+     ],
+     [
+      "deployment restarted with trailing / doubled QWEN_HOME",
+      "== Turn + undo on 4 targets (runtime already accepted it)",
+      "++ Turn + undo on 4 targets"
+     ]
+    ]
+   },
+   {
+    "heading": "R1-3 \u00b7 real envelopes while a retire-installed fence is up (Spring + Harness admitting)",
+    "lines": [
+     "++ 15/15 fenced routes \u2192 409 workspace_unavailable, retryable=false, no new Session/Operation, no state change",
+     "   public: create \u00b7 cwd \u00b7 events (turn) \u00b7 PATCH title \u00b7 close \u00b7 archive \u00b7 unarchive \u00b7 DELETE",
+     "   WebShell: sessions/create \u00b7 turns/submit \u00b7 sessions/cwd/change \u00b7 close \u00b7 archive \u00b7 unarchive \u00b7 delete",
+     "++ every envelope validates against 5120e58a's ErrorEnvelope, also with additionalProperties:false (all members declared)",
+     "== the same closed check against b40a2801's ErrorEnvelope rejects all 15 (retryable undeclared)",
+     "== controls on the unfenced storage: public create 202 \u00b7 cwd 202 \u00b7 WebShell create 202"
+    ]
+   }
+  ],
+  "note": "All three fixes hold on the real stack. R1-1 (S13) and R1-3 (S15) were also re-run on the trial merge with main ad6039aa, with the same results; R1-2 (S14) ran on the two heads only.",
+  "noteClass": "ok"
+ },
+ {
+  "name": "h-02-head-merge-and-review",
+  "title": "5120e58a and its trial merge with today's main (ad6039aa): the full W1c flow still holds",
+  "subtitle": "trial merge = 5120e58a + main ad6039aa (no textual conflict), built with its own jars and CLI \u00b7 includes #13168 (Workspace project context for Hosted turns) and #13562 (Broker HTTP deadline cancel)",
+  "sections": [
+   {
+    "heading": "Check \u00d7 build",
+    "table": [
+     [
+      "check",
+      "5120e58a (head)",
+      "trial merge with main ad6039aa"
+     ],
+     [
+      "Flyway checker / fresh MySQL 8.4",
+      "++ 50 unique / applies 50",
+      "++ 50 unique / applies 50"
+     ],
+     [
+      "S1 retire \u2192 capture \u2192 prepare \u2192 promote",
+      "++ 2 live workers stopped, rev 1\u21922 once, 4/49 tables",
+      "++ 2 live workers stopped, rev 1\u21922 once, 4/49 tables"
+     ],
+     [
+      "S1 after restart: write + undo (new and pre-migration)",
+      "++ on the target, source untouched",
+      "++ on the target, source untouched"
+     ],
+     [
+      "#13168 QWEN.md context in model requests",
+      "(not in head)",
+      "++ before: SOURCE copy \u00b7 after migration: TARGET copy"
+     ],
+     [
+      "W2 cwd vs fence (after retire / W1a / both lock orders)",
+      "++ 409 \u00b7 409 \u00b7 consistent both orders",
+      "++ 409 \u00b7 409 \u00b7 consistent both orders"
+     ],
+     [
+      "W2 after promotion, QWEN_HOME unset / canonical",
+      "++ probe-failed, binding unchanged / completed",
+      "++ probe-failed, binding unchanged / completed"
+     ],
+     [
+      "R7-1 queued create behind retire",
+      "++ 409 \u00d73, no stray member",
+      "++ 409 \u00d73, no stray member"
+     ],
+     [
+      "S15 fenced envelopes \u00b7 S13 history EIO",
+      "++ 15/15 \u00b7 deferred \u00d74 then completed",
+      "++ 15/15 \u00b7 deferred \u00d74 then completed"
+     ],
+     [
+      "Java: broker focused \u00b7 server unit \u00b7 MySQL IT",
+      "++ 162 (2 skipped) \u00b7 128 incl. WorkspaceStorageGuardTest 16, ManagedAgentApiContractTest 10 \u00b7 26",
+      "++ 162 (2 skipped) \u00b7 357 incl. SurfaceAdmissionAcceptanceTest 165, HarnessCoordinatorTest 60 \u00b7 26"
+     ],
+     [
+      "TS: workspace-recovery worker + session (macOS host)",
+      "++ 108",
+      "++ 108"
+     ]
+    ]
+   },
+   {
+    "heading": "Round-2 review at 5120e58a (13:03Z, 14 Suggestions, no Critical): data from this stack",
+    "lines": [
+     "!! R2-4/R2-5, 3 of 3: a second promote started while the first one's worker ran \u2192 2 verification workers at once;",
+     "   the second fails recovery_read_failed, and that code stays on the COMPLETED row (inspect: state=COMPLETED lastErrorCode=recovery_read_failed)",
+     "== the migration itself is correct in all three (mount READY, rev 2); a sequential refusal followed by a success clears the code",
+     "== R2-8: with the fence already up, PATCH title returns 409 with retryable=false (S15); the begin\u2192complete race it describes was not exercised"
+    ]
+   }
+  ],
+  "note": "Nothing I can test blocks 5120e58a, and its next merge with main needed no change in my runs.",
+  "noteClass": "ok"
+ }
+]
