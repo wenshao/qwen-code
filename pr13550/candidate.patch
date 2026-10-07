@@ -1,0 +1,100 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/RuntimeBrokerConfiguration.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/RuntimeBrokerConfiguration.java
+index 1b047bf3a1..3963d023cd 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/RuntimeBrokerConfiguration.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/RuntimeBrokerConfiguration.java
+@@ -11,6 +11,7 @@ import com.alibaba.qwen.code.runtimebroker.JdbcRuntimeBindingRepository;
+ import com.alibaba.qwen.code.runtimebroker.JdbcRuntimeSessionRepository;
+ import com.alibaba.qwen.code.runtimebroker.JdbcToolExecutionRepository;
+ import com.alibaba.qwen.code.runtimebroker.RuntimeBindingRepository;
++import com.alibaba.qwen.code.runtimebroker.RuntimeBrokerService;
+ import com.alibaba.qwen.code.runtimebroker.RuntimeSessionRepository;
+ import com.alibaba.qwen.code.runtimebroker.SecretProtector;
+ import com.alibaba.qwen.code.runtimebroker.ToolExecutionRepository;
+@@ -79,6 +80,17 @@ public class RuntimeBrokerConfiguration {
+                 publicationData.getIfAvailable());
+     }
+ 
++    /** H4b: the child result relay and the close cascade resolve Runtime
++     * bindings through the embedded Broker's service. The Broker closes it,
++     * so Spring must not infer a second close. */
++    @Bean(destroyMethod = "")
++    @ConditionalOnProperty(prefix = "qwen.managed-agent.runtime-broker",
++            name = "enabled", havingValue = "true")
++    public RuntimeBrokerService runtimeBrokerService(
++            EmbeddedRuntimeBroker broker) {
++        return broker.service();
++    }
++
+     @Bean
+     @ConditionalOnMissingBean(RuntimeWarmer.class)
+     public RuntimeWarmer runtimeWarmer() {
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/EmbeddedRuntimeBroker.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/EmbeddedRuntimeBroker.java
+index a9792304ce..b018e7c256 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/EmbeddedRuntimeBroker.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/EmbeddedRuntimeBroker.java
+@@ -241,6 +241,13 @@ public class EmbeddedRuntimeBroker implements RuntimeWarmer, AutoCloseable {
+         workspaces.verifyInstallable(binding, targetCwdRelative);
+     }
+ 
++    /** The embedded Broker's own service: readers such as the child result
++     * relay and the close cascade query bindings through it, while this
++     * Broker alone owns its lifecycle. */
++    public RuntimeBrokerService service() {
++        return service;
++    }
++
+     public URI getBaseUri() {
+         return server.getBaseUri();
+     }
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChildResultRelayStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChildResultRelayStore.java
+index 68495fa6e5..f5819550ad 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChildResultRelayStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChildResultRelayStore.java
+@@ -162,7 +162,7 @@ public class ChildResultRelayStore {
+         List<String> parts = jdbc.query(
+                 "SELECT part_text FROM managed_agent_item_part"
+                         + " WHERE tenant_id = ? AND session_id = ?"
+-                        + " AND item_id = ? AND part_type = 'text'"
++                        + " AND item_id = ? AND part_type = 'output_text'"
+                         + " ORDER BY last_sequence, part_id",
+                 (result, row) -> result.getString("part_text"), tenantId,
+                 sessionId, items.getFirst());
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java
+index 7528af1f45..7dcc56582f 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java
+@@ -276,7 +276,7 @@ class ChildResultRelayStoreTest {
+                         + " session_id, item_id, part_id, part_type,"
+                         + " part_text, first_sequence, last_sequence,"
+                         + " created_at, updated_at, revision)"
+-                        + " VALUES (?, ?, 'item-1', 'part-1', 'text', '审阅通过',"
++                        + " VALUES (?, ?, 'item-1', 'part-1', 'output_text', '审阅通过',"
+                         + " 2, 2, 1, 1, 1)",
+                 TENANT, session);
+         assertThat(relayStore.terminalResultText(TENANT, session, "turn-1"))
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/RuntimeBrokerConfigurationIntegrationTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/RuntimeBrokerConfigurationIntegrationTest.java
+index 360a83082c..d7d638f560 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/RuntimeBrokerConfigurationIntegrationTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/RuntimeBrokerConfigurationIntegrationTest.java
+@@ -67,6 +67,21 @@ class RuntimeBrokerConfigurationIntegrationTest {
+         assertThat(scheduled.scheduler()).isEqualTo("runtimeRecoveryScheduler");
+     }
+ 
++    @Test
++    void wiresTheChildRelayToTheEmbeddedBrokerService() {
++        // H4b: the child result relay and the close cascade read Runtime
++        // bindings through the embedded Broker's service. Without that bean
++        // the relay's scan returns before any work, so a launched child
++        // never leaves `planned` on a real deployment.
++        Object relayBroker = org.springframework.test.util.ReflectionTestUtils
++                .getField(context.getBean(com.alibaba.qwen.code.managedagent
++                        .service.ChildResultRelay.class), "broker");
++        assertThat(relayBroker).isNotNull();
++        assertThat(context.getBeanProvider(com.alibaba.qwen.code.runtimebroker
++                .RuntimeBrokerService.class).getIfAvailable())
++                .isSameAs(relayBroker);
++    }
++
+     @Test
+     void selectsTheEmbeddedBrokerAsTheRuntimeWarmer() {
+         assertThat(runtimeWarmer).isInstanceOf(EmbeddedRuntimeBroker.class);
