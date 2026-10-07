@@ -1,0 +1,118 @@
+harness pid=14483 up after 2s log=/Users/wenshao/pr13163-rig/run/b11/harness-0.log
+spring up after 6s
+### [b11] c19-rename-race.mjs bound ws-c19-bound e
+# c19-rename-race-bound  db=b11  2026-10-07T08:25:12.542Z
+PASS  initial Turn COMPLETED  -> 171b3ba6-c76e-440f-9ca4-0fa73f1946eb
+NOTE  R1 (K1 → A, Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → B  -> 200 title B
+NOTE  R2 (K1 → A retry, Harness call held 8 s, then 200)  -> 200 title A; K1 row while held PENDING
+NOTE  R3 (K1 → A retry overlapping R2, Harness 500)  -> 503 hosted_harness_unavailable; K1 row after R3 FAILED
+NOTE  database title afterwards  -> title A
+NOTE  title calls the Harness applied, in order  -> ["title B","title A"]
+NOTE  Harness title calls with faults  -> ["title A:respond:500","title B:-:200","title A:respond:500","title A:delay:200"]
+NOTE  R4 (K1 → A once more, no fault)  -> 200 title A; database title then title A; K1 row COMPLETED
+== c19-rename-race-bound: 1 passed, 0 failed
+### [b11] c21-boundary-moved.mjs bound ws-c21-bound e
+# c21-boundary-moved-bound  db=b11  2026-10-07T08:25:25.197Z
+PASS  initial Turn COMPLETED  -> 49a82cea-e59e-4395-8db8-009ef8b74436
+NOTE  #1 K1 → Alpha (reaches the Harness, answer held 7 s)  -> 200 Alpha
+NOTE  #2 K1 → Alpha (Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → Bravo  -> 200 Bravo
+NOTE  #3 K1 → Alpha after Bravo (Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  database title afterwards  -> Alpha
+NOTE  title calls the Harness applied, in arrival order  -> ["Alpha","Bravo"]
+NOTE  Harness title calls with faults  -> ["Alpha:respond:500","Bravo:-:200","Alpha:respond:500","Alpha:delay-after:200"]
+NOTE  #4 K1 → Alpha once more (no fault)  -> 200 Alpha; database Alpha; Harness title calls now 4 (was 4)
+== c21-boundary-moved-bound: 1 passed, 0 failed
+### [b11] c19-rename-race.mjs unbound ws-c19-unbound e
+# c19-rename-race-unbound  db=b11  2026-10-07T08:25:35.884Z
+PASS  initial Turn COMPLETED  -> 9b1b03c6-80a0-4299-a1af-d157b3ce7fc6
+NOTE  R1 (K1 → A, Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → B  -> 200 title B
+NOTE  R2 (K1 → A retry, Harness call held 8 s, then 200)  -> 200 title A; K1 row while held PENDING
+NOTE  R3 (K1 → A retry overlapping R2, Harness 500)  -> 503 hosted_harness_unavailable; K1 row after R3 FAILED
+NOTE  database title afterwards  -> title A
+NOTE  title calls the Harness applied, in order  -> ["title B","title A"]
+NOTE  Harness title calls with faults  -> ["title A:respond:500","title B:-:200","title A:respond:500","title A:delay:200"]
+NOTE  R4 (K1 → A once more, no fault)  -> 200 title A; database title then title A; K1 row COMPLETED
+== c19-rename-race-unbound: 1 passed, 0 failed
+### [b11] c21-boundary-moved.mjs unbound ws-c21-unbound e
+# c21-boundary-moved-unbound  db=b11  2026-10-07T08:25:46.472Z
+PASS  initial Turn COMPLETED  -> 7adbafaf-561b-4035-98ef-5d4f8edf6d9f
+NOTE  #1 K1 → Alpha (reaches the Harness, answer held 7 s)  -> 200 Alpha
+NOTE  #2 K1 → Alpha (Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → Bravo  -> 200 Bravo
+NOTE  #3 K1 → Alpha after Bravo (Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  database title afterwards  -> Alpha
+NOTE  title calls the Harness applied, in arrival order  -> ["Alpha","Bravo"]
+NOTE  Harness title calls with faults  -> ["Alpha:respond:500","Bravo:-:200","Alpha:respond:500","Alpha:delay-after:200"]
+NOTE  #4 K1 → Alpha once more (no fault)  -> 200 Alpha; database Alpha; Harness title calls now 4 (was 4)
+== c21-boundary-moved-unbound: 1 passed, 0 failed
+stopped spring pid=14528 sig=TERM
+stopped harness pid=14483 sig=TERM
+stopped model pid=14440 sig=TERM
+stopped tap pid=14441 sig=TERM
+harness pid=15362 up after 2s log=/Users/wenshao/pr13163-rig/run/b11/harness-1.log
+spring up after 4s
+### [b11] c14 revoke
+started ab4df37c-5194-4b7d-ad81-4813de4d191d turn=turn_ef499e765d894c04856973e768de5631 initial=COMPLETED mode=revoke
+stopped spring pid=15417 sig=TERM
+spring up after 4s
+### [b11] c14-cold-cache.mjs cancel ws-krevoke-b11 a revoke
+# c14-cold-cache-revoke-ws-krevoke-b11  db=b11  2026-10-07T08:26:22.827Z
+NOTE  Turn before the cancel (after the Spring restart)  -> ["turn_ef499e765d894c04856973e768de5631","RUNNING","","0"]
+NOTE  creator cancel after the restart  -> 409 workspace_unavailable
+NOTE  Turn 90 s after the cancel  -> RUNNING  (not terminal)
+NOTE  POST /cancel calls reaching the Harness  -> []
+NOTE  other Harness calls for the Session since the restart  -> ["POST /session/:id/prompt 202"]
+NOTE  model request  -> still held / answered
+NOTE  Turn 60 s after can_create was restored  -> RUNNING  (not terminal)
+NOTE  Workspace file  -> null
+NOTE  Turn history  -> [["turn_8b7bc8e13b6040788876726b4fd67469","COMPLETED","","0"],["turn_ef499e765d894c04856973e768de5631","RUNNING","","7"]]
+== c14-cold-cache-revoke-ws-krevoke-b11: 0 passed, 0 failed
+stopped spring pid=15877 sig=TERM
+stopped harness pid=15362 sig=TERM
+stopped model pid=15340 sig=TERM
+stopped tap pid=15341 sig=TERM
+harness pid=18504 up after 2s log=/Users/wenshao/pr13163-rig/run/b11/harness-2.log
+spring up after 4s
+### [b11] c14 none
+started 29bd2c9c-66cd-4fca-a8ad-5bd0eea65b00 turn=turn_8ba06b6f100d42e38a9c15fce68f8e22 initial=COMPLETED mode=none
+stopped spring pid=18546 sig=TERM
+spring up after 4s
+### [b11] c14-cold-cache.mjs cancel ws-knone-b11 g none
+# c14-cold-cache-none-ws-knone-b11  db=b11  2026-10-07T08:29:19.878Z
+NOTE  Turn before the cancel (after the Spring restart)  -> ["turn_8ba06b6f100d42e38a9c15fce68f8e22","RUNNING","","0"]
+NOTE  creator cancel after the restart  -> 202 accepted
+NOTE  Turn 90 s after the cancel  -> CANCELLING  (not terminal)
+NOTE  POST /cancel calls reaching the Harness  -> []
+NOTE  other Harness calls for the Session since the restart  -> ["POST /session/:id/prompt 202","POST /session/:id/load 409"]
+NOTE  model request  -> still held / answered
+NOTE  Turn 60 s after can_create was restored  -> CANCELLING  (not terminal)
+NOTE  Workspace file  -> null
+NOTE  Turn history  -> [["turn_65971de9cf75446489ab619492e18784","COMPLETED","","0"],["turn_8ba06b6f100d42e38a9c15fce68f8e22","CANCELLING","","7"]]
+== c14-cold-cache-none-ws-knone-b11: 0 passed, 0 failed
+stopped spring pid=18855 sig=TERM
+stopped harness pid=18504 sig=TERM
+stopped model pid=18477 sig=TERM
+stopped tap pid=18478 sig=TERM
+harness pid=21114 up after 2s log=/Users/wenshao/pr13163-rig/run/b11/harness-3.log
+spring up after 4s
+### [b11] c22-approve-refused.mjs ws-c22 f
+# c22-approve-refused-ws-c22  db=b11  2026-10-07T08:31:57.850Z
+PASS  initial Turn COMPLETED after approval
+PASS  later Turn waits for approval  -> tool_approval_7659b18057995638385d9e466ebae707
+NOTE  approval answer (public)  -> 202 pending
+NOTE  answer operation 30 s after can_create was revoked (state, error, attempts)  -> ["COMPLETED","","1"] at +1022 ms
+NOTE  resolve calls reaching the Harness  -> ["-:200","respond:503","-:200"]
+NOTE  Action row  -> ["decided","decision_516882a6f14d7ad6b559e6994f618a213ccfdd3c71e3d1e6bc8c2979529034d0"]
+NOTE  Turn before the cancel  -> ["turn_47ebb8e1c8d645b29597b810e5667f8c","RUNNING","","0"]
+NOTE  creator cancel after that  -> 409 workspace_unavailable → RUNNING  (not terminal)
+NOTE  Workspace file child/a2-17950.txt / executions added  -> null / 0
+NOTE  Turn history  -> [["turn_acde26004f794f6b8b9f7a6bd7936365","COMPLETED","","0"],["turn_47ebb8e1c8d645b29597b810e5667f8c","RUNNING","","0"]]
+== c22-approve-refused-ws-c22: 2 passed, 0 failed
+stopped spring pid=21158 sig=TERM
+stopped harness pid=21114 sig=TERM
+stopped model pid=21091 sig=TERM
+stopped tap pid=21092 sig=TERM
+ARM11-DONE base 08:33:13
