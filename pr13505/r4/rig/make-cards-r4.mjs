@@ -44,7 +44,12 @@ const card1 = () => {
     return `<tr><td>${esc(label)}</td>${cells.map(([v, cl]) => `<td class="mono ${cl}">${esc(v)}</td>`).join('')}</tr>`;
   }).join('');
   const ctrl = ['h4', 'm4'].map((a) => `${a}: depth-2 foreign root ${rb[a].filter((r) => r.case.includes('depth2')).map((r) => r.outcome ?? r.http).join('/')} · own root ${rb[a].filter((r) => r.case.includes('own-root')).map((r) => r.outcome ?? r.http).join('/')}`).join(' · ');
-  const nr = tsv(`${RIG}/results/noruntime-h4.tsv`).filter((r) => r[0].startsWith('pair')).map((r) => `<tr><td class="mono">${esc(r[0].replace('pair dispatch(no rt) -> ', ''))}</td><td class="mono ${r[1] === 'succ=False' ? 'ok' : 'dim'}">${esc(r[1])} / ${esc(r[2])}</td></tr>`).join('');
+  const nrH = tsv(`${RIG}/results/noruntime-h4.tsv`).filter((r) => r[0].startsWith('pair'));
+  const deH = tsv(`${RIG}/results/deadend-h4.tsv`);
+  const nrC = Object.fromEntries(tsv(`${RIG}/results/nr2-cand4.tsv`).map((r) => [r[0], r]));
+  const lab = (id) => id.replace('pair dispatch(no rt) -> ', 'dispatch(no rt) → ').replace(' -> ', ' → ');
+  const nr = [...deH.filter((r) => !r[0].startsWith('body')), ...nrH].map((r) => { const c = nrC[r[0]]; const dead = r[0].includes('WITH runtime'); return `<tr><td class="mono">${esc(lab(r[0]))}${dead ? ' <span class="warn">(dead end)</span>' : ''}</td><td class="mono ${dead ? 'warn' : 'dim'}">${esc(r[1])} / ${esc(r[2])}</td><td class="mono dim">${c ? esc(c[1]) + ' / ' + esc(c[2]) : '–'}</td></tr>`; }).join('');
+  const dh = deH.find((r) => r[0].startsWith('body')); const dc = nrC['body dispatch_started runtime null'];
   const mut = tsv(`${RIG}/results/mutants-r4.tsv`).filter((r) => r[0] !== 'BASELINE');
   const killed = mut.filter((r) => r[1] === 'KILLED').length;
   const surv = mut.filter((r) => r[1] !== 'KILLED').map((r) => r[0]);
@@ -54,13 +59,14 @@ const card1 = () => {
     'e4b7f0fc = 27ba5c26 (the fix commit) + an automatic merge of main ac497aee (tree identical to git\'s own merge) · m4 = trial merge into current main f3385785 · Spring Session Store on native MySQL 8.4.7 · each refusal is the only reason the revision fails (the chain is otherwise legal) · TS = the real authority, raw-HTTP = a second writer, so the Java store decides alone',
     `<div class="cols"><div><table><tr><th>rule</th><th>h4 TS</th><th>h4 Java</th><th>m4 TS</th><th>m4 Java</th></tr>${rows}</table>
      <div class="dim" style="margin-top:6px;font-size:12.5px">controls: ${esc(ctrl)} · resultVersion 1e400 over HTTP: ${esc(nf.map((r) => r.http).join(' / '))} (reader refuses first) · every Session reopens</div>
-     <h2>A run dispatched with runtime: null — which endings can it still reach? (h4, TS / Java)</h2>
-     <table><tr><th>next revision</th><th>successor</th></tr>${nr}</table></div>
+     <h2>A dispatch recorded with runtime: null (P2 on this head, review 5436103482)</h2>
+     <table><tr><th>the dispatch itself</th><th class="mono warn">${esc(dh[1])} / ${esc(dh[2])} on e4b7f0fc</th><th class="mono ok">refused / refused · candidate</th></tr>
+     <tr><th>next revision</th><th>e4b7f0fc (TS / Java)</th><th>candidate (TS / Java)</th></tr>${nr}</table></div>
      <div><h2 style="margin-top:0">Mutants on e4b7f0fc (PR suites)</h2><table>
      <tr><td>all</td><td class="mono ${surv.length === 1 ? 'ok' : 'warn'}">${killed}/${mut.length} killed · survivors: ${esc(surv.join(', '))} (pre-existing)</td></tr>
      <tr><td>round-4 rules</td><td class="mono ok">${esc(newm)}</td></tr>
      <tr><td>R1-1 restore (cli)</td><td class="mono ok">${esc(cli)}</td></tr></table></div></div>`,
-    'Every finding both reviews called blocking is fixed, in both languages and with the same message, on the head and on the trial merge. A run dispatched without a Runtime binding can now end only as never-started (not_started_proven) or recovery_blocked; it can no longer attach, settle, fail as child_failed or be cancelled after starting. The new rule binds a first-level child\'s rootSessionId to the journal\'s Session, and both sides enforce it. Each new rule is pinned: removing it turns a PR test red.');
+    'Every finding both reviews called blocking is fixed, in TS and Java with the same message, on the head and on the trial merge. Each new rule is pinned: removing it turns a PR test red. One gap remains, raised as a P2 on this head. The Runtime binding is required only once a child Session id appears, so a dispatch recorded without a binding is still accepted and committed. Its child can then never be attached, not even with a binding or via outcome_unknown recovery. The candidate (TS + Java + 1 fixture) requires the binding at dispatch and exempts not_started_proven.');
 };
 
 const card2 = () => {

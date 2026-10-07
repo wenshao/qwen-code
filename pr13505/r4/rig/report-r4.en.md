@@ -10,15 +10,43 @@
 
 ### Verdict
 
-**The code is ready to merge.** Every finding the two reviews marked blocking is fixed: R1-1…R1-4 and yiliang114's two P1s. Both P2s are fixed too.
+**Almost ready: one small gap remains.** It was raised as a P2 on this head, in review [5436103482](https://github.com/QwenLM/qwen-code/pull/13505#pullrequestreview-5436103482) (00:32), and I reproduced it. A verified candidate is below: TS + Java + 1 fixture, 33 lines.
+
+Everything else is fixed: all findings the two reviews marked blocking (R1-1…R1-4, yiliang114's two P1s) and both P2s.
 - Each fix is in TS and Java with the same refusal message, and verified on the real stack on the head and on the trial merge.
 - TS and Java agree on all 1.22M differential rows.
 - Every new rule is pinned: removing it turns a PR test red.
 
 **Before merging:**
+- **Close the runtime-at-dispatch gap** (next section).
 - **Both CHANGES_REQUESTED reviews are still standing:** the bot's on `0a1b1d2e` and yiliang114's on `3261e4d4`. A reviewer has to clear each.
 - **Merge current main once more.** The two red Java lanes on this head are main's. #13551 fixed the test on main, and with `a764fb96` merged the Java suite is fully green locally: 1047 tests, 0 failures, 0 errors; ITs 53/53.
 - **Note the merge order with three related PRs** (end of this comment).
+
+### The remaining gap: a dispatch recorded without a Runtime binding
+
+The head requires the binding only once a child Session id appears. `dispatch_started` must have `childSessionId: null`, so an unbound dispatch is still accepted in both languages. The real authority commits it as revision 2, and the Session reopens.
+
+From there, the child it creates can never be recorded, in TS and Java alike:
+- **Attach with the binding:** refused by the shared "no binding after dispatch" successor rule.
+- **Attach without the binding:** refused by the new guard.
+- **Recovery through `outcome_unknown`:** the later attach is refused just the same.
+
+So the chain can no longer settle without a binding, which is what yiliang114 asked for, but the unbound dispatch has become a dead end.
+
+**Candidate** on top of `e4b7f0fc`: require the binding once dispatched, except `not_started_proven`, which two valid fixtures use for never-started children. Java mirrors it. A shared fixture `agent-dispatched-without-runtime` is added.
+- Java contracts + store + hook/MCP contracts: 42/42, checkstyle clean.
+- TS focused (6 files): 401/401. `tsc`, eslint and prettier: clean.
+- Differential (644,324 rows): 0 disagreements.
+- Witnesses: without the fix, the new fixture fails in TS and in Java.
+- Side effect for the author to confirm: `outcome_unknown` without a binding is now refused too. No fixture or test relies on that state. If H4b needs "dispatch outcome unknown, binding unknown", exempt it the way `not_started_proven` is.
+
+<details><summary>Candidate patch: runtime binding at dispatch</summary>
+
+```diff
+PATCH_R4
+```
+</details>
 
 ### The fixes, on a real stack
 
@@ -35,10 +63,7 @@ I built each chain so that the new rule is the only reason a revision fails. TS 
   - A depth-2 child with a foreign root commits (TS) and gets 200 (Java). So does a depth-1 child whose root is its own Session.
   - Every Session reopens.
   - The refusal message is identical on both sides.
-- **Runtime (yiliang114's "can settle with no Runtime binding"):** the head uses the narrower guard (a Session id needs a binding). I checked every ending a run dispatched with `runtime: null` can still reach, in both languages:
-  - **Reachable:** only never-started endings (`creation_failed` / stop with `not_started_proven`) and `recovery_blocked`.
-  - **Refused:** `running_attached`, `settled/completed`, `failed/child_failed`, and a cancel after starting.
-  - So such a run can no longer settle.
+- **Runtime (yiliang114's "can settle with no Runtime binding"):** closed. A run dispatched with `runtime: null` can no longer reach `running_attached`, `settled/completed`, `failed/child_failed` or a cancel after starting. The cost is the dead end described above.
 - **`resultVersion: 1e400`:** the Java finiteness guard is in. Over HTTP the store's reader still refuses non-finite numbers first (409), so both paths answer cleanly.
 - **R1-1 restore:** the PR's new test (`restores a Session whose detached lineage sits beside a child agent record`) fails when the parser is reverted to `parseChildShellRun` (`expected 409 to be 200`). The `child_agent` skip line itself is defensive only: `parseChildRun` already lets the record through, and it carries no `outputRef`.
 

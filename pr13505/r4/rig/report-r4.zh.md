@@ -10,15 +10,36 @@
 
 ### 结论
 
-**代码层面可以合入。** 两份评审标为阻塞的问题全部修复：R1-1…R1-4，以及 yiliang114 的两个 P1；两个 P2 也已修复。
+**基本可以合入，只剩一个小缺口。** 这是本 head 上评审 [5436103482](https://github.com/QwenLM/qwen-code/pull/13505#pullrequestreview-5436103482)（00:32）提出的 P2，我已复现。候选补丁已验证：TS + Java + 1 条 fixture，共 33 行（见英文部分）。
+
+其余问题都已修复：两份评审标为阻塞的问题（R1-1…R1-4、yiliang114 的两个 P1）全部修复，两个 P2 也已修复。
 - 每项修复都在 TS 和 Java 两侧同步实现，拒绝文案一致，并在 head 与试合并上用真实栈验证过。
 - 差分 122 万条，两侧零分歧。
 - 每条新规则都有用例钉住：删掉它，PR 的测试就会变红。
 
 **合入前**：
+- **补上"派发时要求 runtime"这个缺口**（见下节）。
 - **两份 CHANGES_REQUESTED 仍然有效**：bot 针对 `0a1b1d2e`，yiliang114 针对 `3261e4d4`，需要评审各自解除。
 - **建议再合一次当前 main**：本 head 上两条红的 Java 车道来自 main，#13551 已在 main 上修复。我在本地合入 `a764fb96` 后，Java 全量 1047 个 0 失败 0 错误，IT 53/53。
 - **留意与三个相关 PR 的合入顺序**（见文末）。
+
+### 剩下的缺口：派发时没有 Runtime 绑定
+
+当前 head 只在出现子 Session id 时才要求绑定，而 `dispatch_started` 要求 `childSessionId` 为 null，所以没有绑定的派发两侧都接受。真实 authority 会把它写成第 2 个修订，Session 也能正常重开。
+
+从这一步开始，它创建出来的子 Session 再也无法登记，TS 与 Java 一致：
+- **带绑定 attach**：被共享后继规则"派发后不能补绑定"拒绝。
+- **不带绑定 attach**：被新守卫拒绝。
+- **先经 `outcome_unknown` 恢复再 attach**：同样被拒。
+
+所以这条链确实没法在无绑定的情况下 settle（yiliang114 要求的那一点已满足），但无绑定的派发成了一条死路。
+
+**候选补丁**（基于 `e4b7f0fc`）：派发之后必须有绑定，只豁免 `not_started_proven`（有两个合法 fixture 用它表示从未启动的子任务）。Java 同步实现，并新增共享 fixture `agent-dispatched-without-runtime`。
+- Java 契约 + store + hook/MCP 契约：42/42，checkstyle 通过。
+- TS 聚焦 6 个文件：401/401；`tsc`、eslint、prettier 通过。
+- 差分（644,324 条）：0 条分歧。
+- 见证：去掉修复后，新 fixture 在 TS 和 Java 上都失败。
+- 有一个副作用需要作者确认：没有绑定的 `outcome_unknown` 现在也会被拒。现有 fixture 和测试都不依赖这种状态；如果 H4b 需要"派发结果未知、绑定也未知"，应当像 `not_started_proven` 一样豁免。
 
 ### 修复在真实栈上的表现
 
@@ -31,10 +52,7 @@
 
 对照组与补充：
 - 二级子任务带外部根时可以提交（TS 提交成功、Java 200）；一级子任务以本 Session 为根时也可以提交。所有 Session 都能重开，两侧拒绝文案一致。
-- **runtime**（yiliang114 所说的"没有 Runtime 绑定也能 settle"）：head 采用的是窄守卫（有 Session id 就必须有绑定）。我逐一检查了派发时 `runtime: null` 的 run 还能走到哪些终态，两侧结果一致：
-  - 能走到：只有"从未启动"（`creation_failed`、`not_started_proven` 下的停止）和 `recovery_blocked`。
-  - 被拒：`running_attached`、`settled/completed`、`failed/child_failed`、启动后取消。
-  - 所以这类 run 已经无法 settle。
+- **runtime**（yiliang114 所说的"没有 Runtime 绑定也能 settle"）：已关闭。派发时 `runtime: null` 的 run 再也走不到 `running_attached`、`settled/completed`、`failed/child_failed` 或启动后取消；代价就是上一节说的死路。
 - **`resultVersion: 1e400`**：Java 已加有限性守卫；经 HTTP 提交时 store 的读取器本来就会先拒绝（409），两条路径都能干净地拒绝。
 - **R1-1 恢复**：PR 新增的测试在把解析器改回 `parseChildShellRun` 时会失败（`expected 409 to be 200`）。跳过 child_agent 的那一行只是防御性的：`parseChildRun` 已经能解析这条记录，而它本身没有 `outputRef`。
 

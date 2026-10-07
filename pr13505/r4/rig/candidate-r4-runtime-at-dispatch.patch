@@ -1,0 +1,66 @@
+diff --git a/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json b/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
+index 824b4e0c53..b436c596f5 100644
+--- a/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
++++ b/packages/core/src/managed-runtime/contracts/managed-child-run-record-v1.fixtures.json
+@@ -1586,6 +1586,22 @@
+       "start": false,
+       "error": "workingDirectory must be a normalized relative directory"
+     },
++    {
++      "template": "child_agent",
++      "domain": "child_run",
++      "id": "agent-dispatched-without-runtime",
++      "patch": {
++        "run": {
++          "state": "running",
++          "execution": "dispatch_started",
++          "dispatchId": "dispatch-1",
++          "runtime": null
++        }
++      },
++      "valid": false,
++      "start": false,
++      "error": "needs its Runtime binding once it dispatches"
++    },
+     {
+       "template": "child_agent",
+       "domain": "child_run",
+diff --git a/packages/core/src/managed-runtime/managed-child-run-record.ts b/packages/core/src/managed-runtime/managed-child-run-record.ts
+index c103025935..c4aa92bce0 100644
+--- a/packages/core/src/managed-runtime/managed-child-run-record.ts
++++ b/packages/core/src/managed-runtime/managed-child-run-record.ts
+@@ -527,6 +527,17 @@ function parseChildAgentRun(value: unknown): ChildAgentRun {
+   if (childSessionId !== null && run.runtime === null) {
+     fail('Child run childSessionId needs the Runtime binding that hosts it.');
+   }
++  // The binding is recorded with the dispatch itself; only a creation proven
++  // never to have started may lack one. Without this, a dispatch recorded
++  // unbound could never attach the Session it creates.
++  if (
++    run.execution !== null &&
++    run.execution !== 'intent' &&
++    run.execution !== 'not_started_proven' &&
++    run.runtime === null
++  ) {
++    fail('Child run needs its Runtime binding once it dispatches.');
++  }
+   const predecessorChildRunId = nullable(body.predecessorChildRunId, (each) =>
+     id(each, 'predecessorChildRunId'),
+   );
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java
+index a2d6cf8200..0f917f678a 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedExtensionRecords.java
+@@ -876,6 +876,12 @@ public final class ManagedExtensionRecords {
+         require(session.isNull() || !run.get("runtime").isNull(),
+                 "Child run childSessionId needs the Runtime binding that"
+                         + " hosts it");
++        // The binding is recorded with the dispatch itself; only a creation
++        // proven never to have started may lack one.
++        require(execution == null || "intent".equals(execution)
++                || "not_started_proven".equals(execution)
++                || !run.get("runtime").isNull(),
++                "Child run needs its Runtime binding once it dispatches");
+         JsonNode predecessor = child.get("predecessorChildRunId");
+         if (!predecessor.isNull()) {
+             id(predecessor, "predecessorChildRunId");
