@@ -1,6 +1,6 @@
-## Maintainer verification, round 3 (delta only): QwenLM/qwen-code#13548 at `b3d3c089`
+## Maintainer verification, round 3 (post-merge, delta only): QwenLM/qwen-code#13548 at `b3d3c089`
 
-**Verdict: still mergeable.** This round's production change is the `Map.of` → `Map.ofEntries` switch in `ManagedExtensionProjection.RECORD_BODIES`. That switch is required, it is correct, and nothing else moved: the validators, both corpora, the PR's tests and the store closure are byte-identical to round 2's `8deb72ee`. The only non-PR change is the merge of `main` carrying H6a (#13536). Both CI lanes that compile `managed-agent-server` are green on this head.
+**Post-merge verdict: the landed code holds.** #13548 merged at 08:50Z as `e92b60a2`, while this round was running. Its tree (`f1b1f82c`) is byte-identical to the head `b3d3c089` verified here, and its parent is the `main` `e31d5500` I used as the A/B arm. Everything below therefore applies to what is on `main` now. This round's production change is the `Map.of` → `Map.ofEntries` switch in `ManagedExtensionProjection.RECORD_BODIES`. That switch is required, it is correct, and nothing else moved: the validators, both corpora, the PR's tests and the store closure are byte-identical to round 2's `8deb72ee`. The only non-PR change is the merge of `main` carrying H6a (#13536). Both CI lanes that compile `managed-agent-server` are green on this head.
 
 [Round 1](https://github.com/QwenLM/qwen-code/pull/13548#issuecomment-6031765367) · [round 2](https://github.com/QwenLM/qwen-code/pull/13548#issuecomment-6033913905). This round ran on head `b3d3c089`, with current `main` `e31d5500` as the A/B arm.
 
@@ -16,7 +16,7 @@
   - Java: 11 gate classes pass 67/67, including H6a's `ManagedAutomationRecordContractTest`. The full `managed-agent-server` module ran 1262 tests with 0 failures and 0 errors (2 skipped).
   - Differential: 4,001,192 inputs, 0 divergences.
 - **Round-2 probes, re-run unchanged.** R1-1 (409 `resource_missing`), R1-2 (refused at commit) and F1 (refused by the TS authority and the Java store) are all still closed.
-- **Still open from round 2, both non-blocking.**
+- **Still open from round 2: two small follow-ups for a later slice, both non-blocking.**
   - **Mutant 53.** `delivery-receipt-bad-time` is byte-identical, and with the `acceptedAt` check deleted it is still refused by the planned pin. Moving it onto a `sending` run pins the rule.
   - **The shared "The MCP reference does not match…" message.** It now also applies to channel refs; [yiliang114's P3](https://github.com/QwenLM/qwen-code/pull/13548#discussion_r4204851717) raises the same point.
 

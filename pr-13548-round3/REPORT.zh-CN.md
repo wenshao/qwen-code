@@ -1,6 +1,12 @@
-## 维护者验证第 3 轮（仅增量）：QwenLM/qwen-code#13548 @ `b3d3c089`
+## 维护者验证第 3 轮（合入后，仅增量）：QwenLM/qwen-code#13548 @ `b3d3c089`
 
-**结论：仍可合入。** 本轮唯一的生产改动，是把 `ManagedExtensionProjection.RECORD_BODIES` 从 `Map.of` 换成 `Map.ofEntries`。这个改动是必要的，也是正确的。其余内容都没有变：验证器、两份语料、PR 自带测试和 store 闭包，都与第 2 轮的 `8deb72ee` 逐字节相同。唯一不属于本 PR 的变化，是合入了带 H6a（#13536）的 `main`。两条编译 `managed-agent-server` 的 CI 车道在本 head 上均为绿。
+**合入后结论：已合入的代码成立。**
+
+- #13548 在本轮验证进行期间、于 08:50Z 以 `e92b60a2` 合入。
+- 它的树（`f1b1f82c`）与本轮验证的 head `b3d3c089` 逐字节相同，父提交正是我作为 A/B 对照臂的 `main` `e31d5500`。
+- 因此下文所有结论都直接适用于当前 `main` 上的代码。
+
+本轮唯一的生产改动，是把 `ManagedExtensionProjection.RECORD_BODIES` 从 `Map.of` 换成 `Map.ofEntries`。这个改动是必要的，也是正确的。其余内容都没有变：验证器、两份语料、PR 自带测试和 store 闭包，都与第 2 轮的 `8deb72ee` 逐字节相同。唯一不属于本 PR 的变化，是合入了带 H6a（#13536）的 `main`。两条编译 `managed-agent-server` 的 CI 车道在本 head 上均为绿。
 
 [第 1 轮](https://github.com/QwenLM/qwen-code/pull/13548#issuecomment-6031765367) · [第 2 轮](https://github.com/QwenLM/qwen-code/pull/13548#issuecomment-6033913905)。本轮验证对象是 head `b3d3c089`，A/B 对照臂是当前 `main` `e31d5500`。
 
@@ -20,7 +26,7 @@
   - R1-1：返回 409 `resource_missing`；
   - R1-2：在提交时即被拒；
   - F1：TS authority 与 Java store 都拒绝。
-- **第 2 轮遗留的两项，仍未处理，均不阻塞。**
+- **第 2 轮遗留的两项，可留作后续切片的小跟进，均不阻塞。**
   - 变异体 53：`delivery-receipt-bad-time` 逐字节未变；删掉 `acceptedAt` 检查后，它仍会被 planned 的钉约束拒绝。把它移到 `sending` 运行上，即可钉住这条规则。
   - 共享的 “The MCP reference does not match…” 报错文案：现在 channel 引用也会走到这句；[yiliang114 的 P3](https://github.com/QwenLM/qwen-code/pull/13548#discussion_r4204851717) 也提了同一点。
 
