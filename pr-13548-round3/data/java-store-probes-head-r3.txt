@@ -1,0 +1,17 @@
+PROBE A1 planned                        -> ACCEPTED
+PROBE A2 sending                        -> ACCEPTED
+PROBE A3 sending, seg-1 proven          -> ACCEPTED
+PROBE A4 unknown (seg-2 fate unknown)   -> ACCEPTED
+PROBE A5 partial, NO new receipt        -> REFUSED 409 managed_session_extension_record_rejected: channel_delivery record delivery-1 cannot follow its revision 4.
+PROBE A6 sending again (seg-2 re-sent)  -> REFUSED 409 managed_session_extension_record_rejected: channel_delivery record delivery-1 cannot follow its revision 4.
+PROBE A7 delivered (seg-2 twice)        -> ACCEPTED
+PROBE A  extension-record rows=[channel_delivery@rev5] listRecords(channel_delivery) latest line=delivered
+PROBE B  direct unknown -> sending -> REFUSED 409 managed_session_extension_record_rejected: channel_delivery record delivery-1 cannot follow its revision 4.
+PROBE C  first revision 'delivered' with seg-2 receipt missing -> REFUSED 409 managed_session_extension_record_rejected: Channel delivery line delivered does not match its run and segment receipts.
+PROBE C  extension-record rows=[] listRecords(channel_delivery) latest line=none
+PROBE route, policyRef resource NOT sent      -> REFUSED 409 managed_session_resource_missing: A referenced Managed Session resource is missing. | referenced resources stored=0/1 | extension-record rows=0
+PROBE route, policyRef resource sent          -> ACCEPTED | referenced resources stored=1/1 | extension-record rows=1
+PROBE delivery, no referenced resource sent   -> REFUSED 409 managed_session_resource_missing: A referenced Managed Session resource is missing. | referenced resources stored=0/3 | extension-record rows=0
+PROBE control hook_registration, catalog NOT sent -> REFUSED 409 managed_session_resource_missing: A referenced Managed Session resource is missing. | referenced resources stored=0/1 | extension-record rows=0
+PROBE route, policyRef digest differs from the sent resource -> REFUSED 409 managed_session_extension_record_rejected: The MCP reference does not match its committed resource. | referenced resources stored=0/1 | extension-record rows=0
+RUN=3 OK=3 FAIL=0

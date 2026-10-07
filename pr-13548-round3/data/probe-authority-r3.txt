@@ -1,0 +1,27 @@
+
+ RUN  v3.2.7 /root/verify/pr13548/head-r3/packages/core
+
+stdout | src/managed-runtime/zz-probe-r3b.test.ts > probe: sparse segments through the authority > commits a holey plan and reopens
+in-memory plan: length=2, 1 in holey=false, JSON=["seg-1",null]
+commit: REFUSED ManagedSessionRecordError: Channel record must have exactly the keys segmentId, ordinal, contentRef, receipt.
+journal bytes=1213; resource files=17
+reopen: OK, revision undefined
+
+ ✓ src/managed-runtime/zz-probe-r3b.test.ts (1 test) 22ms
+stdout | src/managed-runtime/zz-probe-r3a.test.ts > probe r2: unknown -> partial -> sending through the authority > logs each step
+commit 1 planned                         -> ACCEPTED revision 1 (seq 1)
+commit 2 sending                         -> ACCEPTED revision 2 (seq 2)
+commit 3 sending, seg-1 proven           -> ACCEPTED revision 3 (seq 3)
+commit 4 unknown (seg-2 fate unknown)    -> ACCEPTED revision 4 (seq 4)
+commit 5 partial, NO new receipt         -> REFUSED ManagedSessionConflictError: channel_delivery record delivery-1 cannot follow its revision 4. (seq stays 4)
+commit 6 sending again (seg-2 re-sent)   -> REFUSED ManagedSessionConflictError: channel_delivery record delivery-1 cannot follow its revision 4. (seq stays 4)
+commit 7 delivered, late seg-2 receipt   -> ACCEPTED revision 5 (seq 5)
+
+ ✓ src/managed-runtime/zz-probe-r3a.test.ts (1 test) 43ms
+
+ Test Files  2 passed (2)
+      Tests  2 passed (2)
+   Start at  16:49:52
+   Duration  592ms (transform 305ms, setup 28ms, collect 650ms, tests 64ms, environment 0ms, prepare 102ms)
+
+JUNIT report written to /root/verify/pr13548/head-r3/packages/core/junit.xml
