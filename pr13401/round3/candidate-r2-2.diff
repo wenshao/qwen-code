@@ -1,0 +1,31 @@
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerRenewalPinningTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerRenewalPinningTest.java
+index 359fda0240..e598997526 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerRenewalPinningTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/BrokerRenewalPinningTest.java
+@@ -126,6 +126,9 @@ class BrokerRenewalPinningTest {
+                 primary.addSuppressed(wedged);
+             }
+         }
++        assertTrue(firstFailure.get() == null,
++                "warm() callers failed after the latch opened: "
++                        + firstFailure.get());
+     }
+ 
+     /** The first resource-handle write of each binding parks while armed. */
+@@ -210,6 +213,16 @@ class BrokerRenewalPinningTest {
+     }
+ 
+     private static final class NoopTransport implements RuntimeTransport {
++        @Override
++        public CompletionStage<RuntimeAttestation> attest(RuntimeLease lease,
++                RuntimeProvisionRequest request, RuntimeProvisionSeed seed) {
++            // same shape as Issue13183RegressionTest.AttestingTransport.attest
++            return CompletableFuture.completedFuture(new RuntimeAttestation(
++                    lease.getRuntimeInstanceId(), seed.getGatewayIncarnation(),
++                    lease.getLeaseId(), lease.getEpoch(), request.getScope(),
++                    seed.getProvisionRequestId()));
++        }
++
+         @Override
+         public CompletionStage<Void> acquire(RuntimeLease lease,
+                 RuntimeSession session) {

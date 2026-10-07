@@ -1,0 +1,15 @@
+#!/bin/bash
+/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/cell.sh ps-all /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/wt-mut3 qwencode ALL NONE PS
+/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/cell.sh ps-cp1 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/wt-mut3 qwencode HarnessEventStreamPinningTest NONE PS -Djava.util.concurrent.ForkJoinPool.common.parallelism=1
+until grep -q "head install-b" /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/summary.txt; do sleep 10; done
+export M2=r3-head
+T=SessionEventHubPinningTest
+/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/cell.sh seh-head /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/wt-mut3 managed-agent-server $T NONE NONE
+/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/cell.sh seh-mut /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/wt-mut3 managed-agent-server $T SEH NONE
+/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/cell.sh seh-mut-baseRead-cp1 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/wt-mut3 managed-agent-server $T SEH,SEB NONE -Djava.util.concurrent.ForkJoinPool.common.parallelism=1
+/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/cell.sh seh-mut-p0100 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/wt-mut3 managed-agent-server $T SEH NONE -Djdk.virtualThreadScheduler.parallelism=0100
+H=HostedHarnessCreateOrLoadPinningTest
+/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/cell.sh cl-mut /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/wt-mut3 managed-agent-server $H CL NONE
+/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/cell.sh cl-mut-p0100 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/wt-mut3 managed-agent-server $H CL NONE -Djdk.virtualThreadScheduler.parallelism=0100
+/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/cell.sh cl-none-p0100 /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/wt-mut3 managed-agent-server $H NONE NONE -Djdk.virtualThreadScheduler.parallelism=0100
+echo Q-DONE >> /private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/ce3ef24d-3ca1-4a59-829e-edeff297be66/scratchpad/r3/lanes.txt
