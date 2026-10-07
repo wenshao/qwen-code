@@ -1,0 +1,40 @@
+== 1. base (pre-V48) broker with gc-enabled=true produces and retires stream captures
+started up-base1 arm=base pid=873670 port=18651 db=pr13554_upgrade
+E2E-RIG no stream-capture collector
+seeded session=old-1 rows=24 bytes=3187712
+retired old-1 in 233ms
+seeded session=old-2 rows=24 bytes=3187712
+retired old-2 in 222ms
+seeded session=old-3 rows=24 bytes=3187712
+retired old-3 in 217ms
+seeded session=live-1 rows=4 bytes=1053696
+after 70 s on the base broker (gc on, grace 5 s):
+schema_version
+47
+session_id	state	n	inline_present
+old-3	PUBLISHED	24	24
+old-1	PUBLISHED	24	24
+old-2	PUBLISHED	24	24
+live-1	PUBLISHED	4	4
+== 2. PR broker starts on the same database (Flyway V48 on populated schema)
+started up-pr arm=pr pid=875102 port=18652 db=pr13554_upgrade
+INFO 875102 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `pr13554_upgrade` to version "48 - man
+INFO 875102 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 1 migration to schema `pr13554_upg
+E2E-RIG collector-owner=641f6fce-3386-4b47-9380-53552e5f12c7 pid=875102
+collected after 1s:
+session_id	collected_bytes	gc_generation
+old-3	3187712	1
+old-1	3187712	1
+old-2	3187712	1
+session_id	state	n	bytes	inline_present
+old-3	COLLECTED	24	3187712	0
+old-1	COLLECTED	24	3187712	0
+old-2	COLLECTED	24	3187712	0
+live-1	PUBLISHED	4	1053696	4
+== 3. a pre-V48 broker restarts against the V48 schema (mixed fleet)
+started up-base2 arm=base pid=876680 port=18653 db=pr13554_upgrade
+INFO 876680 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 48 migrations (execution time 00:00.028s)
+E2EBroker in 2.38 seconds (process running for 2.577)
+HTTP 409 {"error":{"code":"tool_output_session_retired","message":"The Session output is permanently retired.","request_id":"c4702b8b-2a29-4dd7-874d-4a564526f99c"}}
+HTTP 409 {"error":{"code":"tool_output_session_retired","message":"The Session output is permanently retired.","request_id":"8e7eba87-497d-477c-971e-e70068066cde"}}
+seeded session=live-2 rows=4 bytes=1053696
