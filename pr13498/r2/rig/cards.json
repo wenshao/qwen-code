@@ -1,0 +1,37 @@
+[
+ {
+  "file": "01-round2-holds.png",
+  "ok": true,
+  "title": "#13498 round 2 · head 3360e2dc83: what changed and what holds",
+  "sub": "Contract code byte-identical since 507f821b99 (later commits touch fixtures only) · real stack on trial merge 507f821b99 + main f3385785 · Spring jar (JDK 21) + MySQL 8.4.7 + Hosted Harness + dist/cli.js",
+  "blocks": [
+   "## Since round 1 (846247fa30)\n++ F1 stream adopted: body, schema, key, dedupe predicate, both design docs\n++ F2 gate walks every workspace package src: 28 roots, 2,928 files, 680 ms\n++ F3 candidate B rows + bot R1-1..R1-13 rows: suite 78 -> 100/100, prettier/eslint/tsc clean\n== F4 id rules declined (logged as follow-up): 8 ids the Java store refuses are still accepted",
+   "## Real committed rows through the new contract\n++ run-managed-agent-server-e2e --model qwen3.8-max     PASS 21 s\n++ run-managed-agent-server-e2e --session-failover     PASS 17 s\n++ sessionKey == row / round trip / schema / distinct keys        48/48\n++ one-event commits: payloadRef.digest == events_digest          36/36\n++ occurredAt <= commit time (max lag 35 ms)                      48/48\n++ stream == authoritative_journal, and the key carries it        48/48\n++ public-stream sequences reusing a journal key                  23\n++   public notice refused by v1 / never treated as redelivery    23/23 / 23/23",
+   "## Gate mutants (plant one consumer file, run the suite)\n++ G2 packages/cli/src/serve/*.ts deep import               caught\n++ G5 packages/channels/base/src/*.ts                       caught\n!! G6 cli/src/serve/managed-event-envelope.ts (same basename) 100/100 green\n!! G7 .mjs / G8 .cts consumer in cli/src                     100/100 green\n== .mjs/.cjs already live in src today, e.g. cli/src/serve/cdp-tunnel/acceptance (7 files)"
+  ],
+  "note": "F1 and F2 are closed on real data. What remains: one fixture defect (next card), comment wording, and CI legs that come from main."
+ },
+ {
+  "file": "02-fixture-isolation.png",
+  "ok": false,
+  "title": "#13498 round 2 · fixture isolation: 4 of 6 done, 2 rows left",
+  "sub": "Each negative row should differ from the canonical envelope only in the field its id names (repair that field -> must parse)",
+  "blocks": [
+   "## Rows                           507f821b99              2ed1921232 / 3360e2dc83     + candidate D''\n++ stream-missing                 U+0085, no eventId      isolated                    isolated\n++ stream-public-event            U+0085, no eventId      isolated                    isolated\n++ session-id-c1-control          no eventId              isolated                    isolated\n++ dedupe public-event-same-key   journal side invalid    valid in 3360e2dc83         valid\n-- event-id-control-character     sessionId U+0085        sessionId U+0085            isolated\n-- workspace-id-missing           no stream               no stream                   isolated",
+   "## Mutants                                      507f821b99   3360e2dc83   + candidate D''\n++ A2 parser accepts any stream value             survived     killed       killed\n++ A5 schema stream enum widened                  survived     killed       killed\n++ S05 schema stableId admits C1                  survived     killed       killed\n++ A1+A2 public stream parses, compare ignores it survived     killed (2)   killed (2)\n-- E1 eventId lets control characters through     survived     survived     killed\n== A1/A4 alone: equivalent while v1 has one stream"
+  ],
+  "note": "Candidate D'' finishes it on top of 3360e2dc83: fixtures only, +2/-1, 100/100, repair audit clean, E1 killed."
+ },
+ {
+  "file": "03-ci-from-main.png",
+  "ok": true,
+  "title": "#13498 round 2 · CI: both earlier red legs clear once main is merged in",
+  "sub": "The PR changes no Java and no cli file · trial merge with main a764fb96 is clean (only the 6 PR files differ)",
+  "blocks": [
+   "## Run on merge ref main a764fb96 + 2ed1921232 (00:50, later cancelled by the next push)\n++ MariaDB / Java 21: success in 10.5 min; 164 classes; ManagedEventIdentityMigrationTest 0.93 s\n++   surefire 1039/0, IT 53/0; ManagedSessionStoreIntegrationTest 5/5\n++ Java 11/17/21, macOS, Windows, daemon E2E, Lint & Static: success\n== Test (ubuntu) and Hosted fault gates: cancelled by the 3360e2dc83 push before finishing",
+   "## Earlier MariaDB reds (merge refs on older main)\n-- 3/3 attempts cancelled at 20.0 min, stopped inside class #84; same on #13505, #13548\n== all on GitHub-hosted ubuntu-latest runners, not the self-hosted pool\n-- older main f3385785: ManagedSessionStoreIntegrationTest 409, 1.36 MB log (fixed by #13551)",
+   "## Test (ubuntu)\n-- 2 Session.test.ts expectations at main ac81c07d; fixed on main b5855087; trial merge passes"
+  ],
+  "note": "The current head 3360e2dc83 is being tested against main a764fb96 now; the 00:50 run already shows MariaDB green on that main."
+ }
+]
