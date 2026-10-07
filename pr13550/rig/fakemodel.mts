@@ -117,6 +117,11 @@ const server = await startFakeOpenAIServer(
         };
       } else if (spec === 'error') {
         reply = { errorContent: `child model failure ${id}` };
+      } else if (/^fill\d+c\d+$/.test(spec)) {
+        const [, n, c] = /^fill(\d+)c(\d+)$/.exec(spec)!;
+        reply = { content: `CHILD_RESULT::${id}::` + String.fromCharCode(Number(c)).repeat(Number(n)) };
+      } else if (spec === 'mid') {
+        reply = { content: `CHILD_RESULT::${id}::` + 'y'.repeat(100 * 1024) };
       } else if (spec === 'big') {
         reply = { content: `CHILD_RESULT::${id}::` + 'x'.repeat(300 * 1024) };
       } else {
