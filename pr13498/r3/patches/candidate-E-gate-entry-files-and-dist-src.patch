@@ -1,0 +1,87 @@
+diff --git a/packages/core/src/managed-runtime/managed-event-envelope.test.ts b/packages/core/src/managed-runtime/managed-event-envelope.test.ts
+index 2d3c85ff42..90bf4a9f10 100644
+--- a/packages/core/src/managed-runtime/managed-event-envelope.test.ts
++++ b/packages/core/src/managed-runtime/managed-event-envelope.test.ts
+@@ -238,7 +238,7 @@ function namesEnvelopeModule(specifier: string, fromFile: string): boolean {
+   if (specifier.startsWith(corePackage)) {
+     const subpath = specifier
+       .slice(corePackage.length)
+-      .replace(/^(?:dist|src)\//, '')
++      .replace(/^(?:dist\/)?(?:src\/)?/, '')
+       .replace(SOURCE_SUFFIX, '');
+     return subpath === 'managed-runtime/managed-event-envelope';
+   }
+@@ -260,6 +260,20 @@ function namesEnvelopeModule(specifier: string, fromFile: string): boolean {
+ // never accuses, the AST does.
+ function findEnvelopeConsumers(roots: readonly string[]): string[] {
+   const consumers: string[] = [];
++  const check = (full: string): void => {
++    const name = path.basename(full);
++    if (!SCANNABLE_FILE.test(name) || TEST_ONLY_FILE.test(name)) {
++      return;
++    }
++    const content = fs.readFileSync(full, 'utf8');
++    if (!content.includes('managed-event-envelope')) {
++      return;
++    }
++    const specifiers = collectModuleSpecifiers(content, full);
++    if (specifiers.some((specifier) => namesEnvelopeModule(specifier, full))) {
++      consumers.push(path.relative(repoRoot, full));
++    }
++  };
+   const walk = (directory: string): void => {
+     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+       const full = path.join(directory, entry.name);
+@@ -272,23 +286,15 @@ function findEnvelopeConsumers(roots: readonly string[]): string[] {
+         }
+         continue;
+       }
+-      if (!SCANNABLE_FILE.test(entry.name) || TEST_ONLY_FILE.test(entry.name)) {
+-        continue;
+-      }
+-      const content = fs.readFileSync(full, 'utf8');
+-      if (!content.includes('managed-event-envelope')) {
+-        continue;
+-      }
+-      const specifiers = collectModuleSpecifiers(content, full);
+-      if (
+-        specifiers.some((specifier) => namesEnvelopeModule(specifier, full))
+-      ) {
+-        consumers.push(path.relative(repoRoot, full));
+-      }
++      check(full);
+     }
+   };
+   for (const root of roots) {
+-    walk(root);
++    if (fs.statSync(root).isFile()) {
++      check(root);
++    } else {
++      walk(root);
++    }
+   }
+ 
+   return consumers.sort();
+@@ -342,10 +348,20 @@ function workspaceSourceRoots(): { roots: string[]; missing: string[] } {
+     }
+     packageDirs.push(workspace);
+   }
+-  const roots = packageDirs.map((relative) => {
++  // A package with src/ still ships top-level entry files beside it
++  // (packages/core/index.ts is the package's main barrel), so those join
++  // the scan as single files.
++  const roots = packageDirs.flatMap((relative) => {
+     const absolute = path.join(repoRoot, relative);
+     const sourceRoot = path.join(absolute, 'src');
+-    return fs.existsSync(sourceRoot) ? sourceRoot : absolute;
++    if (!fs.existsSync(sourceRoot)) {
++      return [absolute];
++    }
++    const entryFiles = fs
++      .readdirSync(absolute, { withFileTypes: true })
++      .filter((entry) => entry.isFile() && SCANNABLE_FILE.test(entry.name))
++      .map((entry) => path.join(absolute, entry.name));
++    return [sourceRoot, ...entryFiles];
+   });
+   for (const extra of ['scripts', 'integration-tests']) {
+     const absolute = path.join(repoRoot, extra);
