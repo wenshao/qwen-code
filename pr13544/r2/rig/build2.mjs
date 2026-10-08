@@ -138,7 +138,7 @@ if (want(4)) {
   ]);
   render('r2-04-mutation', card({
     title: 'Mutants on head 28734793da — P3 closed; the length guards are pinned only by the real-engine IT',
-    sub: 'One-line changes to V52 or to a reader/writer in the PR diff. H2 = full surefire suite (M3–M6: the PR migration + owner tests). IT = ManagedWorkspaceRolesMySqlIT via failsafe on a real engine; on MySQL its assertion is widened (rig-only) to DataAccessException + constraint name, otherwise it fails before reaching the mutated values.',
+    sub: 'One-line changes to V52 or to a reader/writer in the PR diff. H2 = full surefire suite (M3–M6: the PR migration + owner tests). IT = ManagedWorkspaceRolesMySqlIT via failsafe on a real engine, with its assertion widened (rig-only, both engines) to DataAccessException + the constraint name; unwidened it fails on MySQL before reaching the mutated values. Widened baseline: passes on both engines.',
     blocks: [
       { table: table(['Mutant', 'H2', 'IT · MySQL 8.4.7', 'IT · MariaDB 10.11.18', 'First H2 killers'], rows) },
       { note: "H2 compares without PAD SPACE, so its 'READER ' assertion passes under the round-1 IN-list as well (M1b–M1d survive all 1370 H2 tests). The only test that holds the P2 fix in place is ManagedWorkspaceRolesMySqlIT — which is why its MySQL 8.4 failure is worth fixing in this PR." },
