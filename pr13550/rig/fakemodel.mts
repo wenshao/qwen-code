@@ -67,6 +67,11 @@ const server = await startFakeOpenAIServer(
         const shell = fakeToolCall('run_shell_command', { command: `echo parent-${id} > parent-${id}.txt; ls` }, `call_${id}_shell`);
         return logAnd({ toolCalls: [shell] }, `parent-${mode}-first`);
       }
+      if (mode === 'phold' && last?.role !== 'tool' && lastUser.includes('PARENT::')) {
+        // The parent's own model call stays in flight until released (control probes).
+        await hold(id).promise;
+        return logAnd({ content: `PARENT_PLAIN::${id}::released` }, 'parent-phold');
+      }
       if (mode === 'bigp' && last?.role !== 'tool' && lastUser.includes('PARENT::')) {
         const big = { ...fgArgs, prompt: fgArgs.prompt + ' ' + 'p'.repeat(40 * 1024) };
         return logAnd({ toolCalls: [fakeToolCall('agent', big, `call_${id}_agent`)] }, 'parent-bigp');
