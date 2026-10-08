@@ -1,0 +1,43 @@
+== 1. base (pre-V53) broker with gc-enabled=true produces and retires stream captures
+started up-base1 arm=main pid=21849 port=18651 db=pr13554_upgrade_mariadb
+booted up-base1 after 7s
+E2E-RIG no stream-capture collector
+seeded session=old-1 rows=24 bytes=3187712
+retired old-1 in 373ms
+seeded session=old-2 rows=24 bytes=3187712
+retired old-2 in 367ms
+seeded session=old-3 rows=24 bytes=3187712
+retired old-3 in 387ms
+seeded session=live-1 rows=4 bytes=1053696
+after 70 s on the base broker (gc on, grace 5 s):
+schema_version
+52
+session_id	state	n	inline_present
+live-1	PUBLISHED	4	4
+old-1	PUBLISHED	24	24
+old-2	PUBLISHED	24	24
+old-3	PUBLISHED	24	24
+== 2. PR broker starts on the same database (Flyway V53 on populated schema)
+started up-pr arm=head pid=22162 port=18652 db=pr13554_upgrade_mariadb
+booted up-pr after 6s
+INFO 22162 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `pr13554_upgrade_mariadb` to version "5
+INFO 22162 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 1 migration to schema `pr13554_upgr
+E2E-RIG collector-owner=03cdea22-b0a5-4307-bf0d-bf71e648d07d pid=22162
+collected after 1s:
+session_id	collected_bytes	gc_generation
+old-3	3187712	1
+old-1	3187712	1
+old-2	3187712	1
+session_id	state	n	bytes	inline_present
+live-1	PUBLISHED	4	1053696	4
+old-1	COLLECTED	24	3187712	0
+old-2	COLLECTED	24	3187712	0
+old-3	COLLECTED	24	3187712	0
+== 3. a pre-V53 broker restarts against the V53 schema (mixed fleet)
+started up-base2 arm=main pid=22245 port=18653 db=pr13554_upgrade_mariadb
+booted up-base2 after 6s
+INFO 22245 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 53 migrations (execution time 00:00.067s)
+E2EBroker in 3.696 seconds (process running for 4.081)
+base broker HTTP read of collected Session: HTTP 409 {"error":{"code":"tool_output_session_retired","message":"The Session output is permanently retired.","request_id":"1d39ac9f-7b34-45db-8ebe-ba0117373e87"}}
+PR broker   HTTP read of collected Session: HTTP 409 {"error":{"code":"tool_output_session_retired","message":"The Session output is permanently retired.","request_id":"eabfce12-1d65-4bd7-b9b0-5fb9c2b08499"}}
+seeded session=live-2 rows=4 bytes=1053696

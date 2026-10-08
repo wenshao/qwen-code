@@ -1,0 +1,100 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollector.java
+index 97a94d5e3e..86795cacf2 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollector.java
+@@ -32,9 +32,8 @@ public final class SessionResourceCollectionCollector {
+             + " OR (kind = 'managed-tool-result-manifest' AND byte_length BETWEEN 1 AND "
+             + ManagedSessionStore.toolResultLimit("managed-tool-result-manifest") + "))"
+             + " AND object_key IS NULL AND object_version_id IS NULL AND encryption_key_id IS NULL"
+-            // The byte_length column is metadata that outlives the bytes: a row another writer
+-            // already freed has nothing left to collect and must not be counted a second time.
+-            + " AND inline_bytes IS NOT NULL"
++            // No predicate on inline_bytes here: referencing a BLOB column makes InnoDB materialize
++            // every candidate's bytes (up to PAGE_ROWS + 1 rows) just to test them for NULL.
+             + " AND resource_id > ? AND NOT EXISTS (SELECT 1 FROM qwen_managed_session_resource_ref r"
+             + " WHERE r.session_scope_key = qwen_managed_session_resource.session_scope_key"
+             + " AND r.resource_id = qwen_managed_session_resource.resource_id)"
+@@ -235,28 +234,35 @@ public final class SessionResourceCollectionCollector {
+             bytes += length;
+             cursor = resource;
+         }
++        long freed = 0;
+         if (!ids.isEmpty()) {
+             var args = new java.util.ArrayList<Object>(ids.size() + 1);
+             args.add(claim.scope());
+             args.addAll(ids);
++            String in = String.join(", ", java.util.Collections.nCopies(ids.size(), "?"));
++            // byte_length is metadata that outlives the bytes: a row another writer already freed
++            // stays PUBLISHED and uncounted; only rows this statement frees are accounted.
+             jdbc.update("UPDATE qwen_managed_session_resource SET state = 'COLLECTED', inline_bytes = NULL"
+-                    + " WHERE session_scope_key = ? AND resource_id IN ("
+-                    + String.join(", ", java.util.Collections.nCopies(ids.size(), "?")) + ")", args.toArray());
++                    + " WHERE session_scope_key = ? AND inline_bytes IS NOT NULL AND resource_id IN (" + in + ")",
++                    args.toArray());
++            freed = jdbc.queryForObject("SELECT COALESCE(SUM(byte_length), 0) FROM qwen_managed_session_resource"
++                    + " WHERE session_scope_key = ? AND state = 'COLLECTED' AND resource_id IN (" + in + ")",
++                    Long.class, args.toArray());
+         }
+         if (more) {
+             jdbc.update("UPDATE qwen_managed_session_resource_collection SET gc_cursor = ?,"
+                     + " collected_bytes = collected_bytes + ?, gc_claim_until = ? WHERE session_scope_key = ?",
+-                    cursor, bytes, now + CLAIM_MILLIS, claim.scope());
++                    cursor, freed, now + CLAIM_MILLIS, claim.scope());
+         } else {
+             jdbc.update("UPDATE qwen_managed_session_resource_collection SET gc_cursor = ?,"
+                     + " collected_bytes = collected_bytes + ?, collected_at = ?, gc_owner = NULL,"
+                     + " gc_claim_until = 0, gc_next_at = -1, gc_blocker = NULL WHERE session_scope_key = ?",
+-                    cursor, bytes, now, claim.scope());
++                    cursor, freed, now, claim.scope());
+             jdbc.update("DELETE FROM qwen_output_read_lease WHERE tenant_key = ? AND session_key = ?"
+                     + " AND expires_at <= ?", ToolPublicationRetentionStore.hash((String) row.get("tenant_id")),
+                     ToolPublicationRetentionStore.hash((String) row.get("session_id")), now);
+             LOG.info("Stream capture collection completed scope={} bytes={}", claim.scope(),
+-                    ToolPublicationRetentionStore.number(row, "collected_bytes") + bytes);
++                    ToolPublicationRetentionStore.number(row, "collected_bytes") + freed);
+         }
+         return true;
+     }
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java
+index 3e0d9906a5..419b010f96 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java
+@@ -746,6 +746,38 @@ public class SessionResourceCollectionCollectorTest extends ToolPublicationReten
+         assertThatThrownBy(() -> reader.resource(source, ref)).hasMessageContaining("resource_collected");
+     }
+ 
++    @Test
++    void recoveryReaderIgnoresCollectedMarkersOfOtherResourcesAndOtherSessions() {
++        initSession();
++        publish("lost", MANIFEST, new byte[64], "REFERENCED", "MYSQL_INLINE");
++        reference("lost");
++        jdbc.update("UPDATE qwen_managed_session_resource SET inline_bytes = NULL"
++                + " WHERE session_scope_key = ? AND resource_id = 'lost'", resScope);
++        // Neither marker is evidence for this row: one names another resource of the same
++        // Session, the other names this resource id under another Session's scope.
++        jdbc.update("INSERT INTO qwen_tool_publication_object (scope_key, publication_id, slot_key,"
++                + " resource_id, byte_length, sha256, state, operation_id, created_at)"
++                + " VALUES (?, 'pub-sibling', 'segment:stdout:0', 'sibling', 64, ?, 'COLLECTED',"
++                + " 'op-1', CURRENT_TIMESTAMP(6))",
++                ToolPublicationDataStore.scope(tenant, "workspace-1", session),
++                ToolPublicationContract.sha256(new byte[64]));
++        jdbc.update("INSERT INTO qwen_tool_publication_object (scope_key, publication_id, slot_key,"
++                + " resource_id, byte_length, sha256, state, operation_id, created_at)"
++                + " VALUES (?, 'pub-elsewhere', 'segment:stdout:0', 'lost', 64, ?, 'COLLECTED',"
++                + " 'op-1', CURRENT_TIMESTAMP(6))",
++                ToolPublicationDataStore.scope(tenant, "workspace-1", "another-session"),
++                ToolPublicationContract.sha256(new byte[64]));
++        var reader = new WorkspaceRecoveryReader(jdbc, null);
++        var source = new ObjectMapper().createObjectNode();
++        source.putObject("head").put("tenantId", tenant).put("workspaceId", "workspace-1")
++                .put("sessionId", session).put("journalRevision", 10)
++                .putNull("latest_checkpoint_resource_id");
++        var ref = new ObjectMapper().createObjectNode().put("resourceId", "lost")
++                .put("kind", MANIFEST).put("schemaVersion", 1).put("byteLength", 64)
++                .put("digest", ToolPublicationContract.sha256(new byte[64]));
++        assertThatThrownBy(() -> reader.resource(source, ref)).hasMessageContaining("resource_corrupt");
++    }
++
+     @Test
+     void recoveryReaderAnswersResourceCorruptForAnUnexplainedByteLoss() {
+         initSession();

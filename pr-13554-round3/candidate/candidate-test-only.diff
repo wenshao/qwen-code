@@ -1,0 +1,43 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java
+index 3e0d9906a5..419b010f96 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java
+@@ -746,6 +746,38 @@ public class SessionResourceCollectionCollectorTest extends ToolPublicationReten
+         assertThatThrownBy(() -> reader.resource(source, ref)).hasMessageContaining("resource_collected");
+     }
+ 
++    @Test
++    void recoveryReaderIgnoresCollectedMarkersOfOtherResourcesAndOtherSessions() {
++        initSession();
++        publish("lost", MANIFEST, new byte[64], "REFERENCED", "MYSQL_INLINE");
++        reference("lost");
++        jdbc.update("UPDATE qwen_managed_session_resource SET inline_bytes = NULL"
++                + " WHERE session_scope_key = ? AND resource_id = 'lost'", resScope);
++        // Neither marker is evidence for this row: one names another resource of the same
++        // Session, the other names this resource id under another Session's scope.
++        jdbc.update("INSERT INTO qwen_tool_publication_object (scope_key, publication_id, slot_key,"
++                + " resource_id, byte_length, sha256, state, operation_id, created_at)"
++                + " VALUES (?, 'pub-sibling', 'segment:stdout:0', 'sibling', 64, ?, 'COLLECTED',"
++                + " 'op-1', CURRENT_TIMESTAMP(6))",
++                ToolPublicationDataStore.scope(tenant, "workspace-1", session),
++                ToolPublicationContract.sha256(new byte[64]));
++        jdbc.update("INSERT INTO qwen_tool_publication_object (scope_key, publication_id, slot_key,"
++                + " resource_id, byte_length, sha256, state, operation_id, created_at)"
++                + " VALUES (?, 'pub-elsewhere', 'segment:stdout:0', 'lost', 64, ?, 'COLLECTED',"
++                + " 'op-1', CURRENT_TIMESTAMP(6))",
++                ToolPublicationDataStore.scope(tenant, "workspace-1", "another-session"),
++                ToolPublicationContract.sha256(new byte[64]));
++        var reader = new WorkspaceRecoveryReader(jdbc, null);
++        var source = new ObjectMapper().createObjectNode();
++        source.putObject("head").put("tenantId", tenant).put("workspaceId", "workspace-1")
++                .put("sessionId", session).put("journalRevision", 10)
++                .putNull("latest_checkpoint_resource_id");
++        var ref = new ObjectMapper().createObjectNode().put("resourceId", "lost")
++                .put("kind", MANIFEST).put("schemaVersion", 1).put("byteLength", 64)
++                .put("digest", ToolPublicationContract.sha256(new byte[64]));
++        assertThatThrownBy(() -> reader.resource(source, ref)).hasMessageContaining("resource_corrupt");
++    }
++
+     @Test
+     void recoveryReaderAnswersResourceCorruptForAnUnexplainedByteLoss() {
+         initSession();
