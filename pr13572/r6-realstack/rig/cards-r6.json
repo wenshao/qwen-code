@@ -1,0 +1,38 @@
+[
+  {
+    "name": "r6-01-approval",
+    "title": "Round 6 @ a7f05901: F9 and F10 are fixed on the real stack",
+    "subtitle": "approval-mode default. The Harness is SIGKILLed while a channel turn waits for approval; the sender writes again at once.",
+    "panels": [
+      {
+        "h": "F9: the recovered approval hands the Workspace back",
+        "t": "## Bob: write_file c.txt → tool_approval_1780… requested\n19:06:27 Harness SIGKILL; follow-up admitted at +66 s\n## allow\n++ … keeps its durable wait for its approval (held)\n++ … was settled without a reply; reply at +84 s\n++ runtime sessions not RELEASED: 0\n++ managed_workspace_execution_lease holder = NULL\n## another thread right after: write_file d.txt\n++ approval requested 4 s after the email (mount acquired)\n++ allow → d.txt written, reply sent\n++ \"waits for the Workspace mount\" in the Harness log: 0\n== round 5 on f7c26828: holder stayed, other threads waited"
+      },
+      {
+        "h": "F10: an unanswered approval expires after the restart",
+        "t": "## approval timeout 60 s; Bob: write_file e.txt\naction tool_approval_097c… created 19:08:36, expires 19:09:36\n19:08:36 Harness SIGKILL; nobody answers the approval\n++ 19:09:43 the recovery owner expired it and settled the turn;\n++   the model's tool result: \"The tool call never ran: the\n++   approval ended expired after the Harness that asked\n++   was interrupted.\"\n++ follow-up answered 70 s after the kill\n++ action list empty, runtime sessions RELEASED, lease free\n== round 5 / 12:14 review: stayed requested forever"
+      }
+    ],
+    "note": "Both were re-run on the exact head; a no-crash control (round 5) already showed the normal approval path releasing the lease."
+  },
+  {
+    "name": "r6-02-new-behaviour",
+    "title": "R8 fixes observable end to end: outbox batch isolation, channel ownership, attachment durability",
+    "subtitle": "Same stack. Fault injection through the adapter→control-plane proxy; attachments stored in Spring's Session Store (MySQL).",
+    "panels": [
+      {
+        "h": "One failing receipt no longer aborts the batch",
+        "t": "## claims held back so Alice's and Bob's replies batch\n19:01:19.212 :claim 200 (both deliveries)\n19:01:19.409 :receipt (chin-4dc5…) -- refused (rule)\n!! adapter: \"receipt … could not be reported …; it\n!!   re-drives on the next tick.\"\n19:01:19.696 :receipt (chin-e779…) ++ 200 (same batch)\n19:01:22.836 :receipt (chin-4dc5…) ++ 200 (re-driven)\n++ 1 reply each, 2 SMTP sends in total, both delivered"
+      },
+      {
+        "h": "Re-registering as another actor is refused",
+        "t": "## bindings exist; adapter started with --actor other-actor\n19:01:59 PUT (register) -- 409 channel_ownership_conflict\n++ stored instance still rig-actor; the adapter exits\n!! its first log line says \"did not answer; the next\n!!   poll re-drives it\" before it exits (misleading text)"
+      },
+      {
+        "h": "Attachment queued behind an interrupted turn",
+        "t": "## x1 parked at the model; x2 (report.bin, 30 KB) queued\n19:10:11 Harness SIGKILL; x3 sent after the restart\n++ x1 settled; the x1+x2 turn ran at 19:11:15 with\n++ <attachment name=\"report.bin\" bytes=\"30000\"\n++   sha256=\"2ef47704…\" resource=\"68c77839…\"/>\n++ qwen_managed_session_resource 68c77839…:\n++   managed-channel-attachment, 30000 B inline,\n++   state REFERENCED, sha256 matches\n++ reply 68 s after the kill"
+      }
+    ],
+    "note": "Not exercised on the real stack this round: transient envelope-read retry, reply-plan retry, concurrent-registration atomicity and the 50-claim reconcile page (they need store faults or races)."
+  }
+]
