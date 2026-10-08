@@ -1,0 +1,72 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 779de0d999..044cb84f5a 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -127,6 +127,7 @@ import {
+ import {
+   HostedToolRecoveryRequiredError,
+   HostedWorkspaceToolTurn,
++  hostedRuntimeSessionId,
+   isHostedWorkspaceProfile,
+   isHostedWorkspaceShellProfile,
+   isRetryableWorkspaceAcquisition,
+@@ -882,7 +883,7 @@ function runSettleProjection(
+         await new HostedWorkspaceBroker(
+           brokerOptions!,
+           session.managed.authority.sessionHeader.sessionKey,
+-          promptId,
++          hostedRuntimeSessionId(promptId),
+         ).release();
+       await session.managed.sink.write(
+         record(session, sessionId, 'system', null, {
+@@ -3611,7 +3612,7 @@ export function registerHostedHarnessSessionRoutes(
+     new HostedWorkspaceBroker(
+       brokerOptions,
+       session.managed.authority.sessionHeader.sessionKey,
+-      promptId,
++      hostedRuntimeSessionId(promptId),
+     )
+       .release()
+       .then(
+@@ -3636,7 +3637,7 @@ export function registerHostedHarnessSessionRoutes(
+     await new HostedWorkspaceBroker(
+       brokerOptions,
+       session.managed.authority.sessionHeader.sessionKey,
+-      promptId,
++      hostedRuntimeSessionId(promptId),
+     )
+       .release()
+       .then(() => {
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index ea881f69d7..1e69921e55 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -354,6 +354,19 @@ function physicalToolStatus(
+   return response?.['error'] ? 'error' : 'success';
+ }
+ 
++/**
++ * The Broker admits only path-safe Runtime Session ids, while a wake turn's
++ * id is an input id (`arun_…:input`, `<monitor>:notify:<n>`): such an id is
++ * mapped to a stable path-safe digest instead of being refused at acquire.
++ */
++export function hostedRuntimeSessionId(promptId: string): string {
++  return /^[A-Za-z0-9._-]{1,512}$/.test(promptId) &&
++    promptId !== '.' &&
++    !promptId.includes('..')
++    ? promptId
++    : `wake-${createHash('sha256').update(promptId).digest('hex')}`;
++}
++
+ export class HostedToolRecoveryRequiredError extends Error {
+   constructor(cause: unknown) {
+     super(
+@@ -445,7 +458,7 @@ export class HostedWorkspaceToolTurn {
+       new HostedWorkspaceBroker(
+         options,
+         session.authority.sessionHeader.sessionKey,
+-        promptId,
++        hostedRuntimeSessionId(promptId),
+       );
+     this.warmed = this.mcp ? this.mcp.ensureReady() : this.broker.warm();
+     // Warmup runs alongside inference; a text-only answer need not wait for it.
