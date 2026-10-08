@@ -1,0 +1,34 @@
+== F1 regression (stack h3): S1 '* * * * *' overlap skip, HOLD::100 automation turn, user Turn sent mid-run
+turn_43586616f9bd4c56b91e56b8fe9e567a	COMPLETED	-	05:19:13	05:19:16
+turn_cfe3dea7a10a41c0ae36bc75d8ac6728	COMPLETED	-	05:20:30	05:22:39
+user Turn sent 05:20:30 UTC -> COMPLETED 05:22:39 (129 s; round 2: 128/129 s)
+05:20:03 /automations/operations fire_run schedule:2026-10-08T05:20:00Z -> 202 92ms
+05:20:30 /prompt -> 409 32ms
+05:20:32 /prompt -> 409 13ms
+05:20:35 /prompt -> 409 14ms
+05:20:40 /prompt -> 409 10ms
+05:20:48 /prompt -> 409 15ms
+05:21:04 /prompt -> 409 12ms
+05:21:37 /prompt -> 409 18ms
+05:22:37 /prompt -> 202 17ms
+
+== F5 P1 (lost no-op update answer, retried after a newer update)
+create goal A                      202 replay=false asch_e48fc427c 06aefb55 rev=1 goal A live 
+update goal A (key U), answer dropped 503 replay=-   rev=-   automation_operation_unknown
+update goal B (key B)              202 replay=false asch_e48fc427c 06aefb55 rev=2 goal B live 
+retry key U                        202 replay=true asch_e48fc427c 06aefb55 rev=1 goal A live 
+GET                                200 replay=- asch_e48fc427c 06aefb55 rev=2 goal B live 
+
+== F5 P2 (key R reused to retire Y after X's retire answer was lost)
+create X                           202 replay=false asch_d7893a9ff 06aefb55 rev=1 def X live 
+create Y                           202 replay=false asch_ce1159ed3 a7eac2bd rev=1 def Y live 
+retire X (key R), answer dropped   503 replay=-   rev=-   automation_operation_unknown
+retire Y with key R                409 replay=-   rev=-   idempotency_conflict
+retry retire X (key R)             202 replay=true asch_d7893a9ff 06aefb55 rev=2 def X retired 
+
+== claims / validation (console output of the probe, 05:42 UTC)
+non-ASCII digit cron ('٥ * * * *'):             400 invalid_automation
+session_mode per_run:                            409 automation_mode_disabled
+same key, second Session:                        202 (create) then 409 idempotency_conflict
+two Sessions, one key, relay held 3 s:           B: 409 idempotency_conflict in 27 ms; A: 202 after 3078 ms; define_schedule relays: 1
+same key + same body x3 concurrently, 1 Session: 202 replay=false, 202 replay=true, 202 replay=true; 3 relays answered with one operationId, one definition

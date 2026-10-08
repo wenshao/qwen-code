@@ -1,0 +1,20 @@
+== Environment notes (not attributed to the PR)
+-- Spring restart on this macOS rig (durable local-process is Linux-only, so the rig runs QWEN_MANAGED_AGENT_RUNTIME_DURABLE_LOCAL_PROCESS=false)
+06:06:58 restart Spring (short)
+manual T2 run after the restart:
+06:07:01 /load -> 200 3ms
+06:07:01 /automations/operations fire_run manual:key-t2-after-spring -> 202 159ms
+Harness: qwen serve: Hosted Harness turn arun_5943e544d0363e2c69cfa443695c3b80d818b96f484691b720da6cf4fcef8dc8:input failed: TimeoutError: The operation was aborted due to timeout
+broker tap 06:07:02.235 req runtimes:warm   
+broker tap 06:07:32.238 err   30003 Error: socket hang up
+broker tap 06:08:07.245 req runtimes:warm   
+broker tap 06:08:37.243 err   29998 Error: socket hang up
+A direct curl to the Broker's runtimes:warm (bypassing the tap) also got no answer in 40 s at 06:08 and in 15 s at 06:10. The workers were children of the killed Spring; the new Spring still lists their bindings READY:
+2944968b-6ad0-4c2c-a372-0517ca1a76eb	READY	2026-10-08 05:19:14.547436
+31b99810-97e8-4f3a-a80a-edc0e3275ef8	READY	2026-10-08 05:19:14.649241
+3cc42fbd-435b-4739-93e2-6fe2f205f8d1	READY	2026-10-08 05:19:14.316640
+f558ca37-801a-481a-9571-b62031b57c07	READY	2026-10-08 05:19:14.806465
+A user tool Turn at 06:08 failed the same way (hosted_turn_failed after the 30 s warm timeout). The automation run was correctly settled 'failed'.
+
+-- CI: 'macos-latest / Java 21' is red on HostedHarnessClientTest.lifecycleDetachStopsHeartbeatOnlyAfterConfirmedAbsence[4]; main push run 37720934960 (e79a4a7966) fails the same test ([5],[9],[11]).
+-- Not runnable here: Session close (L3) needs durable local-process (Linux), so the merged close() + automation settlement was not exercised. Spring only creates hosted-workspace-files/1 Sessions, so monitor wake turns (shell profile) are not reachable through the public API.

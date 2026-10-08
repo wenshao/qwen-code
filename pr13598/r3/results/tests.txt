@@ -1,0 +1,43 @@
+== Java: full managed-agent-server module at 1734df7be4
+[INFO] Tests run: 1433, Failures: 0, Errors: 0, Skipped: 1
+[INFO] BUILD SUCCESS
+EXIT 0
+[INFO] Tests run: 42, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.048 s -- in com.alibaba.qwen.code.managedagent.service.AutomationScannerTest
+
+== TS core (4 automation files)
+ Test Files  4 passed (4)
+      Tests  150 passed (150)
+core exit 0
+
+== TS Harness, 4 files (tool-turn, harness-session, automation-session, monitor-wake), host load avg ~30
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness no-tool session > refuses fires while blocked, and stops re-blocking once the crash is consumed
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness no-tool session > answers a fire that lost its store with a retryable 503, and fires after recovery
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn takeover > completes an answer (chunked) and clears file history after a recovered Write continuation
+ Test Files  1 failed | 3 passed (4)
+      Tests  3 failed | 530 passed (533)
+EXIT 1
+
+== the 3 failures re-run alone, 3 times
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness no-tool session > refuses fires while blocked, and stops re-blocking once the crash is consumed
+      Tests  1 failed | 2 passed | 286 skipped (289)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness no-tool session > refuses fires while blocked, and stops re-blocking once the crash is consumed
+      Tests  1 failed | 2 passed | 286 skipped (289)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness no-tool session > refuses fires while blocked, and stops re-blocking once the crash is consumed
+      Tests  1 failed | 2 passed | 286 skipped (289)
+   -> the two takeover tests pass alone; 'refuses fires while blocked...' fails every time on this host:
+   qwen serve: Hosted automation run of turn arun_17af...:input could not be settled failed/unknown: SessionTranscriptChangedError: The session transcript changed outside its active writer.
+   -> same test with the replay poll at hosted-harness-session.test.ts:2211 changed from 50 ms to 2000 ms: passes 2/2 under the same load (reverted after)
+
+== candidate (candidate-r3.patch) on the same 4 files
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness no-tool session > refuses fires while blocked, and stops re-blocking once the crash is consumed
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn takeover > fences recovery 'cancel' admission when 'detached'
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn takeover > settles a cancellation takeover whose durable approval already ended (state=cancelled)
+ Test Files  1 failed | 3 passed (4)
+      Tests  3 failed | 530 passed (533)
+EXIT 1
+   -> the two takeover tests pass alone (3/3); 'refuses fires while blocked' with a 2000 ms poll fails with 'expected 202 to be 409': the candidate deliberately lets the next fire run once the crash is settled

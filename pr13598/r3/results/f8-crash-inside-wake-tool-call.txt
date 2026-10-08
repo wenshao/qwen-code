@@ -1,0 +1,151 @@
+== F8 repro 1 (stack w3, head): Harness killed while a manual automation run's wake turn waited on its read_file result (Broker poll held by the tap)
+05:22:57 arun W1
+05:23:05 kill+restart Harness (W1 wake turn mid tool poll)
+05:25:49 W2 user tool turn
+05:28:05 W1 user turn (load W1)
+05:32:24 restart Harness #2
+05:35:55 W1 user turn #2 (after restart #2)
+-- Spring->Harness
+[W1]
+05:22:57 /automations/operations define_schedule  -> 202 31ms
+05:22:57 /automations/operations fire_run manual:key-w1-run1 -> 202 51ms
+05:28:05 /load -> 200 177ms
+05:28:05 /prompt -> 202 30ms
+05:35:55 /load -> 200 255ms
+05:35:56 /prompt -> 202 21ms
+[W2]
+05:25:50 /prompt -> 409 2ms
+05:25:51 /load -> 200 162ms
+05:25:51 /prompt -> 202 24ms
+05:32:30 /load -> 409 33ms
+05:32:39 /load -> 409 10ms
+05:32:55 /load -> 409 12ms
+05:33:28 /load -> 409 172ms
+-- turns
+e235a661	turn_e476053eac3a480786d0fccca4e2b001	FAILED	managed_runtime_recovery_blocked	05:25:50	05:33:28
+b0574290	turn_f6d0a941e69c4755a0cfab72d6955aed	FAILED	hosted_turn_failed	05:28:05	05:28:05
+b0574290	turn_d10db76fe47546c9b56bdfe78ee25485	FAILED	hosted_turn_failed	05:35:55	05:35:56
+-- W1 run
+arun_f2b762aa5daed68aad547d35fb877ede1378fa143dc528dbb2c09aa52938317d	failed	05:28:05
+-- Broker state at the end
+broker runtime session	wake-310b366cf2d3dc65b9f8cf01de6b92ae52d393fccf4b6dbc460ae1622e2e6795	READY
+workspace execution lease holder	wake-310b366cf2d3dc65b9f8cf01de6b92ae52d393fccf4b6dbc460ae1622e2e6795
+workspace_busy refusals: 1448 (first 05:25:54, last 05:32:24)
+-- Harness log
+qwen serve: Hosted Harness turn 1b252a22-01a9-4880-8908-7828bf7fb0e2 waits for the Workspace mount held by another Session.
+qwen serve: Monitor wake turn arun_f2b762aa5daed68aad547d35fb877ede1378fa143dc528dbb2c09aa52938317d:input needs recovery, not a re-drive.
+qwen serve: Hosted Harness turn c37e4f1d-3648-4e7f-9c8b-347c44119864 could not finish after admission; retrying settlement: ManagedHarnessBlockedError: await_runtime is not a model-start phase for this Harness.
+qwen serve: Hosted Session e235a661-c310-4965-83b8-07d81a99b5ea load refused (takeover_unrecovered): prompt=1b252a22-01a9-4880-8908-7828bf7fb0e2 reason=unresolved_after_settle
+qwen serve: Hosted Harness turn 0478294c-d50b-43fd-af74-e429d36947ea could not finish after admission; retrying settlement: ManagedHarnessBlockedError: await_runtime is not a model-start phase for this Harness.
+
+== F8 repro 2 (stack z3, head): same crash under a '* * * * *' allow definition, so the first load after restart came from an automation fire
+05:38:06 delayed tool poll seen (Z1 mid tool)
+05:38:14 kill+restart Harness (Z1 mid tool, Z2 mid HOLD)
+05:38:14 restarted
+05:40:39 Z3 user tool turn
+05:42:36 restart Harness #2 (Z3 tool turn stalled since 05:40:39)
+[Z1]
+05:38:03 /automations/operations fire_run schedule:2026-10-08T05:38:00Z -> 202 56ms
+05:39:04 /automations/operations fire_run schedule:2026-10-08T05:39:00Z -> 409 hosted_harness_generation_mismatch 5ms
+05:39:09 /load -> 200 145ms
+05:39:09 /automations/operations fire_run schedule:2026-10-08T05:39:00Z -> 202 51ms
+05:40:04 /automations/operations fire_run schedule:2026-10-08T05:40:00Z -> 409 hosted_session_blocked 28ms
+05:41:00 /automations/operations fire_run schedule:2026-10-08T05:41:00Z -> 409 hosted_session_blocked 14ms
+05:42:00 /automations/operations fire_run schedule:2026-10-08T05:42:00Z -> 409 hosted_session_blocked 29ms
+05:43:00 /load -> 409 13ms
+05:44:01 /load -> 200 344ms
+05:44:01 /automations/operations fire_run schedule:2026-10-08T05:44:00Z -> 202 147ms
+05:45:02 /automations/operations fire_run schedule:2026-10-08T05:45:00Z -> 409 hosted_session_blocked 28ms
+05:46:02 /automations/operations fire_run schedule:2026-10-08T05:46:00Z -> 409 hosted_session_blocked 18ms
+[Z3]
+05:40:39 /load -> 200 125ms
+05:40:39 /prompt -> 202 28ms
+05:42:41 /load -> 409 34ms
+05:42:46 /load -> 409 22ms
+05:42:55 /load -> 409 18ms
+05:43:11 /load -> 409 333ms
+f516a676	arun_9f4b094029299f4ad75d4b023a102b721b8f4fe9448a274c735d5691c249ff4b	running	-
+f516a676	arun_e29a6c033f21bfa597ef32fd3d1a797b8a782f0ebe56355dfc024d702fb805b6	failed	05:39:09
+f516a676	arun_190ffd9f5e7bc1977cb7e0199acdf2ed66cd40a8d65362e74e3b2ee0b9e518f8	failed	05:44:01
+7a3da0f2	turn_e491307cdc154ebfbab8aaad2fac27e0	COMPLETED	-	05:37:25	05:37:29
+7a3da0f2	turn_5fc5e148d3f04fd1a05cbad7a9559588	FAILED	managed_runtime_recovery_blocked	05:40:39	05:43:11
+broker runtime session	wake-29e8a988f1d216a051421654129627811d546c8cf3f948bd14b3c1ac4e139ad0	READY
+workspace execution lease holder	wake-29e8a988f1d216a051421654129627811d546c8cf3f948bd14b3c1ac4e139ad0
+workspace_busy refusals: 416 (first 05:40:44, last 05:42:36)
+qwen serve: Monitor wake turn arun_23cfc5ae2599f798f66ef1f8a894251cd50e4463942888cf258ae3c8d65a188f:input needs recovery, not a re-drive.
+qwen serve: Monitor wake turn arun_e29a6c033f21bfa597ef32fd3d1a797b8a782f0ebe56355dfc024d702fb805b6:input needs recovery, not a re-drive.
+qwen serve: Hosted Harness turn 5673a436-f9b0-4401-97bb-dbfe4451020b waits for the Workspace mount held by another Session.
+qwen serve: Hosted Session 7a3da0f2-9032-406c-a1b8-2f315bd810ef load refused (takeover_unrecovered): prompt=5673a436-f9b0-4401-97bb-dbfe4451020b reason=unresolved_after_settle
+qwen serve: Monitor wake pump of session f516a676-e297-4702-802c-8d6577447006 failed: ManagedHarnessBlockedError: await_runtime is not a model-start phase for this Harness.
+
+== Control (stack v3, head): the same crash inside a USER Turn's read_file
+05:30:51 V1 user tool turn
+05:30:54 kill+restart v3 Harness (V1 user turn mid tool poll)
+05:30:35 /prompt -> 202 47ms
+05:30:51 /prompt -> 202 28ms
+05:30:59 /load -> 409 34ms
+05:31:04 /load -> 409 12ms
+05:31:12 /load -> 409 11ms
+05:31:28 /load -> 409 13ms
+05:32:00 /load -> 200 228ms
+05:32:00 /managed-runtime/continue -> 200 21ms
+turn_aa206048358c4576b75bfdf61b629c07	COMPLETED	-	05:30:34	05:30:37
+turn_8af9a246fe184d79a27e1ff2d2f4672e	COMPLETED	-	05:30:51	05:32:03
+broker runtime session	90cb02c3-6b64-4100-8cb7-6f9be702c540	RELEASED
+workspace execution lease holder	(free)
+workspace_busy refusals: 0 (first -, last -)
+
+== Candidate (stack c3: cand2 dist with candidate-r3.patch, head jar): same crash as z3
+05:58:03 delayed tool poll seen (C1 mid tool)
+05:58:11 kill+restart Harness (C1 mid tool, C2 mid HOLD)
+05:58:11 restarted
+06:00:43 C3 user tool turn
+[C1]
+05:58:00 /automations/operations fire_run schedule:2026-10-08T05:58:00Z -> 202 111ms
+05:59:00 /automations/operations fire_run schedule:2026-10-08T05:59:00Z -> 409 hosted_harness_generation_mismatch 2ms
+05:59:05 /load -> 200 236ms
+05:59:06 /automations/operations fire_run schedule:2026-10-08T05:59:00Z -> 202 108ms
+06:00:01 /automations/operations fire_run schedule:2026-10-08T06:00:00Z -> 202 60ms
+06:01:01 /automations/operations fire_run schedule:2026-10-08T06:01:00Z -> 202 66ms
+06:02:02 /automations/operations fire_run schedule:2026-10-08T06:02:00Z -> 202 123ms
+06:03:02 /automations/operations fire_run schedule:2026-10-08T06:03:00Z -> 202 78ms
+[C2]
+05:58:00 /automations/operations fire_run schedule:2026-10-08T05:58:00Z -> 202 57ms
+05:59:00 /load -> 200 389ms
+05:59:00 /automations/operations fire_run schedule:2026-10-08T05:59:00Z -> 202 118ms
+06:00:01 /automations/operations fire_run schedule:2026-10-08T06:00:00Z -> 202 127ms
+06:01:01 /automations/operations fire_run schedule:2026-10-08T06:01:00Z -> 202 50ms
+06:02:02 /automations/operations fire_run schedule:2026-10-08T06:02:00Z -> 202 104ms
+06:03:02 /automations/operations fire_run schedule:2026-10-08T06:03:00Z -> 202 91ms
+06:04:03 /automations/operations fire_run schedule:2026-10-08T06:04:00Z -> 202 67ms
+[C3]
+06:00:43 /load -> 200 157ms
+06:00:43 /prompt -> 202 32ms
+0a5913d2	arun_db51c257beba303d8a26eb822cded92da226672dbef3045fcb3aec2746b972df	failed	05:59:00
+2e5dd0bf	arun_94197147b033bce57e009e388492cd24ad516d74c6009cd260e55c2deb20929f	failed	05:59:06
+2e5dd0bf	arun_2b3ad687ddc022fd60a8e3a6b8d061e3e6b78832f63f9ac0b54742c88b2b8e1e	completed	05:59:11
+2e5dd0bf	arun_d3e19d649f5a5bcd5d87a0485d6e699b9c8f95ff60c1009dc4bc97a88128e0dd	completed	06:00:05
+0a5913d2	arun_b3470274b0c4b2a9953c6e2ed3120a1711bcb687093ccba3a8c8820728dedcb0	completed	06:00:35
+2e5dd0bf	arun_e29d60dcc76349541766eb8fdcd27aad41c9ac48de3acbf9d394c9812b6eb2ac	completed	06:01:08
+2e5dd0bf	arun_8df13e6cb4fcf21e846a02f449de108c1d3924bc6a5e1001cce0c9c935ebf3c8	completed	06:02:08
+0a5913d2	arun_6f550d205fa5b2d085f27202b7f49240d70c5ca1d913aea48a57830f11e90ace	completed	06:02:10
+2b454afc	turn_cafda24116734f97b9aa939ce9ce8fd5	COMPLETED	-	05:57:20	05:57:23
+2b454afc	turn_9a36973b3523454abbca8262b83868d5	COMPLETED	-	06:00:43	06:00:50
+broker runtime session	wake-0b46cf4f68ec726eab50650bbc4cc46b0bfdbc53492a64ef8af89967bfc18ab3	RELEASED
+broker runtime session	wake-15657bd017a68c0a14ebcf65829208af38c41b48b9fbfc1833435cea54167c19	RELEASED
+broker runtime session	wake-1a73963f3430b511b0208a33f30869d1d3fb76e920db4bee7f831b32542ffa67	RELEASED
+broker runtime session	wake-1b361dc97d3fc96c75f3f8bd3854ce57357e03262cf1e9e8f4a6d2371a4b568a	RELEASED
+broker runtime session	wake-25aca7cbfa1aa7b1162eeb13cadcfe54e07b988faa0c2b5b264d718284b7d6b5	RELEASED
+broker runtime session	wake-531c03a78e170cab8487e6c0fce9af5e94dc2e534aa1a7c396805124436f18ef	RELEASED
+broker runtime session	wake-9786a99ccfeede8803d9a1fd45ff138f4f795ebe31ccc07c00ed5e86fe11ffa0	RELEASED
+broker runtime session	wake-97fb7824db318137e2379bfac5a07c5c933d1573725b2f72e0278722f1405346	RELEASED
+broker runtime session	wake-aaee93e0249adf4edb42d2721d3df316df4aaaf91ad69691ee8568f1c0da3819	RELEASED
+broker runtime session	wake-b3e43200c4c7511be4c0254d445c92ee97ea37484a56901f4c178d082cdb9a8c	RELEASED
+broker runtime session	wake-ca7cccf6b7a009af7b7d747359209c4d82d843b7a5f10c849026274ffc4d4f1e	RELEASED
+broker runtime session	wake-cccaa155781e23c35df360503404e49145a628a990e62450534b2d18ebef83a1	RELEASED
+broker runtime session	wake-d1f1eacb09e45354fb1d24df14bdb60558f9bda3e35fae9e0d3e2dbaafb55aa4	RELEASED
+broker runtime session	wake-e1e781e7c8aa165acb516d64b4a6484bbbb62b922ac92973918c536280765ad1	RELEASED
+workspace execution lease holder	(free)
+workspace_busy refusals: 0 (first -, last -)
+qwen serve: Monitor wake turn arun_db51c257beba303d8a26eb822cded92da226672dbef3045fcb3aec2746b972df:input needs recovery, not a re-drive.
+qwen serve: Monitor wake turn arun_94197147b033bce57e009e388492cd24ad516d74c6009cd260e55c2deb20929f:input needs recovery, not a re-drive.

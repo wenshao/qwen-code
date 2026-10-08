@@ -1,0 +1,53 @@
+== F6: wake turns calling read_file on stack h3 (head 1734df7be4)
+-- T1: cron '* * * * *', overlap skip, prompt: read notes/status.txt and reply with its first line. Ran 05:20-05:57 UTC, then retired.
+T1 occurrences	fired	38
+T1 runs	completed	38
+wake tool executions (T1 + manual T2)	success	39
+wake Broker runtime sessions	RELEASED	39
+-- every wake tool execution returned the beacon file (first 3 rows):
+wake-07a2954c98d792a576f73daa3	arun_12df4d763e81f39e5595c1fc9	success	{"executionStatus":"success","responseParts":[{"type":"text","text":"BEACON-h3-9691\\nsecond line\\n"}]}
+wake-08ade8dcbdd5693e40842e9df	arun_ee0043d32bd9faf684b6a393e	success	{"executionStatus":"success","responseParts":[{"type":"text","text":"BEACON-h3-9691\\nsecond line\\n"}]}
+wake-0b38dcc3089d1860bbb286a62	arun_360fb440bc77761b4e48f52d5	success	{"executionStatus":"success","responseParts":[{"type":"text","text":"BEACON-h3-9691\\nsecond line\\n"}]}
+-- the Broker id is wake-<sha256(runId + ':input')>:
+schedule:2026-10-08T05:21:00Z completed arun_a4503dde339… -> wake-c2c818220709f8fe…
+schedule:2026-10-08T05:20:00Z completed arun_b041347d0aa… -> wake-2e8a40d13a6a973e…
+manual:key-t2-after-spring failed arun_5943e544d03… -> wake-ec56e0d02b853869…
+manual:key-t2-run1 completed arun_3e737d29cc9… -> wake-af4de998b7635e53…
+   (manual:key-t2-after-spring failed at runtimes:warm after a Spring restart; see environment notes in the report)
+-- Harness->Broker exchange for the manual T2 run at 05:20 (the 409 workspace_busy retries are T1's tool turn holding the shared Workspace for ~3 s):
+05:20:04.272 POST runtimes:warm
+05:20:04.288    -> 200 {"harnessSessionId":"a7eac2bd-5cf6-478e-847e-6dd786071543","protocolVersion":1,"ready":true}
+05:20:06.447 POST tool-sessions:acquire
+05:20:06.464    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:06.717 POST tool-sessions:acquire
+05:20:06.746    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:06.999 POST tool-sessions:acquire
+05:20:07.013    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:07.266 POST tool-sessions:acquire
+05:20:07.285    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:07.538 POST tool-sessions:acquire
+05:20:07.551    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:07.804 POST tool-sessions:acquire
+05:20:07.821    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:08.074 POST tool-sessions:acquire
+05:20:08.093    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:08.349 POST tool-sessions:acquire
+05:20:08.417    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:08.670 POST tool-sessions:acquire
+05:20:08.711    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:08.966 POST tool-sessions:acquire
+05:20:09.063    -> 409 {"error":"Workspace storage is held by another tool turn.","code":"workspace_busy","retryable":true}
+05:20:09.315 POST tool-sessions:acquire
+05:20:09.351    -> 200 {"protocolVersion":1,"harnessSessionId":"a7eac2bd-5cf6-478e-847e-6dd786071543","runtimeSessionId":"w
+05:20:09.352 POST tool-sessions/wake-af4de998b7635e53e71be3a805af99c4ba5cf7e1e4df0a5613b9968aaf4e1c2e/control
+05:20:09.379    -> 200 {"protocolVersion":1,"harnessSessionId":"a7eac2bd-5cf6-478e-847e-6dd786071543","runtimeSessionId":"w
+05:20:09.382 POST tool-sessions/wake-af4de998b7635e53e71be3a805af99c4ba5cf7e1e4df0a5613b9968aaf4e1c2e/control
+05:20:09.394    -> 200 {"protocolVersion":1,"harnessSessionId":"a7eac2bd-5cf6-478e-847e-6dd786071543","runtimeSessionId":"w
+05:20:09.410 POST executions:prepare
+05:20:09.439    -> 200 {"protocolVersion":1,"harnessSessionId":"a7eac2bd-5cf6-478e-847e-6dd786071543","runtimeSessionId":"w
+05:20:09.472 POST executions/9e439665-0839-4531-94fe-024a631bb1a1:start
+05:20:09.483    -> 200 {"protocolVersion":1,"harnessSessionId":"a7eac2bd-5cf6-478e-847e-6dd786071543","runtimeSessionId":"w
+05:20:09.537 GET executions/9e439665-0839-4531-94fe-024a631bb1a1?protocolVersion=1&requestId=e7c99dc2-9225-45
+05:20:09.539    -> 200 {"protocolVersion":1,"harnessSessionId":"a7eac2bd-5cf6-478e-847e-6dd786071543","runtimeSessionId":"w
+05:20:11.653 POST tool-sessions/wake-af4de998b7635e53e71be3a805af99c4ba5cf7e1e4df0a5613b9968aaf4e1c2e:release
+05:20:11.667    -> 200 {"protocolVersion":1,"harnessSessionId":"a7eac2bd-5cf6-478e-847e-6dd786071543","runtimeSessionId":"w

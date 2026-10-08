@@ -1,0 +1,54 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 9ecdafe14d..72d481843d 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -2497,6 +2497,38 @@ export function registerHostedHarnessSessionRoutes(
+                         turn.turnId,
+                       );
+                     if (settled !== undefined) {
++                      // A wake turn that crashed inside a Runtime call is
++                      // parked at await_runtime: settle its executions
++                      // cancelled and give its Broker lease back, as a
++                      // cancelled takeover does — or no later turn reaches
++                      // a model-start phase and the Workspace mount stays
++                      // held for every Session on it.
++                      const authorization =
++                        await session.managed.authority.harnessRunAuthorization();
++                      if (
++                        brokerOptions &&
++                        authorization.status === 'runnable' &&
++                        authorization.checkpoint.identity.turnId ===
++                          turn.turnId &&
++                        (authorization.checkpoint.tools?.items ?? []).some(
++                          (item) =>
++                            item.state === 'in_progress' &&
++                            item.outcomeSource === 'runtime',
++                        )
++                      ) {
++                        const broker = await stopParkedRuntimeExecutions({
++                          session: session.managed,
++                          promptId: turn.turnId,
++                          brokerOptions,
++                        });
++                        await settleParkedTurnCancelled({
++                          session: session.managed,
++                          sessionId,
++                          cwd: session.cwd,
++                          promptId: turn.turnId,
++                        });
++                        await broker.release();
++                      }
+                       // Consume the crashed input too: until its turnId
+                       // settles, every reload re-classifies it as recovery
+                       // and re-blocks the Session over the same crash.
+@@ -2516,6 +2548,10 @@ export function registerHostedHarnessSessionRoutes(
+                           endedAt: Date.now(),
+                         },
+                       });
++                      // Nothing of the crash is left to recover: the inputs
++                      // queued behind it may run, instead of waiting for a
++                      // reload that only a Harness restart brings.
++                      session.blocked = false;
+                     }
+                   } catch (cause) {
+                     writeStderrLineSafe(

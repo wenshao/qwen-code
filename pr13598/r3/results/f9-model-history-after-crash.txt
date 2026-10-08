@@ -1,0 +1,52 @@
+== F9: what the model is sent after a crashed automation turn is consumed
+Each line is one chat request: (role, content) after the system prompt. 'schedule:<slot>' = the scheduled-run text of that occurrence.
+Two occurrences in one user message means the crashed run's unanswered user record was merged into the next turn's prompt.
+
+-- stack x3 (gateway 1 logs only the first 300 chars of the last user message):
+req 40 05:28:05 USER::init-XA nmsg=4: last user message begins: 'ion: crash skip\nAutomation ID: asch_30544912c4d45e3c30e3e047e5faa20c\nSchedule: * * * * * (UTC)\nOccurrence: schedule:2026-10-08T05:23:00Z\nTriggered at: 2026-10-0'
+req 40 done in 87562 ms  <- the gateway honoured HOLD::80, which only the crashed 05:23 automation prompt contains; the user's own prompt was 'USER::xa-u1 Reply with exactly: USER-A1'
+req 55 05:33:03 USER::init-XB nmsg=4: last user message begins: 'ion: crash allow\nAutomation ID: asch_c2373efc6764b5a96e74f63163264353\nSchedule: * * * * * (UTC)\nOccurrence: schedule:2026-10-08T05:23:00Z\nTriggered at: 2026-10-'
+
+-- stacks z3 (head) and c3 (candidate), gateway 2 logs every message:
+req 5 05:38:04 USER::init-Z2:
+      ('user', 'USER::init-Z2 Reply with')
+      ('assistant', 'READY')
+      ('user', 'schedule:2026-10-08T05:38:00Z')
+req 7 05:44:02 USER::init-Z2:
+      ('user', 'USER::init-Z2 Reply with')
+      ('assistant', 'READY')
+      ('user', 'schedule:2026-10-08T05:38:00Z,schedule:2026-10-08T05:39:00Z')
+req 20 05:58:00 USER::init-C1:
+      ('user', 'USER::init-C1 Reply with')
+      ('assistant', 'READY')
+      ('user', 'schedule:2026-10-08T05:58:00Z')
+req 21 05:58:00 USER::init-C2:
+      ('user', 'USER::init-C2 Reply with')
+      ('assistant', 'READY')
+      ('user', 'schedule:2026-10-08T05:58:00Z')
+req 22 05:59:01 USER::init-C2:
+      ('user', 'USER::init-C2 Reply with')
+      ('assistant', 'READY')
+      ('user', 'schedule:2026-10-08T05:58:00Z,schedule:2026-10-08T05:59:00Z')
+req 23 05:59:06 USER::init-C1:
+      ('user', 'USER::init-C1 Reply with')
+      ('assistant', 'READY')
+      ('user', 'schedule:2026-10-08T05:58:00Z')
+      ('assistant', 'tool_call read_file:call_f01c1e9d048148e4bb4199ec')
+      ('tool', 'tool_result call_f01c1e9d04814')
+      ('user', 'schedule:2026-10-08T05:59:00Z')
+req 24 05:59:08 USER::init-C1:
+      ('user', 'USER::init-C1 Reply with')
+      ('assistant', 'READY')
+      ('user', 'schedule:2026-10-08T05:58:00Z')
+      ('assistant', 'tool_call read_file:call_f01c1e9d048148e4bb4199ec')
+      ('tool', 'tool_result call_f01c1e9d04814')
+      ('user', 'schedule:2026-10-08T05:59:00Z')
+      ('assistant', 'tool_call read_file:call_1b9ef4033c0e47a4b4d82e28')
+      ('tool', 'tool_result call_1b9ef4033c0e4')
+req 28 06:00:35 USER::init-C2:
+      ('user', 'USER::init-C2 Reply with')
+      ('assistant', 'READY')
+      ('user', 'schedule:2026-10-08T05:58:00Z,schedule:2026-10-08T05:59:00Z')
+      ('assistant', 'TICK')
+      ('user', 'schedule:2026-10-08T06:00:00Z')
