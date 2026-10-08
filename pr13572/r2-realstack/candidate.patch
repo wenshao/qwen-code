@@ -1,0 +1,171 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 1a97d6546f..ec4c5c7cc0 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -322,7 +322,14 @@ export function parseChannelSubmitInput(
+   let scope: import('@qwen-code/qwen-code-core/managed-runtime/managed-channel-record.js').ChannelRouteScope;
+   let policy: import('@qwen-code/qwen-code-core/managed-runtime/managed-channel-operations.js').ChannelPolicy;
+   try {
+-    scope = assertChannelRouteScope(body?.['scope']);
++    // The Java control plane's JSON encoder drops null map values, so a
++    // scope's absent senderId/chatId/threadId arrives as a missing key.
++    const rawScope = object(body?.['scope']);
++    scope = assertChannelRouteScope(
++      rawScope === null
++        ? body?.['scope']
++        : { senderId: null, chatId: null, threadId: null, ...rawScope },
++    );
+     policy = assertChannelPolicy(body?.['policy']);
+   } catch {
+     return undefined;
+diff --git a/packages/cli/src/serve/parse-channel-submit-input.test.ts b/packages/cli/src/serve/parse-channel-submit-input.test.ts
+index 57305d0544..ff744ed77d 100644
+--- a/packages/cli/src/serve/parse-channel-submit-input.test.ts
++++ b/packages/cli/src/serve/parse-channel-submit-input.test.ts
+@@ -59,3 +59,32 @@ describe('parseChannelSubmitInput reply context bound', () => {
+     });
+   });
+ });
++
++describe('parseChannelSubmitInput over the Java control plane wire', () => {
++  it('admits the body the Java client sends, whose null members are dropped', () => {
++    // HostedHarnessClient encodes with fastjson2, which omits null map
++    // values: scope.senderId, subject and replyContext never arrive.
++    const wire = body(null);
++    wire['scope'] = {
++      kind: 'chat_thread',
++      chatId: 'alice@example.com',
++      threadId: 'thread-1',
++    };
++    delete wire['replyContext'];
++    expect(parseChannelSubmitInput(wire)).toMatchObject({
++      scope: {
++        kind: 'chat_thread',
++        senderId: null,
++        chatId: 'alice@example.com',
++        threadId: 'thread-1',
++      },
++      replyContext: null,
++    });
++  });
++
++  it('still refuses a scope with a key outside the closed shape', () => {
++    const wire = body(null);
++    wire['scope'] = { kind: 'chat_thread', chatId: 'a', extra: 1 };
++    expect(parseChannelSubmitInput(wire)).toBeUndefined();
++  });
++});
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+index 992c595f97..47b29330f2 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java
+@@ -401,7 +401,7 @@ public class QwenHostedHarnessConnector implements HarnessConnector {
+         try {
+             requireReadyForNewWork(tenantId, sessionId);
+             return client().runChannelOperation(
+-                    attachment(tenantId, sessionId, true), body);
++                    channelAttachment(tenantId, sessionId), body);
+         } catch (HostedHarnessGenerationException error) {
+             adoptGeneration(error);
+             throw error;
+@@ -437,6 +437,36 @@ public class QwenHostedHarnessConnector implements HarnessConnector {
+         pendingRecovery.clear();
+     }
+ 
++    /**
++     * A channel route's Session is created without input, so the Harness
++     * holds no journal for it until its first channel operation: create it
++     * then. A Session the Harness already holds answers the create with 409,
++     * which create() turns into a load.
++     */
++    private HarnessSessionRef channelAttachment(String tenantId,
++            String sessionId) {
++        AttachmentKey key = new AttachmentKey(tenantId, sessionId);
++        HarnessSessionRef attachment = attachments.get(key);
++        if (attachment == null) {
++            SessionRecord session = sessions.requireSession(tenantId,
++                    sessionId);
++            try {
++                createOrLoad(tenantId, sessionId,
++                        session.harnessBootId() != null, false);
++            } catch (DaemonHttpException error) {
++                // The Harness still holds the Session this control plane
++                // attached before it restarted: re-take it passively, the
++                // way the other cold attachments re-acquire a live one.
++                if (error.getStatusCode() != 409) {
++                    throw error;
++                }
++                createOrLoad(tenantId, sessionId, true, true);
++            }
++            attachment = attachments.get(key);
++        }
++        return attachment;
++    }
++
+     private HarnessSessionRef attachment(String tenantId, String sessionId, boolean newWork) {
+         AttachmentKey key = new AttachmentKey(tenantId, sessionId);
+         HarnessSessionRef attachment = attachments.get(key);
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+index 94f934f765..2fa6ae667f 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnectorTest.java
+@@ -443,6 +443,59 @@ class QwenHostedHarnessConnectorTest {
+                 .hasMessage("Hosted Workspace files are disabled");
+     }
+ 
++    @Test
++    void channelOperationCreatesANeverAttachedRouteSessionAndRetakesALiveOne() {
++        // A channel route's Session is created without input: the Harness
++        // holds no journal for it until its first channel operation, so a
++        // load answers 404. After a control-plane restart the Harness still
++        // holds it, so create and a plain load both answer 409.
++        HostedHarnessClient client = mock(HostedHarnessClient.class);
++        HostedHarnessCapabilities capabilities = mock(HostedHarnessCapabilities.class);
++        HarnessSessionRef attached = mock(HarnessSessionRef.class);
++        when(client.capabilities()).thenReturn(capabilities);
++        when(capabilities.getBootId()).thenReturn(BOOT_ID);
++        when(attached.getHarnessBootId()).thenReturn(BOOT_ID);
++        when(attached.getApprovalMode()).thenReturn("yolo");
++        AgentStateStore sessions = mock(AgentStateStore.class);
++        SessionRecord neverAttached = new SessionRecord("tenant-a", SESSION_ID, "qwen-code", null,
++                null, "ACTIVE", null, null, 0, 0, 0, 1, 1, null, 1,
++                new ContextBinding("tenant-a", "workspace", 1, "storage", ".",
++                        WorkspaceExecutionProfile.CONTEXT_CONFIG_REF, 1), "yolo",
++                "hosted-workspace-files/1");
++        when(sessions.requireSession("tenant-a", SESSION_ID)).thenReturn(neverAttached);
++        when(client.createSession(any())).thenReturn(attached);
++        WorkspaceExecutionStore execution = mock(WorkspaceExecutionStore.class);
++        ManagedAgentProperties properties = properties();
++        properties.getHarness().setWorkspaceFilesEnabled(true);
++        ManagedActionStore actions = mock(ManagedActionStore.class);
++        when(actions.approvalMode("tenant-a", SESSION_ID)).thenReturn("yolo");
++        QwenHostedHarnessConnector connector = new QwenHostedHarnessConnector(properties, sessions, execution, actions);
++        ReflectionTestUtils.setField(connector, "client", client);
++
++        connector.runChannelOperation("tenant-a", SESSION_ID, Map.of("kind", "submit_input"));
++        verify(client).createSession(any(CreateHarnessSession.class));
++        verify(client, never()).loadSession(any());
++        verify(client).runChannelOperation(any(), any());
++
++        // A fresh control plane (no cached attachment) against a Harness
++        // that still holds the Session: re-taken passively, not refused.
++        QwenHostedHarnessConnector restarted = new QwenHostedHarnessConnector(properties, sessions, execution, actions);
++        ReflectionTestUtils.setField(restarted, "client", client);
++        DaemonHttpException attachedElsewhere = mock(DaemonHttpException.class);
++        when(attachedElsewhere.getStatusCode()).thenReturn(409);
++        when(client.createSession(any())).thenThrow(attachedElsewhere);
++        when(client.loadSession(any())).thenAnswer(invocation -> {
++            LoadHarnessSession load = invocation.getArgument(0);
++            if (!Boolean.TRUE.equals(ReflectionTestUtils.getField(load,
++                    "passiveManagedRuntimeRecovery"))) {
++                throw attachedElsewhere;
++            }
++            return attached;
++        });
++        restarted.runChannelOperation("tenant-a", SESSION_ID, Map.of("kind", "submit_input"));
++        verify(client, times(2)).runChannelOperation(any(), any());
++    }
++
+     @Test
+     void resolvesActionsThroughAuthorizedColdAndCachedWorkspaceAttachments() {
+         HostedHarnessClient client = mock(HostedHarnessClient.class);
