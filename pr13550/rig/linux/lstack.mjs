@@ -114,7 +114,7 @@ if (cmd === 'init') {
   const dir = path.join('/work', db);
   const st = {
     arm, db, wt, dir,
-    cli: '/opt/arm/head/dist/cli.js',
+    cli: process.env.CLI ?? '/opt/arm/head/dist/cli.js',
     jar: `/opt/arm/${arm}/server.jar`,
     springPort: Number(a3), harnessPort: Number(a4), brokerPort: Number(a5),
     workspace: path.join(dir, 'workspace'), mount: path.join(dir, 'workspace-mount'),

@@ -1,0 +1,25 @@
+--- a/packages/cli/src/serve/hosted-harness-session.ts	2026-10-08 16:08:47
++++ b/packages/cli/src/serve/hosted-harness-session.ts	2026-10-08 16:08:47
+@@ -3121,15 +3121,19 @@
+             session.stores!.setLifecycleAuthority(authority);
+             await session.stores!.authorizeLifecycle(kind);
+           } catch (lifecycleCause) {
++            session.stores!.setLifecycleAuthority(previousAuthority);
+             if (
+               lifecycleCause instanceof ManagedSessionStoreHttpError &&
+               lifecycleCause.status === 409
+             )
+               return error(res, 409, 'hosted_lifecycle_operation_conflict');
+             return ordinaryAuthorizationError(res, lifecycleCause);
+-          } finally {
+-            session.stores!.setLifecycleAuthority(previousAuthority);
+-          }
++          }
++          // EXPERIMENT: keep the claim for the handler's own commits and
++          // restore it once the response is done.
++          res.on('close', () =>
++            session.stores!.setLifecycleAuthority(previousAuthority),
++          );
+           return next();
+         }
+         return ordinaryAuthorizationError(res, cause);
