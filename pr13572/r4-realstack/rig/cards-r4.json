@@ -1,0 +1,54 @@
+[
+  {
+    "name": "r4-01-f5-split",
+    "title": "Round 4 @ 9e21bf09: F5 is fixed for a text turn, not for a turn interrupted inside a tool call",
+    "subtitle": "Real stack. The Harness is SIGKILLed while a channel wake turn is in flight, then the sender writes again in the same thread.",
+    "panels": [
+      {
+        "h": "Text turn parked at the model → recovers",
+        "t": "## Bob \"HOLD me T#t1\" (model request held)\n07:16:15 t1 reaches the model, Harness SIGKILLed\n07:16:57 Harness back\n## t3 in the same thread (after the writer lease lapsed)\n07:19:43 POST /session          409 managed_session_already_exists\n07:19:43 POST /session/7542d2a4/load  ++ 200\n07:19:43 submit_input           ++ 202\n++ log: Interrupted channel wake turn chin-34fc… was settled\n++      without a reply; the Session stays usable.\n++ t3's turn runs; reply delivered\n== the model sees t1's user record and t3 merged in one\n== user message, so t3's reply also answers t1\n++ public-API operator turn on this Session: completed"
+      },
+      {
+        "h": "Turn interrupted inside a tool call → still wedged",
+        "t": "## shell profile, Bob \"T#s4 SLEEP:150\"\n07:29:27 model → run_shell_command `sleep 150` (running)\n07:29:40 Harness SIGKILLed, back 07:30:21\n## s5, s6 in the same thread\n07:30:54 submit_input s5      ++ 200 admitted\n!! log: Interrupted channel wake turn chin-93e1… was settled\n!!      without a reply; the Session stays usable.\n-- log: Monitor wake pump of session 91f064dc failed:\n--      ManagedHarnessBlockedError: await_runtime is not\n--      a model-start phase for this Harness.\n07:32:40 submit_input s6      ++ 200 admitted\n-- 0 model calls, 0 replies through 08:08 (38 min)\n-- operator turns: failed hosted_turn_recovery_required × 2"
+      },
+      {
+        "h": "Why: the settlement does not move the checkpoint",
+        "t": "## settleInterruptedWake → sink.write(turn_result cancelled)\n## → commitTurnSettled (managed-session-record-sink.ts:312)\nif phase ∈ HARNESS_MODEL_START_PHASES (:351)\n  ++ commitTurnComplete → next-turn-ready checkpoint\nelse                                  (await_runtime)\n  !! appendExecutionEvent(turn.settled) only\n  !! the checkpoint stays at await_runtime\n## next wake turn\n-- requireModelStart (managed-harness-factory.ts:943)\n-- throws ManagedHarnessBlockedError\n== the unit test only covers \"died before the model\n== answered\" (a model-start phase)"
+      }
+    ],
+    "note": "Measured in the shell profile, where a long-running command keeps the turn in await_runtime for its whole duration. Other tool calls pass through the same phase briefly; that window was not measured."
+  },
+  {
+    "name": "r4-02-f8-writer-lease",
+    "title": "New P1 (F8): after any Harness restart, mail to every attached thread is dropped for up to the writer-lease duration (60 s)",
+    "subtitle": "The dead Harness's Session Store writer lease outlives it. The re-attach answers 409 managed_session_writer_conflict until the lease lapses; Spring forwards it as 409 and the adapter drops every 409.",
+    "panels": [
+      {
+        "h": "PR head 9e21bf09: three restarts, three lost emails",
+        "t": "## SIGKILL, thread had a turn in flight\n07:17:03 /inbound t2  503 (generation mismatch, re-driven)\n07:17:07 /inbound t2  -- 409 managed_session_writer_conflict\n-- adapter: \"admission of 1791443505:3 was refused (409);\n--           the message is skipped.\"\n## SIGKILL, idle attached thread (Alice)\n07:23:24 /inbound a3  -- 409 writer_conflict → skipped\n## graceful SIGTERM (Harness exited in 1 s)\n07:25:13 /inbound a5  -- 409 writer_conflict → skipped\n== each ingress row stays staged; no reply, no retry\n== Harness itself calls this \"the one 409 whose wait\n== self-heals when the lease lapses\" (hosted-harness-session.ts:3075)"
+      },
+      {
+        "h": "Candidate: translate() maps self-healing 409s to 503",
+        "t": "## TRANSIENT_HARNESS_CONFLICTS =\n##   managed_session_writer_conflict, workspace_busy,\n##   workspace_unavailable, hosted_session_closing\n07:55:41 Harness SIGKILLed (Alice's thread attached)\n07:56:24 /inbound a7  !! 503 channel_operation_failed\n07:56:27 /inbound a7  !! 503 managed_session_writer_conflict ×2\n07:56:44 /inbound a7  ++ 200 admitted (lease lapsed, +63 s)\n++ reply 26 s after the email was sent\n++ deterministic channel 409s (channel_operation_conflict,\n++ channel_generation_stale …) keep their 409 class\n== ManagedChannelServiceTest: new test red on the head's\n== source (expected 503, was 409), green with the patch"
+      }
+    ],
+    "note": "This is the 'transient 409 classified as permanent' gap noted under F3 in rounds 2–3, now reproduced end to end. A routine Harness deploy loses every email that lands on an attached thread in the lease window."
+  },
+  {
+    "name": "r4-03-f6-still",
+    "title": "F6 (P1) is unchanged at 9e21bf09; the combined candidate handles both refusal classes",
+    "subtitle": "Simulated close of a route Session while its reply is held 20 s at SMTP (Session row → CLOSED + Spring restart drops the cached attachment), then Bob starts a new thread.",
+    "panels": [
+      {
+        "h": "PR head 9e21bf09 adapter",
+        "t": "## same scenario as round 3\n-- Alice's receipt refused 409 × 40, every ~3 s\n-- outbox claims afterwards: 0\n-- Bob's new thread: no reply for 2 min 8 s, until the\n--   Session row was set back to ACTIVE by hand\n== managed-email-adapter.ts is byte-identical to round 3"
+      },
+      {
+        "h": "candidate-r4.patch adapter + Spring",
+        "t": "## Spring failed to restart for 3 min (rig port race)\n07:57:35 → 08:00:53 receipt  !! ECONNREFUSED × 35\n++ transient: the entry is kept and re-driven\n++ Bob's email waits as pending, nothing dropped\n## Spring back\n08:01:01 receipt (Alice)     !! 409 → dropped, logged\n08:01:04 /inbound (Bob)      ++ 200 admitted\n08:01:07 receipt (Bob)       ++ 200 delivered\n== transient keeps, deterministic drops: both classes\n== behave as intended in one run"
+      }
+    ],
+    "note": "candidate-r4.patch = round-3 adapter fix (F6) + translate() fix (F8): 4 files, +110/−5. Java 63/63 (ManagedChannelServiceTest 13 incl. the new test, QwenHostedHarnessConnectorTest 47, ChannelContractTest 3), checkstyle clean; email 50/50, prettier clean."
+  }
+]

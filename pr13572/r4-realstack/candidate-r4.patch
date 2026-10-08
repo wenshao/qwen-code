@@ -1,0 +1,166 @@
+diff --git a/packages/channels/email/src/managed-email-adapter.test.ts b/packages/channels/email/src/managed-email-adapter.test.ts
+index 7fefaf4eb6..8ea988b5a4 100644
+--- a/packages/channels/email/src/managed-email-adapter.test.ts
++++ b/packages/channels/email/src/managed-email-adapter.test.ts
+@@ -759,6 +759,32 @@ describe('managed email outbound', () => {
+     expect(sent).toHaveBeenCalledTimes(1);
+   });
+ 
++  it('drops a persisted receipt the control plane refuses for good, so later deliveries still send', async () => {
++    const adapter = make();
++    await adapter.connect();
++    plane.outbox = [delivery('d-closed')];
++    // The route Session closed while its reply was in flight: every receipt
++    // for that delivery is refused deterministically.
++    const original = plane.receipt.bind(plane);
++    plane.receipt = async (deliveryId: string, receipt: ManagedReceipt) => {
++      if (deliveryId === 'd-closed') {
++        throw Object.assign(new Error('HTTP 409'), {
++          status: 409,
++          code: 'workspace_unavailable',
++        });
++      }
++      await original(deliveryId, receipt);
++    };
++    await expect(adapter.tick()).rejects.toThrow('HTTP 409');
++    expect(state(adapter).outbound).toHaveLength(1);
++    // Another thread's reply must not wait behind the refused receipt.
++    plane.outbox = [delivery('d-next')];
++    await adapter.tick();
++    expect(state(adapter).outbound).toEqual([]);
++    expect(sent).toHaveBeenCalledTimes(2);
++    expect(plane.receipts.map((entry) => entry.deliveryId)).toEqual(['d-next']);
++  });
++
+   it('replays the persisted provider receipt on restart instead of settling unknown', async () => {
+     const adapter = make();
+     await adapter.connect();
+diff --git a/packages/channels/email/src/managed-email-adapter.ts b/packages/channels/email/src/managed-email-adapter.ts
+index c4a157cc3b..a91e0caf74 100644
+--- a/packages/channels/email/src/managed-email-adapter.ts
++++ b/packages/channels/email/src/managed-email-adapter.ts
+@@ -762,10 +762,33 @@ export class ManagedEmailAdapter {
+       // receipt — the control plane may already hold it (its answer was
+       // lost) and settles idempotently. Only a segment whose send never
+       // produced an outcome settles unknown.
+-      await this.controlPlane.receipt(
+-        entry.deliveryId,
+-        entry.receipt ?? { outcome: 'unknown' },
+-      );
++      try {
++        await this.controlPlane.receipt(
++          entry.deliveryId,
++          entry.receipt ?? { outcome: 'unknown' },
++        );
++      } catch (error) {
++        const status = (error as { status?: unknown }).status;
++        const code = (error as { code?: unknown }).code;
++        // A deterministic refusal (the route Session closed, the delivery
++        // is unknown to the control plane) never converges on re-drive, and
++        // a held entry runs before every outbox pull: it would stall every
++        // later delivery and fail the next connect. Drop it visibly; the
++        // lease reconciler records the delivery unknown.
++        if (
++          !(
++            status === 400 ||
++            status === 403 ||
++            status === 409 ||
++            (status === 404 && code === 'delivery_not_found')
++          )
++        ) {
++          throw error;
++        }
++        this.log(
++          `Managed email receipt for ${entry.deliveryId} was refused (${String(status)}); it is dropped.`,
++        );
++      }
+       state.outbound = state.outbound.filter(
+         (candidate) => candidate !== entry,
+       );
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedChannelService.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedChannelService.java
+index e2e9e22341..1a5fca03cd 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedChannelService.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedChannelService.java
+@@ -81,6 +81,11 @@ public class ManagedChannelService {
+     private static final int MAX_CLAIM_SESSIONS = 64;
+     private static final int RECONCILE_LIMIT = 50;
+     private static final String SEPARATOR = "\u0000";
++    /** Harness 409 codes that heal on their own; see {@link #translate}. */
++    private static final java.util.Set<String> TRANSIENT_HARNESS_CONFLICTS =
++            java.util.Set.of("managed_session_writer_conflict",
++                    "workspace_busy", "workspace_unavailable",
++                    "hosted_session_closing");
+ 
+     private final ChannelInstanceStore instances;
+     private final ChannelRouteRepository routes;
+@@ -742,7 +747,13 @@ public class ManagedChannelService {
+         // A 400 is a deterministic verdict, not a server failure: the
+         // adapter's permanent-refusal branch can only recognize it when
+         // the classification survives the hop — never widen it to 503.
+-        HttpStatus status = http.getStatusCode() == 409 ? HttpStatus.CONFLICT
++        // The Harness's self-healing 409s (a dead predecessor's writer
++        // lease, a busy or briefly unavailable Workspace, a closing
++        // Session) are the opposite: the adapter drops every 409, so they
++        // cross as the retryable 503.
++        HttpStatus status = http.getStatusCode() == 409
++                ? (TRANSIENT_HARNESS_CONFLICTS.contains(code)
++                        ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.CONFLICT)
+                 : http.getStatusCode() == 400 ? HttpStatus.BAD_REQUEST
+                         : HttpStatus.SERVICE_UNAVAILABLE;
+         return new ApiException(status, code,
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ManagedChannelServiceTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ManagedChannelServiceTest.java
+index 7cc2b3f1ed..7104585183 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ManagedChannelServiceTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ManagedChannelServiceTest.java
+@@ -384,6 +384,51 @@ class ManagedChannelServiceTest {
+                 TENANT)).isEqualTo("staged");
+     }
+ 
++    @Test
++    void crossesASelfHealingHarnessConflictAsRetryable() {
++        // A crashed Harness's writer lease outlives it for its duration: the
++        // re-attach answers 409 until the lease lapses. The adapter drops
++        // every 409, so this one must cross as the retryable 503, while a
++        // deterministic channel 409 keeps its class.
++        harness.submitErrors.add(harnessError(409,
++                "{\"error\":\"managed_session_writer_conflict\","
++                        + "\"code\":\"managed_session_writer_conflict\"}"));
++        harness.submitErrors.add(harnessError(409,
++                "{\"error\":\"channel_operation_conflict\","
++                        + "\"code\":\"channel_operation_conflict\"}"));
++        assertThatThrownBy(() -> service.submitInbound(TENANT, channel,
++                event(1, "1700:97", "hello")))
++                .isInstanceOfSatisfying(ApiException.class, error -> {
++                    assertThat(error.getStatus())
++                            .isEqualTo(org.springframework.http.HttpStatus
++                                    .SERVICE_UNAVAILABLE);
++                    assertThat(error.getCode())
++                            .isEqualTo("managed_session_writer_conflict");
++                });
++        assertThatThrownBy(() -> service.submitInbound(TENANT, channel,
++                event(1, "1700:97", "hello")))
++                .isInstanceOfSatisfying(ApiException.class, error -> {
++                    assertThat(error.getStatus())
++                            .isEqualTo(org.springframework.http.HttpStatus
++                                    .CONFLICT);
++                    assertThat(error.getCode())
++                            .isEqualTo("channel_operation_conflict");
++                });
++        // Once the lease lapses the same event admits: nothing was lost.
++        assertThat(service.submitInbound(TENANT, channel,
++                event(1, "1700:97", "hello")).replayed()).isFalse();
++    }
++
++    private static com.alibaba.qwen.code.daemon.DaemonHttpException harnessError(
++            int status, String body) {
++        com.alibaba.qwen.code.daemon.DaemonHttpException error =
++                org.mockito.Mockito.mock(
++                        com.alibaba.qwen.code.daemon.DaemonHttpException.class);
++        org.mockito.Mockito.when(error.getStatusCode()).thenReturn(status);
++        org.mockito.Mockito.when(error.getResponseBody()).thenReturn(body);
++        return error;
++    }
++
+     @Test
+     void translatesADaemonGenerationFailureIntoTheRetryableEnvelope() {
+         // A generation clash at the Hosted Harness is a transient daemon
