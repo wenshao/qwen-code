@@ -1,0 +1,56 @@
+== Tests at e5342cf59c (macOS arm64, Node 24, host load average ~8-10)
+
+-- TS Harness, 6 files (packages/cli)
+ Test Files  6 passed (6)
+      Tests  612 passed (612)
+EXIT 0
+files: hosted-harness-model, hosted-harness-session, hosted-runtime-recovery, hosted-workspace-tool-turn, hosted-automation-session, hosted-monitor-wake
+
+-- Java module / TS core: sources unchanged since 1734df7be4 (git diff --stat 1734df7be4 e5342cf59c touches packages/cli only); round 3: 1433 run / 0 failures / 1 skipped, core 150/150
+
+-- Mutation check on head: each mutant against its whole suite
+M1-no-unblock rc=1       Tests  1 failed | 289 passed (290) ::  FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness no-tool session > settles, consumes and unblocks on a crash, and later fires run once 
+M2-no-park-settlement rc=1       Tests  1 failed | 289 passed (290) ::  FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn takeover > keeps a durably blocked cancel-arm restore on the retriable refusal 
+M3-fail-open rc=1       Tests  3 failed | 287 passed (290) ::  FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness no-tool session > reports and clears the unknown Hook fence (reload: true)  FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn takeover > completes an answer (chunked) and clears file history after a recovered Write continuation  FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn ta
+M5-no-consume-retry rc=1       Tests  2 failed | 288 passed (290) ::  FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn takeover > fences recovery 'continue' admission when 'closing'  FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn takeover > completes an answer (inline) and clears file history after a recovered Write continuation 
+M4-no-history-exclusion rc=0       Tests  34 passed (34) :: 
+
+-- Re-run alone (vitest -t, 14 targeted tests incl. every suite failure above), clean head before and after
+CLEAN-a rc=0       Tests  14 passed | 276 skipped (290) :: 
+M2-no-park-settlement rc=0       Tests  14 passed | 276 skipped (290) :: 
+M3-fail-open rc=0       Tests  14 passed | 276 skipped (290) :: 
+M5-no-consume-retry rc=0       Tests  14 passed | 276 skipped (290) :: 
+CLEAN-b rc=0       Tests  14 passed | 276 skipped (290) :: 
+M1-no-unblock alone: 1 failed | 289 skipped -- AssertionError: expected 409 to be 202
+
+-- CI on e5342cf59c at 10:07 UTC
+pass	assign
+pass	Classify PR
+pass	Desktop Shell (ubuntu-22.04)
+pass	Desktop Shell (windows-2022)
+pass	Flyway migration version uniqueness
+pass	Hosted process fault gates / MySQL 8.4 / Java 21
+pass	Integration Tests (no-AK, No Sandbox)
+pass	label
+pass	Lint & Static (ubuntu-latest, Node 22.x)
+pass	macos-latest / Java 21
+pass	OpenTUI no-flicker gate
+pass	Real daemon E2E / Java 11
+pass	Remind on force-push
+pass	Runtime Broker and Managed Agent MariaDB / Java 21
+pass	Serve A/B (ubuntu-latest, Node 22.x)
+pass	Test (ubuntu-latest, Node 22.x)
+pass	TUI parity snapshots (ink vs opentui)
+pass	ubuntu-latest / Java 11
+pass	ubuntu-latest / Java 17
+pass	ubuntu-latest / Java 21
+pass	web-shell E2E Smoke (ubuntu-latest, Node 22.x)
+pass	windows-latest / Java 21
+skipping	Integration Tests (CLI, No Sandbox)
+skipping	Test (macos-latest, Node 22.x)
+skipping	Test (windows-latest, Node 22.x)
+
+-- candidate-r4.patch (pr13598-cand2 = e5342cf59c + patch): harness-session, harness-model, runtime-recovery
+ Test Files  3 passed (3)
+      Tests  368 passed (368)
+EXIT 0

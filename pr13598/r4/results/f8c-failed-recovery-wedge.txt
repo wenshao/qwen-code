@@ -1,0 +1,146 @@
+== The fail-closed branch: the park settlement fails once (stack f4, head e5342cf59c)
+F1: '* * * * *' overlap allow, prompt calls read_file. F2: a plain Session on the same Workspace.
+Injected fault: after the crash, the Broker tap answers the next GET executions/<id> with 503 (one was consumed); rules cleared at 09:22:2x.
+-- actions
+09:21:06 delayed tool poll seen (F1 mid tool)
+09:21:14 kill Harness (F1 mid tool)
+killed harness pgid 83706
+09:21:14 tap: refuse next 4 GET executions/<id> (503)
+[{"count":0,"pathRe":"executions/[^:?/]+\\?","action":"delay","ms":150000},{"count":4,"pathRe":"executions/[^:?/]+\\?","action":"refuse"}]
+harness pid=85485
+09:21:14 restarted
+09:22:28 tap: rules cleared (after the recovery's stop step failed)
+09:24:23 F2 user tool turn (F1 blocked after failed recovery)
+09:27:05 restart Harness (tap rules already cleared; F2 tool turn still spinning)
+killed harness pgid 85485
+harness pid=91008
+09:29:27 restart Harness again (2nd after the failed recovery)
+killed harness pgid 91008
+harness pid=93072
+
+=== F1 cc672e2d-a130-4e3d-9b6a-d0e712cf4e24
+-- turns
+turn_d0176474c24f4a609601be79978fc163	COMPLETED	-	09:20:33	09:20:37
+-- runs
+arun_1f29f175a	3	failed	-	09:21:01	09:22:07
+arun_8d9b30f31	3	failed	-	09:22:07	09:28:03
+arun_8466436f8	3	failed	-	09:28:03	09:30:08
+arun_d5f965a4d	2	running	unbound	09:30:08	-
+-- occurrences
+schedule:2026-10-08T09:21:00Z	arun_1f29f175a	fired	-	09:21:01
+schedule:2026-10-08T09:22:00Z	arun_8d9b30f31	fired	-	09:22:07
+schedule:2026-10-08T09:23:00Z	arun_63f97daa0	skipped	hosted_session_blocked	09:23:02
+schedule:2026-10-08T09:24:00Z	arun_a189013e9	skipped	hosted_session_blocked	09:24:02
+schedule:2026-10-08T09:25:00Z	arun_b044d7f49	skipped	hosted_session_blocked	09:25:02
+schedule:2026-10-08T09:26:00Z	arun_db9acc0f8	skipped	hosted_session_blocked	09:26:02
+schedule:2026-10-08T09:27:00Z	arun_6cf5e4063	skipped	hosted_session_blocked	09:27:03
+schedule:2026-10-08T09:28:00Z	arun_8466436f8	fired	-	09:28:03
+schedule:2026-10-08T09:29:00Z	arun_7cd962924	skipped	hosted_session_blocked	09:29:03
+schedule:2026-10-08T09:30:00Z	arun_d5f965a4d	fired	-	09:30:08
+schedule:2026-10-08T09:31:00Z	arun_52862a056	skipped	hosted_session_blocked	09:31:03
+schedule:2026-10-08T09:32:00Z	arun_ff0470c51	skipped	hosted_session_blocked	09:32:04
+schedule:2026-10-08T09:33:00Z	arun_17571eb62	skipped	hosted_session_blocked	09:33:04
+schedule:2026-10-08T09:34:00Z	arun_6ee55a9ca	skipped	hosted_session_blocked	09:34:04
+schedule:2026-10-08T09:35:00Z	arun_a07b2fa07	skipped	hosted_session_blocked	09:35:04
+schedule:2026-10-08T09:36:00Z	arun_cd522fa92	skipped	hosted_session_blocked	09:36:04
+schedule:2026-10-08T09:37:00Z	arun_65a0854a8	skipped	hosted_session_blocked	09:37:05
+schedule:2026-10-08T09:38:00Z	arun_95ad1364a	skipped	hosted_session_blocked	09:38:00
+schedule:2026-10-08T09:39:00Z	arun_53b27bdc9	skipped	hosted_session_blocked	09:39:00
+schedule:2026-10-08T09:40:00Z	arun_5cec965eb	skipped	hosted_session_blocked	09:40:00
+schedule:2026-10-08T09:41:00Z	arun_68e0339c2	skipped	hosted_session_blocked	09:41:00
+schedule:2026-10-08T09:42:00Z	arun_76b87632b	skipped	hosted_session_blocked	09:42:00
+schedule:2026-10-08T09:43:00Z	arun_75b6a21fd	skipped	hosted_session_blocked	09:43:01
+schedule:2026-10-08T09:44:00Z	arun_9dd0cc3d5	skipped	hosted_session_blocked	09:44:01
+schedule:2026-10-08T09:45:00Z	arun_a2742a7f0	skipped	hosted_session_blocked	09:45:01
+=== F2 da2e0ef1-9cc0-449f-8f37-aa9fa705f9bd
+-- turns
+turn_18976cb1bf064b80ad2c5e70c5856250	COMPLETED	-	09:20:33	09:20:37
+turn_665bbb1087224f3682092b83ef728357	FAILED	managed_runtime_recovery_blocked	09:24:23	09:28:12
+-- runs
+-- occurrences
+=== broker sessions (newest 8)
+e3ac3eb1-7127-40	ACQUIRING	09:48:12
+wake-9001ae594d1	READY	09:48:12
+=== execution lease
+wake-9001ae594d1	d377cbc480f8352d03e3e79b6cd8854edfda2795
+=== harness
+qwen serve: Monitor wake turn arun_1f29f175a570eaf98d9203ef7908031367dd9f7b42e5812d5fcd1f94b2931d50:input needs recovery, not a re-drive.
+qwen serve: Hosted automation run of turn arun_1f29f175a570eaf98d9203ef7908031367dd9f7b42e5812d5fcd1f94b2931d50:input could not recover the parked runtime: Error: Runtime Broker returned HTTP 503 (tap
+qwen serve: Monitor wake pump of session cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 failed: ManagedHarnessBlockedError: await_runtime is not a model-start phase for this Harness.
+qwen serve: Hosted Session da2e0ef1-9cc0-449f-8f37-aa9fa705f9bd load refused (takeover_unrecovered): prompt=e3ac3eb1-7127-40da-a63a-8a3eb0eb1266 reason=unresolved_after_settle
+qwen serve: Monitor wake pump of session cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 failed: ManagedHarnessBlockedError: await_runtime is not a model-start phase for this Harness.
+
+tap-refused (injected 503): 1 2026-10-08T09:22:07.453Z
+409 workspace_busy answers: 588 2026-10-08T09:24:26.411Z .. 2026-10-08T09:27:05.542Z
+
+-- Harness lines (three Harness processes: crash at 09:21:14, restarts at 09:27:05 and 09:29:27)
+14:2026-10-08T09:20:50.819Z [INFO] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=74c13824-a87e-491a-b9fb-61d92ba92906 durationMs=31 status=20
+15:2026-10-08T09:21:01.986Z [INFO] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=74c13824-a87e-491a-b9fb-61d92ba92906 durationMs=89 status=20
+25:2026-10-08T09:22:02.147Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=74c13824-a87e-491a-b9fb-61d92ba92906 durationMs=1 status=409
+27:2026-10-08T09:22:07.372Z [INFO] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/load sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 durationMs=187 status=200 request completed
+28:qwen serve: Monitor wake turn arun_1f29f175a570eaf98d9203ef7908031367dd9f7b42e5812d5fcd1f94b2931d50:input needs recovery, not a re-drive.
+29:2026-10-08T09:22:07.422Z [INFO] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=25daed44-b1a7-467d-8239-62867bb2ffbe durationMs=48 status=20
+30:qwen serve: Hosted automation run of turn arun_1f29f175a570eaf98d9203ef7908031367dd9f7b42e5812d5fcd1f94b2931d50:input could not recover the parked runtime: Error: Runtime Broker returned HTTP 503 (tap_refused).
+31:2026-10-08T09:23:02.560Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=25daed44-b1a7-467d-8239-62867bb2ffbe durationMs=16 status=40
+32:2026-10-08T09:24:02.715Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=25daed44-b1a7-467d-8239-62867bb2ffbe durationMs=20 status=40
+36:2026-10-08T09:25:02.835Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=25daed44-b1a7-467d-8239-62867bb2ffbe durationMs=23 status=40
+37:2026-10-08T09:26:02.952Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=25daed44-b1a7-467d-8239-62867bb2ffbe durationMs=15 status=40
+38:2026-10-08T09:27:03.087Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=25daed44-b1a7-467d-8239-62867bb2ffbe durationMs=11 status=40
+53:2026-10-08T09:28:03.321Z [INFO] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/load sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 durationMs=140 status=200 request completed
+54:2026-10-08T09:28:03.376Z [INFO] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=141247fe-766a-42a1-ba91-475ddc507d35 durationMs=53 status=20
+55:qwen serve: Monitor wake pump of session cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 failed: ManagedHarnessBlockedError: await_runtime is not a model-start phase for this Harness.
+58:2026-10-08T09:29:03.462Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=141247fe-766a-42a1-ba91-475ddc507d35 durationMs=14 status=40
+68:2026-10-08T09:30:03.596Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=141247fe-766a-42a1-ba91-475ddc507d35 durationMs=1 status=409
+70:2026-10-08T09:30:08.823Z [INFO] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/load sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 durationMs=193 status=200 request completed
+71:2026-10-08T09:30:08.869Z [INFO] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=43 status=20
+72:qwen serve: Monitor wake pump of session cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 failed: ManagedHarnessBlockedError: await_runtime is not a model-start phase for this Harness.
+73:2026-10-08T09:31:03.994Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=11 status=40
+74:2026-10-08T09:32:04.160Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=25 status=40
+75:2026-10-08T09:33:04.345Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=21 status=40
+76:2026-10-08T09:34:04.554Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=16 status=40
+77:2026-10-08T09:35:04.744Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=14 status=40
+78:2026-10-08T09:36:04.898Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=59 status=40
+79:2026-10-08T09:37:05.017Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=11 status=40
+80:2026-10-08T09:38:00.107Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=13 status=40
+81:2026-10-08T09:39:00.238Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=20 status=40
+82:2026-10-08T09:40:00.473Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=12 status=40
+83:2026-10-08T09:41:00.714Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=17 status=40
+84:2026-10-08T09:42:00.910Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=20 status=40
+85:2026-10-08T09:43:01.062Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=11 status=40
+86:2026-10-08T09:44:01.214Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=10 status=40
+87:2026-10-08T09:45:01.410Z [WARN] [DAEMON] route=POST /session/cc672e2d-a130-4e3d-9b6a-d0e712cf4e24/automations/operations sessionId=cc672e2d-a130-4e3d-9b6a-d0e712cf4e24 clientId=18d4de40-bfd0-48c8-8b9d-8c8694cd6847 durationMs=18 status=40
+
+-- F1 journal transactions after the crash (qwen_managed_session_journal_tx): the park (rev 20) is never settled; the crashed input is consumed at rev 26
+13	09:21:01	fireRun	arun_1f29f175a570eaf98d9203ef7908031367dd9f7b42e5812d5fcd1f94b2931d50:1
+14	09:21:01	fireRun	arun_1f29f175a570eaf98d9203ef7908031367dd9f7b42e5812d5fcd1f94b2931d50:2
+15	09:21:02	commitMessage	recorder:42d5490d-7822-466f-a484-3600d057993c
+16	09:21:02	hostedModelAttempt	arun_1f29f175a570eaf98d9203ef7908031367dd9f7b42e5812d5fcd1f94b2931d50:input:main:2c6ca36f-a0c5-40e0-937e-2a740
+17	09:21:06	hostedModelAttempt	arun_1f29f175a570eaf98d9203ef7908031367dd9f7b42e5812d5fcd1f94b2931d50:input:main:2c6ca36f-a0c5-40e0-937e-2a740
+18	09:21:06	commitMessage	recorder:17b4f1eb-abf4-487c-953d-4d25aee9a5e0
+19	09:21:06	toolIntent	tool-intent:deffaaee-b81e-49ec-82d9-1c8c339b28fd
+20	09:21:06	commitCheckpoint	harness:await_runtime:92748813-47d2-48b1-aa3c-313b227ee5fb:deffaaee-b81e-49ec-82d9-1c8c339b28fd:22
+22	09:22:07	installActivation	16391ad9-09c2-432a-90a7-53220b866b0b:active
+23	09:22:07	fireRun	arun_8d9b30f3141d61cb0588f7c497e74298a89e476fa721b9f9ab8fd616e226931f:1
+24	09:22:07	fireRun	arun_8d9b30f3141d61cb0588f7c497e74298a89e476fa721b9f9ab8fd616e226931f:2
+25	09:22:07	settleRun	arun_1f29f175a570eaf98d9203ef7908031367dd9f7b42e5812d5fcd1f94b2931d50:3
+26	09:22:07	settleTurn	recorder:0878d627-35d6-41d1-9cbe-cdd931786ba6
+41	09:28:03	installActivation	4b1d75fd-c141-4706-8185-c2a3ad6f2067:active
+42	09:28:03	fireRun	arun_8466436f8e13fc6bf8a01dca41e838abf431f86101625e91c68c7f5043a91c2c:1
+43	09:28:03	fireRun	arun_8466436f8e13fc6bf8a01dca41e838abf431f86101625e91c68c7f5043a91c2c:2
+44	09:28:03	settleTurn	recorder:a5c52d5f-0225-44a9-ac9a-1b54bbe17a4c
+45	09:28:03	settleRun	arun_8d9b30f3141d61cb0588f7c497e74298a89e476fa721b9f9ab8fd616e226931f:3
+50	09:30:08	installActivation	4db38ef4-74e1-449d-84c2-f757b741dc38:active
+51	09:30:08	fireRun	arun_d5f965a4dcd983865158b328e02f020b88055d05b5bd3af3ebe0e0b17fd45245:1
+52	09:30:08	fireRun	arun_d5f965a4dcd983865158b328e02f020b88055d05b5bd3af3ebe0e0b17fd45245:2
+53	09:30:08	settleTurn	recorder:6da333e1-2788-4204-95b7-d18cdbaa0f61
+54	09:30:08	settleRun	arun_8466436f8e13fc6bf8a01dca41e838abf431f86101625e91c68c7f5043a91c2c:3
+
+-- F1 occurrence outcomes / run states at 09:49:48
+fired	-	4
+skipped	hosted_session_blocked	25
+failed	-	3
+running	unbound	1
+
+-- F2 (Spring log)
+turn=turn_665bbb1087224f3682092b83ef728357 code=managed_runtime_recovery_blocked message=The prior Harness generation parked a Turn this Harness cannot take over (unresolved_after_settle).
+turn=turn_d273c0b8655a4fd191decaa1a90cdb4a code=managed_runtime_recovery_blocked message=The prior Harness generation parked a Turn this Harness cannot take over (unresolved_after_settle).

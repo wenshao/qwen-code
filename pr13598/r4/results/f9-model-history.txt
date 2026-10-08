@@ -1,0 +1,98 @@
+== F9 on the real stack: what the model receives after a crashed / cancelled / failed turn
+Gateway log runs/model-requests-r4.jsonl; one line per message: role, rig markers, automation Occurrence lines, tool calls.
+
+--- head e5342cf59c, stack a4: A2 (text, HOLD::90) crashed in the 09:21 run; the 09:22 run's request
+request #14 at 09:22:03 -> done 200 93535 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-A2"] occurrences=[]
+   assistant markers=[] occurrences=[]
+   user      markers=["AUTO::a2","AUTO::a2"] occurrences=["schedule:2026-10-08T09:21:00Z","schedule:2026-10-08T09:22:00Z"]
+
+--- head, stack a4: A1 (read_file) crashed in the 09:21 run; the 09:22 run's request
+request #15 at 09:22:08 -> done 200 2501 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-A1"] occurrences=[]
+   assistant markers=[] occurrences=[]
+   user      markers=["AUTO::a1"] occurrences=["schedule:2026-10-08T09:21:00Z"]
+   assistant markers=[] occurrences=[] tool_calls=read_file:call_71d5e226ede34264a79967c9
+   tool      markers=[] occurrences=[] tool_call_id=call_71d5e226ede34264a79967c9
+   user      markers=["AUTO::a1"] occurrences=["schedule:2026-10-08T09:22:00Z"]
+
+--- head, stack s4: S2 crashed at 09:21; a user Turn at 09:31:20 loaded it; the 09:32 run's request (the crashed prompt now sits merged into the user's own message)
+request #47 at 09:32:03 -> done 200 84412 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-S2"] occurrences=[]
+   assistant markers=[] occurrences=[]
+   user      markers=["AUTO::s2","USER::s2-user"] occurrences=["schedule:2026-10-08T09:21:00Z"]
+   assistant markers=[] occurrences=[]
+   user      markers=["AUTO::s2"] occurrences=["schedule:2026-10-08T09:32:00Z"]
+
+--- first candidate (exclusion applied to sink.project() before the settled filter), stack c4: the 09:33 run after the 09:32 crash — still merged
+request #100012 at 09:33:03 -> done 200 3647 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-C2"] occurrences=[]
+   assistant markers=[] occurrences=[]
+   user      markers=["AUTO::c2","AUTO::c2"] occurrences=["schedule:2026-10-08T09:32:00Z","schedule:2026-10-08T09:33:00Z"]
+
+--- candidate-r4.patch (filter against turn.settled events), stack c5: C2 09:41 run after the 09:40 crash
+request #100026 at 09:41:02 -> done 200 2648 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-C2"] occurrences=[]
+   assistant markers=[] occurrences=[]
+   user      markers=["AUTO::c2"] occurrences=["schedule:2026-10-08T09:41:00Z"]
+
+--- candidate-r4.patch, stack c5: C1 09:41 run after the 09:40 crash inside read_file
+request #100027 at 09:41:08 -> done 200 3489 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-C1"] occurrences=[]
+   assistant markers=[] occurrences=[] tool_calls=read_file:call_8e792b46d5c2457081bf2035
+   tool      markers=[] occurrences=[] tool_call_id=call_8e792b46d5c2457081bf2035
+   user      markers=["AUTO::c1"] occurrences=["schedule:2026-10-08T09:41:00Z"]
+
+=== User Turns: cancelled at 10 s / failed with a gateway 400, then 'What is my locker code? ... UNKNOWN'
+--- head, stack u4
+09:26:04 U1 turn turn_63688fb9593b4648a05fe7a1505c2d24 sent (held 60 s at the gateway)
+09:26:14 cancel -> 202 {"session_id":"92a6f041-1a46-4fe3-80fc-6b6c8cfb8e7f","turn_id":"turn_63688fb9593b4648a05fe7a1505c2d24","status":"accepted","replayed":false}
+09:26:15 U1 turn turn_63688fb9593b4648a05fe7a1505c2d24 -> CANCELLED
+09:26:15 U1 follow-up turn_d2fc036c66924ce597b54e9b856a1c50 sent
+09:26:22 U1 follow-up turn_d2fc036c66924ce597b54e9b856a1c50 -> COMPLETED
+09:26:22 U2 turn turn_0516ab3baf314af7bc25e6a2ee6405fa sent (gateway answers 400 once)
+09:26:24 U2 turn turn_0516ab3baf314af7bc25e6a2ee6405fa -> FAILED
+09:26:24 U2 follow-up turn_a49ed110070c4aa0b954dca06c848d84 sent
+09:26:43 U2 follow-up turn_a49ed110070c4aa0b954dca06c848d84 -> COMPLETED
+09:26:43 DONE
+request #100004 at 09:26:15 -> done 200 6406 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-U1"] occurrences=[]
+   assistant markers=[] occurrences=[]
+   user      markers=["USER::u1-cancel","USER::u1-next"] occurrences=[]
+   final answer: "4711 — you told me earlier in this conversation."
+request #100006 at 09:26:24 -> done 200 18897 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-U2"] occurrences=[]
+   assistant markers=[] occurrences=[]
+   user      markers=["USER::u2-fail","USER::u2-next"] occurrences=[]
+   final answer: "The only locker code I've seen is **9090**, but it appeared in a message flagged `u2-fail FAIL1::u2fu4::400` — a failed submission I never acknowledged, so I can't confirm it was genuinely yours.\n\nIf that turn didn't actually go through on your end, the accurate answer is UNKNOWN — please restate the code and I'll treat it as confirmed."
+--- candidate-r4.patch, stack c5
+09:41:50 U1 turn turn_a6c2c08b5589422fb1f45dd6631ceb64 sent (held 60 s at the gateway)
+09:42:00 cancel -> 202 {"session_id":"46ea9bde-7c80-4b79-bfec-91e0354ebed7","turn_id":"turn_a6c2c08b5589422fb1f45dd6631ceb64","status":"accepted","replayed":false}
+09:42:01 U1 turn turn_a6c2c08b5589422fb1f45dd6631ceb64 -> CANCELLED
+09:42:01 U1 follow-up turn_cd82da6d071342ca88fcffc2ee55f520 sent
+09:42:09 U1 follow-up turn_cd82da6d071342ca88fcffc2ee55f520 -> COMPLETED
+09:42:09 U2 turn turn_d53eac36cd5f45a38a440a42538bfd3e sent (gateway answers 400 once)
+09:42:10 U2 turn turn_d53eac36cd5f45a38a440a42538bfd3e -> FAILED
+09:42:10 U2 follow-up turn_1a95a50e732941f48420841ee41819ef sent
+09:42:14 U2 follow-up turn_1a95a50e732941f48420841ee41819ef -> COMPLETED
+09:42:14 DONE
+request #100036 at 09:42:01 -> done 200 7540 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-U1"] occurrences=[]
+   assistant markers=[] occurrences=[]
+   user      markers=["USER::u1-next"] occurrences=[]
+   final answer: "UNKNOWN"
+request #100041 at 09:42:11 -> done 200 2606 ms
+   system    markers=[] occurrences=[]
+   user      markers=["USER::init-U2"] occurrences=[]
+   assistant markers=[] occurrences=[]
+   user      markers=["USER::u2-next"] occurrences=[]
+   final answer: "UNKNOWN"

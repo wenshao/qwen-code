@@ -1,0 +1,74 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index 2c5b02e646..73248b3810 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -385,6 +385,27 @@ function record(
+   };
+ }
+ 
++/**
++ * The prompts whose turns settled without an answer (`error` or
++ * `cancelled`). Turn results are `turn.settled` journal events, not
++ * projected messages, so they never reach the record-based exclusion in the
++ * model runner: the history is filtered against the journal here.
++ */
++function unansweredPrompts(session: HostedSession): Set<unknown> {
++  const authority = session.managed.authority;
++  return new Set(
++    authority
++      .eventsInSequenceRange(1, authority.committedSequence)
++      .filter(
++        (event) =>
++          event.kind === 'turn.settled' &&
++          (event.payload['outcome'] === 'error' ||
++            event.payload['outcome'] === 'cancelled'),
++      )
++      .map((event) => event.payload['turnId']),
++  );
++}
++
+ function hasAcceptedInput(session: HostedSession, promptId: string): boolean {
+   return acceptedInputSequence(session, promptId) !== undefined;
+ }
+@@ -1662,13 +1683,19 @@ async function executeHostedTurn(
+             .filter((event) => event.kind === 'turn.settled')
+             .map((event) => event.payload['turnId']),
+         );
+-        const history = session.toolProfile
+-          ? projected.filter(
+-              (entry) =>
+-                settledPrompts.has(entry.daemonPromptId) ||
+-                (resumeFromToolResults && entry.daemonPromptId === promptId),
+-            )
+-          : projected;
++        const unanswered = unansweredPrompts(session);
++        const history = (
++          session.toolProfile
++            ? projected.filter(
++                (entry) =>
++                  settledPrompts.has(entry.daemonPromptId) ||
++                  (resumeFromToolResults && entry.daemonPromptId === promptId),
++              )
++            : projected
++        ).filter(
++          (entry) =>
++            !(entry.type === 'user' && unanswered.has(entry.daemonPromptId)),
++        );
+         let parentUuid = projected.at(-1)?.uuid ?? null;
+         if (!resumeFromToolResults) {
+           const user = record(session, sessionId, 'user', parentUuid, {
+@@ -4086,10 +4113,12 @@ export function registerHostedHarnessSessionRoutes(
+           throw new Error('Recovered Runtime turn has no journaled tool call.');
+         }
+         const parkedRound = new Set(turnRecords.slice(lastCallIndex + 1));
++        const unanswered = unansweredPrompts(session);
+         const history = projected.filter(
+           (entry) =>
+-            settledPrompts.has(entry.daemonPromptId) ||
+-            (entry.daemonPromptId === promptId && !parkedRound.has(entry)),
++            (settledPrompts.has(entry.daemonPromptId) ||
++              (entry.daemonPromptId === promptId && !parkedRound.has(entry))) &&
++            !(entry.type === 'user' && unanswered.has(entry.daemonPromptId)),
+         );
+         const resumeParts = turnRecords
+           .slice(lastCallIndex + 1)
