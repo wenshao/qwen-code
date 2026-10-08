@@ -67,6 +67,21 @@ const server = await startFakeOpenAIServer(
         const shell = fakeToolCall('run_shell_command', { command: `echo parent-${id} > parent-${id}.txt; ls` }, `call_${id}_shell`);
         return logAnd({ toolCalls: [shell] }, `parent-${mode}-first`);
       }
+      if (mode === 'dups' || mode === 'dupb') {
+        // Two agent calls in one Turn that reuse one callId, the way an
+        // index-numbered provider (call_0, call_1, ...) can across rounds.
+        const agentCalls = messages.filter(
+          (m) => m.role === 'assistant' && Array.isArray(m.tool_calls) &&
+            (m.tool_calls as Array<{ function?: { name?: string } }>).some((c) => c.function?.name === 'agent'),
+        ).length;
+        if (last?.role !== 'tool' && lastUser.includes('PARENT::') && agentCalls === 0) {
+          return logAnd({ toolCalls: [fakeToolCall('agent', { ...fgArgs, run_in_background: true }, 'call_0')] }, `parent-${mode}-first`);
+        }
+        if (last?.role === 'tool' && agentCalls === 1) {
+          const second = { ...fgArgs, run_in_background: true, prompt: `CHILD::reply::${id}b second prompt` + (mode === 'dupb' ? ' ' + 'q'.repeat(40 * 1024) : '') };
+          return logAnd({ toolCalls: [fakeToolCall('agent', second, 'call_0')] }, `parent-${mode}-second`);
+        }
+      }
       if (mode === 'phold' && last?.role !== 'tool' && lastUser.includes('PARENT::')) {
         // The parent's own model call stays in flight until released (control probes).
         await hold(id).promise;
