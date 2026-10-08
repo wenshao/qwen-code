@@ -1,0 +1,84 @@
+diff --git a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeRetention.java b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeRetention.java
+index f0757aa594..fa48d1c555 100644
+--- a/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeRetention.java
++++ b/packages/sdk-java/runtime-broker/src/main/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeRetention.java
+@@ -6,6 +6,8 @@ import java.sql.ResultSet;
+ import java.sql.SQLException;
+ import java.time.Duration;
+ import java.time.Instant;
++import java.time.ZoneOffset;
++import java.time.format.DateTimeFormatter;
+ import java.util.ArrayList;
+ import java.util.List;
+ import javax.sql.DataSource;
+@@ -26,6 +28,9 @@ public final class JdbcRuntimeRetention {
+     public record BatchResult(Cursor cursor, int bindingsScanned, int childrenScanned, int skipped,
+             int executionsDeleted, int sessionsDeleted, int bindingsDeleted) { }
+ 
++    private static final DateTimeFormatter EXACT_UTC =
++            DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSSSS").withZone(ZoneOffset.UTC);
++
+     private final DataSource dataSource;
+     private final JdbcRuntimeBindingRepository bindings;
+     private final ReferenceGuard references;
+@@ -199,11 +204,15 @@ public final class JdbcRuntimeRetention {
+             } else {
+                 JdbcRepositorySupport.setInstant(statement, 1, cutoff);
+                 if (cursor != null) {
++                    // Bind the keyset time as an exact literal: Connector/J drops fractional seconds
++                    // for servers it reads as 5.5 (MariaDB's 5.5.5- handshake), which would make the
++                    // cursor re-select its own row forever.
++                    String lastActiveAt = EXACT_UTC.format(cursor.lastActiveAt());
+                     statement.setString(2, cursor.bindingState());
+                     statement.setString(3, cursor.bindingState());
+-                    JdbcRepositorySupport.setInstant(statement, 4, cursor.lastActiveAt());
++                    statement.setString(4, lastActiveAt);
+                     statement.setString(5, cursor.bindingState());
+-                    JdbcRepositorySupport.setInstant(statement, 6, cursor.lastActiveAt());
++                    statement.setString(6, lastActiveAt);
+                     statement.setString(7, cursor.bindingId());
+                 }
+             }
+diff --git a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeRetentionTest.java b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeRetentionTest.java
+index 1f0cfd51ca..dc598eb439 100644
+--- a/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeRetentionTest.java
++++ b/packages/sdk-java/runtime-broker/src/test/java/com/alibaba/qwen/code/runtimebroker/JdbcRuntimeRetentionTest.java
+@@ -437,6 +437,7 @@ class JdbcRuntimeRetentionTest {
+ 
+     static void verifyOnDatabase(DataSource source) throws Exception {
+         Fixture fixture = new Fixture(source);
++        verifySubSecondCursorProgress(fixture);
+         verifyProtectedProgress(fixture);
+         assertEquals(List.of(100, 1, 1), fixture.complete(1, NO_REFERENCES));
+         verifyRollback(fixture, false);
+@@ -449,6 +450,30 @@ class JdbcRuntimeRetentionTest {
+         assertEquals(previous.getGeneration() + 1, fixture.bindings.findOrCreate(previous.getRequest()).getGeneration());
+     }
+ 
++    @Test
++    void subSecondCursorAdvancesPastARetainedBinding() throws Exception {
++        verifySubSecondCursorProgress(new Fixture());
++    }
++
++    // Stored history can carry microseconds the JDBC driver does not send back (Connector/J reads
++    // MariaDB's 5.5.5- handshake as a 5.5 server), so the cursor must not re-select its own row.
++    private static void verifySubSecondCursorProgress(Fixture fixture) throws Exception {
++        RuntimeBindingRecord retained = fixture.binding("subsecond-retained", "legacy", false, "RELEASED");
++        RuntimeBindingRecord eligible = fixture.binding("subsecond-eligible", "legacy", false, "RELEASED");
++        fixture.execute("UPDATE qwen_runtime_binding SET last_active_at = '2000-01-01 00:00:00.250000'"
++                + " WHERE binding_id = ?", retained.getBindingId());
++        fixture.execute("UPDATE qwen_runtime_binding SET last_active_at = '2000-01-01 00:00:00.750000'"
++                + " WHERE binding_id = ?", eligible.getBindingId());
++
++        var result = fixture.retention(guard(Set.of(retained.getBindingId()), Set.of())).sweep(MAX_AGE, 10, null);
++
++        assertNull(fixture.bindings.findById(eligible.getBindingId()));
++        assertNotNull(fixture.bindings.findById(retained.getBindingId()));
++        assertEquals(2, result.bindingsScanned());
++        assertNull(result.cursor());
++        assertEquals(List.of(0, 0, 1), fixture.complete(10, NO_REFERENCES));
++    }
++
+     private static JdbcRuntimeRetention.ReferenceGuard guard(Set<String> bindings, Set<String> executions) {
+         return new JdbcRuntimeRetention.ReferenceGuard() {
+             @Override
