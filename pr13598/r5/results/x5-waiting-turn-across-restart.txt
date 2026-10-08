@@ -1,0 +1,43 @@
+== Control without automation (stack x5, head decc116727)
+X1's user read_file Turn holds the Workspace lease (tap holds its execution poll); X2's user read_file Turn waits on workspace_busy; then the Harness is SIGKILLed and restarted.
+-- actions
+18:47:19 X1 user read_file Turn
+  "turn_id": "turn_0900bfcba94048a799b39fb6c0c2da91",
+18:47:23 X2 user read_file Turn
+  "turn_id": "turn_04be0be1f0b24c86812adcff5954352e",
+18:47:24 delayed tool poll seen (X1 user Turn mid tool, X2 waiting on the lease)
+18:47:32 kill+restart Harness (X1 user Turn mid tool, X2 waiting on the lease)
+killed harness pgid 67368
+harness pid=71615
+18:47:32 restarted
+18:50:03 X2 follow-up Turn
+  "turn_id": "turn_a1b8273882cf4a35b9af0094400a9c76",
+18:50:03 x5 done
+
+=== X1 196da6d4-11f4-46e0-ba70-48b0b6b68961
+-- turns
+turn_65142d9d5d9348cc9106253a9e739ccc	COMPLETED	-	18:47:05	18:47:12
+turn_0900bfcba94048a799b39fb6c0c2da91	COMPLETED	-	18:47:20	18:48:46
+-- runs
+-- occurrences
+=== X2 e7cc2bf7-d3b0-406f-94b9-f4e9aca19cbb
+-- turns
+turn_37fa7025855c4b7e8d66de7d6e84a31c	COMPLETED	-	18:47:06	18:47:12
+turn_04be0be1f0b24c86812adcff5954352e	FAILED	managed_runtime_recovery_blocked	18:47:23	18:48:42
+turn_a1b8273882cf4a35b9af0094400a9c76	FAILED	managed_runtime_recovery_blocked	18:50:03	18:50:03
+-- runs
+-- occurrences
+=== broker sessions (newest 8)
+ea357fa9-10f7-4a	RELEASED	09:49:44
+3c04312a-dc0f-4c	ACQUIRING	09:49:44
+=== execution lease
+-	NULL
+=== harness
+qwen serve: Hosted Session e7cc2bf7-d3b0-406f-94b9-f4e9aca19cbb load refused (takeover_unrecovered): prompt=3c04312a-dc0f-4c94-b747-48acabb1e0ae reason=unresolved_after_settle
+qwen serve: Hosted Session e7cc2bf7-d3b0-406f-94b9-f4e9aca19cbb load refused (takeover_unrecovered): prompt=3c04312a-dc0f-4c94-b747-48acabb1e0ae reason=unresolved_after_settle
+
+-- Spring log
+Managed Turn failed terminally tenant=rig session=e7cc2bf7-d3b0-406f-94b9-f4e9aca19cbb turn=turn_04be0be1f0b24c86812adcff5954352e code=managed_runtime_recovery_blocked message=The prior Harness generation parked a Turn this Harness cannot take over (unresolved
+com.alibaba.qwen.code.managedagent.harness.HostedHarnessRecoveryDeclinedException: Hosted Harness declined the takeover load (unresolved_after_settle)
+Managed Turn failed terminally tenant=rig session=e7cc2bf7-d3b0-406f-94b9-f4e9aca19cbb turn=turn_a1b8273882cf4a35b9af0094400a9c76 code=managed_runtime_recovery_blocked message=The prior Harness generation parked a Turn this Harness cannot take over (unresolved
+com.alibaba.qwen.code.managedagent.harness.HostedHarnessRecoveryDeclinedException: Hosted Harness declined the takeover load (unresolved_after_settle)

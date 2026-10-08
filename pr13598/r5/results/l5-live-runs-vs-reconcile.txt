@@ -1,0 +1,105 @@
+== Live runs meet reconcile_run (stack l5, head decc116727, no crash)
+L1: overlap skip, text with HOLD::80 every minute (each run spans the next slot).
+L4 (on Session L3): overlap skip, first model request held 50 s, then read_file whose execution poll the tap holds 25 s - a live tool wait across the :00 slot.
+L2: a 100 s poll hold; the Harness's Broker request gave up at ~30 s, so this one is the recovery path, not a live run (retired after).
+-- actions
+18:40:04 l5 definitions created; tap holds the first execution poll 100 s (live, no crash)
+18:41:13 L2 user Turn during the live tool wait
+  "turn_id": "turn_c7049ca1831747749e7cef8ddc4f4f8c",
+18:41:13 L3 read_file Turn during L2's live tool wait
+  "turn_id": "turn_508b088a9f684816833900b7e28b783c",
+18:42:59 L2 retired (its 100 s poll hold exceeded the Harness's ~30 s Broker request timeout: recovery path, not a live-run test)
+18:43:11 L4 created on Session L3 (skip): first model request held 50 s, then the execution poll held 25 s
+
+=== L1 418f5788-3402-4830-aefc-6f12c3cfa49f
+-- turns
+turn_3422e153bac5458f9cdf260f84a99621	COMPLETED	-	18:37:17	18:37:22
+-- runs
+arun_da39499b3	3	completed	-	18:41:00	18:42:27
+arun_ab4087b48	3	completed	-	18:43:01	18:44:24
+arun_6697a9c9c	3	completed	-	18:45:01	18:46:26
+arun_82dca02a5	3	completed	-	18:47:03	18:48:27
+arun_9eed38528	3	completed	-	18:49:04	18:50:28
+arun_ff261066c	2	running	unbound	18:51:00	-
+-- occurrences
+schedule:2026-10-08T18:41:00Z	arun_da39499b3	fired	-	18:41:00
+schedule:2026-10-08T18:42:00Z	arun_984f480d1	skipped	overlap	18:42:00
+schedule:2026-10-08T18:43:00Z	arun_ab4087b48	fired	-	18:43:01
+schedule:2026-10-08T18:44:00Z	arun_63bfcd745	skipped	overlap	18:44:01
+schedule:2026-10-08T18:45:00Z	arun_6697a9c9c	fired	-	18:45:01
+schedule:2026-10-08T18:46:00Z	arun_6fb0c41da	skipped	overlap	18:46:02
+schedule:2026-10-08T18:47:00Z	arun_82dca02a5	fired	-	18:47:03
+schedule:2026-10-08T18:48:00Z	arun_b0bd743fb	skipped	overlap	18:48:04
+schedule:2026-10-08T18:49:00Z	arun_9eed38528	fired	-	18:49:04
+schedule:2026-10-08T18:50:00Z	arun_d18c636e2	skipped	overlap	18:50:00
+schedule:2026-10-08T18:51:00Z	arun_ff261066c	fired	-	18:51:00
+=== L2 29a51a8b-4205-4f69-84bb-7fe2cf44cec2
+-- turns
+turn_9dd26ed455c7477380c5205b1b93a3e6	COMPLETED	-	18:37:17	18:37:22
+turn_c7049ca1831747749e7cef8ddc4f4f8c	COMPLETED	-	18:41:13	18:41:52
+-- runs
+arun_e3c007ce1	3	failed	-	18:41:00	18:41:34
+arun_9bd07d3de	3	completed	-	18:42:00	18:42:06
+-- occurrences
+schedule:2026-10-08T18:41:00Z	arun_e3c007ce1	fired	-	18:41:00
+schedule:2026-10-08T18:42:00Z	arun_9bd07d3de	fired	-	18:42:00
+=== L3 edafaaf7-08cb-41ee-89c0-a80d79bf129d
+-- turns
+turn_58c255cae075458e8d98df82d5ae6e00	COMPLETED	-	18:37:17	18:37:22
+turn_508b088a9f684816833900b7e28b783c	COMPLETED	-	18:41:13	18:41:37
+-- runs
+arun_6c852d8c0	3	completed	-	18:44:01	18:45:31
+arun_e7945b0f6	3	completed	-	18:46:02	18:46:12
+arun_e8a23cb67	3	completed	-	18:47:03	18:47:11
+arun_7f1d1dea2	3	completed	-	18:48:04	18:48:12
+arun_aee36abb8	3	completed	-	18:49:05	18:49:12
+arun_108789244	3	completed	-	18:50:00	18:50:09
+arun_0cd1488da	3	completed	-	18:51:01	18:51:09
+-- occurrences
+schedule:2026-10-08T18:44:00Z	arun_6c852d8c0	fired	-	18:44:01
+schedule:2026-10-08T18:45:00Z	arun_d4f730f5f	skipped	overlap	18:45:01
+schedule:2026-10-08T18:46:00Z	arun_e7945b0f6	fired	-	18:46:02
+schedule:2026-10-08T18:47:00Z	arun_e8a23cb67	fired	-	18:47:03
+schedule:2026-10-08T18:48:00Z	arun_7f1d1dea2	fired	-	18:48:04
+schedule:2026-10-08T18:49:00Z	arun_aee36abb8	fired	-	18:49:04
+schedule:2026-10-08T18:50:00Z	arun_108789244	fired	-	18:50:00
+schedule:2026-10-08T18:51:00Z	arun_0cd1488da	fired	-	18:51:00
+=== broker sessions (newest 8)
+wake-b0e275770dd	RELEASED	09:49:45
+wake-23bb616abaa	RELEASED	09:49:45
+wake-a3410a20eda	RELEASED	09:49:44
+wake-eee837d226d	RELEASED	09:49:44
+wake-762312e82da	RELEASED	09:49:44
+wake-01fed102f2c	RELEASED	09:49:44
+wake-fa685ca0ade	RELEASED	09:49:44
+wake-65853918892	RELEASED	09:49:44
+=== execution lease
+-	NULL
+=== harness
+qwen serve: Monitor wake turn arun_e3c007ce1c4900d74a89131ae1a463d16f290c9b79d2dcd68552e756fbf85242:input is recovery blocked: Error: Hosted tool turn requires recovery; its original work was not rele
+
+-- Spring->Harness reconcile_run calls
+18:42:00.708 /session/418f5788/automations/operations   reconcile_run schedule:2026-10-08T18:41:00Z    -> 202 34ms
+18:44:01.549 /session/418f5788/automations/operations   reconcile_run schedule:2026-10-08T18:43:00Z    -> 202 31ms
+18:45:02.042 /session/edafaaf7/automations/operations   reconcile_run schedule:2026-10-08T18:44:00Z    -> 202 43ms
+18:46:02.519 /session/418f5788/automations/operations   reconcile_run schedule:2026-10-08T18:45:00Z    -> 202 46ms
+18:48:04.164 /session/418f5788/automations/operations   reconcile_run schedule:2026-10-08T18:47:00Z    -> 202 53ms
+18:50:00.361 /session/418f5788/automations/operations   reconcile_run schedule:2026-10-08T18:49:00Z    -> 202 28ms
+
+-- L4's tool wait (Harness->Broker)
+18:44:58.803 req POST /tool-sessions:acquire   
+18:44:58.880 res   200 77 
+18:44:58.882 req POST /tool-sessions/wake-fa685ca0ade0acaee5f2e28253f367e3c5339304   
+18:44:58.925 res   200 43 
+18:44:58.951 req POST /executions:prepare   
+18:44:58.968 res   200 17 
+18:44:59.036 req POST /executions/b03295a0-140a-44ba-90fb-f1e536f61abc:start   
+18:44:59.071 res   200 35 
+18:44:59.125 req GET /executions/b03295a0-140a-44ba-90fb-f1e536f61abc   delay
+18:45:02.238 req POST /runtimes:warm   
+18:45:02.263 res   200 25 
+18:45:24.143 res   200 25018 
+18:45:30.656 req POST /tool-sessions/wake-fa685ca0ade0acaee5f2e28253f367e3c5339304   
+18:45:30.750 res   200 94 
+L1: completed 5;running 1;fired - 6;skipped overlap 5;
+L3: completed 7;fired - 7;skipped overlap 1;

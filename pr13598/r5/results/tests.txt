@@ -1,0 +1,93 @@
+== Tests at decc116727 (macOS arm64; host load average 25-50 from other work during the TS runs)
+
+-- Java, full managed-agent-server module (offline, rig m2)
+[INFO] Tests run: 1462, Failures: 0, Errors: 0, Skipped: 1
+[INFO] BUILD SUCCESS
+EXIT 0
+Tests run: 47, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.691 s -- in com.alibaba.qwen.code.managedagent.service.AutomationScannerTest
+
+-- TS Harness, 6 files (packages/cli): harness-model, harness-session, runtime-recovery, workspace-tool-turn, automation-session, monitor-wake
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn takeover > replays the snapshot only to a request re-proving its store identity
+ FAIL  src/serve/hosted-harness-session.test.ts > Hosted Harness Runtime turn takeover > settles the redriven cancellation takeover whose approval was answered since the attach (answer=deny)
+ FAIL  src/serve/hosted-monitor-wake.test.ts > settlePendingMonitorInputs > settles a notification that landed beyond the default event page
+ Test Files  2 failed | 4 passed (6)
+      Tests  3 failed | 635 passed (638)
+EXIT 1
+819-AssertionError: expected 404 to be 409 // Object.is equality
+838-AssertionError: expected 404 to be 204 // Object.is equality
+857-Error: Test timed out in 15000ms.
+The 3 failures re-run alone on the same clean head: 7/7 passed, twice (CLEAN-a / CLEAN-b below).
+
+-- Mutation check on head: each mutant against the whole hosted-harness-session suite
+M1-no-unblock-after-aftermath rc=1       Tests  4 failed | 313 passed (317) :: Hosted Harness no-tool session > settles the parked runtime after a broker fault, releasing its lease and unblocking|Hosted Harness no-tool session > repairs through the reconcile route while blocked, and reports once consumed|Hosted Harness no-tool session > settles, consumes and unblocks on a crash, and later fires run once|Hosted Harness Runtime turn takeover > completes an answer (inline) and clears file history after a recovered Write continuation|
+M2-no-park-settlement rc=1       Tests  4 failed | 313 passed (317) :: Hosted Harness no-tool session > settles the journal side of a deterministically declined wake park and still unblocks|Hosted Harness no-tool session > settles the parked runtime after a broker fault, releasing its lease and unblocking|Hosted Harness no-tool session > runs and queries a Hook-only operation without opening a user turn|Hosted Harness no-tool session > reports an aborted live turn as cancelled after a Java-style cold reattach|
+M3-aftermath-fail-open rc=1       Tests  2 failed | 315 passed (317) :: Hosted Harness Runtime turn takeover > replays a takeover load idempotently until its continue is admitted|Hosted Harness Runtime turn takeover > keeps the lease owed when the cancel route fails transiently and settles on retry|
+M4-no-unanswered-exclusion rc=1       Tests  1 failed | 316 passed (317) :: Hosted Harness no-tool session > keeps a turn that ended unanswered out of the next wake turn history|Hosted Harness no-tool session > keeps a turn that ended unanswered out of the next wake turn history|
+M5-no-consume-retry rc=1       Tests  3 failed | 314 passed (317) :: Hosted Harness no-tool session > retries the crashed input consume against a transient transcript conflict|Hosted Harness Runtime turn takeover > replays a takeover load idempotently until its continue is admitted|Hosted Harness Runtime turn takeover > settles a payable resident projection after a lost terminal write (passive=false)|
+M6-no-wake-park-probe rc=1       Tests  6 failed | 311 passed (317) :: Hosted Harness no-tool session > refuses a prompt while a wake park is still unsettled, retriably|Hosted Harness no-tool session > refuses a prompt while a wake park is still unsettled, retriably|Hosted Harness Runtime turn takeover > settles the cancellation of an ownerless parked Turn on the takeover load (profile=null)|Hosted Harness Runtime turn takeover > settles the cancellation of an ownerless parked Turn on the takeover load (profile=hosted-workspace-files/1)|
+M7-reconcile-ignores-live-turn rc=0       Tests  317 passed (317) :: 
+
+-- Re-run alone (vitest -t) on each mutant, and on clean head before/after
+CLEAN-a rc=0       Tests  7 passed | 329 skipped (336) :: 
+M1-no-unblock-after-aftermath rc=1       Tests  1 failed | 1 passed | 334 skipped (336) :: Hosted Harness no-tool session > settles, consumes and unblocks on a crash, and later fires run once|
+M2-no-park-settlement rc=1       Tests  2 failed | 334 skipped (336) :: Hosted Harness no-tool session > settles the journal side of a deterministically declined wake park and still unblocks|Hosted Harness no-tool session > settles the parked runtime after a broker fault, releasing its lease and unblocking|Hosted Harness no-tool session > settles the parked runtime after a broker fault, releasing its lease and unblocking|
+M3-aftermath-fail-open rc=0       Tests  4 passed | 332 skipped (336) :: 
+M5-no-consume-retry rc=1       Tests  1 failed | 335 skipped (336) :: Hosted Harness no-tool session > retries the crashed input consume against a transient transcript conflict|
+M6-no-wake-park-probe rc=1       Tests  1 failed | 335 skipped (336) :: Hosted Harness no-tool session > refuses a prompt while a wake park is still unsettled, retriably|
+CLEAN-b rc=0       Tests  7 passed | 329 skipped (336) :: 
+M4-no-unanswered-exclusion alone: 1 failed -- AssertionError: expected true to be false
+
+-- CI on decc116727 at 19:52 UTC
+pass	assign
+pass	authorize
+pass	Classify PR
+pass	delay-automatic-review
+pass	Desktop Shell (ubuntu-22.04)
+pass	Desktop Shell (windows-2022)
+pass	Flyway migration version uniqueness
+pass	Hosted process fault gates / MySQL 8.4 / Java 21
+pass	Integration Tests (no-AK, No Sandbox)
+pass	label
+pass	Lint & Static (ubuntu-latest, Node 22.x)
+pass	macos-latest / Java 21
+pass	OpenTUI no-flicker gate
+pass	Real daemon E2E / Java 11
+pass	Remind on force-push
+pass	route
+pass	Runtime Broker and Managed Agent MariaDB / Java 21
+pass	Serve A/B (ubuntu-latest, Node 22.x)
+pass	Test (ubuntu-latest, Node 22.x)
+pass	TUI parity snapshots (ink vs opentui)
+pass	ubuntu-latest / Java 11
+pass	ubuntu-latest / Java 17
+pass	ubuntu-latest / Java 21
+pass	web-shell E2E Smoke (ubuntu-latest, Node 22.x)
+pass	windows-latest / Java 21
+pending	review-pr
+skipping	ack-review-request
+skipping	ack-review-request
+skipping	authorize
+skipping	build-cli
+skipping	delay-automatic-review
+skipping	fallback-comment
+skipping	Integration Tests (CLI, No Sandbox)
+skipping	issue-autofix
+skipping	precheck-pr
+skipping	precheck-pr
+skipping	publish-resolution
+skipping	publish-resolution
+skipping	remove-suspicious-attachments
+skipping	resolve-pr
+skipping	resolve-pr
+skipping	retry-command
+skipping	review-address
+skipping	review-config
+skipping	review-config
+skipping	review-pr
+skipping	review-scan
+skipping	Signal the reviewed fork PR
+skipping	takeover-ack
+skipping	takeover-command
+skipping	Test (macos-latest, Node 22.x)
+skipping	Test (windows-latest, Node 22.x)
