@@ -1,0 +1,176 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildLifecycleAdmissions.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildLifecycleAdmissions.java
+index 33aa30025c..07bdb1455f 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildLifecycleAdmissions.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildLifecycleAdmissions.java
+@@ -28,6 +28,13 @@ public class ChildLifecycleAdmissions {
+         this.runtimeWarmer = runtimeWarmer;
+     }
+ 
++    /** Whether this host can close a Workspace Session at all. Without it
++     * no close is ever admitted, so a caller must not hold anything else
++     * (a parent's settlement) hostage to one. */
++    public boolean closeSupported() {
++        return runtimeWarmer != null && runtimeWarmer.supportsWorkspaceClose();
++    }
++
+     /** Admits the child Session's idempotent close, or replays the
+      * admission already in flight under this key. The caller's duty is
+      * only to dispatch; an active Turn or an unavailable Runtime lane
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelay.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelay.java
+index a20395df85..52dd8f3fae 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelay.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelay.java
+@@ -340,7 +340,7 @@ public class ChildResultRelay {
+      * is idempotent, a faltherd is owed and retried via the ordinary
+      * relay defer, never settled on suspicion. */
+     private void closeFinishedChild(RelayRow row, long now) {
+-        if (row.childSessionId() == null) {
++        if (row.childSessionId() == null || !childCloses.closeSupported()) {
+             return;
+         }
+         try {
+@@ -392,7 +392,7 @@ public class ChildResultRelay {
+             String child = row.childSessionId() != null ? row.childSessionId()
+                     : relayStore.findLineageChild(row.tenantId(),
+                             row.parentSessionId(), row.childRunId());
+-            if (child != null) {
++            if (child != null && childCloses.closeSupported()) {
+                 childCloses.admitChildClose(row.tenantId(),
+                         row.parentSessionId(), child, row.childRunId());
+             }
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleService.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleService.java
+index b97e050f4a..b2446199ef 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleService.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleService.java
+@@ -24,6 +24,8 @@ import org.springframework.beans.factory.annotation.Autowired;
+  */
+ @Service
+ public class SessionLifecycleService {
++    static final String LIFECYCLE_TOOL_PROFILE = "hosted-workspace-files/1";
++
+     // The command names that archive and delete digests used before V17, so
+     // a retry of an operation that V17 migrated still matches.
+     private static final Map<OperationKind, String> DIGEST_NAMES = Map.of(
+@@ -190,6 +192,18 @@ public class SessionLifecycleService {
+         };
+     }
+ 
++    // Protocol 1 settles through the Harness `/lifecycle` route and its
++    // effects receipt, both of which accept only the Files profile; any
++    // other Workspace profile (the Shell lane, and with it every H4b
++    // parent) keeps the protocol-0 close, whose child cascade runs under
++    // ordinary authorization.
++    static boolean usesLifecycleProtocol(SessionRecord session,
++            OperationKind kind) {
++        return "ACTIVE".equals(session.status())
++                && (kind == OperationKind.CLOSE || kind == OperationKind.DELETE)
++                && LIFECYCLE_TOOL_PROFILE.equals(session.toolProfile());
++    }
++
+     private OperationAdmission admit(String tenantId, String actorId,
+             String idempotencyKey, String sessionId, OperationKind kind) {
+         ManagedAgentService.validateIdempotencyKey(idempotencyKey);
+@@ -198,7 +212,7 @@ public class SessionLifecycleService {
+         String digest = sessions.lifecycleDigest(sessionId, DIGEST_NAMES.get(kind));
+         OperationAdmission admission;
+         if (session.workspace() != null) {
+-            boolean activeLifecycle = "ACTIVE".equals(session.status()) && (kind == OperationKind.CLOSE || kind == OperationKind.DELETE);
++            boolean activeLifecycle = usesLifecycleProtocol(session, kind);
+             admission = store.beginWorkspaceLifecycle(tenantId, sessionId, kind, actorId, actorDigest(actorId),
+                     idempotencyKey, digest, activeLifecycle ? coordinator.supportsWorkspaceLifecycle()
+                             : kind == OperationKind.CLOSE && runtimeWarmer != null && runtimeWarmer.supportsWorkspaceClose(),
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelayTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelayTest.java
+index 75e0d4fa2a..5312016b24 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelayTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelayTest.java
+@@ -128,6 +128,7 @@ class ChildResultRelayTest {
+         when(provider.getIfAvailable()).thenAnswer(ignored -> broker);
+         harness = new RecordingHarness();
+         childCloses = mock(ChildLifecycleAdmissions.class);
++        when(childCloses.closeSupported()).thenReturn(true);
+         now = 1_000_000L;
+         AtomicReference<Long> clock = new AtomicReference<>(now);
+         relay = new ChildResultRelay(store, sessions, provider, harness,
+@@ -355,6 +356,25 @@ class ChildResultRelayTest {
+         verify(childCloses).admitChildClose(TENANT, PARENT, CHILD, RUN);
+     }
+ 
++    // A host that cannot close a Workspace Session never admits one, so
++    // the close-first order must not hold the parent's settlement on it:
++    // the failed and over-bound runs still settle, and the row retires.
++    @Test
++    void aHostWithoutCloseStillSettlesAFailedChild() {
++        when(childCloses.closeSupported()).thenReturn(false);
++        row.set(new RelayRow(TENANT, PARENT, RUN, "creation-key", CHILD,
++                "watching", "owner", now + 30_000, 0, 0, null, now, now));
++        when(store.latestTurn(TENANT, CHILD)).thenReturn(
++                new TurnLine("turn-1", "FAILED", now + 1L, "model"));
++        relay.scan();
++        assertThat(row.get().state()).isEqualTo("done");
++        assertThat(harness.operations)
++                .extracting(operation -> operation.get("kind"))
++                .containsExactly("fail");
++        verify(childCloses, never()).admitChildClose(anyString(), anyString(),
++                anyString(), anyString());
++    }
++
+     // R4-3: a faltered close admission parks the row BEFORE the fail
+     // commit, so nothing moves delivery to `cancelled` while the child
+     // Session is still owed its durable close; the recovered retry
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleProtocolChoiceTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleProtocolChoiceTest.java
+new file mode 100644
+index 0000000000..85fa7259fe
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleProtocolChoiceTest.java
+@@ -0,0 +1,51 @@
++package com.alibaba.qwen.code.managedagent.service;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++import com.alibaba.qwen.code.managedagent.store.StoreModels.OperationKind;
++import com.alibaba.qwen.code.managedagent.store.StoreModels.SessionRecord;
++import org.junit.jupiter.api.Test;
++
++/**
++ * The lifecycle protocol an ACTIVE Workspace close or delete admits under:
++ * protocol 1 only where the Harness `/lifecycle` route and the effects
++ * receipt accept the profile (Files). A Shell-lane Session — every H4b
++ * parent — keeps the protocol-0 close; under protocol 1 its child cascade
++ * is fenced and its settlement ends `workspace_lifecycle_profile_unavailable`.
++ */
++class SessionLifecycleProtocolChoiceTest {
++
++    private static SessionRecord session(String status, String toolProfile) {
++        return new SessionRecord("tenant", "session", "agent", "1", null,
++                status, null, null, 0, 0, 0, 0, 0, null, 0, null, "yolo",
++                toolProfile);
++    }
++
++    @Test
++    void filesProfileActiveCloseAndDeleteUseTheLifecycleProtocol() {
++        SessionRecord files = session("ACTIVE", "hosted-workspace-files/1");
++        assertThat(SessionLifecycleService.usesLifecycleProtocol(files,
++                OperationKind.CLOSE)).isTrue();
++        assertThat(SessionLifecycleService.usesLifecycleProtocol(files,
++                OperationKind.DELETE)).isTrue();
++    }
++
++    @Test
++    void shellProfileKeepsTheOrdinaryClose() {
++        SessionRecord shell = session("ACTIVE", "hosted-workspace-shell/1");
++        assertThat(SessionLifecycleService.usesLifecycleProtocol(shell,
++                OperationKind.CLOSE)).isFalse();
++        assertThat(SessionLifecycleService.usesLifecycleProtocol(shell,
++                OperationKind.DELETE)).isFalse();
++    }
++
++    @Test
++    void onlyActiveCloseAndDeleteQualify() {
++        assertThat(SessionLifecycleService.usesLifecycleProtocol(
++                session("CLOSED", "hosted-workspace-files/1"),
++                OperationKind.DELETE)).isFalse();
++        assertThat(SessionLifecycleService.usesLifecycleProtocol(
++                session("ACTIVE", "hosted-workspace-files/1"),
++                OperationKind.ARCHIVE)).isFalse();
++    }
++}

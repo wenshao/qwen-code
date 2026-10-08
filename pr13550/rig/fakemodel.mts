@@ -42,7 +42,9 @@ const server = await startFakeOpenAIServer(
     const userText = users.join('\n');
     const last = messages[messages.length - 1];
     const lastUser = users[users.length - 1] ?? '';
-    const parent = /PARENT::([a-z0-9-]+)::([A-Za-z0-9_-]+)::([a-z0-9-]+)/.exec(userText);
+    // The newest marker wins, so a later Turn of the same Session can switch mode.
+    const parentAll = [...userText.matchAll(/PARENT::([a-z0-9-]+)::([A-Za-z0-9_-]+)::([a-z0-9-]+)/g)];
+    const parent = parentAll.length ? parentAll[parentAll.length - 1] : null;
     const child = /CHILD::([a-z0-9-]+)::([A-Za-z0-9_-]+)/.exec(userText);
     let role = 'other';
     let reply: FakeOpenAIResponse = { content: 'UNSCRIPTED' };
@@ -57,6 +59,18 @@ const server = await startFakeOpenAIServer(
         prompt: `CHILD::${spec}::${id} Compute the answer and reply with one line.`,
         run_in_background: false,
       };
+      const bgArgs = { ...fgArgs, run_in_background: true };
+      if (mode === 'prebg' && last?.role === 'tool' && !calledAgent) {
+        return logAnd({ toolCalls: [fakeToolCall('agent', bgArgs, `call_${id}_agent`)] }, 'parent-prebg-agent');
+      }
+      if ((mode === 'sh' || mode === 'prebg') && last?.role !== 'tool' && lastUser.includes('PARENT::')) {
+        const shell = fakeToolCall('run_shell_command', { command: `echo parent-${id} > parent-${id}.txt; ls` }, `call_${id}_shell`);
+        return logAnd({ toolCalls: [shell] }, `parent-${mode}-first`);
+      }
+      if (mode === 'bigp' && last?.role !== 'tool' && lastUser.includes('PARENT::')) {
+        const big = { ...fgArgs, prompt: fgArgs.prompt + ' ' + 'p'.repeat(40 * 1024) };
+        return logAnd({ toolCalls: [fakeToolCall('agent', big, `call_${id}_agent`)] }, 'parent-bigp');
+      }
       if (mode === 'pre' && last?.role === 'tool' && !calledAgent) {
         // Second batch: the agent call after an earlier non-agent batch.
         return logAnd({ toolCalls: [fakeToolCall('agent', fgArgs, `call_${id}_agent`)] }, 'parent-pre-agent');

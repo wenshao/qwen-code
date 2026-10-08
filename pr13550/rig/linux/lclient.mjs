@@ -19,7 +19,7 @@ const sql = (q) => execFileSync('mysql', ['-h127.0.0.1', '-P3306', '-uroot', '-N
 async function call(method, url, body) {
   const res = await fetch(url, {
     method,
-    headers: { ...H, ...(method === 'POST' ? { 'idempotency-key': randomUUID() } : {}) },
+    headers: { ...H, ...(method === 'POST' || method === 'DELETE' ? { 'idempotency-key': randomUUID() } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const text = await res.text();
@@ -46,6 +46,8 @@ if (cmd === 'create') {
   console.log(JSON.stringify(await call('POST', `${base}/${rest[0]}/events`, { type: 'agent.session.cancel', turn_id: rest[1] })));
 } else if (cmd === 'close') {
   console.log(JSON.stringify(await call('POST', `${base}/${rest[0]}/close`)));
+} else if (cmd === 'delete') {
+  console.log(JSON.stringify(await call('DELETE', `${base}/${rest[0]}`)));
 } else if (cmd === 'get') {
   console.log(JSON.stringify(await call('GET', `${base}/${rest[0]}`)));
 } else if (cmd === 'tasks') {
