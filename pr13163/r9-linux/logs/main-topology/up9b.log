@@ -1,0 +1,51 @@
+harness pid=770459 dist=h9 up after 2s log=/root/v13163/rig/run/b9/harness-5.log
+springb pid=770509 jar=h9 store=http://127.0.0.1:18164 up after 6s log=/root/v13163/rig/run/b9/springb-5.log
+spring pid=770631 jar=h9 store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/b9/spring-7.log
+### [up9b 09:52:15] /usr/bin/node c1-cancel-refused.mjs ws-up-d d revoke alice
+# c1-revoke-alice-late-ws-up-d  db=b9  2026-10-08T09:52:16.032Z
+PASS  initial Turn COMPLETED  -> bb60c487-d386-487b-b129-801b6c9c192d
+PASS  later Turn admitted  -> 202 turn_27a32ca2cee24c6a9aac16f7d80bd395
+NOTE  cancel by alice under revoke  -> 202 accepted in 44 ms; workspaceTurns=false
+NOTE  Turn end  -> CANCELLED  at +427 ms
+NOTE  model request  -> aborted after 208 ms
+NOTE  Workspace file child/late-revoke-42016.txt  -> null
+NOTE  tool executions added by the later Turn  -> 0
+NOTE  refusal lifted after the Turn ended  -> +2069 ms
+NOTE  next later Turn after restore  -> 202  -> COMPLETED; file=AFTER
+NOTE  Turn history  -> [["turn_edb6c89ba8c54d998ff22c810b792596","COMPLETED","","0"],["turn_27a32ca2cee24c6a9aac16f7d80bd395","CANCELLED","","0"],["turn_957b709897a14d77a61617a3b30e1377","COMPLETED","","0"]]
+NOTE  command rows  -> [["SUBMIT_TURN","COMPLETED"],["CANCEL_TURN","COMPLETED"],["SUBMIT_TURN","COMPLETED"]]
+== c1-revoke-alice-late-ws-up-d: 2 passed, 0 failed
+RC=0
+### [up9b 09:52:28] /usr/bin/node c19-rename-race.mjs bound ws-up-h h
+# c19-rename-race-bound  db=b9  2026-10-08T09:52:28.669Z
+PASS  initial Turn COMPLETED  -> 7653b419-5d2c-4b8d-9039-2316f580dd66
+NOTE  R1 (K1 → A, Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → B  -> 200 title B
+NOTE  R2 (K1 → A retry, Harness call held 8 s, then 200)  -> 200 title A; K1 row while held PENDING
+NOTE  R3 (K1 → A retry overlapping R2, Harness 500)  -> 503 hosted_harness_unavailable; K1 row after R3 FAILED
+NOTE  database title afterwards  -> title A
+NOTE  title calls the Harness applied, in order  -> ["title B","title A"]
+NOTE  Harness title calls with faults  -> ["title A:respond:500","title B:-:200","title A:respond:500","title A:delay:200"]
+NOTE  R4 (K1 → A once more, no fault)  -> 200 title A; database title then title A; K1 row COMPLETED
+== c19-rename-race-bound: 1 passed, 0 failed
+RC=0
+### [up9b 09:52:44] /usr/bin/node c21-boundary-moved.mjs bound ws-up-h2 h
+# c21-boundary-moved-bound  db=b9  2026-10-08T09:52:44.330Z
+PASS  initial Turn COMPLETED  -> c55f3d8a-78e3-403b-9780-9b58ff371969
+NOTE  #1 K1 → Alpha (reaches the Harness, answer held 7 s)  -> 200 Alpha
+NOTE  #2 K1 → Alpha (Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → Bravo  -> 200 Bravo
+NOTE  #3 K1 → Alpha after Bravo (Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  database title afterwards  -> Alpha
+NOTE  title calls the Harness applied, in arrival order  -> ["Alpha","Bravo"]
+NOTE  Harness title calls with faults  -> ["Alpha:delay-after:200","Alpha:respond:500","Bravo:-:200","Alpha:respond:500"]
+NOTE  #4 K1 → Alpha once more (no fault)  -> 200 Alpha; database Alpha; Harness title calls now 4 (was 4)
+== c21-boundary-moved-bound: 1 passed, 0 failed
+RC=0
+stopped spring pid=770631 sig=TERM
+stopped spring-b pid=770509 sig=TERM
+stopped harness pid=770459 sig=TERM
+stopped model pid=770419 sig=TERM
+stopped tap pid=770420 sig=TERM
+leftover rig workers: 3
+UP9B-DONE 09:53:01

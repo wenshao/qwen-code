@@ -1,0 +1,46 @@
+ARM9-START up9 db=b9 jar=h9 dist=h9 09:36:39
+### upgrade: head jar on the base arm database
+51	1
+50	1
+harness pid=744449 dist=h9 up after 2s log=/root/v13163/rig/run/b9/harness-4.log
+springb pid=744525 jar=h9 store=http://127.0.0.1:18164 up after 6s log=/root/v13163/rig/run/b9/springb-4.log
+spring pid=744893 jar=h9 store=http://127.0.0.1:18164 up after 7s log=/root/v13163/rig/run/b9/spring-6.log
+52	managed mutation attempt sequence	1	58
+51	workspace session lifecycle	1	602
+50	workspace migration binary identity	1	262
+2026-10-08T09:36:52.316Z  INFO 744893 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 52 migrations (execution time 00:00.058s)
+### [up9 09:36:54] /usr/bin/node c19-rename-race.mjs bound ws-up-c19 e
+# c19-rename-race-bound  db=b9  2026-10-08T09:36:54.314Z
+FAIL  initial Turn COMPLETED  -> 1e1bb440-e35c-405b-b1fe-8da739f312f2
+NOTE  R1 (K1 → A, Harness 500)  -> 503 hosted_harness_unavailable; K1 row FAILED
+NOTE  K2 → B  -> 200 title B
+NOTE  R2 (K1 → A retry, Harness call held 8 s, then 200)  -> 200 title A; K1 row while held PENDING
+NOTE  R3 (K1 → A retry overlapping R2, Harness 500)  -> 503 hosted_harness_unavailable; K1 row after R3 FAILED
+NOTE  database title afterwards  -> title A
+NOTE  title calls the Harness applied, in order  -> ["title B","title A"]
+NOTE  Harness title calls with faults  -> ["title A:respond:500","title B:-:200","title A:respond:500","title A:delay:200"]
+NOTE  R4 (K1 → A once more, no fault)  -> 200 title A; database title then title A; K1 row COMPLETED
+== c19-rename-race-bound: 0 passed, 1 failed
+RC=0
+### [up9 09:38:36] /usr/bin/node c1-cancel-refused.mjs ws-up-a a revoke alice
+# c1-revoke-alice-late-ws-up-a  db=b9  2026-10-08T09:38:36.150Z
+FAIL  initial Turn COMPLETED  -> ee05bfa0-9650-4f16-8e01-3ea36ed2de28
+FAIL  later Turn admitted  -> 409 turn_active
+NOTE  cancel by alice under revoke  -> 400 turn_id_required in 15 ms; workspaceTurns=false
+NOTE  Turn end  -> FAILED hosted_turn_failed at +433 ms
+NOTE  model request  -> neither
+NOTE  Workspace file child/late-revoke-6857.txt  -> null
+NOTE  tool executions added by the later Turn  -> 0
+NOTE  refusal lifted after the Turn ended  -> +2073 ms
+NOTE  next later Turn after restore  -> 202  -> RUNNING; file=null
+NOTE  Turn history  -> [["turn_da64453e84124da29bc682bd0d2ecf41","FAILED","hosted_turn_failed","0"],["turn_5889357bb13b40fdab63f3b7022de722","RUNNING","","0"]]
+NOTE  command rows  -> [["SUBMIT_TURN","COMPLETED"]]
+== c1-revoke-alice-late-ws-up-a: 0 passed, 2 failed
+RC=0
+stopped spring pid=744893 sig=TERM
+stopped spring-b pid=744525 sig=TERM
+stopped harness pid=744449 sig=TERM
+stopped model pid=744242 sig=TERM
+stopped tap pid=744243 sig=TERM
+leftover rig workers: 2
+ARM9-DONE up9 09:42:23

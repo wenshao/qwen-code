@@ -1,0 +1,34 @@
+harness pid=704038 dist=h9 up after 2s log=/root/v13163/rigd/run/dbg9/harness-0.log
+springb pid=704088 jar=h9 store=http://127.0.0.1:18364 up after 27s log=/root/v13163/rigd/run/dbg9/springb-0.log
+spring pid=705329 jar=h9 store=http://127.0.0.1:18364 up after 7s log=/root/v13163/rigd/run/dbg9/spring-0.log
+### ws-d1 a revoke restore
+# c23-approve-retry-revoke-restore-ws-d1  db=dbg9  2026-10-08T09:06:57.883Z
+PASS  initial Turn COMPLETED after approval
+PASS  later Turn waits for approval  -> tool_approval_167d7e83cbd92455fb79003fdc1251d2
+NOTE  approval answer (public)  -> 202 pending
+NOTE  answer operation after 12000 ms under revoke (state, error, attempts)  -> ["RUNNING","","4"] (not settled); states seen ["RUNNING"]
+NOTE  resolve calls reaching the Harness during the hold  -> ["-:200","respond:503"]
+NOTE  Action row during the hold  -> ["requested"]
+NOTE  Workspace file child/a2-18107.txt during the hold  -> null
+PASS  revoke: answer stays retryable (PENDING, not FAILED) while the state is changed  -> ["RUNNING","","4"]
+PASS  revoke: nothing delivered to the Harness while the state is changed  -> delivered=0 file=null
+NOTE  answer operation after the restore  -> ["RUNNING","","7"] (not settled within 80 s)
+NOTE  Action row after the restore  -> ["requested"]
+NOTE  Turn after the restore  -> RUNNING  (not terminal)
+NOTE  resolve calls reaching the Harness (all)  -> ["-:200","respond:503"]
+NOTE  Workspace file child/a2-18107.txt / executions added  -> null / 0
+FAIL  restore: the committed answer is delivered (op COMPLETED, Action decided)  -> ["RUNNING","","7"] ["requested"]
+FAIL  restore: exactly one successful resolve reached the Harness  -> ["-:200","respond:503"]
+FAIL  restore: the Turn completes and the approved write lands  -> RUNNING file=null
+NOTE  cleanup cancel of the stranded Turn  -> 202 → CANCELLED at +536 ms
+NOTE  Turn history  -> [["turn_f1098a102f764ad4ba00dd3d8525d080","COMPLETED","","0"],["turn_84678b181560407a9f59f4fe7ad1cc4b","CANCELLED","","0"]]
+== c23-approve-retry-revoke-restore-ws-d1: 4 passed, 3 failed
+      1 DEBUG 705329 --- [qwen-managed-agent-server] [     virtual-97] c.a.q.c.m.s.ActionResponseCoordinator    : Action response will retry operation=op_a3d4fa059dbe462b8dccbe8ec0629674 failure=com.alibaba.qwen.code.runtimebroker.RuntimeBrokerException: Workspace access grant or registry state is changing.
+      1 DEBUG 705329 --- [qwen-managed-agent-server] [     virtual-96] c.a.q.c.m.s.ActionResponseCoordinator    : Action response will retry operation=op_a3d4fa059dbe462b8dccbe8ec0629674 failure=com.alibaba.qwen.code.runtimebroker.RuntimeBrokerException: Workspace access grant or registry state is changing.
+      1 DEBUG 705329 --- [qwen-managed-agent-server] [     virtual-95] c.a.q.c.m.s.ActionResponseCoordinator    : Action response will retry operation=op_a3d4fa059dbe462b8dccbe8ec0629674 failure=com.alibaba.qwen.code.daemon.MutationOutcomeUnknownException: POST /session/:id/actions/:id/resolve may have reached the daemon; the SDK did not retry it
+stopped spring pid=705329 sig=TERM
+stopped spring-b pid=704088 sig=TERM
+stopped harness pid=704038 sig=TERM
+stopped model pid=704008 sig=TERM
+stopped tap pid=704009 sig=TERM
+DBG9-DONE 09:10:30
