@@ -56,6 +56,7 @@ cards['01-summary'] = page(`
 <tr><th style="width:34%">New checks</th><th>Measured</th></tr>
 <tr><td>${held} <b>reconcile_run against live runs</b></td><td>6 calls against an 80 s text run and a read_file wait spanning the slot: answered in 28-53 ms, nothing settled, every run completed</td></tr>
 <tr><td>${held} <b>allow definitions, same crash</b></td><td>29 later runs completed, 0 workspace_busy, no slot skipped; cancelled / failed user prompts leave the model context, as decision 15 says</td></tr>
+<tr><td><span class="crit">&#9888; OPEN</span> <b>the two P1s of the 18:33 review</b></td><td>Shell under Tool v3 publication, and the settlement on a cold Broker (a Spring/Broker restart with the Runtime alive): <b>not reachable on this rig</b> (files-only Sessions; durable Runtimes are Linux-only), neither confirmed nor ruled out</td></tr>
 <tr><td>${info} <b>a user Turn waiting on workspace_busy across a Harness restart</b></td><td>the takeover declines it (unresolved_after_settle, #13174) and the Session then refuses every Turn (managed_runtime_recovery_blocked); reproduced with two user Turns and no automation</td></tr>
 </table>
 <table style="margin-top:14px">
