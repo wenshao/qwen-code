@@ -1,0 +1,111 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelay.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelay.java
+index 0a911358a4..43ca9576d6 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelay.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelay.java
+@@ -49,6 +49,10 @@ public class ChildResultRelay {
+     private static final long LEASE_MS = 30_000;
+     /** The watch gap for a Turn that keeps running — a wait, not a failure. */
+     private static final long HEARTBEAT_MS = 5_000;
++    // A close debt on a host without close capability cannot be
++    // discharged until the capability returns, which takes a restart:
++    // look again rarely instead of on every heartbeat.
++    private static final long CLOSE_DEBT_IDLE_MS = 300_000;
+ 
+     private final ChildResultRelayStore relayStore;
+     private final ManagedAgentService sessions;
+@@ -454,7 +458,7 @@ public class ChildResultRelay {
+             return;
+         }
+         if (!childCloses.closeSupported()) {
+-            relayStore.scheduleRetry(row, owner, now + HEARTBEAT_MS,
++            relayStore.scheduleRetry(row, owner, now + CLOSE_DEBT_IDLE_MS,
+                     now + LEASE_MS, now);
+             return;
+         }
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChildResultRelayStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChildResultRelayStore.java
+index bd591bb427..c2fd677549 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChildResultRelayStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ChildResultRelayStore.java
+@@ -56,6 +56,9 @@ public class ChildResultRelayStore {
+     // arm: the parent's settlement commits first so quota never waits on
+     // a host's close capability, and the ledger row keeps the retained
+     // close admission discoverable until a capable scan discharges it.
++    // Debts sort after every other due row: they accumulate one per
++    // finished child where close is unavailable, and ahead of the page
++    // they would keep a newer launch from ever being reached.
+     private static final String PENDING_SQL =
+             "SELECT r.tenant_id, r.session_id, r.record_id, r.revision,"
+                     + " r.delivery_state, r.record_resource_id"
+@@ -73,7 +76,8 @@ public class ChildResultRelayStore {
+                     + " AND (l.next_retry_at IS NULL OR l.next_retry_at <= ?)"
+                     + " AND (l.claimed_until IS NULL OR l.claimed_until <="
+                     + " ? OR l.claimed_by = ?)"
+-                    + " ORDER BY r.created_at, r.session_id, r.record_id"
++                    + " ORDER BY CASE WHEN l.state = 'close_debt' THEN 1"
++                    + " ELSE 0 END, r.created_at, r.session_id, r.record_id"
+                     + " LIMIT ?";
+ 
+     private final JdbcTemplate jdbc;
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java
+index bd2ec9031e..6f49532f61 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java
+@@ -405,6 +405,32 @@ class ChildResultRelayStoreTest {
+                 .isEmpty();
+     }
+ 
++    // Debts sort after every other due row: one accumulates per finished
++    // child where close is unavailable, and ahead of the bounded page they
++    // would keep a newer launch from ever being reached.
++    @Test
++    void sortsCloseDebtsAfterNewerDueWork() {
++        long now = 600_000L;
++        String session = UUID.randomUUID().toString();
++        insertRecordRow("scope-f", session, "run-a-old-debt", "child_agent",
++                "consumed", "completed");
++        RelayRow row = relayStore.claim(TENANT, session, "run-a-old-debt",
++                "key-a-old-debt", "owner", now + 30_000, now);
++        relayStore.advance(row, "owner", "close_debt", "child-f",
++                now + 1_000, "close debt retained", now + 30_000, now);
++        insertRecordRow("scope-f", session, "run-z-new", "child_agent",
++                "planned", "pending");
++        assertThat(relayStore.findPendingChildren("owner", now + 1_000, 1))
++                .extracting(PendingChild::childRunId)
++                .containsExactly("run-z-new");
++        // Retire the fixture rows: the discovery page is fleet-wide.
++        relayStore.classify(relayStore.find(TENANT, session,
++                "run-a-old-debt"), "owner", "done", null, now + 2_000);
++        relayStore.classify(relayStore.claim(TENANT, session, "run-z-new",
++                "key-z-new", "owner", now + 30_000, now + 1_000), "owner",
++                "done", null, now + 2_000);
++    }
++
+     @Test
+     void readsInlineResourcesOnly() {
+         jdbc.update("INSERT INTO qwen_managed_session_resource"
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelayTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelayTest.java
+index 2f52a4816c..9761335ee6 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelayTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ChildResultRelayTest.java
+@@ -449,6 +449,21 @@ class ChildResultRelayTest {
+     // records and classifies `unknown` — both already done for this row.
+     // It must never run again on it: the debt arm only ever retries its
+     // own single verb, and a stopped falter discharges the same row.
++    // A host that cannot close parks a debt for the idle interval, not the
++    // heartbeat: nothing discharges it before a restart brings the
++    // capability back, and every visit costs a page slot and a write.
++    @Test
++    void aCloseDebtWithoutCloseSupportWaitsTheIdleInterval() {
++        when(childCloses.closeSupported()).thenReturn(false);
++        row.set(new RelayRow(TENANT, PARENT, RUN, "creation-key", CHILD,
++                "close_debt", "owner", now + 30_000, 0, 0, null, now, now));
++        relay.scan();
++        verify(store).scheduleRetry(any(RelayRow.class), anyString(),
++                Mockito.eq(now + 300_000L), anyLong(), anyLong());
++        verify(childCloses, never()).admitChildClose(anyString(), anyString(),
++                anyString(), anyString());
++    }
++
+     @Test
+     void aCloseDebtRowNeverEntersTheGiveUpChain() {
+         row.set(new RelayRow(TENANT, PARENT, RUN, "creation-key", CHILD,
