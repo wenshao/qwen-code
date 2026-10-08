@@ -1,0 +1,62 @@
+[
+  {
+    "name": "r3-01-f1-f4-fixed",
+    "title": "Round 3 @ 0f36cc46: F1–F4 are fixed on the real stack",
+    "subtitle": "Spring jar + MySQL 8.4 (Flyway V1→V52, incl. main's V51) + qwen serve --profile hosted-harness + GreenMail IMAPS/SMTPS + qwen channel managed-email. Tap = Spring→Harness wire, proxy = adapter→internal listener.",
+    "panels": [
+      {
+        "h": "F1 + F2: first email of a new thread (tap)",
+        "t": "## Alice → new thread \"Quarterly numbers\"\n05:22:17.698 POST /session                     ++ 200 (create, not load)\n05:22:17.751 POST /session/4d7b12f2/channels/operations\n             submit_input                       ++ 202\n             scope={\"kind\":\"chat_thread\",\n                    \"chatId\":\"alice@rig.test\",\n                    \"threadId\":\"40dad9d0…\"}\n== no senderId key on the wire (fastjson2 still drops it)\n== the Harness now defaults it before the closed parser\n05:22:20.847 claim_delivery                     ++ 202\n05:22:21.054 segment_receipt                    ++ 202\n++ reply in Alice's inbox after 5.2 s (head @4aaa8e35: never)"
+      },
+      {
+        "h": "F3: Spring-only restart, same thread (tap)",
+        "t": "## kill Spring, start Spring; Harness untouched\n05:23:09.831 POST /session                 !! 409 hosted_session_already_attached\n05:23:09.835 POST /session/4d7b12f2/load   !! 409 hosted_session_already_attached\n05:23:09.840 POST /session/4d7b12f2/load   ++ 200 passive=true\n05:23:09.941 submit_input                  ++ 202\n05:23:13.060 claim_delivery                ++ 202\n05:23:13.254 segment_receipt               ++ 202\n++ reply after 5.4 s (head @4aaa8e35: mail dropped as 409)\n!! still open: transient Harness 409s (hosted_session_closing …)\n!! are forwarded as 409 and the adapter still drops them"
+      },
+      {
+        "h": "F4: one receipt request refused (proxy + ledger)",
+        "t": "## proxy rule: refuse the next :receipt\n05:23:22.418 POST /inbound                 ++ 200\n05:23:25.647 POST …:reply:receipt          -- refused (rule)\n05:23:28.720 POST …:reply:receipt          ++ 200 state=delivered\n== re-driven by tick() 3.1 s later, same providerMessageId\n## V47 ledger (1 s poll)\n05:23:26.541 sending\n05:23:29.803 delivered <212509a5…@rig.test>\n++ never passes through unknown; no adapter restart\n== head @4aaa8e35: unknown at +93 s until a restart"
+      }
+    ],
+    "note": "F1 and F2 were blockers, F3 P1 and F4 P2 in round 2. Each now works end to end on the exact PR head (0f36cc46), with the wire showing the intended path."
+  },
+  {
+    "name": "r3-02-receipt-stall",
+    "title": "New P1: one permanently refused receipt stops every outbound reply (regression from 572e0b30)",
+    "subtitle": "Alice's route Session is closed while her reply is held at SMTP for 20 s (simulated close: Session row → CLOSED + Spring restart drops the cached attachment). The receipt then gets 409 workspace_unavailable. Bob starts a new, unrelated thread.",
+    "panels": [
+      {
+        "h": "PR head 0f36cc46 adapter",
+        "t": "## proxy log\n05:26:15.279 :receipt (Alice)   -- 409 workspace_unavailable\n05:26:18.517 /inbound (Bob)     ++ 200 admitted, new Session\n05:26:18 → 05:29:01  :receipt  -- 409 × 55 more (every ~3 s)\n05:26:15 → 05:29:03  :claim    -- 0 calls\n-- Bob: no reply for 3 min 6 s, until the row was reset by hand\n## tick(): poll → reportOrphanedOutbound() throws\n##         → pullOutbox() is never reached\n## restart\n-- exits: \"control plane answered 409 workspace_unavailable\"\n== only after the row was set back to ACTIVE: receipt 200,\n== Bob's reply 1 s later"
+      },
+      {
+        "h": "Pre-F4 adapter (4aaa8e35 + round-2 candidate)",
+        "t": "## same scenario, same stack\n05:35:26.775 :receipt (Alice)   !! 409 workspace_unavailable × 1\n05:35:26 → 05:38:00  :claim    ++ 50 calls\n++ Bob's new thread answered 7 s after his email\n!! the refused entry stays parked in managed-state.json\n## restart\n-- exits with the same 409 (pre-existing: connect()\n-- replays outbound and throws on any refusal)"
+      },
+      {
+        "h": "Candidate fix (candidate-r3.patch, +53/−4)",
+        "t": "## reportOrphanedOutbound(): 400/403/409 and\n## 404 delivery_not_found are terminal → log + drop\n05:39:09.700 :receipt (Alice)   !! 409 (in the send)\n05:39:12.978 :receipt (Alice)   !! 409 → dropped, logged\n05:39:16.273 :receipt (Bob)     ++ 200 delivered\n++ Bob answered 8 s after his email\n## restart over the stuck state (pre-F4 orphan)\n++ \"receipt … was refused (409); it is dropped.\"\n++ \"channel rigmail is running\"\n== transient failures (fetch failed, 5xx) still abort the\n== tick, so a lost answer is still re-driven (S4 holds)"
+      }
+    ],
+    "note": "Unit test 'drops a persisted receipt the control plane refuses for good, so later deliveries still send' fails on the head's adapter source (Error: HTTP 409 on the second tick) and passes with the patch; email suite 50/50, prettier + eslint clean."
+  },
+  {
+    "name": "r3-03-matrix-f5-f7",
+    "title": "Round 3 @ 0f36cc46: what holds, F7 (new P2) and F5 (still open, deferred)",
+    "subtitle": "Same stack. Fault injection through the SMTPS front (550 / hang / hold), the adapter→control-plane proxy (drop answer) and process kills. One run on the real model qwen3.8-max.",
+    "panels": [
+      {
+        "h": "Holds on the new head",
+        "t": "++ in-thread follow-up       same Session, model sees 2 turns\n++ lost admission answer     re-driven, already admitted,\n                             1 model call, 1 reply\n++ SMTP 550                   rejected, 1 attempt, no retry\n++ SMTP hang                  unknown after 67 s, 1 copy\n++ :resend of that delivery   :r1 delivered, possibleDuplicate\n++ kill -9 mid-send           restart reports unknown, 1 copy\n++ reply held 25 s at SMTP    delivered when SMTP answers\n++ thread idle 34 min         409 → 409 → load(passive) 200\n                             → 202, reply in 6 s\n++ Harness restart, new thread  409 generation_mismatch →\n                             create 200 → 202\n++ real model qwen3.8-max     reply in ~16 s, In-Reply-To +\n                             Auto-Submitted: auto-replied"
+      },
+      {
+        "h": "F7 (new, P2): mail into a closed thread",
+        "t": "## same simulated close (row CLOSED, attachment dropped)\n05:41:10.623 POST /inbound   -- 409 workspace_unavailable\n-- adapter: \"admission of 1791436674:19 was refused (409);\n--          the message is skipped.\"\n-- ingress row 1791436674:19  staged  (no new Session)\n== the binding still points at the closed Session, so every\n== later email in that thread is dropped; sender never told\n== follow-up: re-bind to a fresh Session (routeRevision+1)\n== or plan a model-free bounce"
+      },
+      {
+        "h": "F5 (P1, deferred to #13638 E1): still reproduces",
+        "t": "## Bob: \"HOLD me T#f5a\" → channel turn parked at the model\n06:00:21 Harness killed and restarted mid-turn (up 06:01:02)\n-- log: Monitor wake turn chin-aa19… needs recovery,\n--       not a re-drive.\n06:01:18 Bob writes again in that thread (T#f5c)\n-- events :22 and :24 both admitted to Session 91a51a84\n-- 0 replies and 0 model calls for that thread (06:06,\n--   re-checked 06:16 = 15 min after the restart)\n++ Bob's other thread answered at 06:01:18, so only the\n++ thread whose turn was in flight is wedged\n== direction (#13638 E1): the channel attach drives takeover\n== recovery, or the Harness settles the interrupted wake\n== turn model-free"
+      }
+    ],
+    "note": "F5 is unchanged by this round (no change to hosted-monitor-wake-turn.ts or HarnessCoordinator). Channels are opt-in: qwen.managed-agent.channels.enabled defaults to false."
+  }
+]
