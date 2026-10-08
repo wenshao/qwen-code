@@ -1,0 +1,50 @@
+[
+  {
+    "name": "r5-01-fixed",
+    "title": "Round 5 @ 752f9eaf: F6, F8 and the reachable F5 cases now recover on the real stack",
+    "subtitle": "Spring + MySQL + Hosted Harness + GreenMail + qwen channel managed-email. The Harness is SIGKILLed and restarted; the sender writes again at once.",
+    "panels": [
+      {
+        "h": "F8 + F6 (candidate-r4 carried verbatim)",
+        "t": "## F8: Harness SIGKILL, mail to an attached thread\n11:10:11 kill → Harness answers /health 2 s later\n11:10:14 /inbound  !! 503 (generation mismatch)\n11:10:17 /inbound  !! 503 managed_session_writer_conflict × 7\n11:11:14 /inbound  ++ 200 admitted (lease lapsed, +63 s)\n== lease 180 s run: × 10, admitted at +180 s, replied\n++ 0 emails skipped across 9 Harness kills (34 writer 503s re-driven)\n## F6: route Session closed while its reply is held\n++ receipt 409 × 2 → \"refused (409); it is dropped.\"\n++ Bob's unrelated new thread answered in 8 s"
+      },
+      {
+        "h": "F5 text turn and files-profile Write",
+        "t": "## text: \"HOLD me T#t1\" parked at the model, SIGKILL\n++ Interrupted channel wake turn … was settled without a reply\n++ follow-up t2 answered 10 s after admission\n## Write: write_file parked (runtime worker SIGSTOPped)\n11:16:10 model → write_file b.txt (no result yet)\n11:16:27 Harness SIGKILL, back 11:16:29\n++ load passes the gate after the writer lease (409s were F8)\n++ worker resumed; the Broker proves the stop\n++ Interrupted channel wake turn chin-e03e… was settled\n++ follow-up answered 51 s after the kill\n++ next request: dangling tool calls = []\n++ runtime session RELEASED, Workspace lease freed"
+      }
+    ],
+    "note": "These are the paths the 09:21 review called unreachable (Write load gate) plus F6/F8; all three now hold end to end. Channel Sessions created by Spring always use hosted-workspace-files/1, so the Write case is the reachable tool case."
+  },
+  {
+    "name": "r5-02-shell-unknown",
+    "title": "Latent (P2): a shell tool interrupted by a Harness restart is always UNKNOWN, and its dead turn then holds the Workspace mount",
+    "subtitle": "Only reachable with hosted-workspace-shell/1, which Spring never assigns to a workspace Session today (ManagedAgentStore.java:422); this rig forces it with a DB trigger.",
+    "panels": [
+      {
+        "h": "Every real interruption ends UNKNOWN (4 runs)",
+        "t": "## shell tool `sleep N` running, Harness SIGKILLed\n-- tool finished during the downtime          → unknown\n-- no restart: tool reaped 118 s after the kill → unknown\n-- fast restart + follow-up at +2 s: tool killed\n--   at the takeover (+63 s)                   → unknown\n## each time\n!! Interrupted channel wake turn … keeps its durable wait\n!!   for the recovery fleet: Runtime execution outcome is unknown.\n-- Monitor wake turn … needs recovery, not a re-drive.\n-- follow-ups admitted, 0 model calls, 0 replies\n-- operator turn via public API: failed (hosted_turn_failed)\n== stopParkedRuntimeExecutions throws on status 'unknown';\n== the Broker's reconcileExecution is never asked"
+      },
+      {
+        "h": "…and the whole Workspace's tools stop",
+        "t": "## qwen_runtime_session\nchin-4151… (dead turn)       READY      since 10:53:57\nchin-33a0… (other thread)    ACQUIRING  since 11:01:50\nchin-ad38… (files-profile    ACQUIRING  write_file)\n## managed_workspace_execution_lease\nholder = chin-4151…  mount_state = UNVERIFIED (no expiry)\n## Harness\n-- Hosted Harness turn … waits for the Workspace mount\n--   held by another Session.\n== every tool call of every Session in that Workspace\n== queues behind the dead turn, with no timeout"
+      }
+    ],
+    "note": "Latent today because channel Sessions are files-profile only. If the shell profile is ever enabled for them, a routine Harness restart during a shell command would stop tool use for the entire Workspace."
+  },
+  {
+    "name": "r5-03-approval",
+    "title": "P2: after a restart the approval can still be granted, but the approved turn never resumes",
+    "subtitle": "QWEN_MANAGED_AGENT_APPROVAL_MODE=default (the shipped default is yolo). Bob's write_file waits for approval when the Harness is SIGKILLed.",
+    "panels": [
+      {
+        "h": "Hold works, the decision is delivered",
+        "t": "11:18:28 model → write_file c.txt\n         action tool_approval_9e42… state=requested\n11:19:00 Harness SIGKILL, back 11:19:01\n11:19:06 POST …/actions/…/responses (allow)\n         ++ 202 pending, admission_stage=java_durable\n11:20:04 follow-up p2 admitted (after 7 × writer-lease 503)\n++ Interrupted channel wake turn chin-1802… keeps its durable\n++   wait for its approval; the Session stays usable.\n11:20:13 Harness POST …/actions/…/resolve  ++ 200\n== the 09:21 review's \"resolve route blocked\" is fixed"
+      },
+      {
+        "h": "…but nothing drives the turn afterwards",
+        "t": "-- action list now empty (resolved: allow)\n-- c.txt never written\n-- 0 model calls since the restart\n-- p2 and a later p3 admitted, 0 replies\n11:23:18 p3 kicks the pump:\n!! … keeps its durable wait for its approval (again)\n== the checkpoint still reads await_action after the\n== resolution, so the helper answers `held` forever;\n== no recovery driver exists for channel Sessions"
+      }
+    ],
+    "note": "The approval is preserved and resolvable, which was the point of the held arm, but the continuation that should execute the approved tool and call the model never runs after a Harness restart."
+  }
+]
