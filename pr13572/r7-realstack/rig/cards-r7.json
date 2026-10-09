@@ -18,21 +18,21 @@
   {
     "name": "r7-02-late-findings",
     "title": "The two findings filed against e1783d0d minutes before the merge, checked on the real stack",
-    "subtitle": "A: yiliang114's channel_disconnected finding (confirmed, candidate fix verified). B: qqqys's char-vs-byte text guard (not reproduced: refused before staging).",
+    "subtitle": "A: yiliang114's channel_disconnected finding (confirmed; follow-up #13768 verified). B: qqqys's char-vs-byte text guard (not reproduced: refused before staging).",
     "panels": [
       {
         "h": "A on the merged head: mail lost until the adapter restarts",
         "t": "## internal POST …/channels/rigmail/disconnect while the adapter runs\n## (a stale process's late disconnect, or an operator call)\n12:38:23 /inbound  -- 409 channel_disconnected\n-- \"admission of …:2 was refused (409); the message is skipped.\"\n-- every tick: /deliveries:claim 409 channel_disconnected\n-- the adapter never registers again; a second mail at 12:38:47\n--   is skipped the same way; the channel stays disconnected"
       },
       {
-        "h": "A with candidate-r7.patch (+69/−8)",
-        "t": "## same disconnect, candidate adapter\n12:47:46.023 /inbound   !! 409 channel_disconnected → kept pending\n12:47:46.033 :claim     !! 409 → registration marked lost\n12:47:49.054 PUT        ++ 200 connected (re-registered)\n12:47:49.178 /inbound   ++ 200 admitted; reply 9 s after the mail\n++ unit tests: 2 new, red on the merged source, green with\n++ the patch; email suite 57/57; prettier + eslint clean"
+        "h": "A with #13768's diff applied (the follow-up PR)",
+        "t": "## same disconnect, #13768 adapter\n12:51:11.619 /inbound   !! 409 channel_disconnected → kept pending\n12:51:11.631 :claim     !! 409 → \"outbox claim was refused as not\n!!   registered; the next poll re-registers first.\"\n12:51:14.660 PUT        ++ 200 connected (re-registered)\n12:51:15.023 /inbound   ++ 200 admitted; reply 9.4 s after the mail\n++ email suite 57/57 with #13768's two new tests\n== nit: the inbound log still says \"did not answer\""
       },
       {
         "h": "B: oversized CJK text with an attachment",
         "t": "## internal /inbound, bypassing the adapter's byte clamp\n## text 21,906 chars / 65,706 bytes (< 32,000 chars, > 64 KiB)\n## plus a 2,000-byte attachment\n-- Harness: 400 invalid_channel_operation (deterministic)\n++ managed-channel-attachment resources before 0 / after 0\n++ the byte verdict lands before any attachment is staged\n== email never reaches it: the adapter clamps by bytes"
       }
     ],
-    "note": "PR #13572 was merged at e1783d0d (11:39:59 UTC) while this round was running; A needs a follow-up on main."
+    "note": "PR #13572 was merged at e1783d0d (11:39:59 UTC) while this round was running; A is fixed by the open follow-up #13768, verified here."
   }
 ]
