@@ -1,0 +1,95 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+index 03a9282147..56e78992d1 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+@@ -373,7 +373,8 @@ public class ManagedAgentStore implements AgentStateStore {
+                         + " cwd_relative, context_config_ref,"
+                         + " context_revision, workspace_config_ref,"
+                         + " workspace_policy_ref, tool_profile,"
+-                        + " creator_actor_key, approval_mode,"
++                        + " creator_actor_key, owner_actor_key,"
++                        + " approval_mode,"
+                         + " parent_session_id, root_session_id,"
+                         + " parent_child_run_id, child_depth)"
+                         + " SELECT tenant_id, ?, agent_id,"
+@@ -382,7 +383,8 @@ public class ManagedAgentStore implements AgentStateStore {
+                         + " workspace_storage_id, cwd_relative,"
+                         + " context_config_ref, context_revision,"
+                         + " workspace_config_ref, workspace_policy_ref,"
+-                        + " tool_profile, creator_actor_key, approval_mode,"
++                        + " tool_profile, creator_actor_key,"
++                        + " owner_actor_key, approval_mode,"
+                         + " ?, ?, ?, ?"
+                         + " FROM managed_agent_session"
+                         + " WHERE tenant_id = ? AND session_id = ?",
+@@ -418,8 +420,7 @@ public class ManagedAgentStore implements AgentStateStore {
+         if (creator != null) {
+             jdbc.update("INSERT IGNORE INTO managed_workspace_access"
+                             + " (tenant_id, workspace_id, actor_id,"
+-                            + " can_read, can_create) SELECT ?,"
+-                            + " workspace_id, ?, can_read, can_create"
++                            + " role) SELECT ?, workspace_id, ?, role"
+                             + " FROM managed_workspace_access WHERE"
+                             + " tenant_id = ? AND workspace_id = ?"
+                             + " AND actor_id = ?",
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java
+index cda2cf5b8c..af03410e1c 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ChildResultRelayStoreTest.java
+@@ -47,9 +47,8 @@ class ChildResultRelayStoreTest {
+                 com.alibaba.qwen.code.runtimebroker.WorkspaceExecutionProfile.CONFIG_REF,
+                 com.alibaba.qwen.code.runtimebroker.WorkspaceExecutionProfile.POLICY_REF);
+         jdbc.update("INSERT IGNORE INTO managed_workspace_access (tenant_id,"
+-                        + " workspace_id, actor_id, can_read, can_create)"
+-                        + " VALUES ('" + TENANT + "', 'workspace', ?, TRUE,"
+-                        + " TRUE)",
++                        + " workspace_id, actor_id, role)"
++                        + " VALUES ('" + TENANT + "', 'workspace', ?, 'OPERATOR')",
+                 "owner".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+         return state.insertWorkspaceSessionCommand(TENANT, "owner",
+                 UUID.randomUUID().toString(), "digest", "qwen-code", null,
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionMySqlIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionMySqlIT.java
+index 7f71447a4c..63e1463ba0 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionMySqlIT.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionMySqlIT.java
+@@ -325,8 +325,8 @@ class WorkspaceSessionRetentionMySqlIT {
+                 tenant, WorkspaceExecutionProfile.CONFIG_REF, WorkspaceExecutionProfile.POLICY_REF);
+         // Seeded at V31, where the grant columns are still the booleans; the
+         // V52 backfill maps this (TRUE, TRUE) row to OPERATOR on upgrade.
+-        jdbc.update("INSERT INTO managed_workspace_access (tenant_id, workspace_id, actor_id, can_read, can_create)"
+-                + " VALUES (?, 'workspace', ?, TRUE, TRUE)", tenant, OWNER.getBytes(StandardCharsets.UTF_8));
++        jdbc.update("INSERT INTO managed_workspace_access (tenant_id, workspace_id, actor_id, role)"
++                + " VALUES (?, 'workspace', ?, 'OPERATOR')", tenant, OWNER.getBytes(StandardCharsets.UTF_8));
+         jdbc.update("INSERT INTO managed_agent_session (tenant_id, session_id, agent_id, status, created_at, updated_at,"
+                 + " workspace_id, workspace_generation, workspace_storage_id, cwd_relative, context_config_ref,"
+                 + " context_revision, workspace_config_ref, workspace_policy_ref, version)"
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleCoordinatorTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleCoordinatorTest.java
+index dc33d1a706..583f6c457f 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleCoordinatorTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/SessionLifecycleCoordinatorTest.java
+@@ -145,8 +145,8 @@ class SessionLifecycleCoordinatorTest {
+                 WorkspaceExecutionProfile.CONFIG_REF,
+                 WorkspaceExecutionProfile.POLICY_REF);
+         jdbc.update("INSERT INTO managed_workspace_access (tenant_id,"
+-                        + " workspace_id, actor_id, can_read, can_create)"
+-                        + " VALUES ('tenant', 'workspace', ?, TRUE, TRUE)",
++                        + " workspace_id, actor_id, role)"
++                        + " VALUES ('tenant', 'workspace', ?, 'OPERATOR')",
+                 "owner".getBytes(StandardCharsets.UTF_8));
+         var transactions = new TransactionTemplate(
+                 new DataSourceTransactionManager(source));
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStoreChildCreationFenceTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStoreChildCreationFenceTest.java
+index 80b132693f..cb43a5be8e 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStoreChildCreationFenceTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStoreChildCreationFenceTest.java
+@@ -56,8 +56,8 @@ class ManagedAgentStoreChildCreationFenceTest {
+                 WorkspaceExecutionProfile.CONFIG_REF,
+                 WorkspaceExecutionProfile.POLICY_REF);
+         jdbc.update("INSERT INTO managed_workspace_access (tenant_id,"
+-                        + " workspace_id, actor_id, can_read, can_create)"
+-                        + " VALUES ('tenant', 'workspace', ?, TRUE, TRUE)",
++                        + " workspace_id, actor_id, role)"
++                        + " VALUES ('tenant', 'workspace', ?, 'OPERATOR')",
+                 "owner".getBytes(StandardCharsets.UTF_8));
+         transactions = new TransactionTemplate(
+                 new DataSourceTransactionManager(source));
