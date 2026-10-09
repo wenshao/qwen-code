@@ -1,0 +1,65 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedArtifactConfiguration.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedArtifactConfiguration.java
+index 511c9c2556..35f417dba2 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedArtifactConfiguration.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedArtifactConfiguration.java
+@@ -21,6 +21,18 @@ public class ManagedArtifactConfiguration {
+         return builder.poolSize(1).threadNamePrefix("managed-artifact-").build();
+     }
+ 
++    /**
++     * The replay-floor pass's own tick: a first pass after an operator opts
++     * in drains every Session with a Snapshot, which on a large deployment
++     * takes minutes, and on the shared one-thread default taskScheduler it
++     * would hold off the message materializer and every recovery tick for
++     * that long.
++     */
++    @Bean
++    public ThreadPoolTaskScheduler replayFloorScheduler(ThreadPoolTaskSchedulerBuilder builder) {
++        return builder.poolSize(1).threadNamePrefix("replay-floor-").build();
++    }
++
+     /**
+      * The recovery tick runs blocking JDBC, so it must never share the
+      * one-thread default pool. Gated exactly like the Broker bean that carries
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ReplayFloorAdvancer.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ReplayFloorAdvancer.java
+index 662c57b4f4..70063f6340 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ReplayFloorAdvancer.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ReplayFloorAdvancer.java
+@@ -34,7 +34,7 @@ public class ReplayFloorAdvancer {
+         this.properties = properties;
+     }
+ 
+-    @Scheduled(fixedDelayString =
++    @Scheduled(scheduler = "replayFloorScheduler", fixedDelayString =
+             "${qwen.managed-agent.events.replay-floor-interval:60s}")
+     public void advance() {
+         if (!properties.getEvents().isReplayFloorEnabled()) {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ReplayFloorSchedulerTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ReplayFloorSchedulerTest.java
+new file mode 100644
+index 0000000000..1f816cfeea
+--- /dev/null
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/ReplayFloorSchedulerTest.java
+@@ -0,0 +1,23 @@
++package com.alibaba.qwen.code.managedagent.service;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++import org.junit.jupiter.api.Test;
++import org.springframework.scheduling.annotation.Scheduled;
++
++/**
++ * The replay-floor pass drains its whole backlog in one tick, which on a
++ * deployment that opts in with many Sessions takes minutes; it must run on
++ * its own scheduler, not the one-thread default that the message
++ * materializer and the recovery ticks share.
++ */
++class ReplayFloorSchedulerTest {
++
++    @Test
++    void thePassDoesNotShareTheDefaultScheduler() throws Exception {
++        Scheduled scheduled = ReplayFloorAdvancer.class.getMethod("advance")
++                .getAnnotation(Scheduled.class);
++
++        assertThat(scheduled.scheduler()).isEqualTo("replayFloorScheduler");
++    }
++}
