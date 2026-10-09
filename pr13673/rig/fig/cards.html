@@ -1,0 +1,79 @@
+<!doctype html><meta charset="utf-8"><style>
+body{margin:0;background:#0d1117;font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+.card{display:inline-block;padding:28px 32px;background:#0d1117}
+h1{font-size:23px;margin:0 0 4px} .sub{color:#8b949e;font-size:14px;margin:0 0 18px;max-width:1240px;line-height:1.45}
+table{border-collapse:separate;border-spacing:4px} th{font-size:13px;color:#c9d1d9;text-align:left;padding:6px 10px;font-weight:600}
+th span{color:#8b949e;font-weight:400} td{font-size:13px;padding:9px 11px;border-radius:6px;vertical-align:top;line-height:1.45}
+td.f{color:#c9d1d9;max-width:290px;background:#161b22} td.ok{background:#0f2d1b;border:1px solid #2ea043} td.bad{background:#3a1416;border:1px solid #da3633}
+td.na{background:#161b22;color:#6e7681;text-align:center} b{font-weight:650}
+pre{font:12.5px/1.5 ui-monospace,Menlo,monospace;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:12px 14px;margin:0;white-space:pre;color:#c9d1d9}
+.g{color:#3fb950}.r{color:#f85149}.y{color:#d29922}.m{color:#8b949e}.b{color:#58a6ff}
+.cols{display:flex;gap:14px} .col h2{font-size:15px;margin:0 0 8px}
+.note{border-left:3px solid #58a6ff;padding:6px 12px;color:#c9d1d9;font-size:13.5px;margin-top:14px;max-width:1240px;line-height:1.5}
+</style><div class="card" id="c1"><h1>#13673 · original command-Hook Session retirement after faults — real Linux stack</h1>
+<p class="sub">colima VM Ubuntu 24.04 / kernel 6.8 aarch64 · MySQL 8.4 · Temurin 21 Spring fat jar (embedded durable local-process Broker) · packaged Hosted Harness + real managed-runtime-worker processes on Node 22 · command Hooks (SessionEnd, SessionDelete) run under a delegated cgroup v2 root.
+Fault is injected after End and Delete effects are durable: a recording proxy holds the first <code>POST /session/&lt;id&gt;/detach</code>. Neighbor Session shares the same Workspace storage. Deadline 180 s, retry 0.</p>
+<table><tr><th>fault after durable End+Delete effects</th><th>base 29aef7de<br><span>PR merge-base</span></th><th>head a62f55be<br><span>PR</span></th><th>trial merge e23dd5fd<br><span>head → main 669b2f0f</span></th><th>main 669b2f0f<br><span>control</span></th></tr><tr><td class="f">Spring restart (TERM); Harness + original workers alive</td><td class="bad"><b>still BLOCKED at +250 s</b><br>RECOVERY_BLOCKED ×8<br>workspace_lifecycle_hooks_unsettled<br>Session DELETING · 0 retirement · holder held</td><td class="ok"><b>RETIRED 58 s after fault</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 16/16</td><td class="ok"><b>RETIRED 63 s after fault</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 16/16</td><td class="bad"><b>still BLOCKED at +217 s</b><br>RECOVERY_BLOCKED ×8<br>workspace_lifecycle_hooks_unsettled<br>Session DELETING · 0 retirement · holder held</td></tr><tr><td class="f">Spring KILL; Harness + original workers alive</td><td class="bad"><b>still BLOCKED at +186 s</b><br>RECOVERY_BLOCKED ×7<br>workspace_lifecycle_hooks_unsettled<br>Session DELETING · 0 retirement · holder held</td><td class="ok"><b>RETIRED 60 s after fault</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 16/16</td><td class="ok"><b>RETIRED 59 s after fault</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 16/16</td><td class="na">—</td></tr><tr><td class="f">Spring KILL + both original workers KILL; Harness kept</td><td class="bad"><b>still BLOCKED at +214 s</b><br>RECOVERY_BLOCKED ×8<br>workspace_lifecycle_hooks_unsettled<br>Session DELETING · 0 retirement · holder held</td><td class="ok"><b>RETIRED 98 s after fault</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 16/16</td><td class="ok"><b>RETIRED 55 s after fault</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 16/16</td><td class="na">—</td></tr><tr><td class="f">All 4 original product processes KILL (Spring, Harness, 2 workers)</td><td class="bad"><b>still BLOCKED at +241 s</b><br>RECOVERY_BLOCKED ×8<br>workspace_close_identity_unverified<br>Session DELETING · 0 retirement · holder held</td><td class="ok"><b>RETIRED 69 s after fault</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 16/16</td><td class="ok"><b>RETIRED 60 s after fault</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 16/16</td><td class="na">—</td></tr><tr><td class="f">Actual guest OS reboot (VM stop/start, boot_id changes)</td><td class="bad"><b>still BLOCKED at +180 s</b><br>RECOVERY_BLOCKED ×8<br>workspace_close_identity_unverified<br>Session DELETING · 0 retirement · holder held</td><td class="ok"><b>RETIRED 23 s after restart</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 17/17</td><td class="ok"><b>RETIRED 29 s after restart</b><br>op COMPLETED · Session DELETED<br>1 retirement · stop receipt · holder cleared<br>End×1 Delete×1 · checks 17/17</td><td class="na">—</td></tr><tr><td class="f">Control: worker + Hook unit vanish while End unresolved (60 s)</td><td class="ok"><b>BLOCKED (correct)</b><br>RECOVERY_BLOCKED · workspace_lifecycle_hooks_unsettled<br>effects 0 · retirement 0 · holder kept<br>hooks: SessionEnd:enter · 8/8</td><td class="ok"><b>BLOCKED (correct)</b><br>RECOVERY_BLOCKED · workspace_lifecycle_hooks_unsettled<br>effects 0 · retirement 0 · holder kept<br>hooks: SessionEnd:enter · 8/8</td><td class="ok"><b>BLOCKED (correct)</b><br>RECOVERY_BLOCKED · workspace_lifecycle_hooks_unsettled<br>effects 0 · retirement 0 · holder kept<br>hooks: SessionEnd:enter · 8/8</td><td class="na">—</td></tr></table><div class="note">Every RETIRED cell also passed: original binding / generation / handle / seed / lease unchanged, no replacement worker, no model request after the fault, effect-receipt bytes unchanged, all original RuntimeSessions RELEASED, original worker gone, shared files byte-identical, neighbor not retired. — = not run on that arm.</div></div><br><div class="card" id="c2"><h1>Spring KILL + both original workers KILL (Harness kept): base vs head</h1>
+<p class="sub">Same probe, same fault point. Rows are the operation row sampled every 0.5 s after the fault (state / delivery / error / claim generation), then the durable state at the end of the window.</p>
+<div class="cols"><div class="col"><h2 class="r">base 29aef7de — blocked</h2><pre> +33.9s RUNNING           LEASED     <span class="m">claim g1</span>
+ +47.3s RUNNING           LEASED     <span class="m">claim g2</span>
+ +51.6s <span class="r">RECOVERY_BLOCKED</span>  BLOCKED    <span class="r">hooks_unsettled</span> <span class="m">claim g2</span>
+ +53.7s RUNNING           LEASED     <span class="m">(retry)</span> <span class="m">claim g3</span>
+ +54.2s <span class="r">RECOVERY_BLOCKED</span>  BLOCKED    <span class="r">hooks_unsettled</span> <span class="m">claim g3</span>
+ +56.7s <span class="r">RECOVERY_BLOCKED</span>  BLOCKED    <span class="r">hooks_unsettled</span> <span class="m">claim g4</span>
+ +61.8s RUNNING           LEASED     <span class="m">(retry)</span> <span class="m">claim g5</span>
+ +62.3s <span class="r">RECOVERY_BLOCKED</span>  BLOCKED    <span class="r">hooks_unsettled</span> <span class="m">claim g5</span>
+ +71.7s RUNNING           LEASED     <span class="m">(retry)</span> <span class="m">claim g6</span>
+<span class="m">… 7 more transitions …</span>
++183.1s <span class="r">RECOVERY_BLOCKED</span>  BLOCKED    <span class="r">hooks_unsettled</span> <span class="m">claim g9</span>
+
+op RECOVERY_BLOCKED attempts=8  Session <span class="r">DELETING</span>  after 214 s
+
+binding        READY  drain receipt=<span class="r">none</span>
+hook runtime   bootstrap:<span class="r">READY</span>
+storage holder <span class="r">held by hooks-activation-…</span>
+retirement     <span class="r">0 rows</span>
+worker         <span class="r">registration READY</span> (process killed, never retired)
+
+<span class="y">Harness → Broker  POST …/hooks-activation-…:release
+  503 runtime_reconciliation_required ×8
+  "Runtime Session is not active in this Broker process"
+Spring → Harness  POST /session/:id/detach
+  503 managed_session_close_failed ×8</span></pre></div>
+<div class="col"><h2 class="g">head a62f55be — retired</h2><pre> +92.2s RUNNING           LEASED     <span class="m">claim g2</span>
+ +97.6s <span class="g">COMPLETED</span>         CONFIRMED  <span class="m">claim g2</span>
+
+op COMPLETED attempts=0  Session <span class="g">DELETED</span>  after 98 s
+
+binding        RELEASED  drain receipt=<span class="g">persisted</span>
+hook runtime   bootstrap:<span class="g">RELEASED</span>
+storage holder <span class="g">cleared</span>
+retirement     <span class="g">1 row</span>
+worker         <span class="g">registration RETIRED</span>
+
+End ×1, Delete ×1 (command Hooks, cgroup units)
+same binding id / generation / handle / seed / lease
+no replacement worker · no model request after fault
+neighbor Session ACTIVE, shared files byte-identical</pre></div></div></div><br><div class="card" id="c3"><h1>Mutation sampling on head a62f55be — 20 single-line mutants of this PR's guards</h1>
+<p class="sub">Phase 1: Broker RuntimeHarnessDrainTest + InMemoryRepositoryTest + JdbcRepositoryTest (93) or Server WorkspaceRuntimeTest + RuntimeBrokerFlywaySchemaTest + SessionLifecycleCoordinatorTest (40). Phase 2 for survivors: mutated Broker jar installed, then 12 Server classes that drive the JDBC stopped release / drain (206). Broker survivors were then run against the full Broker suite (777 tests). Server survivors were not run against the full Server suite.</p>
+<pre>B1   <span class="r">SURVIVED</span> R1-7       stopped clear nulls holder_key only (torn lease row)               <span class="m">Broker 777 (full) + Server 206 pass</span>
+B2   <span class="r">SURVIVED</span> R1-6       already-cleared (all-null) holder row refused, not idempotent      <span class="m">Broker 777 (full) + Server 206 pass</span>
+B3   <span class="g">killed  </span> design     clears the holder of ANOTHER original Session of the same binding  <span class="m">WorkspaceRuntimeTest.drainReleasesNonHolderSessionWithoutClearingTheOtherOriginalHolder</span>
+B4   <span class="g">killed  </span> design     JDBC stopped release ignores active executions                     <span class="m">WorkspaceRuntimeTest.stoppedHookReleaseRefusesFencedOrUnverifiedCleanup</span>
+B5   <span class="r">SURVIVED</span> R1-11      BindingRenewal.releaseStoppedSession ignores active executions     <span class="m">Broker 777 (full) + Server 206 pass</span>
+B6   <span class="r">SURVIVED</span> R1-12      requireDrainClaim drops the lease-expiry arm                       <span class="m">Broker 777 (full) + Server 206 pass</span>
+B7   <span class="g">killed  </span> design     NOT_FOUND branch stops the worker despite active executions        <span class="m">RuntimeHarnessDrainTest.unknownExecutionBlocksReleaseAndStop</span>
+B8   <span class="r">SURVIVED</span> R1-10      persistDrainReceipt accepts a foreign stop receipt                 <span class="m">Broker 777 (full) + Server 206 pass</span>
+B9   <span class="r">SURVIVED</span> R1-10      releaseStoppedSession skips the receipt identity check             <span class="m">Broker 777 (full) + Server 206 pass</span>
+B10  <span class="g">killed  </span> triage #1  failed READY adoption keeps its cache (6e2e151 fix reverted)       <span class="m">RuntimeHarnessDrainTest.failedAdoptedReleaseReobservesTheOriginalWorkerWithoutRestart</span>
+B11  <span class="g">killed  </span> design     requireStoppedRelease ignores the database claim lease             <span class="m">WorkspaceRuntimeTest.stoppedHookReleaseRefusesFencedOrUnverifiedCleanup</span>
+B12  <span class="r">SURVIVED</span> design     requireStoppedRelease ignores a replaced claim generation          <span class="m">Broker 777 (full) + Server 206 pass</span>
+B13  <span class="g">killed  </span> R1-8       unfenced ordinary release also re-observes the original worker     <span class="m">RuntimeHarnessDrainTest.restoredLiveReleaseRequiresTheOriginalIdentityAndDrainFence</span>
+B14  <span class="g">killed  </span> R1-9       NOT_FOUND accepted without matching loss evidence                  <span class="m">RuntimeHarnessDrainTest.missingOrForeignAbsenceEvidenceCannotStopTheOriginalWorker</span>
+S1   <span class="r">SURVIVED</span> R1-4       canStopDrained refuses a holder-free (released) lease row          <span class="m">Server 40 + 206 pass</span>
+S2   <span class="g">killed  </span> design     canStopDrained ignores unsettled executions                        <span class="m">WorkspaceRuntimeTest.stoppedHookReleaseRefusesFencedOrUnverifiedCleanup</span>
+S3   <span class="g">killed  </span> design     canStopDrained ignores an expired operation lease                  <span class="m">WorkspaceRuntimeTest.stoppedHookReleaseRefusesFencedOrUnverifiedCleanup</span>
+S4   <span class="g">killed  </span> design     provisioner reverts to base (any holder refuses stop)              <span class="m">WorkspaceRuntimeTest.stoppedHookHolderWaitsForPersistedReceiptThenReleasesAtomically</span>
+S5   <span class="g">killed  </span> design     canStopDrained accepts foreign/malformed holders                   <span class="m">WorkspaceRuntimeTest.stoppedHookReleaseRefusesFencedOrUnverifiedCleanup</span>
+S6   <span class="r">SURVIVED</span> design     canStopDrained skips the holder Session ownership check            <span class="m">Server 40 + 206 pass</span>
+</pre></div>
