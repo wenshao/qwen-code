@@ -1,0 +1,48 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/SurfaceAdmissionAcceptanceTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/SurfaceAdmissionAcceptanceTest.java
+index e1c4661f21..fdf11304db 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/SurfaceAdmissionAcceptanceTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/SurfaceAdmissionAcceptanceTest.java
+@@ -262,6 +262,13 @@ class SurfaceAdmissionAcceptanceTest {
+                 String code = status == 404 ? "session_not_found" : null;
+                 MvcResult strangers = expect(entry, STRANGER, status, code);
+                 MvcResult anonymous = expect(entry, null, status, code);
++                // The admitted arm: a READER-class route must admit the
++                // reader, or a family registered weaker than its handler
++                // (e.g. an OPERATOR route declared READER) passes the walk.
++                // The stream stays open; its public twin carries the arm.
++                if (entry != SurfaceRegistry.WEBSHELL_EVENT_STREAM) {
++                    expectAdmitted(entry, READER);
++                }
+                 if (status == 200) {
+                     // The 200 pins filtering, not just the status: the
+                     // bound row must stay invisible while the legacy rows
+@@ -1128,6 +1135,29 @@ class SurfaceAdmissionAcceptanceTest {
+                 .isEqualTo(status);
+     }
+ 
++    private static final java.util.Set<String> ADMISSION_REFUSALS =
++            java.util.Set.of("actor_required", "actor_scope_mismatch",
++                    "session_not_found", "workspace_not_found",
++                    "workspace_forbidden", "workspace_unavailable",
++                    "session_operation_forbidden", "action_forbidden",
++                    "artifact_content_forbidden");
++
++    // Admitted means the answer is none of the admission refusals: success
++    // or a domain refusal of its own.
++    private void expectAdmitted(SurfaceRegistry entry, String actor)
++            throws Exception {
++        MvcResult result = mvc.perform(requestFor(entry, actor, tenant))
++                .andReturn();
++        int status = result.getResponse().getStatus();
++        String body = result.getResponse().getContentAsString();
++        String code = body.isEmpty() ? ""
++                : JSON.readTree(body).path("error").path("code").asText();
++        assertThat(status).as("%s answered %d (%s): %s", entry.routeKey(),
++                status, actor, body).isNotIn(401, 403).isLessThan(500);
++        assertThat(code).as("%s refused %s", entry.routeKey(), actor)
++                .isNotIn(ADMISSION_REFUSALS);
++    }
++
+     private MvcResult expect(SurfaceRegistry entry, String actor,
+             int status, String code) throws Exception {
+         String headerTenant = entry.ruleClass() == RuleClass.READER_ACTOR

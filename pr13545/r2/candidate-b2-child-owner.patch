@@ -1,0 +1,29 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+index 519a9dc2a2..0ae714d1b4 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+@@ -379,6 +379,7 @@ public class ManagedAgentStore implements AgentStateStore {
+                         + " context_revision, workspace_config_ref,"
+                         + " workspace_policy_ref, tool_profile,"
+                         + " creator_actor_key, approval_mode,"
++                        + " owner_actor_key,"
+                         + " parent_session_id, root_session_id,"
+                         + " parent_child_run_id, child_depth)"
+                         + " SELECT tenant_id, ?, agent_id,"
+@@ -388,10 +389,15 @@ public class ManagedAgentStore implements AgentStateStore {
+                         + " context_config_ref, context_revision,"
+                         + " workspace_config_ref, workspace_policy_ref,"
+                         + " tool_profile, creator_actor_key, approval_mode,"
+-                        + " ?, ?, ?, ?"
++                        + " ?, ?, ?, ?, ?"
+                         + " FROM managed_agent_session"
+                         + " WHERE tenant_id = ? AND session_id = ?",
+                 sessionId, title, now, now,
++                // The child's lifecycle owner is the actor its create
++                // command records, so the close cascade's child actor
++                // passes the owner gate (isSessionOwner reads this first).
++                ManagedWorkspaceRegistry.actorKey(tenantId,
++                        childActorOf(parentSessionId)),
+                 lineage.parentSessionId(), lineage.rootSessionId(),
+                 lineage.parentChildRunId(), lineage.depth(),
+                 tenantId, parentSessionId);

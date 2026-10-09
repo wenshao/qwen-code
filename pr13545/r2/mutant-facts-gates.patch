@@ -1,0 +1,28 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
+index 540c923d19..f51ad881e6 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/service/ManagedAgentService.java
+@@ -933,9 +933,7 @@ public class ManagedAgentService {
+         // the create-command actor keeps OPERATOR or above — after a
+         // demotion or re-registration admission refuses first instead of
+         // accepting a Turn that can only fail.
+-        return summary != null && summary.canCreateSession()
+-                && store.hasExecutionRegistryFacts(session.tenantId(),
+-                        session.sessionId());
++        return summary != null && summary.canCreateSession(); // MUTANT MF: facts conjunct dropped
+     }
+ 
+     // The page twin of the singular: the same rule answered from the two
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedActionStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedActionStore.java
+index 902473a0f8..0a37afd664 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedActionStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedActionStore.java
+@@ -435,7 +435,7 @@ public class ManagedActionStore {
+         // back execution, so a demoted creator moves an answer to 409
+         // rather than letting it be queued where the arbiter can never
+         // reach — whichever arm admitted the caller.
+-        if (ownerRow.workspaceId() != null
++        if (false /* MUTANT MR: respond facts gate dropped */ && ownerRow.workspaceId() != null
+                 && !sessions.hasExecutionRegistryFacts(tenantId, sessionId)) {
+             throw new ApiException(HttpStatus.CONFLICT, "workspace_unavailable",
+                     "Hosted Workspace execution is not available.");

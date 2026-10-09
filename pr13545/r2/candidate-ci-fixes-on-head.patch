@@ -1,0 +1,48 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedPublicWorkspaceIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedPublicWorkspaceIT.java
+index 36a751d446..7c1d9bce71 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedPublicWorkspaceIT.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedPublicWorkspaceIT.java
+@@ -702,13 +702,15 @@ class HostedPublicWorkspaceIT {
+                     + " WHERE tenant_id = ? AND command_status = 'PENDING'", Long.class, tenant);
+             long execBefore = jdbc.queryForObject("SELECT COUNT(*) FROM qwen_tool_execution"
+                     + " WHERE harness_session_id = ?", Long.class, session);
+-            int modelsBefore = modelRequests.size();
+             // A held Turn started while the creator was OPERATOR; after the
+             // demotion it is what the cancel exemption must abort.
+             int beforeExemptHold = modelRequests.size();
+             String exemptHeld = request("POST", "/v1/agents/sessions/" + session + "/events", hold,
+                     "operator2-exempt-hold-" + workspace, "operator2", 202).path("turn_id").asText();
+             await().atMost(Duration.ofSeconds(35)).until(() -> modelRequests.size() > beforeExemptHold);
++            // Counted after the held Turn's own request: the refused submit
++            // and the cancel must add none.
++            int modelsBefore = modelRequests.size();
+             jdbc.update("UPDATE managed_workspace_access SET role = 'READER'"
+                     + " WHERE tenant_id = ? AND workspace_id = ? AND actor_id = ?",
+                     tenant, workspace, "actor".getBytes(StandardCharsets.UTF_8));
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionMySqlIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionMySqlIT.java
+index 7f71447a4c..e16b1f6320 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionMySqlIT.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionMySqlIT.java
+@@ -353,7 +353,8 @@ class WorkspaceSessionRetentionMySqlIT {
+         assertThat(jdbc.queryForMap("SELECT * FROM managed_agent_session")).containsAllEntriesOf(originalSession);
+         assertThat(jdbc.queryForMap("SELECT * FROM managed_agent_operation"))
+                 .containsAllEntriesOf(originalClose)
+-                .hasSize(originalClose.size() + 5)
++                .hasSize(originalClose.size() + 6)
++                .containsEntry("actor_key", null)
+                 .containsEntry("target_cwd_relative", null)
+                 .containsEntry("expected_context_revision", null)
+                 .containsEntry("result_context_revision", null)
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationMySqlIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationMySqlIT.java
+index 20b13a8b3e..a19fe51807 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationMySqlIT.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationMySqlIT.java
+@@ -62,7 +62,7 @@ class WorkspaceMigrationMySqlIT {
+                 + " WHERE installed_rank <= ? ORDER BY installed_rank", lastRank)).isEqualTo(applied);
+         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history"
+                 + " WHERE installed_rank > ? AND success = TRUE ORDER BY installed_rank",
+-                String.class, lastRank)).containsExactly("48", "49", "50", "51", "52", "53");
++                String.class, lastRank)).containsExactly("48", "49", "50", "51", "52", "53", "54");
+         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM managed_workspace_migration", Integer.class)).isZero();
+         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM qwen_runtime_storage_fence", Integer.class)).isZero();
+     }
