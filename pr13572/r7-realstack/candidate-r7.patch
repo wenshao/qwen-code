@@ -1,0 +1,113 @@
+diff --git a/packages/channels/email/src/managed-email-adapter.test.ts b/packages/channels/email/src/managed-email-adapter.test.ts
+index f8386d5c42..64b6fc9819 100644
+--- a/packages/channels/email/src/managed-email-adapter.test.ts
++++ b/packages/channels/email/src/managed-email-adapter.test.ts
+@@ -430,6 +430,46 @@ describe('managed email inbound', () => {
+     expect(plane.events.at(-1)).toMatchObject({ text: 'register forgot' });
+   });
+ 
++  it('re-registers when the channel was disconnected under it, keeping the mail', async () => {
++    const adapter = make();
++    await adapter.connect();
++    // A stale process's late disconnect: the server refuses the admission
++    // with channel_disconnected until this adapter registers again.
++    plane.submitErrors = [{ status: 409, code: 'channel_disconnected' }];
++    append(raw('late', 'after a late disconnect'));
++    await adapter.tick();
++    expect(state(adapter).pending).toHaveLength(1);
++    expect(plane.registrations).toEqual([{ accountGeneration: 1 }]);
++    await adapter.tick();
++    expect(plane.registrations).toEqual([
++      { accountGeneration: 1 },
++      { accountGeneration: 1 },
++    ]);
++    expect(state(adapter).pending).toEqual([]);
++    expect(plane.events.at(-1)).toMatchObject({
++      text: 'after a late disconnect',
++    });
++  });
++
++  it('re-registers when the outbox claim finds the channel disconnected', async () => {
++    const adapter = make();
++    await adapter.connect();
++    const claim = plane.claimDeliveries.bind(plane);
++    plane.claimDeliveries = async () => {
++      throw Object.assign(new Error('HTTP 409'), {
++        status: 409,
++        code: 'channel_disconnected',
++      });
++    };
++    await expect(adapter.tick()).rejects.toThrow('HTTP 409');
++    plane.claimDeliveries = claim;
++    await adapter.tick();
++    expect(plane.registrations).toEqual([
++      { accountGeneration: 1 },
++      { accountGeneration: 1 },
++    ]);
++  });
++
+   it('truncates to the wire text bound even when the adapter setting is wider', async () => {
+     const adapter = make({ maxTextLength: 40_000 });
+     await adapter.connect();
+diff --git a/packages/channels/email/src/managed-email-adapter.ts b/packages/channels/email/src/managed-email-adapter.ts
+index 898b0743db..8399eb5164 100644
+--- a/packages/channels/email/src/managed-email-adapter.ts
++++ b/packages/channels/email/src/managed-email-adapter.ts
+@@ -140,6 +140,20 @@ const ENVELOPE_BYTE_LIMIT = 64 * 1024;
+ // reply context, subject and attachment listings, plus escaping headroom (F2).
+ const TEXT_ENVELOPE_OVERHEAD_BYTES = 4096;
+ 
++/**
++ * The control plane no longer holds this adapter's registration: the
++ * generation was never registered, or the channel was disconnected under
++ * a live adapter (a stale process's late disconnect). Both heal by
++ * registering again; neither is a verdict on the message or claim at hand.
++ */
++function registrationLost(status: unknown, code: unknown): boolean {
++  return (
++    status === 409 &&
++    (code === 'channel_generation_unregistered' ||
++      code === 'channel_disconnected')
++  );
++}
++
+ export class ManagedEmailAdapter {
+   readonly settings: EmailSettings;
+   readonly policy: ManagedChannelPolicy;
+@@ -618,13 +632,10 @@ export class ManagedEmailAdapter {
+     } catch (error) {
+       const status = (error as { status?: unknown }).status;
+       const code = (error as { code?: unknown }).code;
+-      if (
+-        status === 404 ||
+-        (status === 409 && code === 'channel_generation_unregistered')
+-      ) {
+-        // The server lost our registration (a restart, a wipe): that is a
+-        // poll-level claim — re-register before the next drive, never a
+-        // per-message drop.
++      if (status === 404 || registrationLost(status, code)) {
++        // The server lost our registration (a restart, a wipe, a stale
++        // process's late disconnect): that is a poll-level claim —
++        // re-register before the next drive, never a per-message drop.
+         this.registeredGeneration = 0;
+       } else if (
+         typeof status === 'number' &&
+@@ -831,7 +842,17 @@ export class ManagedEmailAdapter {
+ 
+   private async pullOutbox(): Promise<void> {
+     if (!this.running || !this.state) return;
+-    const claimed = await this.controlPlane.claimDeliveries(CLAIM_BATCH);
++    let claimed: ManagedClaimedDelivery[];
++    try {
++      claimed = await this.controlPlane.claimDeliveries(CLAIM_BATCH);
++    } catch (error) {
++      // A registration the server no longer holds is re-established by the
++      // next poll; without this the claim fails on every tick forever.
++      const status = (error as { status?: unknown }).status;
++      const code = (error as { code?: unknown }).code;
++      if (registrationLost(status, code)) this.registeredGeneration = 0;
++      throw error;
++    }
+     for (const delivery of claimed) {
+       if (!this.running) return;
+       await this.send(delivery);
