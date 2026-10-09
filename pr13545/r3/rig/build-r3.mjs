@@ -23,6 +23,7 @@ write('r3-01-status', card({
     ['7', 'PR description: "admitted cwd change still commits" (F3)', 'nit', 'stands', 'description unchanged; real stack: initiator demoted while parked → fail 3/3'],
     ['8', 'registry walk misses a route declared weaker (F4, yiliang114 note 3)', 'test gap', 'stands', 'R3 mutant survives 181/181; the +30 candidate still applies, 181 green, kills R3'],
     ['9', 'main bug: demoted creator\'s respond → 202 never settles (R2 observation)', 'fixed by PR', 'fixed — holds', 'state B identical (409) at head and trial merge'],
+    ['10', 'PR body cites contract v1.36 / openapi 1.36.0 and "pre-V54 rows" (yiliang114, new this round)', 'nit', 'stands', 'body: 8× v1.36, 2× 1.36.0, 1× pre-V54 — tree is 1.37.0 / V56'],
   ], 3) }],
 }));
 
