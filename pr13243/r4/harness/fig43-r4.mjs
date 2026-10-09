@@ -65,12 +65,13 @@ const nb = (v) => brief(v.replace(/ wrote=(\w+)$/, '')) + (/wrote=true/.test(v) 
 const R3 = (db) => JSON.parse(fs.readFileSync(`${RIG}/pr13243/r3/results/${db}/s43-h43h.json`, 'utf8'));
 const P = (db) => load(db, 'h43p');
 const M = (db) => load(db, 'b43m');
+const Q = (db) => load(db, 'h43q');
 
 // ---- Figure 9: G1 / F1 / O1 on f72edd01e6 vs the merge-base and round 3.
 {
-  const pB = M('r43m1'), pH = P('r43p1'), r3 = R3('r43h3');
-  const eB = M('r43m4'), eH = P('r43p4'), e3 = R3('r43h6');
-  const dB = M('r43m2'), dH = P('r43p2');
+  const pB = M('r43m1'), pH = Q('r43q1'), r3 = R3('r43h3');
+  const eB = M('r43m4'), eH = Q('r43q4'), e3 = R3('r43h6');
+  const dB = M('r43m2'), dH = Q('r43q2');
   const g = (r, s, k) => brief(get(r, s, k));
   const st = (r) => get(r, 'S2e', '4 status').match(/"recoveryBlocked":\w+/)[0];
   const rows = [
@@ -94,39 +95,42 @@ const M = (db) => load(db, 'b43m');
     ['S5 module throws — turn / next prompt', SAME(`${g(pB, 'S5', 'turn')} / ${g(pB, 'S5', 'next prompt, same Session')}`), SAME('same'), SAME(`${g(pH, 'S5', 'turn')} / ${g(pH, 'S5', 'next prompt, same Session')}`)],
   ];
   figs['09-r4-recovery'] = page(
-    'Round 4 — f72edd01e6 closes G1, keeps F1 closed, and now recovers once the module finishes',
-    'Real stack, each arm on a fresh DB. Base = merge-base 5ddd43815b (its own jar); head f72edd01e6 (its own jar — the PR now changes Java). Round-3 column = be10a118a1 from the previous report. Times are wall clock on a shared host (load 30–70).',
-    table(['scenario', 'base <code>5ddd43815b</code>', 'round 3 <code>be10a118a1</code>', 'head <code>f72edd01e6</code>'], rows, ['25%', '25%', '25%', '25%']),
+    'Round 4 — the head closes G1, keeps F1 closed, and now recovers once the module finishes',
+    'Real stack, each arm on a fresh DB. Base = merge-base 5ddd43815b (its own jar); head = 93129b50c6 on the f72edd01e6 jar (the PR now changes Java; 93129b50c6 changes TS only). f72edd01e6 gave the same results on every row. Round-3 column = be10a118a1 from the previous report. Times are wall clock on a shared host (load 30–70).',
+    table(['scenario', 'base <code>5ddd43815b</code>', 'round 3 <code>be10a118a1</code>', 'head <code>93129b50c6</code>'], rows, ['25%', '25%', '25%', '25%']),
   );
 }
 
-// ---- Figure 10: bot R8-1 on the real stack (S8), Windows, unit.
+// ---- Figure 10: bot R8-1 on the real stack (S8) across base, f72edd01e6 and 93129b50c6; Windows.
 {
-  const aB = M('r43m5'), aH = P('r43p5');
-  const strip = (v) => v.replace(/^kill \d+ ms after cancel; /, '');
+  const aB = M('r43m5'), aP = P('r43p5'), aQ = Q('r43q5');
+  const strip = (v) => v.replace(/^kill \d+ ms after cancel; callback ledger: /, '');
+  const sw = (arm, dbs) => dbs.map((d) => [d.match(/(\d+)$/)[1], load(d, arm)]);
+  const pS = sw('h43p', ['r43p8k80', 'r43p8k150', 'r43p8k250']);
+  const qS = sw('h43q', ['r43q8k80', 'r43q8k150']);
+  const bS = [['20', M('r43m5')]];
+  const cell = (S, k, f = (v) => v) => S.map(([d, r]) => `${d} ms: ${f(get(r, 'S8d', k))}`).join(' · ');
+  const att = (r) => get(r, 'S8d', '6 recovery attempts').replace(/ \(\d+ ms\)/g, '').replace(/^managed-runtime\/cancel=(\S+ \S+) /, 'managed-runtime/cancel $1 · ').replace(/ prompt: /, ' · prompt ');
   const rows = [
     { section: 'S8a — cancel while the PreToolUse callback runs, Harness alive' },
-    ['callback ledger (side effect)', SAME(get(aB, 'S8a', '2 callback ledger')), SAME(get(aH, 'S8a', '2 callback ledger'))],
-    ['turn · tool', SAME(get(aB, 'S8a', '1 cancel').replace(/^idle recoveryBlocked=\w+ /, '').replace(' file written=false', ' · tool did not run')), SAME(get(aH, 'S8a', '1 cancel').replace(/^idle recoveryBlocked=\w+ /, '').replace(' file written=false', ' · tool did not run'))],
-    ['next prompt', OK(brief(get(aB, 'S8a', '4 next prompt'))), OK(brief(get(aH, 'S8a', '4 next prompt')))],
-    { section: 'S8d — same cancel, but the Harness is SIGKILLed after the hook-cancel reaches the Broker and before the turn settles' },
+    ['callback ledger (side effect)', SAME(get(aB, 'S8a', '2 callback ledger')), SAME(get(aP, 'S8a', '2 callback ledger')), SAME(get(aQ, 'S8a', '2 callback ledger'))],
+    ['turn · tool · next prompt', ...[aB, aP, aQ].map((r) => OK(`${get(r, 'S8a', '1 cancel').match(/terminal=(\S+)/)[1]} · tool did not run · next: ${brief(get(r, 'S8a', '4 next prompt'))}`))],
+    { section: 'S8d — cancel reaches the Runtime (callback aborted after ~1.6 s), then the Harness is SIGKILLed before the turn settles; replacement Harness loads recoveryRequired' },
+    ['callback ledger (side effect)', SAME(cell(bS, '1 cancel then SIGKILL', strip)), SAME(cell(pS, '1 cancel then SIGKILL', strip)), SAME(cell(qS, '1 cancel then SIGKILL', strip))],
+    ['next prompt', BAD(cell(bS, '4 next prompt', brief)), OK(cell(pS, '4 next prompt', brief)), BAD(cell(qS, '4 next prompt', brief))],
+    ['parked turn afterwards', SAME(cell(bS, '5 parked turn after the next prompt', (v) => v.match(/terminal=(\S+)/)[1])), WARN(cell(pS, '5 parked turn after the next prompt', (v) => `${v.match(/terminal=(\S+)/)[1]}, refusal written=${/ran"=true/.test(v)}`)), SAME(cell(qS, '5 parked turn after the next prompt', (v) => v.match(/terminal=(\S+)/)[1]))],
+    ['managed-runtime/cancel · detach · load · prompt', BAD(att(M('r43m8r80')) + ' (80 ms run)'), OK(att(P('r43p8r80')) + ' (80 ms run)'), BAD(att(Q('r43q8r80')) + ' (80 ms run; 150 ms identical)')],
   ];
-  const sweep = [80, 150, 250].map((d) => [d, load(`r43p8k${d}`, 'h43p')]);
-  const bd = aB;
-  rows.push(['callback ledger (side effect)', SAME(strip(get(bd, 'S8d', '1 cancel then SIGKILL')) + ' (kill 20 ms after cancel)'), SAME(sweep.map(([d, r]) => `${d} ms: ${strip(get(r, 'S8d', '1 cancel then SIGKILL')).replace('callback ledger: ', '')}`).join(' · '))]);
-  rows.push(['load in replacement Harness', SAME(get(bd, 'S8d', '2 load in replacement Harness').replace(/ after \d+ ms/, '')), SAME(sweep.map(([d, r]) => `${d} ms: ${get(r, 'S8d', '2 load in replacement Harness').replace(/ after \d+ ms/, '')}`).join(' · '))]);
-  rows.push(['next prompt', BAD(brief(get(bd, 'S8d', '4 next prompt'))), OK(sweep.map(([d, r]) => `${d} ms: ${brief(get(r, 'S8d', '4 next prompt'))}`).join(' · '))]);
-  rows.push(['parked turn afterwards', SAME(get(bd, 'S8d', '5 parked turn after the next prompt').replace(/ PreToolUse=.*$/, '').replace(' file written=false', ' · tool did not run')), WARN(get(sweep[0][1], 'S8d', '5 parked turn after the next prompt').replace(/ PreToolUse=.*$/, '').replace(' file written=false', ' · tool did not run') + ' (all three delays)')]);
   const W = `${RIG}/out/windows-r4`;
   const pj = fs.readdirSync(W).filter((x) => /^probe-.*\.txt$/.test(x)).flatMap((x) => fs.readFileSync(`${W}/${x}`, 'utf8').split('\n')).filter((l) => l.startsWith('PROBE_JSON ')).map((l) => JSON.parse(l.slice(11)));
   const armc = (a) => { const xs = pj.filter((x) => x.arm === a); const ok = xs.length > 0 && xs.every((x) => x.exit === 0); return (ok ? OK : BAD)(`${xs.filter((x) => x.exit === 0).length}/${xs.length} exit 0 · ${[...new Set(xs.map((x) => x.tests))].join(' / ')}`); };
-  rows.push({ section: 'Windows (windows-2022, PR head f72edd01e6 + probe workflow; base = 5ddd43815b)' });
-  rows.push(['head ×5 / merge-base ×3 / raw-import mutant ×2', SAME(`${armc('base').t.slice(2)} / ${armc('rawimport').t.slice(2)}`), armc('head')]);
+  rows.push({ section: 'Windows (windows-2022; head f72edd01e6 — 93129b50c6 changes neither the two test files nor their sources)' });
+  rows.push(['merge-base ×3 · raw-import mutant ×2 · head ×5', SAME(`${armc('base').t.slice(2)} · ${armc('rawimport').t.slice(2)}`), armc('head'), SAME('same files as f72edd01e6')]);
   figs['10-r4-r8-1-windows'] = page(
-    'Round 4 — bot R8-1 reproduced: a cancelled callback that really ran settles a parked turn the same way a live cancel does',
-    'PreToolUse function Hook (write_file) whose callback runs ~4 s and logs to the ledger at start/abort/end; the user cancels ~1.5 s in. In the head S8d runs a Harness→Broker capture shows hook-execute and hook-cancel both reached the Broker before the kill (a 400 ms delay settled before the kill and is not a parked case); in the base run the callback-aborted ledger line shows the cancel reached the Runtime.',
-    table(['scenario', 'base <code>5ddd43815b</code>', 'head <code>f72edd01e6</code>'], rows, ['24%', '38%', '38%']) +
-      `<div class="note">With the Harness alive (S8a) both arms end the turn <code>turn_complete(cancelled)</code> and the Session stays usable. When the Harness dies after the cancel reached the Runtime (S8d), base leaves the Session blocked for good; the head's prompt-gate reconcile settles the parked turn as cancelled — writing "The turn was cancelled before this tool call ran." (true for the tool; the callback did run 1.6 s) — and the Session continues. R8-1's suggested narrowing (cancelled arm requires <code>duration === 0</code>) would make this exact sequence behave like base again, per the bot's own end-to-end witness in R8-1 (409, blocked). Which reading is intended is a maintainer decision.</div>`,
+    'Round 4 — bot R8-1 on the real stack: the 93129b50c6 narrowing turns a crash-parked cancel back into base\x27s permanent block',
+    'PreToolUse function Hook (write_file) whose callback runs ~4 s and logs to the ledger at start/abort/end; the user cancels ~1.5 s in. In the head S8d runs a Harness→Broker capture shows hook-execute and hook-cancel both reached the Broker before the kill; the base 20 ms run shows the same through its callback-aborted ledger line. The base 80 ms run (recovery row) did not get the cancel through before the kill and is blocked as well.',
+    table(['scenario', 'base <code>5ddd43815b</code>', '<code>f72edd01e6</code>', 'head <code>93129b50c6</code>'], rows, ['19%', '27%', '27%', '27%']) +
+      `<div class="note">With the Harness alive (S8a) all three arms end the turn <code>turn_complete(cancelled)</code> and continue. After a crash between the cancel and the turn settle (S8d), f72edd01e6 settled the parked turn as cancelled and wrote "The turn was cancelled before this tool call ran." (true for the tool; the callback ran ~1.6 s), so the Session continued. 93129b50c6 applies R8-1\x27s narrowing: the record is no longer a fence, the turn stays parked, and detach + load + prompt stay 409 — the same as base. No regression against base, but the crash-window recovery that f72edd01e6 had is gone.</div>`,
   );
 }
 

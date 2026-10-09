@@ -246,6 +246,13 @@ try {
     const n = await promptBounded(s2, script([], 'S8D-NEXT'), 30_000);
     put(L, '4 next prompt', n.line);
     put(L, '5 parked turn after the next prompt', `${await refusalText(s2, sub.promptId)} file written=${fs.existsSync(`${w.dir}/${f}`)} PreToolUse=${execPre(id)}`);
+    if (n.status2?.recoveryBlocked !== false) {
+      const rc = await safe(() => s2.h.json(`/session/${id}/managed-runtime/cancel`, {}, { clientId: s2.clientId, timeoutMs: 30_000 }));
+      const d = await safe(() => s2.h.json(`/session/${id}/detach`, {}, { clientId: s2.clientId, timeoutMs: 30_000 }));
+      const l2 = await safe(() => s2.load());
+      const p2 = await promptBounded(s2, script([], 'S8D-AFTER-RELOAD'), 30_000);
+      put(L, '6 recovery attempts', `managed-runtime/cancel=${st(rc)} detach=${st(d)} load=${l2.status}${l2.json?.recoveryRequired ? ' recoveryRequired' : ''} prompt: ${p2.line}`);
+    }
     await safe(() => s2.detach());
   }
 
