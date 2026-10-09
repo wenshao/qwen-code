@@ -1,0 +1,17 @@
+diff --git a/packages/cli/src/serve/local-process-runtime-activator.test.ts b/packages/cli/src/serve/local-process-runtime-activator.test.ts
+index 2b41f3b1b0..b22412ee93 100644
+--- a/packages/cli/src/serve/local-process-runtime-activator.test.ts
++++ b/packages/cli/src/serve/local-process-runtime-activator.test.ts
+@@ -494,6 +494,12 @@ process.on('SIGTERM', () => process.exit(0));
+         await expect(
+           activator.revokeWorkspace(workspace.runtime),
+         ).rejects.toThrow();
++        // The tree is down, so the failed rm must not keep the only slot:
++        // once the directory heals, another workspace starts.
++        await chmod(workersRoot, 0o700);
++        const next = activator.activate(scope('b'));
++        await expect(next.endpoint).resolves.toBeDefined();
++        next.release('completed');
+         // The failure settled before close() — the stop deletion already
+         // dropped it from the map, so only instance state can surface it.
+         await expect(activator.close()).rejects.toMatchObject({
