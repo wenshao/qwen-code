@@ -1,0 +1,36 @@
+PROBE -- before retirement
+PROBE   session_resource {kind=managed-checkpoint, storage_kind=MYSQL_INLINE, state=REFERENCED, byte_length=520, freed=0, has_key=0}
+PROBE   session_resource {kind=managed-tool-input, storage_kind=MYSQL_INLINE, state=REFERENCED, byte_length=154, freed=0, has_key=0}
+PROBE   session_resource {kind=managed-tool-outcome, storage_kind=MYSQL_INLINE, state=REFERENCED, byte_length=792, freed=0, has_key=0}
+PROBE   session_resource {kind=managed-tool-result-manifest, storage_kind=MYSQL_INLINE, state=REFERENCED, byte_length=1228, freed=0, has_key=0}
+PROBE   publication_object {slot_key=admission, resource_kind=managed-tool-outcome, state=VERIFIED, byte_length=792, freed=0, has_key=0}
+PROBE   publication_object {slot_key=manifest:1, resource_kind=managed-tool-result-manifest, state=VERIFIED, byte_length=1228, freed=0, has_key=0}
+PROBE   publication_object {slot_key=page:stdout:0, resource_kind=managed-tool-result-page, state=VERIFIED, byte_length=323, freed=0, has_key=0}
+PROBE   publication_object {slot_key=segment:stdout:0, resource_kind=null, state=QUARANTINED, byte_length=2, freed=1, has_key=1}
+PROBE   publication_object {slot_key=segment:stdout:1, resource_kind=null, state=VERIFIED, byte_length=1, freed=1, has_key=1}
+PROBE   publication_object {slot_key=terminal, resource_kind=managed-tool-terminal, state=VERIFIED, byte_length=378, freed=0, has_key=0}
+PROBE   publication {publication_id=pub-1, state=FENCED, retention_state=PINNED, gc_blocker=null, gc_next_at=0, collected_bytes=null, read_leases=0}
+PROBE fixture reset: quarantined->VERIFIED rows=2, read leases expired=0
+PROBE O4-2 collector ticks=1 deleted-object-keys=2
+PROBE -- after O4-2 collection
+PROBE   session_resource {kind=managed-checkpoint, storage_kind=MYSQL_INLINE, state=REFERENCED, byte_length=520, freed=0, has_key=0}
+PROBE   session_resource {kind=managed-tool-input, storage_kind=MYSQL_INLINE, state=REFERENCED, byte_length=154, freed=0, has_key=0}
+PROBE   session_resource {kind=managed-tool-outcome, storage_kind=MYSQL_INLINE, state=REFERENCED, byte_length=792, freed=1, has_key=0}
+PROBE   session_resource {kind=managed-tool-result-manifest, storage_kind=MYSQL_INLINE, state=REFERENCED, byte_length=1228, freed=1, has_key=0}
+PROBE   publication_object {slot_key=admission, resource_kind=managed-tool-outcome, state=COLLECTED, byte_length=792, freed=1, has_key=0}
+PROBE   publication_object {slot_key=manifest:1, resource_kind=managed-tool-result-manifest, state=COLLECTED, byte_length=1228, freed=1, has_key=0}
+PROBE   publication_object {slot_key=page:stdout:0, resource_kind=managed-tool-result-page, state=COLLECTED, byte_length=323, freed=1, has_key=0}
+PROBE   publication_object {slot_key=segment:stdout:0, resource_kind=null, state=COLLECTED, byte_length=2, freed=1, has_key=1}
+PROBE   publication_object {slot_key=segment:stdout:1, resource_kind=null, state=COLLECTED, byte_length=1, freed=1, has_key=1}
+PROBE   publication_object {slot_key=terminal, resource_kind=managed-tool-terminal, state=COLLECTED, byte_length=378, freed=1, has_key=0}
+PROBE   publication {publication_id=pub-1, state=FENCED, retention_state=COLLECTED, gc_blocker=null, gc_next_at=0, collected_bytes=2724, read_leases=0}
+PROBE recovery-read kind=managed-checkpoint state=REFERENCED storage=MYSQL_INLINE freed=false -> OK bytes=520
+PROBE recovery-read kind=managed-tool-input state=REFERENCED storage=MYSQL_INLINE freed=false -> OK bytes=154
+PROBE recovery-read kind=managed-tool-outcome state=REFERENCED storage=MYSQL_INLINE freed=true -> REFUSED Workspace recovery: resource_collected
+PROBE recovery-read kind=managed-tool-result-manifest state=REFERENCED storage=MYSQL_INLINE freed=true -> REFUSED Workspace recovery: resource_collected
+PROBE negative control: 6 catalog rows set to state=VERIFIED
+PROBE recovery-read kind=managed-tool-outcome -> REFUSED Workspace recovery: resource_corrupt
+PROBE recovery-read kind=managed-tool-result-manifest -> REFUSED Workspace recovery: resource_corrupt
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 13.37 s -- in com.alibaba.qwen.code.managedagent.PublicationRecoveryProbe
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+exit=0

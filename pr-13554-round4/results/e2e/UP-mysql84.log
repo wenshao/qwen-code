@@ -1,0 +1,58 @@
+== 1. base (pre-V56) broker with gc-enabled=true produces and retires stream captures
+started up-base1 arm=main4 pid=13295 port=18651 db=pr13554_upgrade_mysql84
+booted up-base1 after 10s
+E2E-RIG no stream-capture collector
+seeded session=old-1 rows=24 bytes=3187712
+retired old-1 in 1445ms
+seeded session=old-2 rows=24 bytes=3187712
+retired old-2 in 1312ms
+seeded session=old-3 rows=24 bytes=3187712
+retired old-3 in 1592ms
+seeded session=live-1 rows=4 bytes=1053696
+after 70 s on the base broker (gc on, grace 5 s):
+schema_version
+55
+session_id	state	n	inline_present
+old-3	PUBLISHED	24	24
+old-1	PUBLISHED	24	24
+old-2	PUBLISHED	24	24
+live-1	PUBLISHED	4	4
+== 2. PR broker starts on the same database (Flyway V56 on populated schema)
+started up-pr arm=m4 pid=13631 port=18652 db=pr13554_upgrade_mysql84
+booted up-pr after 7s
+INFO 13631 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `pr13554_upgrade_mysql84` to version "5
+INFO 13631 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 1 migration to schema `pr13554_upgr
+E2E-RIG collector-owner=35434ff4-fcaf-41a4-a9c7-d3d0be1a4c5c pid=13631
+collected after 1s:
+session_id	collected_bytes	gc_generation
+old-3	3187712	1
+old-1	3187712	1
+old-2	3187712	1
+session_id	state	n	bytes	inline_present
+old-3	COLLECTED	24	3187712	0
+old-1	COLLECTED	24	3187712	0
+old-2	COLLECTED	24	3187712	0
+live-1	PUBLISHED	4	1053696	4
+== 3. a pre-V56 broker restarts against the V56 schema (mixed fleet)
+started up-base2 arm=main4 pid=13718 port=18653 db=pr13554_upgrade_mysql84
+booted up-base2 after 7s
+INFO 13718 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 56 migrations (execution time 00:00.087s)
+E2EBroker in 5.153 seconds (process running for 5.83)
+base broker HTTP read of collected Session: HTTP 409 {"error":{"code":"tool_output_session_retired","message":"The Session output is permanently retired.","request_id":"e4ff56b5-3963-4b40-ae70-11043c9176ec"}}
+PR broker   HTTP read of collected Session: HTTP 409 {"error":{"code":"tool_output_session_retired","message":"The Session output is permanently retired.","request_id":"2ae8d2ca-f700-4400-84d7-19d0f583f5c6"}}
+seeded session=live-2 rows=4 bytes=1053696
+== 4. rollback then re-upgrade: the pre-V56 broker alone produces and retires old-4 on the V56 schema, then the PR broker returns
+seeded session=old-4 rows=13 bytes=2118656
+retired old-4 in 427ms
+old-4 on the pre-V56 broker after 15 s: 13 published, 13 with bytes
+booted up-pr2 after 6s
+re-upgraded PR broker collected old-4 after 1s:
+session_id	collected_bytes	gc_generation
+old-4	2118656	1
+session_id	state	n	bytes	inline_present
+live-2	PUBLISHED	4	1053696	4
+old-4	COLLECTED	13	2118656	0
+live-1	PUBLISHED	4	1053696	4
+schema_version	applied
+56	56
+UPGRADE-DONE

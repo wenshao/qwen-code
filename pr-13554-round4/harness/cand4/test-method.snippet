@@ -1,0 +1,45 @@
+
+    @Test
+    void uncommittedRecoveryRegistrationHoldsThePageUntilItCommits() throws Exception {
+        String product;
+        try (var connection = jdbc.getDataSource().getConnection()) {
+            product = connection.getMetaData().getDatabaseProductName();
+        }
+        // Only InnoDB has the next-key and record locks this pins; H2 neither blocks nor sees the insert.
+        org.junit.jupiter.api.Assumptions.assumeTrue(product.equals("MySQL") || product.equals("MariaDB"));
+        initSession();
+        head(session);
+        publish("segment", CONTENT, new byte[64]);
+        retire();
+        jdbc.update("INSERT INTO qwen_managed_session_resource_collection (session_scope_key, tenant_key,"
+                + " session_key, tenant_id, session_id, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6))",
+                resScope, ToolPublicationRetentionStore.hash(tenant), ToolPublicationRetentionStore.hash(session),
+                tenant, session);
+        var collector = collector(true, Duration.ZERO);
+        var claim = collector.claim();
+        assertThat(claim).isNotNull();
+        try (var registrar = jdbc.getDataSource().getConnection();
+                var pages = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            // A registration in flight: its pin row is inserted but not committed when the page runs.
+            registrar.setAutoCommit(false);
+            try (var statement = registrar.createStatement()) {
+                statement.executeUpdate("INSERT INTO managed_workspace_recovery_operation (operation_id, tenant_id,"
+                        + " storage_id, mode, request_digest, request_json, registration_json, source_digest,"
+                        + " session_count, state, created_at, updated_at) VALUES ('op-inflight', '" + tenant + "',"
+                        + " 'storage-1', 'capture', '" + "a".repeat(64) + "', '{}', '{}', '" + "b".repeat(64) + "', 1,"
+                        + " 'CAPTURING', CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))");
+                statement.executeUpdate("INSERT INTO managed_workspace_recovery_session (operation_id, session_id,"
+                        + " source_digest, source_json, state) VALUES ('op-inflight', '" + session + "', '"
+                        + "c".repeat(64) + "', '{}', 'PENDING')");
+            }
+            var page = pages.submit(() -> collector.collect(claim));
+            Thread.sleep(1000);
+            // The locking re-check waits on the uncommitted pin; a plain read would not see it and collect.
+            assertThat(page.isDone()).isFalse();
+            registrar.commit();
+            assertThat(page.get(30, java.util.concurrent.TimeUnit.SECONDS)).isFalse();
+        }
+        assertThat(rows().getFirst().get("state")).isEqualTo("PUBLISHED");
+        assertThat(rows().getFirst().get("inline_bytes")).isNotNull();
+        assertThat(ledger().get("gc_blocker")).isEqualTo("collection_retry");
+    }
