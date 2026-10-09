@@ -1,0 +1,18 @@
+[
+  {
+    "name": "r7-01-head-e1783d0d",
+    "title": "Round 7 @ e1783d0d: the new fixes hold on the real stack, and nothing regressed",
+    "subtitle": "Spring + MySQL (Flyway V53 main's workspace roles, V54 main's child lineage, V55 this PR) + Hosted Harness + GreenMail + qwen channel managed-email.",
+    "panels": [
+      {
+        "h": "New behaviour since round 6",
+        "t": "## ledger F2: oversized multibyte inbound is truncated, not refused\nalice: \"汉\" × 22,000 (66 KB)   ++ /inbound 200, answered\nbob:   \"€\" × 30,000 (90 KB)   ++ /inbound 200, answered\n++ the model received 61,869 B / 20,911 chars (under 64 KiB)\n## refused register is worded as refused\n++ \"register of generation 1 was refused (409)\"\n## adapter handover (SIGTERM old, start new at once)\n11:30:32.664 POST /disconnect 200  (old, while it holds the lock)\n11:30:33.404 PUT  register   200  (new)\n++ new registration stays connected; next mail answered in 6 s\n## migrations\n++ V53 roles + V54 child lineage (main), V55 this PR;\n++ access rows are role = OPERATOR"
+      },
+      {
+        "h": "Re-run on this head",
+        "t": "++ F8 + F5 text: 1 + 7 × 503 (writer lease), admitted,\n++   interrupted turn settled, reply 70 s after the kill\n++ F6: receipt 409 × 2, dropped; unrelated thread in 5 s\n++ Write in flight: settled, reply 61 s after the kill,\n++   runtime sessions RELEASED, lease holder NULL\n++ F9: approval allowed after the crash → lease free;\n++   another thread's approval raised 3 s after its email\n++ F10: 60 s timeout, unanswered → expired at the deadline,\n++   \"approval ended expired …\", reply 69 s after the kill\n++ 0 emails skipped across every restart"
+      }
+    ],
+    "note": "Not exercised on the real stack: the R10 terminal-cancel guard, the pre-staging byte verdict with attachments, the planReply route-pin check and the store-flap classification (they need re-keyed routes, store faults or a cancel on a settled chain)."
+  }
+]
