@@ -1,0 +1,3 @@
+#!/bin/bash
+mkdir -p /private/tmp/claude-501/p654
+exec /Users/wenshao/Install/mysql-8.4.7-macos15-arm64/bin/mysqld --no-defaults --datadir=/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/8b5b6f90-8800-48da-9e9c-05b8ecdac3c5/scratchpad/rig/mysql-data --basedir=/Users/wenshao/Install/mysql-8.4.7-macos15-arm64 --port=13654 --bind-address=127.0.0.1 --socket=/private/tmp/claude-501/p654/s --mysqlx=OFF --log-error=/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/8b5b6f90-8800-48da-9e9c-05b8ecdac3c5/scratchpad/logs/mysqld.err --pid-file=/private/tmp/claude-501/-Users-wenshao-git-qwen-code-x3/8b5b6f90-8800-48da-9e9c-05b8ecdac3c5/scratchpad/rig/mysqld.pid --log-bin-trust-function-creators=1 --disable-log-bin --max-connections=500

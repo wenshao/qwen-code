@@ -1,0 +1,27 @@
+PR #13654 on a real stack: behaviour matrix (head 808759fa)
+MySQL 8.4.7 · Spring server jar + embedded Runtime Broker · packaged Hosted Harness + real worker running a Shell command · real aliyun-sdk-oss against a TLS OSS double · every publication request recorded by a proxy
+## Arms
+== A  base fbde5cf0 (merge base, pre-PR)       server + worker
+== B  head, async-verification-enabled=true    head worker (sends X-Qwen-Tool-Publication-Async: 1)
+== C  head, async flag left at default (off)   head worker (header sent, server ignores it)
+== D  head, async-verification-enabled=true    base worker (legacy client, no header)
+## Results
+== Scenario                                  A base              B head async                                   C flag off     D legacy client
+++ 5 MiB + 1 MiB output, x3                  14 x 200 receipt    14 x 202 PENDING -> SUCCEEDED                  14 x 200 SYNC  14 x 200 SYNC
+++                                           bytes exact x3      bytes exact x3, 0 recover                      bytes exact    bytes exact
+++ every object GET (readback) held 8 s      1st POST open 22 s  1st POST 202 in 57 ms; row ASYNC ready=1,      blocked 17 s   blocked 20 s
+++                                                               claim live, object CANDIDATE; ~4 polls/s
+++ first object PUT delayed 5 s              -                   1st POST 202 only after 5.95 s (waits for PUT)
+++ first 6 object GETs answer 500            -                   verifier retry (OSSException) -> epoch 3 -> SUCCEEDED, exact
+++ flip 1 byte while readback is held        400 invalid_request FAILED {400 invalid_request}, POSTed once, never re-posted;
+++                                           QUARANTINED, blocked  QUARANTINED, turn blocked (same outcome as A)
+++ replay a SUCCEEDED op byte-for-byte       -                   200 in 83 ms, 0 object GETs, identical receipt;
+++                                                               then flip its object -> the seal's real read FAILS + quarantines
+++ SIGKILL Spring after 202, restart with    -                   accepted op re-claimed at epoch 3 after the dead lease lapsed,
+++   async admission OFF (rollback drain)                        SUCCEEDED; no re-POST from the worker
+!! SIGKILL Spring after 202, owner gone      -                   FAILED {400 invalid_request} once grant + writer lease lapsed
+!!   (embedded Broker restart blocks turn)                       (fail closed; same code as corruption, see note)
+++ 64 MiB + 8 MiB output                     78 x 200, exact     78 x 202 -> SUCCEEDED, exact
+++ fresh MySQL schema                        V1..V53             V1..V54 applied, server starts
+-- PR + current main 669b2f0f (trial merge)  FlywayException: Found more than one migration with version 54 -> server does not start
+>> Contract holds on the real stack: 202 only after the input and object are durable, receipts unchanged, legacy and flag-off paths stay synchronous, FAILED is terminal on the client.

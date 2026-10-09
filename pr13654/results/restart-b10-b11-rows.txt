@@ -1,0 +1,20 @@
+operation_id	slot_key	state	execution_mode	claim_epoch	created_at	failure_code	session_id	grant_expires	writer_lease_until
+seg-stdout-0	segment:stdout:0	FAILED	ASYNC	3	2026-10-09 16:38:15.930565	invalid_request	17744bd8-4afd-4af0-8378-884f27bfac31	NULL	2026-10-09 16:39:14.425051
+seal-stdout-824d5e37067d4e9881ab3444f74b632b	seal:stdout	SUCCEEDED	SYNC	1	2026-10-09 16:39:16.903648		e48876c0-0f57-4e2a-be4e-7120679e4ceb	NULL	2026-10-09 16:39:39.415062
+seg-stderr-0	segment:stderr:0	SUCCEEDED	SYNC	1	2026-10-09 16:39:15.014573		e48876c0-0f57-4e2a-be4e-7120679e4ceb	NULL	2026-10-09 16:39:39.415062
+seg-stderr-1	segment:stderr:1	SUCCEEDED	SYNC	1	2026-10-09 16:39:16.843419		e48876c0-0f57-4e2a-be4e-7120679e4ceb	NULL	2026-10-09 16:39:39.415062
+seg-stdout-0	segment:stdout:0	SUCCEEDED	ASYNC	3	2026-10-09 16:38:41.739640		e48876c0-0f57-4e2a-be4e-7120679e4ceb	NULL	2026-10-09 16:39:39.415062
+seg-stdout-1	segment:stdout:1	SUCCEEDED	SYNC	1	2026-10-09 16:39:15.799808		e48876c0-0f57-4e2a-be4e-7120679e4ceb	NULL	2026-10-09 16:39:39.415062
+seg-stdout-2	segment:stdout:2	SUCCEEDED	SYNC	1	2026-10-09 16:39:16.094526		e48876c0-0f57-4e2a-be4e-7120679e4ceb	NULL	2026-10-09 16:39:39.415062
+seg-stdout-3	segment:stdout:3	SUCCEEDED	SYNC	1	2026-10-09 16:39:16.369030		e48876c0-0f57-4e2a-be4e-7120679e4ceb	NULL	2026-10-09 16:39:39.415062
+seg-stdout-4	segment:stdout:4	SUCCEEDED	SYNC	1	2026-10-09 16:39:16.608887		e48876c0-0f57-4e2a-be4e-7120679e4ceb	NULL	2026-10-09 16:39:39.415062
+seg-stdout-5	segment:stdout:5	SUCCEEDED	SYNC	1	2026-10-09 16:39:16.779540		e48876c0-0f57-4e2a-be4e-7120679e4ceb	NULL	2026-10-09 16:39:39.415062
+2026-10-09T16:39:14.887+08:00  INFO 42270 --- [qwen-managed-agent-server] [-verification-1] c.a.q.c.m.s.ToolPublicationDataStore     : Tool publication verified operation=seg-stdout-0 queueMillis=31467 verificationMillis=1619
+2026-10-09T16:39:16.710+08:00  INFO 42270 --- [qwen-managed-agent-server] [-verification-0] c.a.q.c.m.s.ToolPublicationDataStore     : Tool publication verification failed operation=seg-stdout-0 code=invalid_request
+
+# Notes (captured right after the runs, before the grant rows were later cleared):
+# B10 session 17744bd8: publication grant expires_at 2026-10-09 16:39:14.311, writer_lease_until 16:39:14.425;
+#   the third server process re-claimed the accepted op at 16:39:16.7 (epoch 3) -> authorization refused -> FAILED invalid_request.
+# B11 session e48876c0: restarted with async admission OFF; the accepted op drained at 16:39:14.887 (queueMillis 31467 =
+#   waiting for the dead process's 30 s claim to lapse) as ASYNC/SUCCEEDED epoch 3; every later op on the same
+#   publication was admitted SYNC.

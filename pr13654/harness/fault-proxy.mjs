@@ -1,0 +1,92 @@
+// VERIFICATION RIG ONLY (PR #12894): transparent HTTP proxy in front of the Java
+// server (publication ingress + Session Store) with path-matched fault rules.
+// data: 127.0.0.1:18895 -> 127.0.0.1:18894 ; control: 127.0.0.1:18896
+import http from 'node:http';
+
+const TARGET = process.env.TARGET ?? 'http://127.0.0.1:18654';
+const rules = []; // { match, method, action, count, ms, hits }
+const ledger = [];
+let captureRe = null; const captured = []; // PR #13114 rig: capture publication requests for direct replays
+const agent = new http.Agent({ keepAlive: true, maxSockets: 64 });
+
+function pick(req) {
+  for (const r of rules) {
+    if (r.count <= 0) continue;
+    if (r.forMs && !r.until) r.until = Date.now() + r.forMs;
+    if (r.until && Date.now() > r.until) continue;
+    if (r.method && r.method !== req.method) continue;
+    if (!new RegExp(r.match).test(req.url)) continue;
+    r.count--; r.hits = (r.hits ?? 0) + 1;
+    return r;
+  }
+  return null;
+}
+
+const data = http.createServer((req, res) => {
+  const chunks = [];
+  req.on('data', (c) => chunks.push(c));
+  req.on('end', async () => {
+    const body = Buffer.concat(chunks);
+    const entry0 = 0;
+    const entry = { t: Date.now(), method: req.method, url: req.url.replace(/\?.*$/, ''), status: null, fault: null, op: req.headers['x-qwen-tool-publication-operation'], async: req.headers['x-qwen-tool-publication-async'] ?? null, len: 0 };
+    if (captureRe && captureRe.test(req.url)) captured.push({ t: entry.t, method: req.method, url: req.url, headers: { ...req.headers }, body: body.toString('base64') });
+    ledger.push(entry);
+    if (ledger.length > 50000) ledger.splice(0, 10000);
+    const rule = pick(req);
+    if (rule) entry.fault = rule.action;
+    if (rule?.action === 'drop-request') { entry.status = 'dropped-before-server'; return req.socket.destroy(); }
+    if (rule?.action === '503') { entry.status = '503-injected'; res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ error: { code: 'injected_unavailable', message: 'injected' } })); }
+    if (rule?.action === 'delay') await new Promise((r) => setTimeout(r, rule.ms ?? 1000));
+    // arm-oss: before forwarding, add a fault to the fake OSS (e.g. delay the GETs a finish makes).
+    if (rule?.action === 'arm-oss' || rule?.action === 'arm-oss-drop-reply') { await fetch(rule.armUrl ?? 'http://127.0.0.1:18657/fault', { method: 'POST', body: JSON.stringify(rule.oss) }); entry.fault = `arm-oss ${JSON.stringify(rule.oss)}`; }
+    const headers = { ...req.headers };
+    delete headers['content-length'];
+    // PR #13114 rig: tamper with a replay (deterministic refusal must stay terminal).
+    let fwdBody = body;
+    if (rule?.action === 'corrupt-body' && body.length) { fwdBody = Buffer.from(body); fwdBody[0] ^= 1; entry.fault = 'corrupt-body (byte 0 flipped)'; }
+    if (rule?.action === 'rewrite-op') { headers['x-qwen-tool-publication-operation'] = String(headers['x-qwen-tool-publication-operation']) + 'x'; entry.fault = 'rewrite-op (+x)'; entry.op = headers['x-qwen-tool-publication-operation']; }
+    const up = http.request(new URL(req.url, TARGET), { method: req.method, headers: { ...headers, 'content-length': fwdBody.length }, agent }, (upRes) => {
+      const out = [];
+      upRes.on('data', (c) => out.push(c));
+      upRes.on('end', () => {
+        entry.status = upRes.statusCode;
+        entry.ms = Date.now() - entry.t;
+        const payload = Buffer.concat(out);
+        entry.len = body.length;
+        if (/\/publications\//.test(req.url)) { try { const j = JSON.parse(payload.toString('utf8')); entry.state = j.state ?? (j.ordinal !== undefined || j.digest ? 'receipt' : undefined); } catch {} }
+        if (upRes.statusCode >= 400) entry.body = payload.toString('utf8').slice(0, 200);
+        if (rule?.action === 'drop-reply' || rule?.action === 'arm-oss-drop-reply') { entry.status += '-reply-dropped'; return req.socket.destroy(); }
+        if (rule?.action === 'forward-then-hold') { entry.status += '-held'; return; }
+        if (rule?.action === 'hook-after') process.emit('rig-hook', rule, entry);
+        const h = { ...upRes.headers };
+        delete h['transfer-encoding'];
+        h['content-length'] = payload.length;
+        res.writeHead(upRes.statusCode, h);
+        res.end(payload);
+      });
+    });
+    up.on('error', (e) => { entry.status = `upstream-error ${e.message}`; res.writeHead(502); res.end(); });
+    up.end(fwdBody);
+  });
+});
+data.keepAliveTimeout = 60_000;
+data.listen(Number(process.env.DATA_PORT ?? 18655), '127.0.0.1', () => console.log('fault proxy data 18895 ->', TARGET));
+
+const control = http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://x');
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
+  const send = (v) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(v)); };
+  if (url.pathname === '/rule') { rules.push({ ...body, hits: 0 }); return send(rules); }
+  if (url.pathname === '/clear') { rules.length = 0; return send([]); }
+  if (url.pathname === '/capture') { captureRe = body.match ? new RegExp(body.match) : null; captured.length = 0; return send({ capture: body.match ?? null }); }
+  if (url.pathname === '/captured') return send(captured);
+  if (url.pathname === '/rules') return send(rules);
+  if (url.pathname === '/ledger') {
+    const since = Number(url.searchParams.get('since') ?? 0);
+    return send(ledger.filter((e) => e.t >= since));
+  }
+  res.writeHead(404); res.end();
+});
+control.listen(Number(process.env.CTRL_PORT ?? 18656), '127.0.0.1', () => console.log('fault proxy control 18656'));
