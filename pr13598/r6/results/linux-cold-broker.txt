@@ -1,0 +1,191 @@
+== Cold Broker on Linux durable local-process (container on an arm64 Linux host, kernel 5.10; MySQL 8.0.46; scripted model)
+Scenario: K2 runs read_file every minute (overlap allow). The tap holds its execution poll; 8 s later the Harness (process group) and the Spring JVM (which embeds the Broker) are SIGKILLed. Runtime workers share the Spring process group but are left alive. Spring restarts, then the Harness.
+
+######## k5 (arm r5)
+09:50:05 delayed tool poll seen (K2 mid read_file, cold Broker)
+09:50:14 SIGKILL Harness (group) and the Spring JVM pid 339 only - durable workers share its process group and must survive (K2 mid read_file, cold Broker)
+killed harness pgid 1012
+09:50:15 runtime workers still alive: 1094 1197 1207 
+   1094     339     137 /usr/local/bin/node /rig/arms/r5/dist/cli.js managed-runtime-worker
+   1197     339      79 /usr/local/bin/node /rig/arms/r5/dist/cli.js managed-runtime-worker
+   1207     339      79 /usr/local/bin/node /rig/arms/r5/dist/cli.js managed-runtime-worker
+spring pid=1695
+09:50:27 Spring healthy again
+harness pid=1796
+09:50:27 restarted
+09:59:58 K3 read_file Turn (probe the lease)
+  "turn_id": "turn_f393f27f766a4a40bd6a596ba22a67b7",
+=== K2 08cbd8a4-328f-4a14-b835-9adcc71f0b0d
+-- turns
+turn_42fdb34039cb4f22b6442efd2ceb1e38	COMPLETED	-	09:48:55	09:48:57
+-- runs
+arun_76c88cfd3	3	failed	-	09:50:04	09:52:05
+arun_66972beb2	2	running	unbound	09:52:04	-
+-- occurrences
+schedule:2026-10-09T09:50:00Z	arun_76c88cfd3	fired	-	09:50:04
+schedule:2026-10-09T09:51:00Z	arun_62c93f1a3	skipped	managed_session_writer_conflict	09:51:01
+schedule:2026-10-09T09:52:00Z	arun_66972beb2	fired	-	09:52:03
+schedule:2026-10-09T09:53:00Z	arun_675d0e1a3	skipped	hosted_session_blocked	09:53:00
+schedule:2026-10-09T09:54:00Z	arun_d6fbb3502	skipped	hosted_session_blocked	09:54:00
+schedule:2026-10-09T09:55:00Z	arun_7c6e567d9	skipped	hosted_session_blocked	09:55:01
+schedule:2026-10-09T09:56:00Z	arun_9db25ed55	skipped	hosted_session_blocked	09:56:01
+schedule:2026-10-09T09:57:00Z	arun_f971a928c	skipped	hosted_session_blocked	09:57:01
+schedule:2026-10-09T09:58:00Z	arun_1c00bd752	skipped	hosted_session_blocked	09:58:01
+schedule:2026-10-09T09:59:00Z	arun_a16a80e0e	skipped	hosted_session_blocked	09:59:01
+schedule:2026-10-09T10:00:00Z	arun_6af7e5f13	skipped	hosted_session_blocked	10:00:02
+schedule:2026-10-09T10:01:00Z	arun_8d388dc81	skipped	hosted_session_blocked	10:01:02
+schedule:2026-10-09T10:02:00Z	arun_390318664	skipped	hosted_session_blocked	10:02:02
+schedule:2026-10-09T10:03:00Z	arun_30110c419	skipped	hosted_session_blocked	10:03:03
+schedule:2026-10-09T10:04:00Z	arun_9b7c85d5f	skipped	hosted_session_blocked	10:04:03
+schedule:2026-10-09T10:05:00Z	arun_852187c43	skipped	hosted_session_blocked	10:05:03
+schedule:2026-10-09T10:06:00Z	arun_b05ea09b8	skipped	hosted_session_blocked	10:06:03
+schedule:2026-10-09T10:07:00Z	arun_47d1da5e0	skipped	hosted_session_blocked	10:07:03
+schedule:2026-10-09T10:08:00Z	arun_db6d0e1ae	skipped	hosted_session_blocked	10:08:04
+schedule:2026-10-09T10:09:00Z	arun_bbb7f59ee	skipped	hosted_session_blocked	10:09:04
+schedule:2026-10-09T10:10:00Z	arun_0b372626d	skipped	hosted_session_blocked	10:10:04
+schedule:2026-10-09T10:11:00Z	arun_929543a3b	skipped	hosted_session_blocked	10:11:04
+schedule:2026-10-09T10:12:00Z	arun_3b95b0ed7	skipped	hosted_session_blocked	10:12:00
+schedule:2026-10-09T10:13:00Z	arun_a83b3198a	skipped	hosted_session_blocked	10:13:00
+schedule:2026-10-09T10:14:00Z	arun_778aa599d	skipped	hosted_session_blocked	10:14:00
+schedule:2026-10-09T10:15:00Z	arun_bcdf0d526	skipped	hosted_session_blocked	10:15:00
+schedule:2026-10-09T10:16:00Z	arun_23d33b14a	skipped	hosted_session_blocked	10:16:00
+schedule:2026-10-09T10:17:00Z	arun_b4e8ca477	skipped	hosted_session_blocked	10:17:01
+schedule:2026-10-09T10:18:00Z	arun_47766977b	skipped	hosted_session_blocked	10:18:01
+schedule:2026-10-09T10:19:00Z	arun_b039388a3	skipped	hosted_session_blocked	10:19:01
+=== K3 8ea677ad-ba51-4e5d-94f1-95efc30d469e
+-- turns
+turn_9c613be6e42545708b09f0834a1a2711	COMPLETED	-	09:48:55	09:48:57
+turn_f393f27f766a4a40bd6a596ba22a67b7	RUNNING	-	09:59:59	-
+-- runs
+-- occurrences
+=== broker sessions (newest 8)
+a9a25226-ceaa-40	ACQUIRING	10:05:00
+wake-5b716f38967	READY	10:04:55
+118b6fd5-b829-4c	RELEASED	10:04:54
+=== execution lease
+wake-5b716f38967	34026f62916af6128cbb808c57f3d7184ae5d17f
+=== harness
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+qwen serve: Hosted wake turn arun_76c88cfd3012b4c9814747a0b4ec27392029c0f30ed852d92e54077456245fa6:input aftermath could not be settled: Error: Runtime Broker returned HTTP 503 (runtime_reconciliation
+workspace_busy answers: 3737
+
+######## k6 (arm r6)
+10:01:03 delayed tool poll seen (K2 mid read_file, cold Broker)
+10:01:12 SIGKILL Harness (group) and the Spring JVM pid 1922 only - durable workers share its process group and must survive (K2 mid read_file, cold Broker)
+killed harness pgid 2635
+10:01:13 runtime workers still alive: 1094 1197 1207 2706 2734 
+   1094     339     795 /usr/local/bin/node /rig/arms/r5/dist/cli.js managed-runtime-worker
+   1197     339     737 /usr/local/bin/node /rig/arms/r5/dist/cli.js managed-runtime-worker
+   1207     339     737 /usr/local/bin/node /rig/arms/r5/dist/cli.js managed-runtime-worker
+   1695    1695     657 java -Xmx700m -jar /rig/arms/r5/server.jar --qwen.managed-agent.runtime-broker.workspace-mounts[0].tenant-id=rig --qwen.managed-agent.ru
+   1796    1796     646 /usr/local/bin/node /rig/arms/r5/dist/cli.js serve --profile hosted-harness --port 18601 --hostname 127.0.0.1 --require-auth --no-web --
+   2706    1922      41 /usr/local/bin/node /rig/arms/r6/dist/cli.js managed-runtime-worker
+   2734    1922      41 /usr/local/bin/node /rig/arms/r6/dist/cli.js managed-runtime-worker
+spring pid=2998
+10:01:24 Spring healthy again
+harness pid=3095
+10:01:24 restarted
+10:16:40 close K2 (live every-minute read_file definition)
+=== K2 3aef6150-6dbb-445d-b96a-5ac69927db92
+-- turns
+turn_401ec1a1762541bd81481e73be58bd01	COMPLETED	-	10:00:31	10:00:34
+-- runs
+arun_8d388dc81	3	failed	-	10:01:01	10:02:07
+arun_390318664	3	completed	-	10:02:07	10:02:12
+arun_30110c419	3	completed	-	10:03:02	10:03:05
+arun_9b7c85d5f	3	completed	-	10:04:03	10:04:06
+arun_852187c43	3	completed	-	10:05:03	10:05:06
+arun_b05ea09b8	3	completed	-	10:06:04	10:06:07
+arun_47d1da5e0	3	completed	-	10:07:04	10:07:08
+arun_db6d0e1ae	3	completed	-	10:08:00	10:08:03
+arun_bbb7f59ee	3	completed	-	10:09:00	10:09:04
+arun_0b372626d	3	completed	-	10:10:00	10:10:04
+arun_929543a3b	3	completed	-	10:11:01	10:11:05
+arun_3b95b0ed7	3	completed	-	10:12:01	10:12:06
+arun_a83b3198a	3	completed	-	10:13:02	10:13:06
+arun_778aa599d	3	completed	-	10:14:02	10:14:07
+arun_bcdf0d526	3	completed	-	10:15:03	10:15:08
+arun_23d33b14a	3	completed	-	10:16:03	10:16:08
+-- occurrences
+schedule:2026-10-09T10:01:00Z	arun_8d388dc81	fired	-	10:01:01
+schedule:2026-10-09T10:02:00Z	arun_390318664	fired	-	10:02:04
+schedule:2026-10-09T10:03:00Z	arun_30110c419	fired	-	10:03:02
+schedule:2026-10-09T10:04:00Z	arun_9b7c85d5f	fired	-	10:04:03
+schedule:2026-10-09T10:05:00Z	arun_852187c43	fired	-	10:05:03
+schedule:2026-10-09T10:06:00Z	arun_b05ea09b8	fired	-	10:06:04
+schedule:2026-10-09T10:07:00Z	arun_47d1da5e0	fired	-	10:07:04
+schedule:2026-10-09T10:08:00Z	arun_db6d0e1ae	fired	-	10:08:00
+schedule:2026-10-09T10:09:00Z	arun_bbb7f59ee	fired	-	10:09:00
+schedule:2026-10-09T10:10:00Z	arun_0b372626d	fired	-	10:10:00
+schedule:2026-10-09T10:11:00Z	arun_929543a3b	fired	-	10:11:01
+schedule:2026-10-09T10:12:00Z	arun_3b95b0ed7	fired	-	10:12:01
+schedule:2026-10-09T10:13:00Z	arun_a83b3198a	fired	-	10:13:02
+schedule:2026-10-09T10:14:00Z	arun_778aa599d	fired	-	10:14:02
+schedule:2026-10-09T10:15:00Z	arun_bcdf0d526	fired	-	10:15:03
+schedule:2026-10-09T10:16:00Z	arun_23d33b14a	fired	-	10:16:03
+schedule:2026-10-09T10:17:00Z	arun_b4e8ca477	skipped	session_not_active	10:17:03
+schedule:2026-10-09T10:18:00Z	arun_47766977b	skipped	session_not_active	10:18:04
+schedule:2026-10-09T10:19:00Z	arun_b039388a3	skipped	session_not_active	10:19:04
+=== K3 c8b85a06-d930-46e5-bda4-6ba3322d1991
+-- turns
+turn_632820a2ad2c4686a580bf6bae442334	COMPLETED	-	10:00:31	10:00:34
+-- runs
+-- occurrences
+=== broker sessions (newest 8)
+wake-42ba52c707b	RELEASED	10:05:01
+wake-ffbefabea27	RELEASED	10:05:01
+wake-0647444829a	RELEASED	10:05:01
+wake-73f008b3396	RELEASED	10:05:01
+wake-25b17ef5cce	RELEASED	10:05:01
+wake-1f774105c05	RELEASED	10:05:01
+wake-bea7d305d7a	RELEASED	10:05:01
+wake-628fd8cd7aa	RELEASED	10:05:00
+=== execution lease
+-	NULL
+=== harness
+qwen serve: Monitor wake turn arun_8d388dc81b9f23cf55fb1fdeffe6e9b890c2b001c02eaeedbd0cf4f9a42f105b:input needs recovery, not a re-drive.
+workspace_busy answers: 0
+
+-- k5 (r5): Broker answers to the aftermath after the cold restart (first 12)
+09:52:05.560 req GET /executions/ba6533a4-539f-46c3-98aa-807871a29c95 wake-5b716f38  
+09:52:05.658 res  /executions/ba6533a4-539f-46c3-98aa-807871a29c95 wake-5b716f38 200 
+09:52:06.030 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:06.077 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:06.400 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:06.419 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:06.911 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:06.934 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:07.707 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:07.731 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:08.466 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:08.487 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:09.247 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:09.267 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:10.027 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:10.049 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:10.797 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:10.819 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:11.575 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:11.598 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:12.341 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:12.362 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+09:52:13.071 req POST /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38  
+09:52:13.095 res  /tool-sessions/wake-5b716f3896749d4204a2afe1bf738af37508d96a00bb wake-5b716f38 503 "code":"runtime_reconciliation_required"
+
+-- k6 (r6): the aftermath adopts first (acquire), then status, then acquire + release
+10:02:07.627 req POST /tool-sessions:acquire wake-28a91290  
+10:02:07.997 res  /tool-sessions:acquire wake-28a91290 200 
+10:02:08.112 req GET /executions/5e3da386-6645-4b99-8e2e-e3e720133e4a wake-28a91290  
+10:02:08.142 res  /executions/5e3da386-6645-4b99-8e2e-e3e720133e4a wake-28a91290 200 
+10:02:08.547 req POST /tool-sessions:acquire wake-28a91290  
+10:02:08.580 res  /tool-sessions:acquire wake-28a91290 200 
+10:02:08.586 req POST /tool-sessions/wake-28a91290f1b86f611bb3a4f2c537c28d1493895e99bc wake-28a91290  
+10:02:08.706 res  /tool-sessions/wake-28a91290f1b86f611bb3a4f2c537c28d1493895e99bc wake-28a91290 200 
