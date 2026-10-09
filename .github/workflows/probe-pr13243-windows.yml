@@ -1,0 +1,78 @@
+name: 'probe-pr13243-windows'
+
+# Verification probe for QwenLM/qwen-code#13243 on a GitHub-hosted Windows
+# runner. Runs only on pushes to probe/pr13243-* branches of this fork.
+on:
+  push:
+    branches: ['probe/pr13243-**']
+
+permissions:
+  contents: 'read'
+
+jobs:
+  probe:
+    runs-on: 'windows-2022'
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: 'bash'
+    env:
+      BASE_SHA: '5ddd43815bf141ad448a546aeba768b0bc90820d'
+      FILES: 'src/serve/managed-hook-runtime.test.ts src/serve/hosted-hook-session.test.ts'
+      NO_COLOR: 'true'
+    steps:
+      - name: 'Disable CRLF conversion'
+        shell: 'powershell'
+        run: 'git config --global core.autocrlf false'
+
+      - uses: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10' # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - uses: 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e' # v6.4.0
+        with:
+          node-version: '22.x'
+          package-manager-cache: false
+
+      - name: 'Runner facts'
+        run: |-
+          echo "PROBE_JSON {\"probe\":\"runner\",\"node\":\"$(node -v)\",\"os\":\"$(cmd //c ver | tr -d '\r\n')\",\"head\":\"$(git rev-parse HEAD)\",\"cpus\":\"${NUMBER_OF_PROCESSORS}\"}"
+
+      - name: 'Plain Node import of a raw Windows path'
+        run: 'node probe13243/plain-import.mjs | tee probe-plain.txt'
+
+      - name: 'Install dependencies'
+        run: 'corepack pnpm install --frozen-lockfile --reporter=append-only'
+
+      - name: 'Head arm (x5)'
+        run: |-
+          # shellcheck disable=SC2086
+          bash probe13243/run-arm.sh head 5 $FILES | tee probe-head.txt
+
+      - name: 'Mutant arm: head with only the test import reverted to a raw path (x2)'
+        run: |-
+          node -e "const fs=require('fs');const f='packages/cli/src/serve/managed-hook-runtime.test.ts';const s=fs.readFileSync(f,'utf8');const a='await import(pathToFileURL(modulePath).href)';if(!s.includes(a)){console.error('MUTANT-NOT-APPLIED');process.exit(1)}fs.writeFileSync(f,s.replace(a,'await import(modulePath)'));console.log('mutant applied')"
+          git diff --stat
+          bash probe13243/run-arm.sh rawimport 2 src/serve/managed-hook-runtime.test.ts | tee probe-mutant.txt
+          git checkout -- packages/cli/src/serve/managed-hook-runtime.test.ts
+
+      - name: 'Base arm: merge-base code and tests (x3)'
+        run: |-
+          git checkout "$BASE_SHA" -- packages/cli/src/serve/managed-hook-runtime.ts packages/cli/src/serve/managed-hook-runtime.test.ts packages/cli/src/serve/hosted-hook-session.ts packages/cli/src/serve/hosted-hook-session.test.ts
+          git diff --stat HEAD
+          # shellcheck disable=SC2086
+          bash probe13243/run-arm.sh base 3 $FILES | tee probe-base.txt
+          git checkout HEAD -- packages/cli/src/serve
+
+      - name: 'Collect'
+        if: '${{ always() }}'
+        run: |-
+          mkdir -p probe-out
+          cp probe-*.txt probe-out/ 2>/dev/null || true
+          grep -h PROBE_JSON probe-out/*.txt | sort -u
+
+      - uses: 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' # v4.6.2
+        if: '${{ always() }}'
+        with:
+          name: 'probe-pr13243-windows'
+          path: 'probe-out/'
