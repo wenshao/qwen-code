@@ -134,7 +134,7 @@ bundled from c6402589ad (e7f, c7f): <span class="good">same</span></pre></div>
 const openTag = '<span class="warn">&#9888; OPEN</span>';
 const unchanged = '<span class="warn">&#9888; UNCHANGED</span>';
 cards['01-summary'] = page(`
-<h1>PR #13598 round 7 @ 9f809670c7, plus fixes up to 3d8f482b0a</h1>
+<h1>PR #13598 round 7 @ 9f809670c7, head now 07add57a64</h1>
 <p class="sub">Real-stack verification. Linux durable stack (arm64 container) for the two runtime P1s, before and after; macOS with real qwen3.8-max for the regression pass.</p>
 <table>
 <tr><th style="width:190px">Item</th><th style="width:110px">Status</th><th>Evidence</th></tr>
@@ -144,7 +144,9 @@ cards['01-summary'] = page(`
 <tr><td>qwen3.8-max regression</td><td>${held}</td><td>allow crash mid read_file: the crashed run settles 53 s after restart, 6 later runs complete, 0 aftermath failures. Early user Turn completes (round 6 caveat stays: one 60 s backoff)</td></tr>
 <tr><td>Round 6: CI red (3 tests)</td><td>${fixed}</td><td>Java contract fixture and both core tests pass locally and on CI</td></tr>
 <tr><td>Round 6: deferred burst, close with a live definition</td><td>${unchanged}</td><td>scanner and close code unchanged since round 6; not re-run</td></tr>
-<tr><td>CI at 66af9bc185</td><td>${fixed} 3d8f482b0a</td><td>22 passed; 1 failed: Hosted process fault gates (Checkstyle NewlineAtEndOfFile, dropped by the 9f809670c7 merge). 3d8f482b0a restores it; locally the check fails without, passes with. CI on 3d8f482b0a still running</td></tr>
+<tr><td>CI at 66af9bc185</td><td>${fixed} 3d8f482b0a</td><td>1 failed: Hosted process fault gates (Checkstyle NewlineAtEndOfFile, dropped by the 9f809670c7 merge). 3d8f482b0a restores it; locally the check fails without, passes with</td></tr>
+<tr><td>16:29 review: Flyway V56 clash with main</td><td>${fixed} e0ec7224e4</td><td>main merged, ledger V57, contract v1.38; my independent resolution agreed. At 07add57a64: Java 1605 run, 0 failures; Checkstyle 0; versions unique</td></tr>
+<tr><td>CI at 07add57a64</td><td><span class="warn">&#9888; MAIN RED</span></td><td>24 passed at 20:08 UTC; the 1 failure is main's own (verify-pr SKILL.md vs #13763's triage test) - main's push CI at 5b1c701400 fails the same test; review-pr still running</td></tr>
 <tr><td>Tests (local, load 50-70)</td><td>${pass}</td><td>Java 1594 run, 1 load error passing alone; TS CLI 666/668, core 225/226, each failure a timeout passing on CI or alone. New commits: 399/399, 243/243</td></tr>
 <tr><td>Mutation</td><td>${fixed} 586a24e82a</td><td>P1-2 and P1-1-in-prepareV3 reverts caught. The P1-1 publisher-register revert passed every test, yet breaks the real stack; now pinned. Round 6's reconcile_run survivor still survives</td></tr>
 </table>
@@ -173,6 +175,7 @@ arun_3737cadfa  completed  15:34:01 - 15:34:11   ... 6 runs after the crash, all
 <tr><td><b>TS core</b>, 6 files</td><td>225/226 - slots contract timed out once, 12/12 alone</td></tr>
 <tr><td><b>c6402589ad</b>: harness-session + runtime-recovery</td><td>399/399; eslint, prettier, tsc clean</td></tr>
 <tr><td><b>586a24e82a</b>: tool-turn + workspace-broker</td><td>243/243</td></tr>
+<tr><td><b>07add57a64</b> (after the main merge): Java module</td><td>1605 run, 0 failures, 0 errors; Checkstyle 0; Flyway versions unique (V57)</td></tr>
 </table>
 <h2>Mutation (sources only, each restored)</h2>
 <table>
