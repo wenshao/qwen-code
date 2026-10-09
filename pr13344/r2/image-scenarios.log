@@ -1,0 +1,36 @@
+### image qmas:head-r2 (sha256:d6c2dc6d4dcf)
+## R1 plain run: only the datasource named (README: -p publishes nothing)
+  boot: STARTED
+  container listeners: loopback(v4-mapped):8080 
+  in-container loopback GET /actuator/health -> rc=0 {"status":"UP"} 
+  via -p (VM -> 172.17.0.1:18081) -> rc=1 curl: (7) Failed to connect to 172.17.0.1 port 18081 after 15 ms: Couldn't connect to server time="2026-10-09T23:11:11+08:00" level=fatal msg="exit status 7" 
+  other container on default bridge -> 172.17.0.1:18081 (-p DNAT) -> rc=7 curl: (7) Failed to connect to 172.17.0.1 port 18081: Connection refused 
+  peer container -> r1-plain:8080 -> rc=7 curl: (7) Failed to connect to r1-plain port 8080: Connection refused 
+## R2 README recipe, fence extracted verbatim (only -p host IP, <db-host>, <image> substituted)
+  | docker run -p 8080:8080 \
+  |   -e QWEN_MANAGED_AGENT_SERVER_ADDRESS=0.0.0.0 \
+  |   -e QWEN_MANAGED_AGENT_AUTH_MODE=signed \
+  |   -e QWEN_MANAGED_AGENT_AUTH_SIGNING_KEY \
+  |   -e SPRING_DATASOURCE_URL='jdbc:mysql://<db-host>:3306/qwen_managed_agent' \
+  |   -e SPRING_DATASOURCE_USERNAME='qwen' \
+  |   -e SPRING_DATASOURCE_PASSWORD \
+  |   <image>
+  boot: STARTED
+  container listeners: any(0.0.0.0/::):8080 
+  via -p GET /actuator/health -> rc=0 {"status":"UP"} 
+  other container on default bridge -> 172.17.0.1:18082 (-p DNAT) -> rc=0 {"status":"UP"} 
+  via -p unsigned GET /v1/agents/workspaces -> rc=0 401 
+  via -p signed GET /v1/agents/workspaces -> rc=0 {"object":"list","data":[],"default_workspace":null,"has_more":false,"next_cursor":null,"capabilities":{"workspace_binding":true,"workspace_context":false}} http=200 
+  via -p signature for t2 replayed as t1 -> rc=0 401 
+  peer container -> r2-recipe:8080 (no -p involved) -> rc=0 {"status":"UP"} 
+  docker run argv in container config (Args) -> rc=0 ["-jar","/app/qwen-managed-agent-server.jar"] 
+  signing key present in container Config.Env: 1
+## R3 wide bind under the shipped auto mode (README: server refuses)
+  boot: EXITED(1)
+  refusal: qwen.managed-agent.auth.mode=auto refuses a non-loopback server.address; configure signed mode (qwen.managed-agent.auth.signing-key) or set auth.allow-insecure-bind=true to override.
+## R4 deliberately unauthenticated override
+  boot: STARTED
+  via -p unsigned GET /v1/agents/workspaces -> rc=0 {"error":{"code":"actor_required","message":"A trusted actor is required.","request_id":"e47b1dfe-0b62-4dc8-aaa8-e956deec3883"}} http=401 
+  warn line: 2026-10-09T15:13:28.249Z  INFO 1 --- [qwen-managed-agent-server] [           main] c.a.q.c.m.config.BrokerSecurity          : Managed Agent Broker security: mode=OPEN internalPort=shared writerBinding=unbound allowInsecu
+## Mac listeners on 1808x (must be none):
+  none

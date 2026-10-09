@@ -1,0 +1,34 @@
+[
+  {
+    "file": "05-r2-followups.png",
+    "title": "Round 2 @ 0ac1b249bc: the round-1 follow-ups on real stacks",
+    "subtitle": "Same rigs as round 1 · base runner = 29aef7de40 (identical to 4edc26a0bc's) · Linux = container on an independent aarch64 host, MySQL 8.0.46 · image = BuildKit build of this head, MySQL 8.4.6",
+    "columns": ["Check", "before (round 1 head / base)", "this head 0ac1b249bc"],
+    "rows": [
+      ["F2: --freeze, SIGINT to the group during\nteardown (Linux, 2 runs each)", "bad: base: exit 0, 684 B on stdout (2 JSON docs)\nbad: ced83583f4: exit 1 but the fencedFormerWriter\nrecord stayed on stdout", "ok: exit 1 · Interrupted by SIGINT · stdout 0 B (2/2)"],
+      ["F2: --freeze normal run, stdout order", "warn: ced83583f4: fencedFormerWriter first, main result second", "ok: main result first, fencedFormerWriter second\n(base order restored) · exit 0"],
+      ["F3: Spring SIGSTOPped right after its\nlistener accepts (60 s wait, 2 runs)", "warn: ced83583f4: ': connect ECONNREFUSED ...'\n(stale; the listener was up but hung)", "ok: ': predicate stalled; last error before the\nstall: connect ECONNREFUSED 127.0.0.1:...' (2/2)\nstill inside the 60 s budget"],
+      ["F1: README one-liner, executed verbatim on a\nfresh MySQL, then the host jar boots as qwen", "bad: ced83583f4 line: SELECT command denied ...\n-> 'foreign_key_checks', no boot", "ok: STARTED · health UP"],
+      ["F1 (R10-1): the one-liner the dev launcher prints\n(scripts/managed-agent-dev.js:355), verbatim", "dim: (same stale line)", "bad: still fails: SELECT command denied to user\n'qwen'@'localhost' -> 'foreign_key_checks'"],
+      ["F1: image + README container guidance (README\none-liner at 'qwen'@'%') + recipe verbatim", "dim: needed a manual extra grant", "ok: boots · -p health UP · unsigned 401 ·\nsigned 200 · tenant swapped 401 · peer reaches :8080"],
+      ["F4: PR description", "bad: ENV 0.0.0.0 bullet, 2 classifiers, 15/15", "bad: unchanged (needs a maintainer edit)"]
+    ]
+  },
+  {
+    "file": "06-r2-regression.png",
+    "title": "Round 2 @ 0ac1b249bc: regression sweep after the main merge",
+    "subtitle": "Bundle and jar rebuilt from this head (the merge brought 396 files from main) · macOS host heavily loaded this round, so wall times are longer than round 1",
+    "columns": ["Run", "macOS (local)", "Linux container", "notes"],
+    "rows": [
+      ["--session-failover / --big-output /\n--session-failover --harness-only", "ok: exit 0 · JSON (3/3)", "ok: exit 0 · JSON (3/3)", "dim: CI hosted job green at this SHA"],
+      ["--inflight / --continuation (+ --harness-only),\n--continuation --freeze", "dim: Linux-only", "ok: exit 0 · JSON (5/5)", ""],
+      ["real model --model qwen3.8-max", "ok: exit 0 · tool side effect, idempotent replay,\ncross-tenant 404, 21 durable events", "dim: -", ""],
+      ["~/.my.cnf / MYSQL_PWD / ~/.mylogin.cnf", "ok: head passes (3/3);\nbase ~/.my.cnf: ERROR 1045 in 8.3 s", "dim: -", ""],
+      ["SIGINT during teardown (--session-failover)", "ok: head exit 1, no JSON, temp kept;\nbase exit 0 with JSON", "ok: (see F2 row for --freeze)", ""],
+      ["mysqld SIGSTOP in the 10 s lease wait", "ok: fails 10.10 s after the freeze, ETIMEDOUT cause", "dim: -", ""],
+      ["Spring SIGSTOP before it listens", "ok: ': connect ECONNREFUSED ...' at ~60 s", "dim: -", ""],
+      ["unit suite scripts/tests/managed-agent-server-e2e.test.js", "ok: 35/35", "dim: -", ""],
+      ["image: plain run / auto + 0.0.0.0 / insecure override", "ok: loopback-only, -p refused / refuses to start /\nboots open", "dim: -", "dim: /app jar = unclassified, 54,115,180 B"]
+    ]
+  }
+]
