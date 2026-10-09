@@ -1,0 +1,56 @@
+diff --git a/packages/cli/src/serve/hosted-channel-session.test.ts b/packages/cli/src/serve/hosted-channel-session.test.ts
+index 9ab5289355..dc5975863f 100644
+--- a/packages/cli/src/serve/hosted-channel-session.test.ts
++++ b/packages/cli/src/serve/hosted-channel-session.test.ts
+@@ -52,6 +52,10 @@ interface Harness {
+   now: number;
+ }
+ 
++// The store of the session settleInJournal writes into: a settled turn's
++// result must be a published reader-facing record (#13332's commit fence).
++let journalResources: LocalManagedSessionResourceStore | undefined;
++
+ async function createHarness(): Promise<Harness> {
+   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'qwen-hosted-channel-'));
+   temporaryDirectories.add(root);
+@@ -99,6 +103,7 @@ async function withSession<T>(
+             ),
+             createdBy: 'daemon',
+           };
++    journalResources = harness.store;
+     const authority = await LocalManagedSessionAuthority.open({
+       lease,
+       sessionKey,
+@@ -250,6 +255,23 @@ async function settleInJournal(
+ ): Promise<void> {
+   // The wake turn's journal settle, as `commitTurnComplete` records it:
+   // the only thing that consumes a pending input.
++  const resultRef = await journalResources!.publish(
++    'managed-turn-result',
++    Buffer.from(
++      JSON.stringify({
++        uuid: `${turnId}:settled-result`,
++        parentUuid: null,
++        sessionId,
++        timestamp: new Date(5_000).toISOString(),
++        type: 'system',
++        subtype: 'turn_result',
++        cwd: '/workspace',
++        version: 'hosted-harness/1',
++        systemPayload: { promptId: turnId, state: outcome },
++      }),
++      'utf8',
++    ),
++  );
+   await authority.appendExecution(
+     {
+       operation: 'settleTurn',
+@@ -270,7 +292,7 @@ async function settleInJournal(
+           turnId,
+           outcome,
+           stopReason: outcome === 'completed' ? 'end_turn' : outcome,
+-          resultRef: null,
++          resultRef,
+           usageRef: null,
+           pendingOwnersRef: null,
+         },
