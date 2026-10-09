@@ -1,0 +1,31 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedActionStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedActionStore.java
+index 902473a0f8..b07b09e758 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedActionStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedActionStore.java
+@@ -85,16 +85,22 @@ public class ManagedActionStore {
+     // once, so it runs before the idempotency replay.
+     private boolean ownerIdentityAdmits(String tenantId, String sessionId,
+             OwnerRow session, byte[] key) {
+-        byte[] recorded = session == null ? null
+-                : session.owner() != null ? session.owner() : session.creator();
+-        if (recorded != null) {
+-            return key != null && Arrays.equals(recorded, key);
++        // The same owner-of-record order as ManagedWorkspaceRegistry
++        // .isSessionOwner: the owner record, then the create command (an
++        // H4b child records its synthetic actor there while copying the
++        // parent's creator key), and only a command-less row falls back to
++        // creator_actor_key.
++        if (session != null && session.owner() != null) {
++            return key != null && Arrays.equals(session.owner(), key);
+         }
+         int commands = jdbc.queryForObject(
+                 "SELECT COUNT(*) FROM managed_workspace_create_command WHERE"
+                         + " tenant_id = ? AND session_id = ?",
+                 Integer.class, tenantId, sessionId);
+         if (commands == 0) {
++            if (session != null && session.creator() != null) {
++                return key != null && Arrays.equals(session.creator(), key);
++            }
+             // No recorded owner: an anonymous open-mode Session is
+             // tenant-owned, matching its read semantics.
+             return session == null || session.workspaceId() == null;
