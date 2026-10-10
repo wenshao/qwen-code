@@ -1,0 +1,22 @@
+PR #13654 round 3 on the real stack: head 50312cfb (base = merge base 2ebbd4e1)
+MySQL 8.4.7, Spring jar + embedded Runtime Broker, packaged Hosted Harness + real worker, aliyun-sdk-oss against a TLS OSS double, proxy ledger
+## Migration V63 (main merge 50312cfb)
+++ CI guard (scripts/check-flyway-migrations.js)   head: 60 unique; head + main df72e2d1 (clean trial merge): 60 unique; main: 59
+++ main-built schema at V62, then head             "Successfully applied 1 migration ... now at version v63", server starts
+++ fresh schema, head                              60 migrations applied, server starts
+!! schema from the previous PR build (V61)         "Detected applied migration not resolved locally: 61" (pre-merge test deployments only)
+!! open #13642 also adds V63                       whichever merges second must renumber above main's max
+## Contract re-run on 50312cfb (async on, head worker)
+++ 5 MiB + 1 MiB / 64 MiB + 8 MiB                  14 / 78 ops 202 -> SUCCEEDED, bytes exact
+++ readback held 8 s                               1st POST 202 in 84 ms while the GET is held
+++ first object PUT delayed 5 s                    1st 202 only after the PUT (max POST 5103 ms), exact
+++ first six object GETs answer 500                retried (epoch 3), SUCCEEDED, exact
+++ flip one byte while held                        FAILED {400 invalid_request}, not re-posted, segment QUARANTINED
+++ replay a SUCCEEDED op                           200, 0 object GETs, identical receipt; later real read still quarantines
+## Latency, paired (two stacks started together), client file byte-identical to 915ab691
+                                                   base 2ebbd4e1 (sync)            head 50312cfb (async)
+-- 128 MiB turn, x2 (load 27-45)                   30.0 / 14.4 s                    54.1 / 53.2 s
+-- 128 MiB segment time-to-receipt, median         117 / 35 ms                      299 / 282 ms
+-- 512 MiB, default 120 s Shell timeout, x2        all 512 segments captured        288 / 280 of 512 captured
+==   (load 59-76)                                  written in 100.0 / 95.0 s        timed out while writing
+>> V63 is clean against today's main and the async contract still holds. The latency regression is unchanged (the client was not changed).

@@ -1,0 +1,20 @@
+PR #13654 round 3: chiga0 F1 (CSI retirement) fix at 50312cfb, store-level A/B
+PR's own CSI fixture (PublicationJournalFixture + WorkspaceCsiReservationStore.beginRetirement), 11 probes, run on real MySQL 8.4.7 and on H2: identical outcomes
+## Accepted async op -> CSI retirement -> execution SETTLED -> verifier scan
+                                            58686a5d reverted       head 50312cfb           head + candidate
+                                            (Access.PRODUCE)        (Access.CLAIM)          (+4/-2, below)
+++ A  segment                               FAILED 400, 0 reads     SUCCEEDED, VERIFIED     SUCCEEDED, VERIFIED
+-- G  seal                                  FAILED 400              FAILED 400              SUCCEEDED
+-- H  prefix                                FAILED 400              FAILED 400              SUCCEEDED
+-- E  finish                                FAILED 400              FAILED 400              SUCCEEDED, FINISHED
+-- I  segment + seal done, finish accepted  never finishes          never finishes          FINISHED, finished() returns terminal
+!! E3 why: the same finish sent synchronously at that point -> "Original publication is not finished"
+!!    beginFinish() / claimScan() treat a SETTLED execution as replay-only; the verifier's op is PENDING, so it can never pass
+## Controls (all three arms identical)
+++ B  segment, retirement, execution still EXECUTING          SUCCEEDED
+++ E2 finish, retirement, execution still EXECUTING           SUCCEEDED, FINISHED
+++ C  new segment POST after retirement + SETTLED             refused (retirement still fences new production)
+== D  segment, execution SETTLED, no retirement               FAILED 400 (unchanged; non-retired path never allows SETTLED)
+## PR suite ToolPublicationAsyncVerificationTest (42)
+==    reverted: settledCsiRetirementStillVerifiesAcceptedWork red (H2 and MySQL)   head: 42/42 H2, 42/42 MySQL   candidate: 42/42 H2, 42/42 MySQL
+>> The fix is load-bearing for segment uploads. Seal, prefix and finish still fail permanently in the same sequence, so the publication never finishes.
