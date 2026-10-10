@@ -1,0 +1,61 @@
+## [r4my] 1. main (base) jar creates the schema
+Successfully applied 58 migrations to schema `e2e_r4_my`, now at version v60
+## [r4my] 2. seed terminal history through the real Broker repositories
+runtime_binding=26 runtime_session=29 tool_execution=260 runtime_binding_slot=26 runtime_placement_guard=26 
+## [r4my] 3. head jar, retention disabled (default): V60 -> V61 upgrade
+Successfully applied 1 migration to schema `e2e_r4_my`, now at version v61
+GET h-exec: HTTP=200
+retention log lines while disabled: 0
+runtime_binding=26 runtime_session=29 tool_execution=260 runtime_binding_slot=26 runtime_placement_guard=26 
+## [r4my] 4. rollback: main jar boots on the V61 schema
+STARTED pid=6601
+has a version (61) that is newer than the latest available migration (60)
+## [r4my] 5. head jar, retention enabled (30d / 100 / 3s); tenant-e-big placement domain held 25 s by another connection
+HOLDING placement domain tenant-e-big at 07:18:25.962973Z
+RELEASED placement domain tenant-e-big at 07:18:51.052500Z
+15:18:57.538 runtime_retention bindings_scanned=5 children_scanned=97 skipped=1 executions_deleted=96 sessions_deleted=1 bindings_deleted=3 duration_ms=3836
+15:19:01.029 runtime_retention bindings_scanned=1 children_scanned=100 skipped=0 executions_deleted=100 sessions_deleted=0 bindings_deleted=0 duration_ms=482
+15:19:04.964 runtime_retention bindings_scanned=16 children_scanned=87 skipped=15 executions_deleted=59 sessions_deleted=22 bindings_deleted=4 duration_ms=923
+15:19:08.130 runtime_retention bindings_scanned=13 children_scanned=6 skipped=16 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=163
+15:19:11.555 runtime_retention bindings_scanned=13 children_scanned=6 skipped=16 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=418
+15:19:14.698 runtime_retention bindings_scanned=13 children_scanned=6 skipped=16 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=130
+15:19:18.428 runtime_retention bindings_scanned=13 children_scanned=6 skipped=16 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=714
+15:19:21.787 runtime_retention bindings_scanned=13 children_scanned=6 skipped=16 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=354
+runtime_binding=19 runtime_session=6 tool_execution=5 runtime_binding_slot=26 runtime_placement_guard=26 
+binding c-half                       RELEASED           gen=1 sessions=0 executions=0
+binding c-missing                    RELEASED           gen=1 sessions=0 executions=0
+binding c-pending                    RELEASED           gen=1 sessions=1 executions=0
+binding c-rawid                      RELEASED           gen=1 sessions=0 executions=0
+binding p-ack                        RELEASED           gen=1 sessions=1 executions=1
+binding p-active-slot                RELEASED           gen=1 sessions=0 executions=0
+binding p-dispatch-lease             RELEASED           gen=1 sessions=1 executions=1
+binding p-failed-seeded              FAILED             gen=1 sessions=0 executions=0
+binding p-holder                     RELEASED           gen=1 sessions=0 executions=0
+binding p-managed-unproven           RELEASED           gen=1 sessions=0 executions=0
+binding p-nonterminal                RELEASED           gen=1 sessions=1 executions=1
+binding p-operator                   RELEASED           gen=1 sessions=1 executions=1
+binding p-publication                RELEASED           gen=1 sessions=1 executions=1
+binding p-recent                     RELEASED           gen=1 sessions=0 executions=0
+binding p-state-draining             DRAINING           gen=1 sessions=0 executions=0
+binding p-state-lost                 LOST               gen=1 sessions=0 executions=0
+binding p-state-operator-recovery    OPERATOR_RECOVERY  gen=1 sessions=0 executions=0
+binding p-state-ready                READY              gen=1 sessions=0 executions=0
+binding p-state-recovery-blocked     RECOVERY_BLOCKED   gen=1 sessions=0 executions=0
+kept-execution p-ack-x
+kept-execution p-pub-referenced-雪
+GET h-exec (expired):              {"error":"Runtime execution was not found","code":"runtime_execution_not_found","retryable":false} HTTP=404
+GET p-pub-sibling (unreferenced):  {"error":"Runtime execution was not found","code":"runtime_execution_not_found","retryable":false} HTTP=404
+GET p-pub-referenced (COLLECTED):  "state":"settled" HTTP=200 
+lineage rows: sessions=6 child_run projections=3
+## [r4my] 6. settle the parent's canonical child_run for c-pending while the real scheduler keeps running
+settled child_run run-c-pending
+15:19:49.968 runtime_retention bindings_scanned=13 children_scanned=7 skipped=15 executions_deleted=0 sessions_deleted=1 bindings_deleted=1 duration_ms=695
+15:19:53.240 runtime_retention bindings_scanned=12 children_scanned=6 skipped=15 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=253
+15:19:56.494 runtime_retention bindings_scanned=12 children_scanned=6 skipped=15 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=244
+c-* bindings left:
+binding c-half                       RELEASED           gen=1 sessions=0 executions=0
+binding c-missing                    RELEASED           gen=1 sessions=0 executions=0
+binding c-rawid                      RELEASED           gen=1 sessions=0 executions=0
+lineage rows: sessions=6 child_run projections=3
+regen e-legacy -> binding=e-legacy-gen2 generation=2 state=PROVISIONING
+## [r4my] done

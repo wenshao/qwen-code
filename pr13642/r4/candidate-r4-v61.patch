@@ -1,0 +1,87 @@
+From 8381693de3481b8f86ceb9ba1dc6851389e91b85 Mon Sep 17 00:00:00 2001
+From: probe <probe@local>
+Date: Sat, 10 Oct 2026 14:48:32 +0800
+Subject: [PATCH] candidate: move retention migration to V61 after main V57/V60
+
+---
+ docs/design/runtime-broker-jdbc-retention.md                    | 2 +-
+ docs/design/runtime-broker-jdbc-retention.zh-CN.md              | 2 +-
+ packages/sdk-java/managed-agent-server/README.md                | 2 +-
+ ...e_broker_retention.sql => V61__runtime_broker_retention.sql} | 0
+ .../qwen/code/managedagent/RuntimeBrokerFlywaySchemaTest.java   | 2 +-
+ .../qwen/code/managedagent/store/WorkspaceMigrationMySqlIT.java | 2 +-
+ 6 files changed, 5 insertions(+), 5 deletions(-)
+ rename packages/sdk-java/managed-agent-server/src/main/resources/db/migration/{V57__runtime_broker_retention.sql => V61__runtime_broker_retention.sql} (100%)
+
+diff --git a/docs/design/runtime-broker-jdbc-retention.md b/docs/design/runtime-broker-jdbc-retention.md
+index 52b48d2e8b..8f048ad407 100644
+--- a/docs/design/runtime-broker-jdbc-retention.md
++++ b/docs/design/runtime-broker-jdbc-retention.md
+@@ -34,7 +34,7 @@ Add indexes for binding state/time/ID, tenant/state and embedding reference keys
+ 
+ Enabling retention makes historical receipts and idempotency guarantees finite. After deletion, existing missing-record behavior applies; callers must not reuse expired runtime-session IDs or idempotency keys. No permanent execution tombstones are added.
+ 
+-Deploy V57 after the existing V56 actor migration with retention disabled, and verify upgrades from V56 preserve existing terminal receipts. Enable only after every instance uses the new publication locking protocol. Observe scan/deletion/skip counts, duration and failures. Disable retention before reverting to older writers. Disabling stops future cleanup but cannot restore deleted records.
++Deploy V61 after the existing V60 child Workspace migration with retention disabled, and verify upgrades from V60 preserve existing terminal receipts. Enable only after every instance uses the new publication locking protocol. Observe scan/deletion/skip counts, duration and failures. Disable retention before reverting to older writers. Disabling stops future cleanup but cannot restore deleted records.
+ 
+ ## Validation and acceptance
+ 
+diff --git a/docs/design/runtime-broker-jdbc-retention.zh-CN.md b/docs/design/runtime-broker-jdbc-retention.zh-CN.md
+index 7d9ce2427c..2127fac131 100644
+--- a/docs/design/runtime-broker-jdbc-retention.zh-CN.md
++++ b/docs/design/runtime-broker-jdbc-retention.zh-CN.md
+@@ -34,7 +34,7 @@ Managed-server 使用独立单线程 scheduler，只有 Broker 和 retention 同
+ 
+ 开启清理后，历史 receipt 与幂等保证具有有限保留期。删除后沿用缺失记录行为；调用方不得复用过期 runtime-session ID 或 idempotency key。本次不增加永久 execution 墓碑。
+ 
+-在已有 V56 actor migration 后部署 V57，并保持清理关闭；验证从 V56 升级后既有终态 receipt 保留。全部实例使用新的 publication 锁协议后才开启。观察扫描、删除、跳过数、耗时和失败次数。回退到旧 writer 前先关闭清理。关闭只停止后续删除，不能恢复已删除数据。
++在已有 V60 child Workspace migration 后部署 V61，并保持清理关闭；验证从 V60 升级后既有终态 receipt 保留。全部实例使用新的 publication 锁协议后才开启。观察扫描、删除、跳过数、耗时和失败次数。回退到旧 writer 前先关闭清理。关闭只停止后续删除，不能恢复已删除数据。
+ 
+ ## 验证与验收
+ 
+diff --git a/packages/sdk-java/managed-agent-server/README.md b/packages/sdk-java/managed-agent-server/README.md
+index 8dbc34af31..8f527d8118 100644
+--- a/packages/sdk-java/managed-agent-server/README.md
++++ b/packages/sdk-java/managed-agent-server/README.md
+@@ -790,7 +790,7 @@ scanned, skipped and deleted counts and duration; failures retry on the next tic
+ 
+ Enabling retention makes historical receipts and idempotency guarantees finite.
+ After cleanup, existing missing-record responses apply. Callers must not reuse
+-expired Runtime Session IDs or idempotency keys. Deploy Flyway V57 and the code
++expired Runtime Session IDs or idempotency keys. Deploy Flyway V61 and the code
+ with cleanup disabled, upgrade every publication writer to the new locking
+ protocol, then enable it. Disable retention before reverting to older writers;
+ disabling prevents future cleanup but cannot restore deleted records. See the
+diff --git a/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V57__runtime_broker_retention.sql b/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V61__runtime_broker_retention.sql
+similarity index 100%
+rename from packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V57__runtime_broker_retention.sql
+rename to packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V61__runtime_broker_retention.sql
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/RuntimeBrokerFlywaySchemaTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/RuntimeBrokerFlywaySchemaTest.java
+index dde005be7b..811abbc691 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/RuntimeBrokerFlywaySchemaTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/RuntimeBrokerFlywaySchemaTest.java
+@@ -73,7 +73,7 @@ class RuntimeBrokerFlywaySchemaTest {
+ 
+     @Test
+     void retentionIndexesPreserveExistingTerminalReceiptsOnUpgrade() throws Exception {
+-        DataSource source = migrate(dataSource(), MigrationVersion.fromVersion("56"));
++        DataSource source = migrate(dataSource(), MigrationVersion.fromVersion("60"));
+         JdbcRepositoryContract.writeLegacyRows(source, "retention-upgrade");
+         migrate(source, MigrationVersion.LATEST);
+         var execution = new JdbcToolExecutionRepository(source)
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationMySqlIT.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationMySqlIT.java
+index 3321cc3da9..6d6af2f24c 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationMySqlIT.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationMySqlIT.java
+@@ -63,7 +63,7 @@ class WorkspaceMigrationMySqlIT {
+         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history"
+                 + " WHERE installed_rank > ? AND success = TRUE ORDER BY installed_rank",
+                 String.class, lastRank)).containsExactly("48", "49", "50",
+-                "51", "52", "53", "54", "55", "56", "57", "60");
++                "51", "52", "53", "54", "55", "56", "57", "60", "61");
+         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM managed_workspace_migration", Integer.class)).isZero();
+         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM qwen_runtime_storage_fence", Integer.class)).isZero();
+     }
+-- 
+2.55.0
+
