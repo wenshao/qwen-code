@@ -1,0 +1,17 @@
+diff --git a/packages/cli/src/serve/remote-shell-result-publication.ts b/packages/cli/src/serve/remote-shell-result-publication.ts
+index 44f21ed..215d463 100644
+--- a/packages/cli/src/serve/remote-shell-result-publication.ts
++++ b/packages/cli/src/serve/remote-shell-result-publication.ts
+@@ -172,7 +172,11 @@ class PublicationClient {
+         'X-Qwen-Tenant-Id': String(this.key['tenantId']),
+         'X-Qwen-Tool-Publication-Token': this.installed.publicationToken,
+         'X-Qwen-Tool-Publication-Operation': operationId,
+-        'X-Qwen-Tool-Publication-Async': '1',
++        // Only whole-stream scans go async; a 1 MiB segment or a small
++        // resource verifies faster than one 250 ms status poll.
++        ...(/\/(seal|prefix)$|^\/finish$/.test(suffix)
++          ? { 'X-Qwen-Tool-Publication-Async': '1' }
++          : {}),
+         'Cache-Control': 'no-store',
+         ...headers,
+       },

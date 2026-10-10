@@ -1,0 +1,22 @@
+Latency on 915ab691: unchanged regression, and two client fixes measured
+Paired runs: base 1f4484d3 and the arm under test started at the same moment with the same command (two complete stacks); time-to-receipt from the proxy ledger
+## Head as-is vs base, load 40-57 (P51-P57)
+== workload                                      base (sync)                   head (async)
+== 16 MiB, x3: turn                              7.0 / 7.4 / 7.4 s             11.6 / 10.8 / 11.0 s
+== 16 MiB: median 1 MiB segment to receipt       80 / 68 / 66 ms               316 / 309 / 300 ms
+!! 128 MiB, x2: turn                             23.0 / 18.5 s                 50.9 / 48.7 s
+!! 128 MiB: time to write the output             9.0 / 11.3 s                  41.6 / 40.7 s
+-- 512 MiB, default 120 s Shell timeout, x2      written in 33.0 / 30.8 s,     "Command timed out after 120000ms",
+--                                               512/512 segments exact        387 / 387 segments captured
+## Candidate 2: author's proposal, first status poll at 25 ms then x2 up to 250 ms (+4/-1, 67/67 adapter tests unchanged), load 42-51 (P21-P27)
+== workload                                      base (sync)                   candidate 2
+== 16 MiB, x3: turn                              4.6 / 4.5 / 4.3 s             6.9 / 4.4 / 4.4 s
+== 16 MiB: median 1 MiB segment to receipt       37 / 34 / 30 ms               75 / 58 / 59 ms
+!! 128 MiB, x2: turn                             14.3 / 12.3 s                 20.4 / 16.3 s
+++ 512 MiB, x2                                   written in 26.8 / 42.9 s      written in 38.9 / 73.4 s, 512/512 exact, no timeout
+## Candidate 1: async header only for seal / prefix / finish (+5/-1, one adapter test pins the header on a segment), load 32-39 (P31-P37)
+== workload                                      base (sync)                   candidate 1
+++ 16 MiB, x3: turn                              4.3 / 4.4 / 4.3 s             6.8 / 4.5 / 4.3 s   (3 ASYNC, 20 SYNC)
+++ 128 MiB, x2: turn                             16.3 / 18.5 s                 18.5 / 18.6 s
+++ 512 MiB, x2                                   written in 48.4 / 42.8 s      written in 49.5 / 43.0 s, 512/512 exact
+>> Candidate 2 keeps all five operation kinds async and removes the timeout here, but large outputs still pay ~30-70 %. Candidate 1 is at parity.

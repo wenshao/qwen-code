@@ -1,0 +1,23 @@
+diff --git a/packages/cli/src/serve/remote-shell-result-publication.ts b/packages/cli/src/serve/remote-shell-result-publication.ts
+index 44f21ed..b4c6214 100644
+--- a/packages/cli/src/serve/remote-shell-result-publication.ts
++++ b/packages/cli/src/serve/remote-shell-result-publication.ts
+@@ -278,6 +278,8 @@ class PublicationClient {
+       }
+       if (initial['state'] === undefined) return initial;
+       let status = initial;
++      // First poll soon after a 202, then back off to the existing 250 ms.
++      let pollDelay = 25;
+       while (Date.now() < deadline) {
+         if (status['state'] === 'SUCCEEDED') return record(status['receipt']);
+         if (status['state'] === 'FAILED') {
+@@ -323,7 +325,8 @@ class PublicationClient {
+           throw new Error(
+             `Publication operation ended as ${String(status['state'])}.`,
+           );
+-        await new Promise((resolve) => setTimeout(resolve, 250));
++        await new Promise((resolve) => setTimeout(resolve, pollDelay));
++        pollDelay = Math.min(250, pollDelay * 2);
+         const current = await observe();
+         if (current === null)
+           throw new Error(

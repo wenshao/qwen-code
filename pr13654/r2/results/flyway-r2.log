@@ -1,0 +1,44 @@
+== T1 trial merge as-is (two V57) on a fresh schema
+-- start merge2 on p654f1
+spring died
+    Found more than one migration with version 57
+   history: ERROR 1146 (42S02) at line 1: Table 'p654f1.flyway_schema_history' doesn't exist
+== T2 main 1f4484d3 to V60, then trial merge with the async migration renumbered to V61
+-- start main2 on p654f2
+spring died
+    Successfully applied 58 migrations to schema `p654f2`, now at version v60 (execution time 00:23.561s)
+   history: 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,60 (58 rows, failed=0)
+-- start merge2v61 on p654f2
+spring died
+    Successfully applied 1 migration to schema `p654f2`, now at version v61 (execution time 00:00.676s)
+   history: 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,60,61 (59 rows, failed=0)
+== T3 main 1f4484d3 to V60, then trial merge with the async migration renumbered to V58 (free number below main's max)
+-- start main2 on p654f3
+spring died
+    Successfully applied 58 migrations to schema `p654f3`, now at version v60 (execution time 00:13.665s)
+   history: 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,60 (58 rows, failed=0)
+-- start merge2v58 on p654f3
+spring died
+    Validate failed: Migrations have failed validation
+    Detected resolved migration not applied to database: 58.
+   history: 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,60 (58 rows, failed=0)
+== T4 fresh schema with the V58 variant (applies in order)
+-- start merge2v58 on p654f4
+spring died
+    Successfully applied 59 migrations to schema `p654f4`, now at version v60 (execution time 00:10.171s)
+   history: 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,60 (59 rows, failed=0)
+== T5 PR head dc9e6abf on a fresh schema
+-- start head2 on p654f5
+spring died
+    Successfully applied 57 migrations to schema `p654f5`, now at version v57 (execution time 00:12.810s)
+   history: 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57 (57 rows, failed=0)
+== done
+spring died
+spring died
+== T2b/T5b with the OSS double running (full startup)
+lane 1 spring up pid=97334 port=18654 arm=merge2v61 worker=/Users/wenshao/git/qwen-code-pr13654 db=p654f2 async=unset
+Schema `p654f2` is up to date. No migratio
+Started ManagedAgentServerApplication in 21.757 seconds
+lane 1 spring up pid=98327 port=18654 arm=head2 worker=/Users/wenshao/git/qwen-code-pr13654 db=p654f5 async=unset
+Schema `p654f5` is up to date. No migratio
+Started ManagedAgentServerApplication in 19.48 seconds

@@ -1,0 +1,23 @@
+PR #13654 round 2 on a real stack: head 915ab691 (base = merge base 1f4484d3)
+Same rig as round 1 (MySQL 8.4.7, Spring jar + embedded Runtime Broker, packaged Hosted Harness + real worker, aliyun-sdk-oss against a TLS OSS double, proxy ledger)
+## Contract re-run on 915ab691 (async on, head worker)
+++ 5 MiB + 1 MiB / 64 MiB + 8 MiB              14 / 78 ops 202 -> SUCCEEDED, bytes exact
+++ readback held 8 s                           1st POST 202 in 56 ms; base kept the POST open 24 s
+++ first object PUT delayed 5 s                1st 202 only after 5.1 s (the PUT gates acceptance), exact
+++ first six object GETs answer 500            verifier retries (OSSException), SUCCEEDED, exact
+++ flip one byte while held                    FAILED {400 invalid_request} once, never re-posted, segment QUARANTINED
+++ replay a SUCCEEDED op                       200 in 50 ms, 0 object GETs, identical receipt; later real read still quarantines
+++ SIGKILL Spring after 202, admission OFF     accepted op re-claimed at epoch 3 after 30.9 s, SUCCEEDED; later ops SYNC, finish OK
+++ flag off (head worker) / legacy worker      14 x 200, SYNC, POST blocks while readback is held, bytes exact
+## Migrations (round-1 blocker)
+-- dc9e6abf V57 vs main V57 (#13598)           trial merge: "Found more than one migration with version 57" + test-file conflict
+++ 915ab691 V61                                CI guard on head + main 6386bb24: 59 unique; main DB at V60 -> applies V61, starts
+!! renumbering below main's max                main DB at V60 + async SQL as V58: "Detected resolved migration not applied to database: 58"
+## Review Criticals, A/B on the real stack (sequential, same scenario per arm)
+== R4-2  one AccessDenied on the first object GET after POST /finish
+==       base 1f4484d3 (sync):  POST /finish -> 403 storage_denied, turn blocked, publication left FINISHING, terminal CANDIDATE
+==       head 915ab691 (async): FAILED {403 storage_denied}, turn blocked, publication back to OPEN (fix works); no second finish is sent
+== R5-1  journal commits (activation renewals) answer 503 for 70 s while readback is held
+==       both arms: activation lapses and is never renewed; the Harness's grant renewal is refused (400), publication FENCED, turn blocked
+==       head: the verifier fails the accepted op with 400 on the fenced grant; the new "defer while lapsed" branch is not reached on this path
+>> Round-1 behaviour holds on the new head and the merge blocker is fixed. R4-2 and R5-1 end the same way on base and head for these triggers.
