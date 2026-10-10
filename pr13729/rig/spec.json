@@ -1,0 +1,105 @@
+[
+ {
+  "name": "01-headless-replacement",
+  "title": "S1 \u00b7 Headless text-only turn after a conversation-only rewind",
+  "sub": "Real <code>dist/cli.js</code> bundles, keyboard in tmux, loopback model, real read_file/write_file. MARK_A, MARK_B (no edit) \u2192 MARK_C edits state.txt BASELINE\u2192OLD_EDIT \u2192 Esc Esc \u2192 <b>Restore conversation only</b> on MARK_C (checkpoint #2 retained) \u2192 <code>qwen --resume &lt;id&gt; -p \"MARK_D \u2026\"</code> \u2192 interactive <code>--resume</code>, rewind selector on MARK_D.",
+  "panels": [
+   {
+    "kind": "bad",
+    "head": "main @ 1e1c4a4: MARK_D was minted ordinal 2 (the retained checkpoint's identity), so the text-only turn offers a code restore",
+    "frame": {
+     "file": "/Users/wenshao/pr13729-rig/runs/s1-main/caps/c2-options-replacement.ansi",
+     "from": "> MARK_D",
+     "to": "Never mind"
+    }
+   },
+   {
+    "kind": "bad",
+    "head": "main @ 1e1c4a4: choosing \"Restore code only\" reverts an edit this turn never made",
+    "frame": {
+     "file": "/Users/wenshao/pr13729-rig/runs/s1-main/caps/c3-after-code-restore.ansi",
+     "from": "> MARK_D",
+     "to": "Restored"
+    },
+    "text": "<span style=\"color:#ff7b72\">$ cat state.txt\nBASELINE   (was OLD_EDIT)</span>"
+   },
+   {
+    "kind": "good",
+    "head": "main + PR 13729 (head 79a6d01, trial merge): MARK_D was minted ordinal 3, no file restore is offered, and the file is untouched",
+    "frame": {
+     "file": "/Users/wenshao/pr13729-rig/runs/s1-merge/caps/c2-options-replacement.ansi",
+     "maxCols": 124,
+     "from": "> MARK_D",
+     "to": "File restore is unavailable"
+    },
+    "text": "<span style=\"color:#3fb950\">$ cat state.txt\nOLD_EDIT</span>"
+   }
+  ],
+  "note": "Control on both arms, same session: a real edit turn (MARK_E, \u2192CTRL_EDIT) still offers and performs \"Restore code only\" (<code>Restored 1 file(s).</code>)."
+ },
+ {
+  "name": "02-interactive-resume",
+  "title": "S2 / S4 \u00b7 Interactive --resume path (the Ink seed computeResumedPromptCountSeed)",
+  "sub": "After the conversation-only rewind, resume interactively, send a text-only MARK_D, then an edit MARK_E (OLD_EDIT\u2192NEW_EDIT), then Esc Esc \u2192 MARK_D \u2192 <b>Restore code only</b>. Expected: state.txt back to OLD_EDIT (MARK_D's starting state).",
+  "panels": [
+   {
+    "kind": "bad",
+    "head": "S2 \u00b7 main @ 1e1c4a4: MARK_D re-minted ordinal 2 \u2192 two checkpoints share one identity \u2192 restore refused",
+    "frame": {
+     "file": "/Users/wenshao/pr13729-rig/runs/s2-main/caps/b3-after-code-restore.ansi",
+     "maxCols": 110,
+     "from": "> MARK_D",
+     "to": "Failed to restore"
+    },
+    "text": "<span style=\"color:#ff7b72\">$ cat state.txt\nNEW_EDIT</span>"
+   },
+   {
+    "kind": "good",
+    "head": "S2 \u00b7 main + PR 13729 (head 79a6d01, trial merge): MARK_D minted ordinal 3 \u2192 restore works",
+    "frame": {
+     "file": "/Users/wenshao/pr13729-rig/runs/s2-merge/caps/b3-after-code-restore.ansi",
+     "maxCols": 110,
+     "from": "> MARK_D",
+     "to": "Restored"
+    },
+    "text": "<span style=\"color:#3fb950\">$ cat state.txt\nOLD_EDIT</span>"
+   },
+   {
+    "kind": "bad",
+    "head": "S4 (first turn edits; rewind removes every user turn) \u00b7 main @ 1e1c4a4: MARK_D re-minted ordinal 0 \u2192 refused",
+    "frame": {
+     "file": "/Users/wenshao/pr13729-rig/runs/s4-main/caps/b3-after-code-restore.ansi",
+     "maxCols": 110,
+     "from": "MARK_E done",
+     "to": "Failed to restore"
+    },
+    "text": "<span style=\"color:#ff7b72\">$ cat state.txt\nNEW_EDIT</span>"
+   },
+   {
+    "kind": "good",
+    "head": "S4 \u00b7 main + PR 13729 (head 79a6d01, trial merge): MARK_D minted ordinal 1 \u2192 restore works",
+    "frame": {
+     "file": "/Users/wenshao/pr13729-rig/runs/s4-merge/caps/b3-after-code-restore.ansi",
+     "maxCols": 110,
+     "from": "MARK_E done",
+     "to": "Restored"
+    },
+    "text": "<span style=\"color:#3fb950\">$ cat state.txt\nOLD_EDIT</span>"
+   }
+  ]
+ },
+ {
+  "name": "03-matrix",
+  "title": "End-to-end matrix \u00b7 4 bundles \u00d7 5 cases (ordinal minted for the replacement turn; retained checkpoint is #2, or #0 in S4)",
+  "sub": "m1/m2 are copies of the merge bundle with exactly one minified hunk reverted (one definition site each in <code>dist/chunks</code>). Every cell is a separate fresh HOME + workspace run.",
+  "html": "<table><tr><th>case</th><th>entrance</th><th>main @ 1e1c4a4</th><th>main + PR</th><th>m1: PR minus CLI hunk<br><span class=\"m\">(<code>records.length===0</code> \u2192 <code>userTurnCount===0</code>)</span></th><th>m2: PR minus core hunk<br><span class=\"m\">(snapshot ordinals not read)</span></th></tr><tr><td>S1</td><td>headless <code>--resume -p</code>, then Ink selector on it</td><td><span class=\"r\">#2 \u00b7 code restore offered, taken: OLD_EDIT\u2192BASELINE</span></td><td><span class=\"g\">#3 \u00b7 not offered, OLD_EDIT kept</span></td><td><span class=\"g\">#3 \u00b7 not offered</span></td><td><span class=\"r\">#2 \u00b7 \u2192BASELINE</span></td></tr><tr><td>S1 ctl</td><td>real edit turn, Restore code only</td><td><span class=\"g\">restored</span></td><td><span class=\"g\">restored</span></td><td><span class=\"g\">restored</span></td><td><span class=\"g\">restored</span></td></tr><tr><td>S2</td><td>interactive <code>--resume</code> (2 surviving user turns)</td><td><span class=\"r\">#2 \u00b7 restore refused (shared identity)</span></td><td><span class=\"g\">#3 \u00b7 NEW_EDIT\u2192OLD_EDIT</span></td><td><span class=\"g\">#3 \u00b7 restored</span></td><td><span class=\"r\">#2 \u00b7 refused</span></td></tr><tr><td>S3</td><td>ACP <code>session/load</code> + <code>session/prompt</code></td><td><span class=\"r\">#2 (collides)</span></td><td><span class=\"g\">#3</span></td><td><span class=\"g\">#3</span></td><td><span class=\"r\">#2</span></td></tr><tr><td>S4</td><td>interactive, first turn edited, 0 surviving user turns</td><td><span class=\"r\">#0 \u00b7 restore refused</span></td><td><span class=\"g\">#1 \u00b7 NEW_EDIT\u2192OLD_EDIT</span></td><td><span class=\"r\">#0 \u00b7 refused</span></td><td><span class=\"g\">#1 \u00b7 restored</span></td></tr></table>",
+  "note": "Each production hunk is load-bearing for a different case: the core snapshot-ordinal read fixes S1/S2/S3; the CLI <code>records.length === 0</code> guard alone fixes S4. Reverting either one brings its cases back to main's behaviour."
+ },
+ {
+  "name": "04-acp-rewind",
+  "title": "ACP rewind after a TUI conversation-only rewind (pre-existing position offset)",
+  "sub": "Same TUI fixture as S1, then <code>--acp</code> stdio: <code>session/load</code>, prompts, and the rewind control the daemon HTTP route forwards (it requires <code>promptId</code>).",
+  "html": "<table><tr><th>daemon-path rewind (<code>qwen/control/session/rewind</code>, <code>promptId</code>, <code>rewindFiles:true</code>)</th><th>main @ 1e1c4a4</th><th>main + PR</th></tr><tr><td>2 ACP turns: F (text), G (edit) \u2192 rewind to F</td><td>cut before F <span class=\"g\">\u2713</span><br>files: <span class=\"r\">BASELINE \u2717</span> (stale checkpoint; <code>filesFailed: []</code>, no error)</td><td>cut before G <span class=\"r\">\u2717 (F survives)</span><br>files: <span class=\"g\">OLD_EDIT \u2713</span></td></tr><tr><td>2 ACP turns \u2192 rewind to G</td><td>rejected: <i>Cannot rewind to the requested turn\u2026</i></td><td>rejected: same</td></tr><tr><td>3 ACP turns: F, G, H \u2192 rewind to G</td><td>targetTurnIndex 4: cut before H <span class=\"r\">\u2717 (G survives)</span><br>files: OLD_EDIT</td><td>targetTurnIndex 4: cut before H <span class=\"r\">\u2717 (G survives)</span><br>files: OLD_EDIT</td></tr></table>",
+  "note": "ACP resolves <code>promptId</code> \u2192 <code>snapshots.findIndex()</code> position \u2192 turn index. The TUI conversation-only rewind keeps the target turn's checkpoint, so every later position is shifted by one. Row 3 shows this already on main. The PR removes the silent stale-file restore for F; F then lands on the same one-turn-late cut every later turn already had. Not a regression from this diff; #13737 says ACP will \"resolve recorded boundaries independently of snapshot indexes\" (not run here)."
+ }
+]
