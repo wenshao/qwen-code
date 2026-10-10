@@ -1,0 +1,34 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>.two{display:grid;grid-template-columns:1fr 1fr;gap:16px} h2{font-size:15px;margin:14px 0 6px} td{font-size:13px}</style></head><body><div class="card">
+<h1>#13682 R1 · Upgrade path, mixed versions and test sensitivity</h1>
+<div class="sub">Same MySQL 8.0.45 rig. Flyway runs inside the real server jar at boot. Mutants are applied one at a time to <code>785dc863</code> and restored byte-for-byte. "Focused" = the PR's 8 changed server test classes (222 tests) / HostedHarnessClientTest (65); "full" = the whole module unit suites (1775 + 218), run twice on the unmutated head as a baseline: <code>RuntimeBrokerDefaultOnTest</code> fails there 1/2, and it, <code>ReplayFloorRetractionTest</code> and one lifecycle test are the only failures seen with any surviving mutant, each inconsistent across re-runs.</div>
+<h2>Flyway upgrade (spring.flyway.out-of-order is unset → false)</h2>
+<table>
+<tr><th style="width:30%">Database before</th><th style="width:22%">Applied history</th><th>PR jar boot</th></tr>
+<tr><td class="s">migrated by main <code>2ebbd4e1</code> (merge base)</td><td class="m">…, 56, 57, 60, 62</td><td class="bad"><b>refuses to start</b>: <code>FlywayValidateException: Detected resolved migration not applied to database: 59. … set -outOfOrder=true</code></td></tr>
+<tr><td class="s">migrated by main <code>9763580b</code> (head's new merge base)</td><td class="m">…, 57, 60, 62, 64</td><td class="bad"><b>refuses to start</b> (same error) — reproduced on <code>6c66366a</code></td></tr>
+<tr><td class="s">at V57 (main before 2026-10-10 05:22 UTC) or fresh</td><td class="m">…, 57</td><td class="good">applies 59 → 60 → 62 (→ 64) in 0.56–0.76 s; rename then works end to end</td></tr>
+</table>
+<h2>Mixed versions</h2>
+<table>
+<tr><th style="width:30%">Pair</th><th>Rename</th><th style="width:22%">Close afterwards</th></tr>
+<tr><td class="s">PR server + main Harness/worker</td><td class="good">503 <code>hosted_harness_unavailable</code> "must support title protocol version 1", before admission: 0 command rows, 0 delivery rows, 0 Harness calls</td><td class="good">202 → CLOSED</td></tr>
+<tr><td class="s">main server + PR Harness/worker</td><td class="good">200, unfenced path; both stores equal</td><td class="good">202 → CLOSED</td></tr>
+</table>
+<div class="two">
+<div><h2>Java mutants (19)</h2>
+<table>
+<tr><th>Result</th><th>Mutants</th></tr>
+<tr><td class="good">killed by the focused classes (12)</td><td>J1 disabled replica claims · J2 ended sweep removed · J3 no renewal · J5 cold resolve uses ordinary load · J6 no title-protocol check · J7 isBlank rule · J8 409 flattened · J10 lifecycle ignores delivery · J12 migration ignores delivery · J13 abandon ignores owner · J15 rename recovery on disabled replica · Q2 SDK sends to old Harness</td></tr>
+<tr><td class="bad">survive focused <i>and</i> full suites (7)</td><td><b>J11</b> cwd ignores an open delivery · <b>J14</b> recovery worker never completes the receipt · <b>Q1</b> SDK revision-echo check · J4 lost-lease guard before resolve · J16 ended sweep drops decision receipt · J17 inline failure not rescheduled (recovery waits out the 60 s lease) · J9 revision check on completion (likely equivalent: key + title are also compared)</td></tr>
+</table></div>
+<div><h2>TS mutants (7) and real-stack replay</h2>
+<table>
+<tr><th>Result</th><th>Mutants</th></tr>
+<tr><td class="good">killed</td><td>T2 fence removed · T3 watermark dropped · T4 per-attempt command id · T5 409→503 · T6 no revision echo · T7 revision ignored</td></tr>
+<tr><td class="warn">survives</td><td>T1 <code>&lt;=</code>→<code>&lt;</code> (likely equivalent: an equal revision reuses <code>hosted-title:N</code> and is deduplicated first)</td></tr>
+<tr><td class="bad">real stack catches unit survivors</td><td>J14 jar: receipt stays FAILED, public <code>null</code> / private title, replay writes a 2nd record. J11 jar: cwd <b>202</b> on an empty Session with the delivery open (head: 409)</td></tr>
+</table></div>
+</div>
+<div class="foot">Scripts: run_java.py / run_ts.py / mutjar.py, probes p5, p6 (EMPTY=1) — VERIFICATION RIG ONLY.</div>
+</div></body></html>

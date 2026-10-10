@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="card">
+<h1>#13682 R1 · Session titles on the real stack: main vs PR</h1>
+<div class="sub">Linux aarch64 · MySQL 8.0.45 · Spring A (dispatcher + embedded Broker) + Spring B (Session Store, Harness disabled) on one database · packaged Hosted Harness · fault tap on Spring→Harness. "Public" = SQL title; "private" = the Harness journal's <code>session_metadata</code> record read back from the Session Store. base = merge base <code>2ebbd4e1</code> (main) · head = <code>785dc863</code>, key cells re-run on <code>6c66366a</code>.</div>
+<table>
+<tr><th style="width:23%">Scenario</th><th>base (main 2ebbd4e1)</th><th>PR head</th></tr>
+<tr><td class="s">Unicode-only titles<small>NBSP, U+FEFF, U+2007, U+202F, mixed (U+3000 / U+2028 are 400 on both)</small></td>
+<td class="bad">admitted → Harness 400 → public <b>503</b> <code>hosted_harness_unavailable</code>; each leaves <b>+1 FAILED command</b> and +1 Harness call (5/5)</td>
+<td class="good"><b>400</b> <code>invalid_title</code> before admission; 0 command rows, 0 deliveries, 0 Harness calls (7/7); close still admitted; inner NBSP/U+2007/U+202F preserved byte-exact in both stores</td></tr>
+<tr><td class="s">Lost reply<small>Harness commits, tap drops the reply (bound+Turn, bound empty, unbound)</small></td>
+<td class="bad">receipt stays <b>FAILED</b>; public <code>null</code> vs private "Lost Reply Title" for 30 s+ (3/3); same-key replay writes a <b>second</b> journal record</td>
+<td class="good">client gets 503, then the recovery worker completes the receipt in <b>0.7–1.2 s</b> with no client retry (6/6); exactly 1 journal record; replay writes nothing; changed content → 409</td></tr>
+<tr><td class="s">Late older write<small>K1 "Alpha" held 40 s at the tap (&gt; 30 s request timeout), K2 "Bravo" completes, then K1 reaches the Harness</small></td>
+<td class="bad">late K1 is applied: public <b>Bravo</b> / private <b>Alpha</b> (bound and unbound)</td>
+<td class="good">late K1 (revision 1) → Harness <b>409 superseded</b>; both stores Bravo; retrying K1 gets revision 3 and wins in both (Alpha) — bound and unbound</td></tr>
+<tr><td class="s">Seal while a delivery is open<small>Harness committed, reply lost, redeliveries 503 for 8–15 s; then close / delete</small></td>
+<td class="bad">close admitted at once → Session <b>CLOSED</b> with public <code>null</code> / private "Sealed Title" (permanent divergence); delete likewise</td>
+<td class="good">close / archive → <b>409</b> <code>session_operation_active</code> ("title delivery awaiting completion"), cwd → 409; after the Harness recovers the delivery settles in 0.4–14.8 s (wherever its backoff stands), then close/delete are admitted and both titles are equal</td></tr>
+<tr><td class="s">Round-9 rename boundary (c21)<small>K1 reply held 7 s; K1 retry refused; K2; K1 retry refused</small></td>
+<td class="bad">public <b>Alpha</b> / private <b>Bravo</b></td>
+<td class="good">K2 is refused (409 <code>session_operation_active</code>) while K1 is in flight; both stores Alpha</td></tr>
+<tr><td class="s">Overlapping same-key retries (c19)</td>
+<td class="neutral">both stores "title A"</td>
+<td class="good">both stores "title A" (revisions B@2, A@3)</td></tr>
+<tr><td class="s">Permanently failing delivery<small>owner-accepted contract (R2-4)</small></td>
+<td class="neutral">—</td>
+<td class="warn">retried with backoff (1 s → 60 s cap) for as long as the Harness refuses; close/archive/delete/cwd/migration stay refused (409) meanwhile; no API escape hatch</td></tr>
+</table>
+<div class="foot">Probes p4–p7, c19, c21 (VERIFICATION RIG ONLY). Head cells re-run on 6c66366a with identical outcomes (p4 bound, p5 turn/unbound, p6 close/empty, p7, c21).</div>
+</div></body></html>

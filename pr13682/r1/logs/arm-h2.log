@@ -1,0 +1,271 @@
+ARM2-START 17:23:27 jar sha=e587345b93e9ad7a migrations=V57__ V59__ V60__ V62__ V64__ 
+harness pid=1192248 dist=h2 up after 2s log=/root/v13682/rig/run/h2/harness-0.log
+springb pid=1192293 jar=h2 store=http://127.0.0.1:18683 up after 33s log=/root/v13682/rig/run/h2/springb-0.log
+spring pid=1193655 jar=h2 store=http://127.0.0.1:18683 up after 7s log=/root/v13682/rig/run/h2/spring-0.log
+### [h2 17:24:09] /usr/bin/node p7-unicode.mjs ws-u a
+# p7-unicode  db=h2  2026-10-10T17:24:09.774Z
+PASS  initial Turn COMPLETED  -> 5f2aad1b-b943-476d-9e50-2d7197de72b5
+NOTE  NBSP (U+00A0)  -> 400 invalid_title; commands +0; Harness title POSTs +0; delivery null
+NOTE  FEFF (U+FEFF)  -> 400 invalid_title; commands +0; Harness title POSTs +0; delivery null
+NOTE  U2007 (U+2007)  -> 400 invalid_title; commands +0; Harness title POSTs +0; delivery null
+NOTE  U202F (U+202F)  -> 400 invalid_title; commands +0; Harness title POSTs +0; delivery null
+NOTE  mixed (U+00A0 U+2007 U+202F U+FEFF)  -> 400 invalid_title; commands +0; Harness title POSTs +0; delivery null
+NOTE  IDEOSP (U+3000)  -> 400 invalid_title; commands +0; Harness title POSTs +0; delivery null
+NOTE  LS (U+2028)  -> 400 invalid_title; commands +0; Harness title POSTs +0; delivery null
+PASS  all Unicode-blank titles answer 400 invalid_title  -> {"NBSP":"400 invalid_title","FEFF":"400 invalid_title","U2007":"400 invalid_title","U202F":"400 invalid_title","mixed":"400 invalid_title","IDEOSP":"400 invalid_title","LS":"400 invalid_title"}
+PASS  no command row and no Harness call for any of them  -> {"NBSP":"0/0","FEFF":"0/0","U2007":"0/0","U202F":"0/0","mixed":"0/0","IDEOSP":"0/0","LS":"0/0"}
+NOTE  visible title with inner NBSP/U+2007/U+202F  -> 200 A B C D
+PASS  visible title keeps its exact code points in both stores  -> DB "A B C D" / Harness "A B C D"
+NOTE  close afterwards  -> 202 pending → CLOSED
+PASS  close is still admitted  -> 202 CLOSED
+== p7-unicode: 5 passed, 0 failed
+RC=0
+### [h2 17:24:23] /usr/bin/node p5-lost-reply.mjs turn ws-l5 b
+# p5-lost-reply-turn  db=h2  2026-10-10T17:24:23.674Z
+NOTE  create  -> 202 01d12a1e-d382-4dfc-8ef2-84776cef4893
+PASS  initial Turn COMPLETED
+NOTE  rename whose reply is lost after the Harness committed  -> 503 hosted_harness_unavailable after 222 ms; DB <null>; commands [["k-1791653063904-4e78","FAILED"]]; delivery ["1","k-1791653063904-4e78","Lost Reply Title","PENDING","1","","1791653069497"]
+NOTE  waited (no client retry) for the receipt to complete  -> completed at +1175 ms
+NOTE  title POSTs seen by the tap  -> ["Lost Reply Title@1:drop-after:200","Lost Reply Title@1:-:200"]
+NOTE  journal title records  -> ["Lost Reply Title@1:hosted-title:1"]
+PASS  public receipt completes without a client retry  -> [["k-1791653063904-4e78","COMPLETED"]]
+PASS  public and Harness titles agree  -> DB Lost Reply Title / Harness Lost Reply Title
+PASS  exactly one title record in the journal  -> 1
+NOTE  replay of the completed key / same key with changed content  -> 200 Lost Reply Title / 409 idempotency_conflict; Harness title POSTs added 0; journal records 1
+PASS  replay writes nothing; changed content conflicts  -> 200/409
+== p5-lost-reply-turn: 5 passed, 0 failed
+RC=0
+### [h2 17:24:31] /usr/bin/node p5-lost-reply.mjs unbound - -
+# p5-lost-reply-unbound  db=h2  2026-10-10T17:24:31.969Z
+NOTE  create  -> 202 7a50b3f7-0d32-4fd8-bd62-3a636448735a
+NOTE  rename whose reply is lost after the Harness committed  -> 503 hosted_harness_unavailable after 312 ms; DB <null>; commands [["k-1791653071971-440e","FAILED"]]; delivery ["1","k-1791653071971-440e","Lost Reply Title","PENDING","1","","1791653072767"]
+NOTE  waited (no client retry) for the receipt to complete  -> completed at +1045 ms
+NOTE  title POSTs seen by the tap  -> ["Lost Reply Title@1:drop-after:200","Lost Reply Title@1:-:200"]
+NOTE  journal title records  -> ["Lost Reply Title@1:hosted-title:1"]
+PASS  public receipt completes without a client retry  -> [["k-1791653071971-440e","COMPLETED"]]
+PASS  public and Harness titles agree  -> DB Lost Reply Title / Harness Lost Reply Title
+PASS  exactly one title record in the journal  -> 1
+NOTE  replay of the completed key / same key with changed content  -> 200 Lost Reply Title / 409 idempotency_conflict; Harness title POSTs added 0; journal records 1
+PASS  replay writes nothing; changed content conflicts  -> 200/409
+== p5-lost-reply-unbound: 4 passed, 0 failed
+RC=0
+### [h2 17:24:34] /usr/bin/node p4-late-write.mjs bound ws-l4 c
+# p4-late-write-bound  db=h2  2026-10-10T17:24:34.997Z
+PASS  initial Turn COMPLETED  -> 0b98b7da-8780-4fa0-b5b7-1e3c1aff6694
+NOTE  K1 → Alpha (held 40000 ms at the tap before reaching the Harness)  -> 503 hosted_harness_unavailable after 30143 ms; K1 rows [["k1-1791653075242-f9d9","FAILED"]]; delivery ["1","k1-1791653075242-f9d9","Alpha","PENDING","1","","1791653110203"]
+NOTE  K2 → Bravo right after K1 answered  -> 200 Bravo at +30486 ms; DB Bravo; journal ["Bravo@2"]
+NOTE  held K1 request reached the Harness late and was answered  -> 409 rev=1 at +40102 ms
+NOTE  title POSTs seen by the tap  -> ["Bravo@2:-:200","Alpha@1:delay:409"]
+NOTE  journal title records (title@revision)  -> ["Bravo@2"]
+NOTE  rename commands  -> [["k1-1791653075242-f9d9","FAILED"],["k2-1791653075242-f9d9","COMPLETED"]]
+NOTE  delivery row  -> ["2","k2-1791653075242-f9d9","Bravo","COMPLETED","1","","1791653110408"]
+PASS  after the late K1 write: public title is Bravo  -> Bravo
+PASS  after the late K1 write: Harness journal title is Bravo  -> Bravo
+NOTE  K1 retried after Bravo  -> 200 Alpha; delivery ["3","k1-1791653075242-f9d9","Alpha","COMPLETED","1","","1791653124712"]; commands [["k1-1791653075242-f9d9","COMPLETED"],["k2-1791653075242-f9d9","COMPLETED"]]
+PASS  K1 retry wins in both stores (Alpha)  -> DB Alpha / Harness Alpha
+NOTE  journal title records at the end  -> ["Bravo@2:hosted-title:2","Alpha@3:hosted-title:3"]
+== p4-late-write-bound: 4 passed, 0 failed
+RC=0
+### [h2 17:25:27] /usr/bin/node p6-barrier.mjs ws-b6 d close
+# p6-barrier-close  db=h2  2026-10-10T17:25:28.044Z
+PASS  initial Turn COMPLETED  -> 60226cc0-4ed7-4d3a-af46-324bd04a0fb1
+NOTE  rename (Harness committed, reply lost; redeliveries get 503)  -> 503 hosted_harness_unavailable; DB <null>; Harness Sealed Title; delivery ["1","k-1791653128202-aee1","Sealed Title","PENDING","1","","1791653133240"]
+NOTE  close while the delivery is open (+471 ms)  -> 409 session_operation_active The Session has a title delivery awaiting completion.
+NOTE  archive while the delivery is open (+471 ms)  -> 409 session_operation_active The Session has a title delivery awaiting completion.
+NOTE  cwd while the delivery is open (+472 ms)  -> 409 session_context_busy The Session has an active Turn, operation or retained Runtime context.
+NOTE  status / titles right after the attempts  -> ACTIVE; DB <null>; Harness Sealed Title
+PASS  no lifecycle change is admitted while the title delivery is open  -> ACTIVE close 409 archive 409 cwd 409
+NOTE  delivery after 15000 ms of 503s  -> ["1","k-1791653128202-aee1","Sealed Title","PENDING","4","","1791653162921"]; title POSTs 4
+NOTE  delivery settles after the Harness recovers  -> +14810 ms
+NOTE  close after the delivery settled  -> 202 pending → CLOSING at +36 ms
+NOTE  final titles  -> DB Sealed Title / Harness Sealed Title; commands [["k-1791653128202-aee1","COMPLETED"]]
+PASS  close is admitted once the delivery settled  -> 202 CLOSED
+PASS  sealed Session keeps equal public and Harness titles  -> DB Sealed Title / Harness Sealed Title
+== p6-barrier-close: 4 passed, 0 failed
+RC=0
+### [h2 17:26:03] env EMPTY=1 HOLD=6000 /usr/bin/node p6-barrier.mjs ws-b6e e close
+# p6-barrier-close-empty  db=h2  2026-10-10T17:26:03.968Z
+NOTE  empty Session (no Turn, no retained Runtime)  -> e2ad55aa-9208-488e-9781-bfd2d968af1e
+NOTE  rename (Harness committed, reply lost; redeliveries get 503)  -> 503 hosted_harness_unavailable; DB <null>; Harness Sealed Title; delivery ["1","k-1791653164191-8dac","Sealed Title","PENDING","1","","1791653165007"]
+NOTE  close while the delivery is open (+609 ms)  -> 409 session_operation_active The Session has a title delivery awaiting completion.
+NOTE  archive while the delivery is open (+609 ms)  -> 409 session_operation_active The Session has a title delivery awaiting completion.
+NOTE  cwd while the delivery is open (+610 ms)  -> 409 session_context_busy The Session has an active Turn, operation or retained Runtime context.
+NOTE  status / titles right after the attempts  -> ACTIVE; DB <null>; Harness Sealed Title
+PASS  no lifecycle change is admitted while the title delivery is open  -> ACTIVE close 409 archive 409 cwd 409
+NOTE  delivery after 6000 ms of 503s  -> ["1","k-1791653164191-8dac","Sealed Title","PENDING","2","","1791653170036"]; title POSTs 2
+NOTE  delivery settles after the Harness recovers  -> +374 ms
+NOTE  close after the delivery settled  -> 202 pending → CLOSING at +36 ms
+NOTE  final titles  -> DB Sealed Title / Harness Sealed Title; commands [["k-1791653164191-8dac","COMPLETED"]]
+PASS  close is admitted once the delivery settled  -> 202 CLOSED
+PASS  sealed Session keeps equal public and Harness titles  -> DB Sealed Title / Harness Sealed Title
+== p6-barrier-close-empty: 3 passed, 0 failed
+RC=0
+### [h2 17:26:12] /usr/bin/node c21-boundary-moved.mjs bound ws-c21 f
+# c21-boundary-moved-bound  db=h2  2026-10-10T17:26:12.090Z
+PASS  initial Turn COMPLETED  -> b9296f86-5b53-452c-949d-97342a83eee7
+NOTE  #1 K1 → Alpha (reaches the Harness, answer held 7 s)  -> 200 Alpha
+NOTE  #2 K1 → Alpha (Harness 500)  -> 503 hosted_harness_unavailable; K1 row PENDING
+NOTE  K2 → Bravo  -> 409 session_operation_active
+NOTE  #3 K1 → Alpha after Bravo (Harness 500)  -> 503 hosted_harness_unavailable; K1 row PENDING
+NOTE  database title afterwards  -> Alpha
+NOTE  Harness journal title afterwards (Session Store)  -> Alpha; records ["Alpha@1"]
+NOTE  title calls the Harness applied, in arrival order  -> ["Alpha"]
+NOTE  Harness title calls with faults  -> ["Alpha:delay-after:200"]
+NOTE  #4 K1 → Alpha once more (no fault)  -> 200 Alpha; database Alpha; Harness title calls now 1 (was 1)
+== c21-boundary-moved-bound: 1 passed, 0 failed
+RC=0
+stopped spring pid=1193655 sig=TERM
+stopped spring-b pid=1192293 sig=TERM
+stopped harness pid=1192248 sig=TERM
+stopped model pid=1192222 sig=TERM
+stopped tap pid=1192223 sig=TERM
+harness pid=1196516 dist=h2 up after 2s log=/root/v13682/rig/run/h2/harness-1.log
+springb pid=1196561 jar=h2 store=http://127.0.0.1:18683 up after 7s log=/root/v13682/rig/run/h2/springb-1.log
+spring pid=1196669 jar=h2 store=http://127.0.0.1:18683 up after 7s log=/root/v13682/rig/run/h2/spring-1.log
+### [h2 17:26:43] /usr/bin/node c23-approve-retry.mjs ws-r3 a hold503 restore
+# c23-approve-retry-hold503-restore-ws-r3  db=h2  2026-10-10T17:26:43.134Z
+PASS  initial Turn COMPLETED after approval
+PASS  later Turn waits for approval  -> tool_approval_d91e8ad03a93b7cf3c76ff19bbc9ca87
+NOTE  approval answer (public)  -> 202 pending
+NOTE  answer operation after 12000 ms under hold503 (state, error, attempts)  -> ["RUNNING","","4"] (not settled); states seen ["RUNNING"]
+NOTE  resolve calls reaching the Harness during the hold  -> ["-:200","respond:503","respond:503","respond:503","respond:503"]
+NOTE  Action row during the hold  -> ["requested"]
+NOTE  Workspace file child/a2-3406.txt during the hold  -> null
+PASS  hold503: answer stays retryable (PENDING, not FAILED) while the state is changed  -> ["RUNNING","","4"]
+PASS  hold503: nothing delivered to the Harness while the state is changed  -> delivered=0 file=null
+NOTE  answer operation after the restore  -> ["COMPLETED","","4"] at +6815 ms
+NOTE  Action row after the restore  -> ["decided","decision_d032df198939058e5e08f46cb828de786d61dac789c4593663d4bc338c0c2ddd"]
+NOTE  Turn after the restore  -> COMPLETED  at +1991 ms
+NOTE  resolve calls reaching the Harness (all)  -> ["-:200","respond:503","respond:503","respond:503","respond:503","-:200"]
+NOTE  Workspace file child/a2-3406.txt / executions added  -> SECOND / 1
+PASS  restore: the committed answer is delivered (op COMPLETED, Action decided)  -> ["COMPLETED","","4"] ["decided","decision_d032df198939058e5e08f46cb828de786d61dac789c4593663d4bc338c0c2ddd"]
+PASS  restore: exactly one successful resolve reached the Harness  -> ["-:200","respond:503","respond:503","respond:503","respond:503","-:200"]
+PASS  restore: the Turn completes and the approved write lands  -> COMPLETED file=SECOND
+NOTE  Harness calls for the Session after the first 503 (method path status)  -> ["POST /session/:id/actions/:a/resolve respond:503 ×4","POST /session/:id/actions/:a/resolve 200"]
+NOTE  Turn history  -> [["turn_3d15af2c46f64f8fbff14703e6b73e6d","COMPLETED","","0"],["turn_237811cf26274ec88b759cd239976d70","COMPLETED","","0"]]
+== c23-approve-retry-hold503-restore-ws-r3: 7 passed, 0 failed
+RC=0
+### [h2 17:27:12] env STOP_CMD=bash /root/v13682/rig/stop.sh h2 spring START_CMD=STORE=b APPROVAL=default DIST=h2 bash /root/v13682/rig/spring.sh h2 h2 BLOG=/root/v13682/rig/run/h2/springb-1.log /usr/bin/node p2-disabled-replica.mjs ws-p2 b
+# p2-disabled-replica-ws-p2  db=h2  2026-10-10T17:27:12.163Z
+PASS  initial Turn COMPLETED after approval
+PASS  later Turn waits for approval
+NOTE  answer admitted; first delivery got 503  -> 202; op ["RUNNING","PENDING","1","1791653238066"]
+NOTE  op row before B-only window  -> ["RUNNING","PENDING","1","1791653238066"]
+NOTE  op row changes during 20000 ms with only B running (at ms: state, delivery, attempts, available_at, owner, error)  -> [[42,["RUNNING","PENDING","1",0,"",null]]]
+NOTE  B log lines naming this operation  -> 0
+PASS  B does not claim the requested answer (attempts/available_at unchanged)  -> attempts 1→1, available_at +0 ms
+NOTE  dispatcher A restarted  -> spring pid=1198646 jar=h2 store=http://127.0.0.1:18683 up after 7s log=/root/v13682/rig/run/h2/spring-2.log
+NOTE  after A returns and the tap heals  -> op ["COMPLETED","CONFIRMED","2","1791653275363"] at +2788 ms; Turn RUNNING; file null; executions +0; successful resolves 1 (excluding the first Action)
+FAIL  the answer is delivered once and the Turn completes  -> COMPLETED RUNNING null resolves=1
+NOTE  Turn history  -> [["turn_2e721af90c4549b5b966deaf5018ecef","COMPLETED","","0"],["turn_781bfdb686cf48a3ac49a10a1520ed0f","RUNNING","","0"]]
+== p2-disabled-replica-ws-p2: 3 passed, 1 failed
+RC=0
+springc pid=1200047 jar=h2 store=http://127.0.0.1:18683 up after 7s log=/root/v13682/rig/run/h2/springc-0.log
+### [h2 17:29:03] /usr/bin/node p9-controls.mjs approve-peer ws-c1 c
+# p9-approve-peer-ws-c1  db=h2  2026-10-10T17:29:03.707Z
+PASS  initial Turn COMPLETED  -> 4b501738-8630-4b2c-a709-5f81c84e34a8
+NOTE  answer via replica C  -> 202 
+NOTE  answer operation  -> ["COMPLETED","","0"] at +483 ms
+NOTE  Harness calls for the Session  -> ["POST /session/:id/prompt 202","POST /session/:id/load 200","POST /session/:id/actions/:a/resolve 200"]
+NOTE  Turn / file / executions added / new "recovery blocked" lines in the Harness log  -> COMPLETED / SECOND / 1 / 0
+PASS  the Turn completes and the tool write lands once  -> COMPLETED SECOND
+== p9-approve-peer-ws-c1: 2 passed, 0 failed
+RC=0
+### [h2 17:29:12] /usr/bin/node p9-controls.mjs approve-peer ws-c2 d
+# p9-approve-peer-ws-c2  db=h2  2026-10-10T17:29:12.172Z
+PASS  initial Turn COMPLETED  -> 131873d6-72eb-41a6-b253-0477b4160fce
+NOTE  answer via replica C  -> 202 
+NOTE  answer operation  -> ["COMPLETED","","0"] at +241 ms
+NOTE  Harness calls for the Session  -> ["POST /session/:id/prompt 202","POST /session/:id/load 200","POST /session/:id/actions/:a/resolve 200"]
+NOTE  Turn / file / executions added / new "recovery blocked" lines in the Harness log  -> COMPLETED / SECOND / 1 / 0
+PASS  the Turn completes and the tool write lands once  -> COMPLETED SECOND
+== p9-approve-peer-ws-c2: 2 passed, 0 failed
+RC=0
+stopped spring-c pid=1200047 sig=TERM
+### [h2 17:29:20] env RESTART_CMD=bash /root/v13682/rig/stop.sh h2 spring > /dev/null; STORE=b APPROVAL=default DIST=h2 bash /root/v13682/rig/spring.sh h2 h2 /usr/bin/node p1-approval-cold.mjs ws-p1 e
+# p1-approval-cold-ws-p1  db=h2  2026-10-10T17:29:20.103Z
+PASS  initial Turn COMPLETED after approval
+PASS  later Turn waits for approval  -> tool_approval_93310943efe307f65ce37c2139550b14
+NOTE  dispatcher replica restarted (attachment cache lost)  -> spring pid=1201008 jar=h2 store=http://127.0.0.1:18683 up after 7s log=/root/v13682/rig/run/h2/spring-3.log (16318 ms)
+NOTE  READER bob answers  -> 403 action_forbidden
+NOTE  OPERATOR carol answers alice's approval / same-key replay  -> 202 op_ecb57f47b79b458eb44afefc87af9537 / 202 op_ecb57f47b79b458eb44afefc87af9537
+NOTE  answer operation states seen (state, error, attempts, delivery)  -> ["[\"RUNNING\",\"\",\"0\",\"LEASED\"]","[\"COMPLETED\",\"\",\"0\",\"CONFIRMED\"]"]
+NOTE  Harness calls for the Session after the restart  -> ["POST /session/:id/load 200","POST /session/:id/actions/:a/resolve 200"]
+NOTE  Turn  -> RUNNING  (not terminal)
+NOTE  file child/a2-60335.txt / executions added  -> null / 0
+PASS  READER is refused  -> 403
+PASS  second OPERATOR's answer is admitted and the same-key replay returns the same operation  -> 202 op_ecb57f47b79b458eb44afefc87af9537 op_ecb57f47b79b458eb44afefc87af9537
+PASS  the original operation completes and the Action is decided  -> ["COMPLETED","","0","CONFIRMED"] action=decided at +583 ms
+PASS  exactly one successful resolve reaches the Harness  -> 1
+FAIL  the Turn completes and the approved write lands once  -> RUNNING file=null executions+0
+NOTE  cleanup cancel  -> 202 → CANCELLED
+NOTE  Turn history  -> [["turn_65f7b23af4644e39a1b5fbde2b1cddaa","COMPLETED","","0"],["turn_2d82becec3b64ba8a0d15c6283031fc3","CANCELLED","","0"]]
+== p1-approval-cold-ws-p1: 6 passed, 1 failed
+RC=0
+stopped spring pid=1201008 sig=TERM
+stopped spring-b pid=1196561 sig=TERM
+stopped harness pid=1196516 sig=TERM
+stopped model pid=1196490 sig=TERM
+stopped tap pid=1196491 sig=TERM
+leftover rig workers: 8
+## lease (6 s lease, 2 s renew) with replica C
+harness pid=1202649 dist=h2 up after 2s log=/root/v13682/rig/run/oh2/harness-0.log
+springb pid=1202694 jar=h2 store=http://127.0.0.1:18683 up after 31s log=/root/v13682/rig/run/oh2/springb-0.log
+spring pid=1204069 jar=h2 store=http://127.0.0.1:18683 up after 7s log=/root/v13682/rig/run/oh2/spring-0.log
+springc pid=1204473 jar=h2 store=http://127.0.0.1:18683 up after 7s log=/root/v13682/rig/run/oh2/springc-0.log
+### [oh2 17:31:37] env HOLD=20000 /usr/bin/node p3-lease.mjs ws-l3 a
+# p3-lease-ws-l3  db=oh2  2026-10-10T17:31:37.840Z
+PASS  initial Turn COMPLETED after approval
+PASS  later Turn waits for approval
+NOTE  answer  -> 202
+NOTE  ACTION_RESPONSE row over time [s, state, delivery, attempts, claim gen, owner, lease left, error]  -> [[0,"RUNNING","LEASED","att0","gen1","owner1","6s",""],[1,"RUNNING","LEASED","att0","gen1","owner1","5s",""],[2,"RUNNING","LEASED","att0","gen1","owner1","6s",""],[3,"RUNNING","LEASED","att0","gen1","owner1","5s",""],[4,"RUNNING","LEASED","att0","gen1","owner1","6s",""],[5,"RUNNING","LEASED","att0","gen1","owner1","5s",""],[6,"RUNNING","LEASED","att0","gen1","owner1","6s",""],[7,"RUNNING","LEASED","att0","gen1","owner1","5s",""],[8,"RUNNING","LEASED","att0","gen1","owner1","6s",""],[10,"RUNNING","LEASED","att0","gen1","owner1","5s",""],[11,"RUNNING","LEASED","att0","gen1","owner1","6s",""],[12,"RUNNING","LEASED","att0","gen1","owner1","4s",""],[13,"RUNNING","LEASED","att0","gen1","owner1","5s",""],[14,"RUNNING","LEASED","att0","gen1","owner1","4s",""],[15,"RUNNING","LEASED","att0","gen1","owner1","5s",""],[16,"RUNNING","LEASED","att0","gen1","owner1","4s",""],[17,"RUNNING","LEASED","att0","gen1","owner1","5s",""],[18,"RUNNING","LEASED","att0","gen1","owner1","4s",""],[19,"RUNNING","LEASED","att0","gen1","owner1","5s",""],[20,"RUNNING","LEASED","att0","gen1","owner1","4s",""],[21,"COMPLETED","CONFIRMED","att0","gen1","-","-1791653526s",""]]
+NOTE  resolve calls reaching the Harness  -> ["delay:200"]
+NOTE  Turn / file / executions added  -> COMPLETED / SECOND / 1
+PASS  no other replica takes the delivery over while the reply is held  -> owners 1, attempts ["att0"], resolves 1
+PASS  the answer completes once and the Turn finishes  -> COMPLETED COMPLETED SECOND
+NOTE  Turn history  -> [["turn_6c3bd3cc6e1d4181857302daf32d97d7","COMPLETED","","0"],["turn_d4ed7fa308714be79070669976ce3503","COMPLETED","","0"]]
+== p3-lease-ws-l3: 4 passed, 0 failed
+RC=0
+stopped spring-c pid=1204473 sig=TERM
+stopped spring pid=1204069 sig=TERM
+stopped spring-b pid=1202694 sig=TERM
+stopped harness pid=1202649 sig=TERM
+stopped model pid=1202623 sig=TERM
+stopped tap pid=1202624 sig=TERM
+leftover rig workers: 1
+## up64: main 9763580b jar (V64) then the moved head jar on the same database
+harness pid=1205356 dist=b up after 2s log=/root/v13682/rig/run/up64/harness-0.log
+springb pid=1205401 jar=m2 store=http://127.0.0.1:18683 up after 32s log=/root/v13682/rig/run/up64/springb-0.log
+history before: 55 56 57 60 62 64
+stopped spring-b pid=1205401 sig=TERM
+springb DIED
+2026-10-10T17:32:50.135Z  WARN 1206918 --- [qwen-managed-agent-server] [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'agentDefinitionController' defined in URL [jar:nested:/root/v13682/server/h2-server.jar/!
+2026-10-10T17:32:50.197Z ERROR 1206918 --- [qwen-managed-agent-server] [           main] o.s.boot.SpringApplication               : Application run failed
+org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'agentDefinitionController' defined in URL [jar:nested:/root/v13682/server/h2-server.jar/!BOOT-INF/classes/!/com/alibaba/qwen/code/managedagent/api/AgentDefinitionController.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'managedAgentDefinitionSer
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'managedAgentDefinitionService' defined in URL [jar:nested:/root/v13682/server/h2-server.jar/!BOOT-INF/classes/!/com/alibaba/qwen/code/managedagent/service/ManagedAgentDefinitionService.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'ma
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'managedAgentDefinitionStore' defined in URL [jar:nested:/root/v13682/server/h2-server.jar/!BOOT-INF/classes/!/com/alibaba/qwen/code/managedagent/store/ManagedAgentDefinitionStore.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'flywayIn
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'flywayInitializer' defined in class path resource [org/springframework/boot/autoconfigure/flyway/FlywayAutoConfiguration$FlywayConfiguration.class]: Validate failed: Migrations have failed validation
+Caused by: org.flywaydb.core.api.exception.FlywayValidateException: Validate failed: Migrations have failed validation
+moved-head jar start rc=1
+Caused by: org.flywaydb.core.api.exception.FlywayValidateException: Validate failed: Migrations have failed validation
+Detected resolved migration not applied to database: 59.
+To ignore this migration, set -ignoreMigrationPatterns='*:ignored'. To allow executing this migration, set -outOfOrder=true.
+stopped spring-b pid=1206918 sig=TERM
+stopped harness pid=1205356 sig=TERM
+stopped model pid=1205330 sig=TERM
+stopped tap pid=1205331 sig=TERM
+leftover rig workers: 0
+## up57b: moved head limited to V57, then full
+springb pid=1207498 jar=h2 store=http://127.0.0.1:18683 up after 32s log=/root/v13682/rig/run/up57b/springb-0.log
+stopped spring-b pid=1207498 sig=TERM
+springb pid=1209005 jar=h2 store=http://127.0.0.1:18683 up after 7s log=/root/v13682/rig/run/up57b/springb-1.log
+2026-10-10T17:33:30.932Z  INFO 1209005 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `up57b` to version "59 - managed session rename del
+2026-10-10T17:33:31.087Z  INFO 1209005 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `up57b` to version "60 - managed child workspace"
+2026-10-10T17:33:31.378Z  INFO 1209005 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `up57b` to version "62 - managed task cancel operat
+2026-10-10T17:33:31.551Z  INFO 1209005 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `up57b` to version "64 - managed session message re
+2026-10-10T17:33:31.687Z  INFO 1209005 --- [qwen-managed-agent-server] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 4 migrations to schema `up57b`, now at version 
+stopped spring-b pid=1209005 sig=TERM
+stopped model pid=1207456 sig=TERM
+stopped tap pid=1207457 sig=TERM
+leftover rig workers: 0
+ARM2-DONE 17:33:35

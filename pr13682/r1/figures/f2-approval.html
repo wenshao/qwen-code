@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="card">
+<h1>#13682 R1 · Workspace approval delivery on the real stack: main vs PR</h1>
+<div class="sub">Default <code>verified-workspace-recovery-enabled=false</code>. A = dispatcher with embedded Broker; B = Session Store replica with the Harness disabled (normal 1 s scan, not neutralised as in #13163 round 9); C = optional second Harness-enabled dispatcher. Answers are real public/WebShell calls; the tool effect is a real file written by the worker.</div>
+<table>
+<tr><th style="width:23%">Scenario</th><th>base (main 2ebbd4e1)</th><th>PR head</th></tr>
+<tr><td class="s">Disabled replica alone<small>answer in retry (503), A stopped, only B runs for 20 s</small></td>
+<td class="bad">B <b>claims</b> it: attempts 4→5, <code>available_at</code> pushed +16 s, log <code>UnsupportedOperationException: Hosted Actions are unavailable</code></td>
+<td class="good">row unchanged for 20 s (attempts 1→1, <code>available_at</code> +0); 0 B log lines</td></tr>
+<tr><td class="s">Warm retry after the Harness recovers<small>503 × N, then healed; B on a normal scan</small></td>
+<td class="bad">B's failed claims keep pushing the answer out: <b>not delivered within ~96 s</b>; the Turn completed only ≈113 s / ≈174 s after the Harness recovered, and the op row was still RUNNING (7 attempts) after that (2 runs)</td>
+<td class="good">delivered at <b>+6.1 / +7.0 s</b>, one resolve, Turn completes 1.5–2.0 s later, file written once (2 runs)</td></tr>
+<tr><td class="s">Slow delivery past the lease<small>6 s lease / 2 s renew; resolve held 20 s at the tap before the Harness; C running</small></td>
+<td class="bad">lease expires at 6 s; B claims ×4, C ×3 (C's cold load → 409)</td>
+<td class="good">lease renewed every ~2 s for the whole 20 s (4–6 s left), no takeover, 1 resolve, Turn completes. <span class="tag w">control</span> same jar with renewal disabled: C takes over at 7 s and sends its own resolve</td></tr>
+<tr><td class="s">Cache loss without a restart<small>carol answers through replica C (empty cache; Broker A untouched)</small></td>
+<td class="warn">C's ordinary load → <b>409</b> <code>hosted_session_already_attached</code>; A's warm cache rescues it after +2.0 s / +34.1 s (1 / 5 attempts)</td>
+<td class="good">passive load 200 → resolve 200 in <b>0.24–0.48 s</b> on the first attempt; Turn completes; file written once (4/4)</td></tr>
+<tr><td class="s">Answer after a dispatcher restart<small>A stopped with TERM or SIGKILL, restarted (cache and Broker both restart)</small></td>
+<td class="bad">answer <b>never delivered</b>: <code>load</code> 409 ×10–14 over 73–110 s; WebShell card stays with "The approval answer could not be confirmed"; creator cancel sticks at CANCELLING once</td>
+<td class="warn">answer <b>delivered</b> (passive load 200 → resolve 200; op COMPLETED, Action decided, exactly 1 resolve) — but the Turn cannot run the approved tool: Harness <code>recovery blocked: Runtime Broker returned HTTP 404 (runtime_session_not_found)</code>; Turn RUNNING until cancelled; no file (<b>7/7</b> runs on both heads, incl. the WebShell). The card disappears and the spinner keeps going</td></tr>
+<tr><td class="s">Control: plain tool Turn across the same restart<small>no approval involved</small></td>
+<td class="bad">load 409 ×6, Turn RUNNING, no file</td>
+<td class="bad">load 409 ×6, Turn RUNNING, no file — the restart wedge is pre-existing</td></tr>
+<tr><td class="s">Who may answer</td>
+<td class="neutral">READER bob 403 <code>action_forbidden</code>; OPERATOR carol 202; same-key replay → same op</td>
+<td class="good">same: 403 / 202 / same <code>operation_id</code></td></tr>
+</table>
+<div class="foot">Probes p1, p2, p3, p9, c23 (VERIFICATION RIG ONLY). Head cells hold on both 785dc863 and 6c66366a.</div>
+</div></body></html>
