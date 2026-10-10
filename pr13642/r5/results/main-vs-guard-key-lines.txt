@@ -1,0 +1,69 @@
+# Main df72e2d1 vs the retention guard: key lines (read-only code reading)
+
+## #13823 task cancel: the coordinator only asks the Harness to stop the run
+TaskCancelCoordinator.java:248-255
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("operationId", UUID.nameUUIDFromBytes(("qwen-task-cancel:\0"
+                + operation.operationId() + "\0" + operation.attemptCount())
+                .getBytes(StandardCharsets.UTF_8)).toString());
+        body.put("kind", "cancel");
+        body.put("childRunId", target.recordId());
+        harness.runChildOperation(operation.tenantId(),
+                operation.sessionId(), body);
+
+## The relay settles a stopped run only after reconcileAttach (the one historical binding read)
+ChildResultRelay.java:307-312
+        // The child's work was cancelled before any result. The settling revision
+        // parses only over a chain whose attach committed, so the start
+        // pairing comes from the record's own evidence, replayed if lost.
+        boolean started = reconcileAttach(row, child);
+        boolean closed = closeChild(row, child, now);
+        settleStopped(row, child, started, closed, now);
+ChildResultRelay.java:767-770
+            }
+            RuntimeBindingRecord binding = child == null ? null
+                    : broker.findLatestBindingByHarnessSessionAnyState(
+                            row.tenantId(), child);
+
+## #13769 foreground child wait recovery holds no Broker binding
+packages/cli/src/serve/hosted-runtime-recovery.ts:1177-1185
+    // No Runtime lease is owed: the wait holds no Broker binding. The
+    // carried group on model_output_committed is the same wait a breath
+    // past its last fold (every run consumed, a model round owed) — a
+    // crash there must never fall back to model_start, or the settled
+    // work would be read as a false terminal.
+    if (harnessCheckpointIsAgentWait(checkpoint)) {
+      return recovered({
+        promptId,
+        acquiredRuntime: false,
+
+## V62
+-- Public task cancel (Stage H4f of #12827): a task_cancel operation shares
+-- the durable operation table with the lifecycle and cwd commands and names
+-- the task it targets. NULL on every other kind. error_code from V24 already
+-- stores the failure code a definitively refused cancellation reports.
+ALTER TABLE managed_agent_operation ADD COLUMN task_id VARCHAR(128) NULL;
+
+## #13824 team runtime: team_state / team_task are not in MANAGED_SESSION_ENABLED_DOMAINS
+packages/core/src/managed-runtime/managed-session-records.ts:124:export const MANAGED_SESSION_ENABLED_DOMAINS: readonly ManagedSessionDomain[] =
+packages/core/src/managed-runtime/managed-session-records.ts-125-  [
+packages/core/src/managed-runtime/managed-session-records.ts-126-    'goal_state',
+packages/core/src/managed-runtime/managed-session-records.ts-127-    'session_metadata',
+packages/core/src/managed-runtime/managed-session-records.ts-128-    'file_history',
+packages/core/src/managed-runtime/managed-session-records.ts-129-    'session_source',
+packages/core/src/managed-runtime/managed-session-records.ts-130-    'mcp_configuration',
+packages/core/src/managed-runtime/managed-session-records.ts-131-    'mcp_operation',
+packages/core/src/managed-runtime/managed-session-records.ts-132-    'hook_registration',
+packages/core/src/managed-runtime/managed-session-records.ts-133-    'hook_execution',
+packages/core/src/managed-runtime/managed-session-records.ts-134-    'schedule',
+packages/core/src/managed-runtime/managed-session-records.ts-135-    'automation_run',
+packages/core/src/managed-runtime/managed-session-records.ts-136-    'child_acceptance',
+packages/core/src/managed-runtime/managed-session-records.ts-137-    'channel_route',
+packages/core/src/managed-runtime/managed-session-records.ts-138-    'channel_delivery',
+packages/core/src/managed-runtime/managed-session-records.ts-139-  ];
+packages/core/src/managed-runtime/managed-session-records.ts-140-
+packages/core/src/managed-runtime/managed-session-records.ts-141-/**
+packages/core/src/managed-runtime/managed-session-records.ts-142- * The Schedule target modes a Session may actually commit today (H6b).
+--
+packages/core/src/managed-runtime/managed-session-records.ts:269:  if (!MANAGED_SESSION_ENABLED_DOMAINS.includes(domain)) {
+packages/core/src/managed-runtime/managed-session-records.ts-270-    throw new ManagedSessionRecordError(

@@ -1,0 +1,37 @@
+## [lockmdb5] 1. merge jar migrates an empty database (retention off)
+Successfully applied 60 migrations to schema `r5_lock_mdb`, now at version v63
+## [lockmdb5] 2. seed
+runtime_binding=26 runtime_session=29 tool_execution=260 runtime_binding_slot=26 runtime_placement_guard=26 
+## [lockmdb5] 3. hold tenant-e-big for 60 s, then boot with retention (3s) AND replay-floor (2s) enabled
+threads while the lock is held:
+   1 "child-relay-1"
+   1 "child-workspace-1"
+   1 "Cleaner-0"
+   1 "DestroyJavaVM"
+   1 "HTTP-Dispatcher"
+   1 "HttpClient-1-SelectorManager"
+   1 "idle-timeout-task"
+   1 "managed-artifact-1"
+   1 "managed-automation-1"
+   1 "MySQL Statement Cancellation Timer"
+   1 "replay-floor-1"
+   1 "runtime-recovery-1"
+   1 "runtime-retention-1"
+   1 "scheduling-1"
+HOLDING placement domain tenant-e-big at 14:36:42.161291Z
+RELEASED placement domain tenant-e-big at 14:37:42.232223Z
+22:37:08.372 Runtime retention failed; retrying on the next scheduled tick
+22:37:21.807 Runtime retention failed; retrying on the next scheduled tick
+22:37:35.012 Runtime retention failed; retrying on the next scheduled tick
+22:37:44.931 runtime_retention bindings_scanned=2 children_scanned=100 skipped=1 executions_deleted=100 sessions_deleted=0 bindings_deleted=0 duration_ms=6910
+22:37:54.440 runtime_retention bindings_scanned=1 children_scanned=100 skipped=0 executions_deleted=100 sessions_deleted=0 bindings_deleted=0 duration_ms=6501
+Caused by: com.mysql.cj.jdbc.exceptions.MySQLTimeoutException: Statement cancelled due to timeout o
+replay-floor log lines: 0  ERROR lines: 0
+runtime_binding=23 runtime_session=28 tool_execution=58 runtime_binding_slot=26 runtime_placement_guard=26 
+## [lockmdb5] done
+
+## [lockmdb5] 4. restart the head jar on the same database (retention 3s + replay-floor 2s) until a tick deletes nothing
+22:38:54.904 runtime_retention bindings_scanned=13 children_scanned=6 skipped=16 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=6857
+22:39:04.829 runtime_retention bindings_scanned=13 children_scanned=6 skipped=16 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=6912
+ERROR lines: 0
+runtime_binding=19 runtime_session=6 tool_execution=5 runtime_binding_slot=26 runtime_placement_guard=26

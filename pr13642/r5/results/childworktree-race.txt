@@ -1,0 +1,17 @@
+# main's ChildWorktreeGitTest#aLinkedWorktreesDirectoryIsRefusedAndNothingOutsideIsTouched (from #13781; this PR neither touches nor calls ChildWorktreeGit)
+
+Failures on this host: head 4/4 runs (2 suites + 2 unit phases), main 1/2 unit phases. Two shapes:
+  :920 git.open did not refuse after the link was planted (the planted entry was already gone)
+  :923 outside/important/data.txt no longer exists, although all four refusals were raised
+
+## Mechanism (git 2.55.0, clean config: GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null)
+The test's @BeforeEach runs plain 'git commit' without -c maintenance.auto=false. GIT_TRACE of that commit:
+  trace: run_command: git maintenance run --auto --quiet --detach
+With -c maintenance.auto=false: 0 'maintenance run' lines (ChildWorktreeGit itself passes gc.auto=0 and maintenance.auto=false, ChildWorktreeGit.java:1146-1147).
+
+Repo + .git/worktrees/planted -> outside dir holding important/data.txt:
+  git worktree prune -v        -> 'Removing worktrees/planted: gitdir file does not exist'; planted link gone; outside file DELETED
+  git maintenance run --auto   -> planted link gone; outside file DELETED
+
+So the detached maintenance spawned by the test's own setup races the test: if it scans after the link is planted, it deletes through it.
+The two failure shapes match this race; I did not instrument the suite runs themselves. CI's git may predate this auto-maintenance behaviour (CI is green).
