@@ -1,0 +1,13 @@
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts	2026-10-10 14:50:06
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts	2026-10-10 15:40:48
+@@ -1145,6 +1145,10 @@
+           plan.runtime.workspaceGeneration
+       )
+         throw new Error('Original Workspace generation changed.');
++      // A takeover-built Session holds no Workspace context; read it once
++      // under the same latch as acquire() before the resumed rounds.
++      if (this.context?.read() === undefined)
++        await this.fetchWorkspaceContext(signal);
+       const declarations = await this.declarations(signal);
+       const requests: HostedPreparedRequest[] = [];
+       for (const [ordinal, item] of plan.calls.entries()) {
