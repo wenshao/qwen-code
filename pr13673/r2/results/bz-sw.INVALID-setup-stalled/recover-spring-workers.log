@@ -1,0 +1,29 @@
+# recover-spring-workers  db=bz-sw arm=base  2026-10-10T07:28:00.071Z
+NOTE  warm-up Session in ws-z  -> {"status":202,"turn":"COMPLETED"}
+FAIL  neighbor Session (no Hooks) created in ws-a, first Turn completes  -> {"status":202,"turn":{"turn_id":"turn_4f11376f76bf4b38b6f5f828844f9c75","status":"RUNNING","err":""}}
+FAIL  target Session with original command Hook catalog created in ws-a, first Turn completes  -> {"status":202,"turn":{"turn_id":"turn_95d096daa2d345fb8653e830e79ecf8b","status":"ACCEPTED","err":""}}
+NOTE  target Session row  -> {"status":"ACTIVE","deleted_at":null,"harness_boot_id":"1d7efe1f-e6db-45f6-896d-c8031b9ebef9","workspace_id":"ws-a","tool_profile":"hosted-workspace-files/1"}
+NOTE  before: target runtime sessions (original Hook + tool sessions on one binding)  -> [{"id":"hooks-activation-3d2dba2c13999f4199dba2407c5cc7964387c6ef074c9a8c8d7f84be39aa4e4d","state":"ACQUIRING","gen":1,"kind":"bootstrap"}]
+NOTE  before: storage holders  -> [{"st":null,"held":1,"b":"9c77433e-c2b1-4de0-9e9c-c603c282bd4b","g":1,"rs":"d408e067-e628-463d-861c-decc708dbf5a"},{"st":null,"held":0,"b":null,"g":null,"rs":null}]
+NOTE  before: workers  -> {"T":{"binding":"5c42f064-592a-49a9-8403-075b67b547f6","bstate":"READY","rid":"62460d0c5718","pid":3942,"regState":"READY","regFiles":"json,lock,ready","pidAlive":true},"N":{"binding":"9c77433e-c2b1-4de0-9e9c-c603c282bd4b","bstate":"READY","rid":"2440963aa038","pid":3921,"regState":"READY","regFiles":"json,lock,ready","pidAlive":true}}
+NOTE  DELETE accepted  -> {"status":409}
+FAIL  fault point reached: End and Delete command Hooks ran once each, effects durable, detach held by the tap  -> {"heldAfterMs":120009,"hooks":[],"op":{"effects":null}}
+fault: stopped spring pid=3581 sig=KILL | target worker pid=3942 SIGKILL | neighbor worker pid=3921 SIGKILL
+restart: spring pid=3980 up after 23s log=/Users/wenshao/pr13673-rig/run/bz-sw/spring-1.log
+NOTE  operation timeline after the fault (state/delivery/error/claim)  -> ["+26.6s undefined/undefined/undefined/gundefined"]
+FAIL  [spring-workers] original operation COMPLETED and target DELETED within 180s of the fault  -> {"op":{},"session":"ACTIVE","ms":207036}
+FAIL  [spring-workers] End and Delete command Hooks each executed exactly once (no replay)  -> []
+PASS  [spring-workers] effect receipt bytes unchanged  -> {"same":true}
+FAIL  [spring-workers] exactly one retirement row  -> []
+PASS  [spring-workers] original binding/generation/handle/seed/lease kept, no replacement generation  -> {"bindings":[{"id":"5c42f064-592","gen":1,"state":"LOST","drainReq":0,"drainRcpt":0,"opGen":73}]}
+FAIL  [spring-workers] binding drained with a persisted stop receipt for the original resource  -> {"state":"LOST","drainRcpt":0,"receipt":null}
+FAIL  [spring-workers] all original RuntimeSessions RELEASED  -> ["hooks-activation-3d2dba2c139:bootstrap:ACQUIRING"]
+FAIL  [spring-workers] storage holder cleared (no LOCAL holder row still held)  -> [{"st":null,"held":1,"b":"9c77433e-c2b1-4de0-9e9c-c603c282bd4b","g":1,"rs":"d408e067-e628-463d-861c-decc708dbf5a"},{"st":null,"held":0,"b":null,"g":null,"rs":null}]
+PASS  [spring-workers] original target worker process gone (pid 3942)  -> {"before":{"binding":"5c42f064-592a-49a9-8403-075b67b547f6","bstate":"READY","rid":"62460d0c5718","pid":3942,"regState":"READY","regFiles":"json,lock,ready","pidAlive":true},"after":{"binding":"5c42f064-592a-49a9-8403-075b67b547f6","bstate":"LOST","rid":"62460d0c5718","pid":3942,"regState":"RETIRED","regFiles":"json,lock,ready","pidAlive":false}}
+PASS  [spring-workers] no replacement worker for the target  -> []
+PASS  [spring-workers] no model replay after the fault  -> {"atFault":3,"now":3}
+PASS  [spring-workers] shared workspace files byte-identical (target + neighbor files kept)  -> {"before":{},"after":{}}
+PASS  [spring-workers] neighbor Session not retired  -> {"status":"ACTIVE"}
+NOTE  journal head (target)  -> {"state":"ACTIVE","writer":"1d7efe1f-e6db-45f6-896d-c8031b9ebef9","leaseUntil":"2026-10-10 15:34:56.676040"}
+NOTE  harness drain fence (target)  -> []
+== recover-spring-workers: 7 passed, 9 failed

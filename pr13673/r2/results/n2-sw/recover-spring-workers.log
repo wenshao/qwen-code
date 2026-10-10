@@ -1,0 +1,29 @@
+# recover-spring-workers  db=n2-sw arm=main2  2026-10-10T07:51:34.700Z
+NOTE  warm-up Session in ws-z  -> {"status":202,"turn":"COMPLETED"}
+PASS  neighbor Session (no Hooks) created in ws-a, first Turn completes  -> {"status":202,"turn":{"turn_id":"turn_4d9c9e8b950449ffb127ed7a590be5b3","status":"COMPLETED","err":""}}
+PASS  target Session with original command Hook catalog created in ws-a, first Turn completes  -> {"status":202,"turn":{"turn_id":"turn_d50196b389784bd4a2928882f2979b48","status":"COMPLETED","err":""}}
+NOTE  target Session row  -> {"status":"ACTIVE","deleted_at":null,"harness_boot_id":"68cb5347-e73f-4973-b4e0-63166340c8b5","workspace_id":"ws-a","tool_profile":"hosted-workspace-files/1"}
+NOTE  before: target runtime sessions (original Hook + tool sessions on one binding)  -> [{"id":"hooks-activation-85b5a3db007b46433e051a0e836eee765ad0895d00bb8ee65d874e48cf9b0ca7","state":"READY","gen":1,"kind":"bootstrap"}]
+NOTE  before: storage holders  -> [{"st":null,"held":1,"b":"21263495-38b0-43c4-a432-44ff34549c70","g":1,"rs":"hooks-activation-85b5a3db007b46433e051a0e836eee765ad0895d00bb8ee65d874e48cf9b0ca7"},{"st":null,"held":0,"b":null,"g":null,"rs":null}]
+NOTE  before: workers  -> {"T":{"binding":"21263495-38b0-43c4-a432-44ff34549c70","bstate":"READY","rid":"ef59739df81d","pid":7550,"regState":"READY","regFiles":"json,lock,ready","pidAlive":true},"N":{"binding":"4f1a460a-4576-436b-a882-529843a29109","bstate":"READY","rid":"16a4b886db37","pid":7536,"regState":"READY","regFiles":"json,lock,ready","pidAlive":true}}
+NOTE  DELETE accepted  -> {"status":202,"op":"op_ff8568523be84f78852011dc4f38d159"}
+PASS  fault point reached: End and Delete command Hooks ran once each, effects durable, detach held by the tap  -> {"heldAfterMs":1415,"hooks":["SessionEnd:ran:pid7573:0::/rig-hooks/qwen-hook-57dec585-2cf1-499b-a060-0950fa8e66a1","SessionDelete:ran:pid7598:0::/rig-hooks/qwen-hook-3e0262ec-c32b-4c3e-bb53-309832fcf3ff"],"op":{"state":"RUNNING","delivery":"LEASED","err":"","gen":1,"attempts":0,"proto":1,"effects":["SessionEnd","SessionDelete"]}}
+fault: stopped spring pid=7378 sig=KILL | target worker pid=7550 SIGKILL | neighbor worker pid=7536 SIGKILL
+restart: spring pid=7639 up after 6s log=/Users/wenshao/pr13673-rig/run/n2-sw/spring-1.log
+NOTE  operation timeline after the fault (state/delivery/error/claim)  -> ["+5.6s RUNNING/LEASED//g1","+59.4s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g2","+61.5s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g3","+64.5s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g4","+69.5s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g5","+78.6s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g6","+95.8s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g7","+128.1s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g8"]
+FAIL  [spring-workers] original operation COMPLETED and target DELETED within 180s of the fault  -> {"op":{"state":"RECOVERY_BLOCKED","err":"workspace_lifecycle_hooks_unsettled","gen":8,"attempts":7},"session":"DELETING","ms":185558}
+PASS  [spring-workers] End and Delete command Hooks each executed exactly once (no replay)  -> ["SessionEnd:ran@07:51:43.870","SessionDelete:ran@07:51:44.480"]
+PASS  [spring-workers] effect receipt bytes unchanged  -> {"same":true}
+FAIL  [spring-workers] exactly one retirement row  -> []
+PASS  [spring-workers] original binding/generation/handle/seed/lease kept, no replacement generation  -> {"bindings":[{"id":"21263495-38b","gen":1,"state":"READY","drainReq":0,"drainRcpt":0,"opGen":1}]}
+FAIL  [spring-workers] binding drained with a persisted stop receipt for the original resource  -> {"state":"READY","drainRcpt":0,"receipt":null}
+FAIL  [spring-workers] all original RuntimeSessions RELEASED  -> ["hooks-activation-85b5a3db007:bootstrap:READY"]
+FAIL  [spring-workers] storage holder cleared (no LOCAL holder row still held)  -> [{"st":null,"held":1,"b":"21263495-38b0-43c4-a432-44ff34549c70","g":1,"rs":"hooks-activation-85b5a3db007b46433e051a0e836eee765ad0895d00bb8ee65d874e48cf9b0ca7"},{"st":null,"held":0,"b":null,"g":null,"rs":null}]
+PASS  [spring-workers] original target worker process gone (pid 7550)  -> {"before":{"binding":"21263495-38b0-43c4-a432-44ff34549c70","bstate":"READY","rid":"ef59739df81d","pid":7550,"regState":"READY","regFiles":"json,lock,ready","pidAlive":true},"after":{"binding":"21263495-38b0-43c4-a432-44ff34549c70","bstate":"READY","rid":"ef59739df81d","pid":7550,"regState":"READY","regFiles":"json,lock,ready","pidAlive":false}}
+PASS  [spring-workers] no replacement worker for the target  -> []
+PASS  [spring-workers] no model replay after the fault  -> {"atFault":6,"now":6}
+PASS  [spring-workers] shared workspace files byte-identical (target + neighbor files kept)  -> {"before":{"neighbor-mv23ij9z.txt":"fc2543d5dcb3ebf4","target-mv23ikuu.txt":"3dc0db889344edf0"},"after":{"neighbor-mv23ij9z.txt":"fc2543d5dcb3ebf4","target-mv23ikuu.txt":"3dc0db889344edf0"}}
+PASS  [spring-workers] neighbor Session not retired  -> {"status":"ACTIVE"}
+NOTE  journal head (target)  -> {"state":"ACTIVE","writer":"68cb5347-e73f-4973-b4e0-63166340c8b5","leaseUntil":"2026-10-10 07:53:13.485998"}
+NOTE  harness drain fence (target)  -> [{"phase":"DRAINING","op":"op_ff8568523be84f78852011dc4f38d159","gen":1}]
+== recover-spring-workers: 11 passed, 5 failed
