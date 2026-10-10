@@ -81,6 +81,7 @@ async function startModel() {
       // single user message: the newest marker is the last one.
       const marker = ([...text.matchAll(/RIG_[A-Z]+_[a-z0-9]+/g)].at(-1) ?? [''])[0];
       const toolResults = lastUser >= 0 ? msgs.slice(lastUser + 1).filter((m) => m.role === 'tool').length : 0;
+      if (process.env.DUMP_REQ && tools.length) { model.dump = (model.dump ?? 0) + 1; fs.writeFileSync(`${runDir}/req-${String(model.dump).padStart(3, '0')}-${marker}.json`, JSON.stringify(body)); }
       fs.appendFileSync(`${runDir}/model.log`, `${new Date().toISOString().slice(11, 23)} stream=${body.stream === true} tools=${tools.length} msgs=${msgs.length} marker=${marker} toolResults=${toolResults} last=${JSON.stringify(msgs.slice(-2).map((m) => [m.role, String(JSON.stringify(m.content ?? m.tool_calls ?? '')).slice(0, 80)]))}\n`);
       const id = 'chatcmpl-' + randomBytes(6).toString('hex');
       const created = Math.floor(Date.now() / 1000);
@@ -621,6 +622,38 @@ async function stateS() {
   await mirror('S|archived (SQL-seeded)', 'cr', A);
 }
 
+// ---------- I: which QWEN.md does the next Turn see after a change (the #13564 gate)? ----------
+async function stateI() {
+  const st = 'st3';
+  const tag = RUN;
+  fs.writeFileSync(`${mount(st)}/QWEN.md`, `ROOT_INSTRUCTION_${tag}\n`);
+  fs.writeFileSync(`${mount(st)}/B/QWEN.md`, `B_INSTRUCTION_${tag}\n`);
+  const seen = (marker) => {
+    const files = fs.readdirSync(runDir).filter((f) => f.startsWith('req-') && f.includes(marker));
+    if (!files.length) return { requests: 0 };
+    const body = fs.readFileSync(`${runDir}/${files.at(-1)}`, 'utf8');
+    return { requests: files.length, root: body.includes(`ROOT_INSTRUCTION_${tag}`), b: body.includes(`B_INSTRUCTION_${tag}`) };
+  };
+  // Same Session: Turn at the root, change to B, Turn again (same Hosted attachment).
+  const S = await createBound('W3', 'I-same-session');
+  const m1 = `RIG_TEXT_ia${RUN}`;
+  const t1 = await submit('web', 'cr', S, m1);
+  cell('I|same Session · Turn 1 at .', { ...(await waitTurn(t1.turnId)), ...seen(m1) });
+  const ch = await changeWhenAdmitted('cr', S, 'B');
+  const m2 = `RIG_TEXT_ib${RUN}`;
+  const t2 = await submit('web', 'cr', S, m2);
+  cell('I|same Session · Turn 2 after change to B', { change: ch.op?.state, ...(await waitTurn(t2.turnId)), ...seen(m2) });
+  const m3 = `RIG_TEXT_ic${RUN}`;
+  const t3 = await submit('web', 'cr', S, m3);
+  cell('I|same Session · Turn 3 (still B)', { ...(await waitTurn(t3.turnId)), ...seen(m3) });
+  // Control: a Session whose FIRST Turn already runs in B.
+  const S2 = await createBound('W3', 'I-control');
+  await changeWhenAdmitted('cr', S2, 'B');
+  const m4 = `RIG_TEXT_id${RUN}`;
+  const t4 = await submit('web', 'cr', S2, m4);
+  cell('I|control · first Turn already in B', { ...(await waitTurn(t4.turnId)), ...seen(m4) });
+}
+
 // ---------- N: the next Turn runs in the changed directory ----------
 async function stateN() {
   const S = await createBound('W1', 'N-next-turn');
@@ -758,6 +791,7 @@ try {
     if (want('K')) await stateK();
     if (want('N')) await stateN();
     if (want('S')) await stateS();
+    if (want('I')) await stateI();
   } else if (phase === 'budget') {
     await budget();
   } else if (phase === 'serve') {
