@@ -74,6 +74,12 @@ const server = await startFakeOpenAIServer(
           return logAnd({ toolCalls: [shell] }, 'parent-fgsh-shell');
         }
       }
+      if (mode === 'fgfg' && last?.role !== 'tool' && lastUser.includes('PARENT::') && roundsWith('agent') === 0) {
+        // Two foreground children in one batch (A answers, B per spec).
+        const a = { ...fgArgs, description: `child A ${id}`, prompt: `CHILD::reply::${id}a Compute the answer and reply with one line.` };
+        const b = { ...fgArgs, description: `child B ${id}`, prompt: `CHILD::${spec}::${id}b Reply with one line.` };
+        return logAnd({ toolCalls: [fakeToolCall('agent', a, `call_${id}_a`), fakeToolCall('agent', b, `call_${id}_b`)] }, 'parent-fgfg');
+      }
       if (mode === 'fgbg' && last?.role !== 'tool' && lastUser.includes('PARENT::') && roundsWith('agent') === 0) {
         // One agent-only batch: a foreground child that answers, then a
         // background child (the spec) that the bot's R1-24 scenario names.

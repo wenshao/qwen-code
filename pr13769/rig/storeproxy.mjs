@@ -7,7 +7,7 @@
 // forwarded, never answered — so the commit is provably lost when the
 // Harness is then killed. One-shot: the rule disarms after its first hold.
 // usage: node storeproxy.mjs <listenPort> <upstreamPort> <controlPort> <logFile>
-//   control: GET /arm?[path=<substr>][&marker=<a&&b>][&session=<id>] | /disarm | /held
+//   control: GET /arm?[path=<substr>][&marker=<a&&b>][&session=<id>][&after=<a&&b>] | /disarm | /held
 //   (path defaults to /transactions:commit; an empty marker matches on path alone)
 import http from 'node:http';
 import { appendFileSync } from 'node:fs';
@@ -38,8 +38,20 @@ http.createServer((req, res) => {
         (!rule.session || path.includes(rule.session) || body.includes(rule.session))) {
       let texts = [body.toString('utf8')];
       try { texts = decodedTexts(JSON.parse(body.toString('utf8')), texts); } catch {}
+      // 'after' mode: let the first commit matching `after` through, then
+      // hold the NEXT commit on that same session (fold durable, die before
+      // the follow-up write).
+      if (rule.after && !rule.afterSeen) {
+        const ap = rule.after.split('&&');
+        if (texts.some((t) => ap.every((m) => t.includes(m)))) {
+          rule.afterSeen = true;
+          rule.session = (path.match(/sessions\/([^/]+)\//) ?? [])[1] ?? rule.session;
+          log({ afterSeen: true, path: path.slice(0, 160), session: rule.session });
+        }
+        texts = null;
+      }
       const parts = rule.marker ? rule.marker.split('&&') : [];
-      const hit = texts.find((t) => parts.every((m) => t.includes(m)));
+      const hit = texts === null ? undefined : texts.find((t) => parts.every((m) => t.includes(m)));
       if (hit !== undefined) {
         const at0 = parts.length ? Math.max(0, hit.indexOf(parts[0]) - 260) : 0;
         const entry = { path: path.slice(0, 160), bytes: body.length, marker: rule.marker, at: new Date().toISOString(), snippet: hit.slice(at0, at0 + 520) };
@@ -73,6 +85,8 @@ http.createServer((req, res) => {
       path: u.searchParams.get('path') || '/transactions:commit',
       marker: u.searchParams.get('marker') || '',
       session: u.searchParams.get('session') || null,
+      after: u.searchParams.get('after') || null,
+      afterSeen: false,
     };
     log({ armed: rule });
     res.end(JSON.stringify({ armed: rule }) + '\n');
