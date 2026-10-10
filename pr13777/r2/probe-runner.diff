@@ -1,0 +1,167 @@
+diff --git a/scripts/run-managed-agent-server-e2e.ts b/scripts/run-managed-agent-server-e2e.probe.ts
+index 9e8f1684aa..58868d6634 100644
+--- a/scripts/run-managed-agent-server-e2e.ts
++++ b/scripts/run-managed-agent-server-e2e.probe.ts
+@@ -250,6 +250,15 @@ try {
+       ...(directory === runtimeState && workspaceTurns ? { mode: 0o700 } : {}),
+     });
+   }
++  if (process.env['PROBE_QWEN_MD']) {
++    writeFileSync(
++      path.join(workspaceMount, 'QWEN.md'),
++      `# Project rules\n\n${process.env['PROBE_QWEN_MD']}\n` +
++        '- keep the workspace tidy and the tests green.\n'
++          .repeat(Math.ceil(Number(process.env['PROBE_QWEN_MD_PAD'] ?? 0) / 47))
++          .slice(0, Number(process.env['PROBE_QWEN_MD_PAD'] ?? 0)),
++    );
++  }
+   if (durableFailover) {
+     for (const home of [harnessHome, replacementHarnessHome]) {
+       writeFileSync(
+@@ -854,6 +863,8 @@ const continuationHold = new Promise<void>((resolve) => {
+ });
+ 
+ let fake: Awaited<ReturnType<typeof startFakeOpenAIServer>> | undefined;
++let probeKillIndex: number | undefined;
++const probeTimes: number[] = [];
+ let heldStartProxy: HeldExecutionStartProxy | undefined;
+ let replacementBrokerProxy: HeldExecutionStartProxy | undefined;
+ let failure: unknown;
+@@ -881,6 +892,7 @@ try {
+ 
+   if (durableFailover) {
+     fake = await startFakeOpenAIServer(({ body }) => {
++      probeTimes.push(Date.now());
+       const messages = Array.isArray(body['messages']) ? body['messages'] : [];
+       const serialized = JSON.stringify(messages);
+       // Match the new current input before any marker from restored history.
+@@ -1294,6 +1306,15 @@ try {
+           `SELECT options_json FROM qwen_managed_agent.managed_agent_action WHERE ${actionFilter}`,
+         ),
+       );
++      if (process.env['PROBE_BASE_RELAX']) {
++        originalRuntimeSessionId = runMysql(
++          mysqlPort,
++          'SELECT runtime_session_id FROM qwen_managed_agent.qwen_runtime_session ORDER BY last_active_at DESC LIMIT 1',
++        );
++        console.log(
++          `PROBE base relax: options=${JSON.stringify(originalApprovalOptions)} runtime=${originalRuntimeSessionId}`,
++        );
++      } else {
+       if (
+         originalApprovalOptions?.v !== 3 ||
+         !originalApprovalOptions.continuationRef
+@@ -1395,6 +1416,40 @@ try {
+         executionCount,
+         physicalFileExists: existsSync(inflightSideEffect),
+       });
++      }
++      if (process.env['PROBE_ALLOW_BEFORE_KILL']) {
++        // Control arm: answer the approval on the ORIGINAL Harness (no kill).
++        const controlResponse = await fetch(
++          `${springUrl}/v1/agents/sessions/${session.id}/actions/${originalApprovalId}/responses`,
++          {
++            method: 'POST',
++            headers: {
++              'content-type': 'application/json',
++              'idempotency-key': `probe-allow-${originalApprovalId}`,
++              ...tenantHeaders(tenant),
++            },
++            body: JSON.stringify({
++              kind: 'permission',
++              input_revision: 1,
++              policy_revision: originalApprovalOptions!.policyRevision,
++              option_id: 'allow',
++            }),
++          },
++        );
++        console.log(`PROBE control allow -> ${controlResponse.status}`);
++        const controlDone = await waitForTerminal(
++          springUrl,
++          tenant,
++          session.id,
++          0,
++          spring,
++          120_000,
++        );
++        console.log(
++          `PROBE control terminal ${JSON.stringify(controlDone.events.filter((event) => event.terminal).map((event) => event.type))}`,
++        );
++        throw new Error('PROBE control run complete (no kill)');
++      }
+     } else if (continuationFailover) {
+       await waitUntil(
+         'Continuation partial text',
+@@ -1546,6 +1601,8 @@ try {
+     } else if (harnessOnly) {
+       // Kill only the Harness: a live control plane must adopt the next
+       // generation instead of failing every bound Session (G3).
++      probeKillIndex = fake?.requests.length;
++      console.log(`PROBE kill index ${probeKillIndex} at ${Date.now()}`);
+       await crashChild(harness.child, `${hostedHarnessLabel} (original)`);
+     } else {
+       await Promise.all([
+@@ -2850,6 +2907,20 @@ try {
+       console.error(`Durable state dump failed: ${String(dumpError)}`);
+     }
+   }
++  if (process.env['PROBE_HOLD_SECONDS'] && dumpPort !== undefined) {
++    const holdMs = Number(process.env['PROBE_HOLD_SECONDS']) * 1000;
++    const holdStart = Date.now();
++    while (Date.now() - holdStart < holdMs) {
++      await new Promise((resolve) => setTimeout(resolve, 30_000));
++      try {
++        console.error(
++          `PROBE hold +${Math.round((Date.now() - holdStart) / 1000)}s modelRequests=${fake?.requests.length} turns=${runMysql(dumpPort, 'SELECT turn_id, status, error_code FROM qwen_managed_agent.managed_agent_turn').replace(/\n/g, ' | ')} lastEvent=${runMysql(dumpPort, 'SELECT sequence_id, event_type FROM qwen_managed_agent.managed_agent_event ORDER BY sequence_id DESC LIMIT 1')}`,
++        );
++      } catch (holdError) {
++        console.error(`PROBE hold dump failed: ${String(holdError)}`);
++      }
++    }
++  }
+   if (replacementBrokerProxy !== undefined) {
+     console.error(
+       `\n--- Replacement Runtime Broker requests ---\n${replacementBrokerProxy.observations().join('\n')}`,
+@@ -2883,12 +2954,42 @@ try {
+       );
+     }
+   }
++  if (process.env['PROBE_DUMP_DIR'] && dumpPort !== undefined) {
++    try {
++      mkdirSync(process.env['PROBE_DUMP_DIR'], { recursive: true });
++      writeFileSync(
++        path.join(process.env['PROBE_DUMP_DIR'], 'recovery-resources.tsv'),
++        runMysql(
++          dumpPort,
++          "SELECT kind, byte_length, storage_kind, state FROM qwen_managed_agent.qwen_managed_session_resource WHERE kind LIKE 'hosted-%' ORDER BY created_at",
++        ) + '\n',
++      );
++    } catch (error) {
++      console.error(`PROBE resource dump failed: ${String(error)}`);
++    }
++  }
+   for (const child of children.reverse()) {
+     await stopChild(child.child);
+   }
+   await heldStartProxy?.close();
+   await replacementBrokerProxy?.close();
+   releaseContinuationHold();
++  if (process.env['PROBE_DUMP_DIR']) {
++    mkdirSync(process.env['PROBE_DUMP_DIR'], { recursive: true });
++    writeFileSync(
++      path.join(process.env['PROBE_DUMP_DIR'], 'provider-requests.json'),
++      JSON.stringify(
++        {
++          killIndex: probeKillIndex,
++          times: probeTimes,
++          requests: fake?.requests.map((request) => request.body) ?? [],
++          failure: failure ? String(failure) : null,
++        },
++        null,
++        2,
++      ),
++    );
++  }
+   await fake?.close();
+   if (failure && process.env['QWEN_MANAGED_E2E_KEEP_TMP'] === '1') {
+     console.error(`Keeping temporary directory: ${temporary}`);
