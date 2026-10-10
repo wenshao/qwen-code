@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="card">
+<h1>N1 fixed: a Shell approval now answers only to the Session's recorded owner</h1>
+<p class="sub">Same scenario on both heads · macOS · JDK 21 · MySQL 8.4.7 · real Spring jar + packaged Harness · flag on, approval mode <code>default</code> · Workspace W1 grants: <code>op</code> OPERATOR (creator), <code>op2</code> OPERATOR, <code>ow</code> OWNER, <code>rd</code> READER</p>
+<h2>op's Shell Session asks to run <code>printf 'pend\n' &gt;&gt; pend-proof-s1.txt; pwd</code></h2>
+<table>
+<tr><th>Who answers, where</th><th>486264e5 (round 2)</th><th>77463e01 (this head)</th></tr>
+<tr><td class="k">op2 (OPERATOR) · REST Allow</td><td class="bad">202 · command ran</td><td class="ok">403 action_forbidden</td></tr>
+<tr><td class="k">op2 (OPERATOR) · WebShell Allow</td><td class="bad">202</td><td class="ok">403 action_forbidden</td></tr>
+<tr><td class="k">op2 (OPERATOR) · REST Deny</td><td class="mute">409 action_already_resolved (op2 had already allowed)</td><td class="ok">403 action_forbidden</td></tr>
+<tr><td class="k">ow (Workspace OWNER, not the creator) · REST and WebShell Allow</td><td class="mute">409 action_already_resolved</td><td class="ok">403 action_forbidden (both surfaces)</td></tr>
+<tr><td class="k">rd (READER) · REST Allow</td><td class="ok">403</td><td class="ok">403</td></tr>
+<tr><td class="k">ACTION_RESPONSE operations written by non-owners</td><td class="bad">2</td><td class="ok">0 · Action still <code>requested</code> · no command ran</td></tr>
+<tr><td class="k">op (recorded owner) · REST Allow</td><td class="mute">409 (already answered by op2)</td><td class="ok">202 · Turn COMPLETED · command ran once</td></tr>
+</table>
+<h2>op2 starts a Turn in op's Shell Session (OPERATOR may still submit)</h2>
+<table>
+<tr><th>Step</th><th>486264e5</th><th>77463e01</th></tr>
+<tr><td class="k">op2 submits <code>PEND::s2</code></td><td>202</td><td>202</td></tr>
+<tr><td class="k">op2 approves the Shell call of its own Turn (WebShell)</td><td class="bad">202</td><td class="ok">403 · nothing ran</td></tr>
+<tr><td class="k">op approves (WebShell)</td><td class="mute">202</td><td class="ok">202 · Turn COMPLETED · ran once</td></tr>
+</table>
+<h2>Controls and test guard</h2>
+<table>
+<tr><td class="k">Files Session, flag off: op2 (OPERATOR) WebShell Allow</td><td class="ok">202 · Turn COMPLETED · file written (main #13545's operator handoff kept for non-Shell Sessions)</td></tr>
+<tr><td class="k">Tool list in both Shell runs</td><td class="ok">edit, monitor, read_file, run_shell_command, write_file</td></tr>
+<tr><td class="k">Mutant N1a: Shell falls back to the operator arm</td><td class="ok">killed, but by exactly one test: <code>ManagedActionsTest.ownerResponseReplays…[shell=true]</code>. <code>HostedPublicWorkspaceIT</code> answers Shell as the owner and never tries op2</td></tr>
+<tr><td class="k">Mutant N1b: owner-only for every bound Session</td><td class="ok">killed: 11 failures across 10 <code>SurfaceAdmissionAcceptanceTest</code> methods, e.g. <code>secondOperatorAnswersPendingApprovalsOnBothSurfaces</code></td></tr>
+</table>
+<p class="mute">Rig checks: 486264e5 14/23 (the failures are the N1 rows above), 77463e01 23/23 · files control 7/7</p>
+</div></body></html>
