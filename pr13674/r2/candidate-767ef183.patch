@@ -1,0 +1,71 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+index 29c4e035e1..ca6a55151a 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedAgentStore.java
+@@ -741,7 +741,9 @@ public class ManagedAgentStore implements AgentStateStore {
+     @Transactional
+     public OperationAdmission beginWorkspaceLifecycle(String tenantId, String sessionId,
+             OperationKind kind, String actorId, String actorDigest, String key, String digest, boolean supported, int protocolVersion) {
+-        return beginLifecycle(tenantId, sessionId, kind, actorDigest, key, digest, actorId, supported, protocolVersion);
++        // Public lifecycle requests refuse Shell Sessions; the internal H4b
++        // child close (the 8-argument overload) must still settle children.
++        return beginLifecycle(tenantId, sessionId, kind, actorDigest, key, digest, actorId, supported, protocolVersion, true);
+     }
+ 
+     @Override
+@@ -820,11 +822,12 @@ public class ManagedAgentStore implements AgentStateStore {
+ 
+     private OperationAdmission beginLifecycle(String tenantId, String sessionId, OperationKind kind,
+             String actorDigest, String idempotencyKey, String requestDigest, String actorId, boolean supported) {
+-        return beginLifecycle(tenantId, sessionId, kind, actorDigest, idempotencyKey, requestDigest, actorId, supported, 0);
++        return beginLifecycle(tenantId, sessionId, kind, actorDigest, idempotencyKey, requestDigest, actorId, supported, 0, false);
+     }
+ 
+     private OperationAdmission beginLifecycle(String tenantId, String sessionId, OperationKind kind,
+-            String actorDigest, String idempotencyKey, String requestDigest, String actorId, boolean supported, int protocolVersion) {
++            String actorDigest, String idempotencyKey, String requestDigest, String actorId, boolean supported, int protocolVersion,
++            boolean refuseShell) {
+         WorkspaceMigrationAdmission.lockTenant(jdbc, tenantId);
+         if (protocolVersion == 1) {
+             ToolPublicationRetentionStore.lockTenant(jdbc, tenantId);
+@@ -850,7 +853,7 @@ public class ManagedAgentStore implements AgentStateStore {
+             }
+             return new OperationAdmission(existing.get(), true);
+         }
+-        if (WorkspaceToolProfiles.isShell(session.toolProfile())) {
++        if (refuseShell && WorkspaceToolProfiles.isShell(session.toolProfile())) {
+             throw workspaceExecutionUnavailable();
+         }
+         if (session.workspace() != null) {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionTest.java
+index 2ae24ff254..22f5353a08 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/WorkspaceSessionRetentionTest.java
+@@ -148,6 +148,27 @@ class WorkspaceSessionRetentionTest {
+         assertThat(runtime.calls.get(session)).isEqualTo(1);
+     }
+ 
++    @Test
++    void internalChildCloseStillAdmitsShellSessionsThatPublicLifecycleRefuses() throws Exception {
++        String tenant = tenant();
++        String session = create(tenant);
++        jdbc.update("UPDATE managed_agent_session SET tool_profile = 'hosted-workspace-shell/1', approval_mode = 'default'"
++                + " WHERE tenant_id = ? AND session_id = ?", tenant, session);
++        web("close", tenant, session, "owner", "shell-public-close")
++                .andExpect(status().isConflict())
++                .andExpect(jsonPath("$.error.code").value("workspace_unavailable"));
++        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM managed_agent_operation WHERE tenant_id = ? AND session_id = ?",
++                Integer.class, tenant, session)).isZero();
++        // The H4b relay closes a finished child through this overload (ChildLifecycleAdmissions);
++        // a Shell parent's children inherit its profile, so the public refusal must not reach it.
++        var admission = store.beginWorkspaceLifecycle(tenant, session, OperationKind.CLOSE, "owner",
++                "owner-digest", "child-close-run", "close-digest", true);
++        assertThat(admission.replayed()).isFalse();
++        assertThat(admission.operation().kind()).isEqualTo(OperationKind.CLOSE);
++        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM managed_agent_operation WHERE tenant_id = ? AND session_id = ?",
++                Integer.class, tenant, session)).isEqualTo(1);
++    }
++
+     @ParameterizedTest
+     @ValueSource(strings = {"hosted-workspace-files/1", "hosted-workspace-files/2"})
+     void archivesAndUnarchivesAcrossSurfacesWithoutReopeningOrRepeatingCleanup(String profile) throws Exception {
