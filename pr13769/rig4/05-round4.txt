@@ -1,30 +1,28 @@
-## PR #13769 - round 4: post-merge regression check on current main (same rig as rounds 1-3)
-== #13769 is unchanged since its merge (6386bb24 = head 01759f90); main then merged #13824, #13829, #13823, #13841 on its paths / the relay
-== main1 = df72e2d1 (#13824 #13829 #13823)   main2 = 1e1c4a4a (+ #13841 #13830)   TS + Java built from main   control: head4 = 01759f90
-== fault = kill only `qwen serve`; every scenario on its own fresh stack; main1 and main2 give the same result unless a cell shows both
+## PR #13769 - round 4: post-merge re-verification on current main (same rig as rounds 1-3)
+== #13769 is unchanged since its merge (6386bb24 = head 01759f90). main has since merged #13824 #13829 #13823 #13841 #13830 #13822 on its paths / the relay
+== main1 = df72e2d1, main2 = 1e1c4a4a, main3 = 9763580b (TS + Java built from main); controls: head4 = 01759f90, base2 = 9ec44d45 (before #13769)
 
->> Every round-3 scenario re-run on main1 and main2                        head4 (round 3)         main1 / main2
-++ R2-1  live fold; crash in the next model call; continued shell round    COMPLETED, shell ran    COMPLETED, shell ran (adoption ckpt under the new activation)
-++ R2-3  recovered fg wait, then a 2nd fg agent call                       0 acquires, COMPLETED   0 acquires, COMPLETED
-++ R2-2  [fg A, fg B]; B's wait commit lost; cancel while down             CANCELLED +61 s         CANCELLED +60 s; cancel 189 / 132 ms; B abandoned x1
-++ R2-9  3 x 503 on the adoption read, then a 2nd clean restart            blocked; 2nd COMPLETED  model not called; 2nd restart COMPLETED
-++ S1 S2 S3 S5 S8 S9  (#13708 points 1/2, R1-21, R1-23, orphan)            COMPLETED, 1 result     COMPLETED, 1 tool_result per call; next Turn COMPLETED
-++ S4 cancel takeover / S6 (R1-1) / S7 [fg, bg] (R1-24)                    as round 3              same; S7 bg receipt x1, wake delivery x1
-++ T1 / T2  65,480-char child answer, live arm / recovery gap fill         32,810 + marker         32,809 / 32,810 + marker (stray "\n" absent / present); T2 32,810
-++ Linux L0 / L1 / L3 (durable-local-process) close + delete               2/1, 2/2, 3/1 s         2/1, 2/2, 4/1 s  /  2/1, 2/1, 3/1 s
+>> Round-3 scenarios, each on a fresh stack                                      head4 (round 3)       main1 / main2 / main3
+++ R2-1, R2-3, R2-2, R2-9 (the round-2 self-review findings)                     fixed                 same on all three: adoption, 0 acquires, cancel 189/132/102 ms, no model call
+++ S1-S9 (#13708 points 1-2, R1-1/3/21/23/24, orphans), T1/T2, Linux L0/L1/L3    pass                  pass on all three; restart-to-settle within one 60 s Spring retry
 
->> New probes where #13829 / #13823 meet the agent wait                    head4                   main1 / main2
-++ S7c  [fg, bg]; bg receipt lost; cancel while the Harness is down        CANCELLED +63 s         CANCELLED +63 / +61 s; bg = started receipt x1, not "never ran"
-++ S11  [fg A, fg B]; A folded live; B's admission lost                    B "not admitted" x1     B "not admitted" x1: the gap fill answers before #13829's sweep
-++ S12a public task cancel of the fg child the parent waits on             (no H4f)                op confirmed <1 s; fold "cancelled (stop_requested)"; +8 s
-++ S12c same, admitted while the Harness is down; child starts later       (no H4f)                op confirmed +74 / +90 s; child CANCELLED; fold x1; COMPLETED
-== S12b (child's model call held across the restart): the child fails first (S2's path); op confirmed, fold child_failed, as H4f's design says
+>> New probes where the follow-ups meet the agent wait                                                 
+++ S7c / S11  #13829's answer sweeps after this PR's cancel / continue gap fill  same                  bg receipt x1 (not "never ran"); B "not admitted" x1
+++ S12a/S12c  #13823 public cancel of the waited fg child (live / Harness down)  (no H4f)              op confirmed; fold "cancelled (stop_requested)"; COMPLETED
+++ S13a  #13822: the waited fg child messages its parent, then answers (live)    (no H4d-b)            fold x1, message delivered x1 after the Turn; COMPLETED
 
->> Unit suites on main1 / main2
-++ core 80/80 / 80/80; cli test-plan files 461/462 / 470/472 - every failure in the 'Runtime turn takeover' group
-!! that group: without #13829's 9 new tests 7/7 clean (head4 3/3); with them 5 of 12 runs fail one OLD test (ECONNRESET / 404 / timeout)
+>> NEW: restart in a fg wait while a wake input sits in the parent's journal     head4 01759f90        main3 9763580b
+-- S14   [bg answers at once, fg held]: bg notification lands, restart           wedged 3/3            wedged 3/3
+-- S13b  fg child messages its parent (#13822); fold commit lost; restart        (no H4d-b)            wedged 3/3
+--       takeover load 200 -> the wake pump starts the notification's turn first (continue: 409 hosted_turn_active)
+--       -> 'await_agent is not a model-start phase' -> Session blocked: every continue / relay op 409 hosted_turn_recovery_required
+--       the parent Turn stays RUNNING (410 s+), and so does the next Turn
+!! S15   same race on an ordinary Runtime park (results_ready)                   1/3 wedged            main 2/7 wedged; base2 0/5 clean (2 identical wedges in a perturbed batch)
+!!       there the wake turn swallows the parked round: continue 409 hosted_turn_active, then hosted_recovery_identity_mismatch forever
+
+>> Unit suites
+++ core 80/80 on all three; cli test-plan files 461/462, 470/472, 482/483 - every failure is an OLD test in the 'Runtime turn takeover' group
+!! that group: without #13829's 9 new tests 7/7 clean (head4 3/3); with them 5 of 12 runs fail one old test (ECONNRESET / 404 / timeout)
 
 >> Pre-existing, unchanged on main (not this PR)
-!! S0  the parent's own model call in flight across a restart: Turn FAILED, next Turn FAILED
-!! S6  a crash between tool-sessions:acquire and the Runtime batch leaves the Workspace lease held: 452 / 450 x 409 in 120 s
-!! T1  stray "\n" at offset 3,072 again on main2 (ChildResultRelayStore.terminalResultText joins output_text parts with "\n", #13550)
+!! S0 parent model call across a restart wedges; S6 Workspace lease leak (443-452 x 409 in 120 s); stray "\n" in child results at offset 3,072 (#13550)
