@@ -1,0 +1,31 @@
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/Issue13181QueryBudgetTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/service/Issue13181QueryBudgetTest.java
+@@ -904,6 +904,28 @@
+         fixture.jdbc.update("UPDATE managed_workspace_access SET role = 'OPERATOR'");
+         fixture.jdbc.update("UPDATE managed_agent_session SET status = 'CLOSED'");
+         assertThat(JSON.valueToTree(fixture.service.getWebShellSession(tenant, "actor", id)).path("capabilities").path("cwdChange").asBoolean()).isFalse();
++    }
++
++    @Test
++    void cwdCapabilityChecksTheCallerRoleOnEachWorkspaceOfAMixedPage() {
++        // The facts batch runs as soon as ANY row's grant is OPERATOR, so the
++        // per-row role conjunct is what keeps a READER row false on a page
++        // where the caller operates another Workspace.
++        Fixture fixture = new Fixture(Clock.systemUTC(), true);
++        String tenant = "cwd-" + UUID.randomUUID();
++        String readRow = fixture.createCwdSessions(tenant, 1).getFirst();
++        fixture.jdbc.update("INSERT INTO managed_workspace_registry (tenant_id, workspace_id, workspace_generation, storage_id, display_name, config_ref, policy_ref, state) VALUES (?, 'workspace-2', 1, 'storage-2', 'Workspace 2', ?, ?, 'ACTIVE')", tenant, WorkspaceExecutionProfile.CONFIG_REF, WorkspaceExecutionProfile.POLICY_REF);
++        fixture.jdbc.update("INSERT INTO managed_workspace_access (tenant_id, workspace_id, actor_id, role) VALUES (?, 'workspace-2', ?, 'OPERATOR')", tenant, "actor".getBytes(StandardCharsets.UTF_8));
++        String operateRow = fixture.tx.execute(status -> fixture.store.insertWorkspaceSessionCommand(tenant, "actor", UUID.randomUUID().toString(), "digest", "qwen-code", null, null, List.of(), null, new WorkspaceSelection("workspace-2", "."))).sessionId();
++        fixture.jdbc.update("INSERT INTO managed_workspace_access (tenant_id, workspace_id, actor_id, role) VALUES (?, 'workspace', ?, 'READER')", tenant, "other".getBytes(StandardCharsets.UTF_8));
++        fixture.jdbc.update("INSERT INTO managed_workspace_access (tenant_id, workspace_id, actor_id, role) VALUES (?, 'workspace-2', ?, 'OPERATOR')", tenant, "other".getBytes(StandardCharsets.UTF_8));
++        var page = fixture.service.listWebShellSessions(tenant, "other", null, 20).data();
++        java.util.Map<String, Boolean> cwd = new java.util.HashMap<>();
++        for (var row : page) {
++            var node = JSON.valueToTree(row);
++            cwd.put(node.path("sessionId").asText(), node.path("capabilities").path("cwdChange").asBoolean());
++        }
++        assertThat(cwd).containsEntry(operateRow, true).containsEntry(readRow, false);
+     }
+ 
+     @Test

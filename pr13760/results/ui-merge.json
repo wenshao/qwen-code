@@ -1,0 +1,264 @@
+{
+  "arm": "merge",
+  "checks": [
+    {
+      "name": "U0 merge: Change directory entry for the creator",
+      "ok": true,
+      "detail": "buttons=1 capabilities.cwdChange=true workspaceTurns=true dir=\"Relative directory: .\" pageerrors=0"
+    },
+    {
+      "name": "U1 dialog prefilled with the committed directory",
+      "ok": true,
+      "detail": "prefill=\".\""
+    },
+    {
+      "name": "U1 Send locked and draft kept while the operation is in flight",
+      "ok": true,
+      "detail": {
+        "dir": "Relative directory: B",
+        "send": true,
+        "draft": "please RIG_WRITE_u188e090",
+        "card": "Bound Workspace: W1 | Relative directory: B | Change directory | Changing directory… | Changing directory…",
+        "dialogOpen": true
+      }
+    },
+    {
+      "name": "U1 directory B shown after completion; draft kept; Send unlocked; dialog closed",
+      "ok": true,
+      "detail": {
+        "dir": "Relative directory: B",
+        "send": false,
+        "draft": "please RIG_WRITE_u188e090",
+        "card": "Bound Workspace: W1 | Relative directory: B | Change directory",
+        "dialogOpen": false,
+        "ms": 1166
+      }
+    },
+    {
+      "name": "U1 one POST with cwdRelative=B at the summary revision",
+      "ok": true,
+      "detail": [
+        {
+          "cwdRelative": "B",
+          "expectedContextRevision": 1,
+          "sessionId": "1dff7ff4-a597-4ddc-8b7f-dd96a077f498",
+          "idempotencyKey": "managed_772925b0-f205-440e-b220-04ed71f9bfd0",
+          "requestId": "managed_9dadbde4-70ec-42ed-a417-f64a0c1430d1"
+        }
+      ]
+    },
+    {
+      "name": "U1 DB: session cwd B, one CWD_CHANGE op completed",
+      "ok": true,
+      "detail": "{\"cwd\":\"B\",\"rev\":2} ops=COMPLETED:B:"
+    },
+    {
+      "name": "U1 transcript not reloaded/lost",
+      "ok": true,
+      "detail": "before=0 after=0 msgsBefore=0"
+    },
+    {
+      "name": "U1 next Turn from the composer writes into B (not the root)",
+      "ok": true,
+      "detail": "turn=COMPLETED inB=true inRoot=false pageerrors=0"
+    },
+    {
+      "name": "U2 rd: entry count 0",
+      "ok": true,
+      "detail": "buttons=0 cwdChange=false dir=\"Relative directory: B\""
+    },
+    {
+      "name": "U2 op2: entry count 1",
+      "ok": true,
+      "detail": "buttons=1 cwdChange=true dir=\"Relative directory: B\""
+    },
+    {
+      "name": "U2 ow2: entry count 1",
+      "ok": true,
+      "detail": "buttons=1 cwdChange=true dir=\"Relative directory: B\""
+    },
+    {
+      "name": "U3 server committed although the browser lost the 202",
+      "ok": true,
+      "detail": {
+        "intercepted": 202,
+        "op": "op_9fd7cd1b8b164acaa45f82e6d378d3cb",
+        "card": "Bound Workspace: W2 | Relative directory: A | Change directory | The directory change is not confirmed yet. Continue confirming the original request. | The directory change is not confirmed yet. Continue confirming the original request. | Continue confirming",
+        "send": true,
+        "serverCwd": "A",
+        "ops": "COMPLETED:A:",
+        "dialogOpen": true
+      }
+    },
+    {
+      "name": "U3 UI parks the request as unconfirmed and keeps Send locked",
+      "ok": true,
+      "detail": {
+        "card": "Bound Workspace: W2 | Relative directory: A | Change directory | The directory change is not confirmed yet. Continue confirming the original request. | The directory change is not confirmed yet. Continue confirming the original request. | Continue confirming",
+        "send": true,
+        "serverCwd": "A",
+        "ops": "COMPLETED:A:",
+        "dialogOpen": true
+      }
+    },
+    {
+      "name": "U3 after reload: still unconfirmed, no automatic replay, Send locked",
+      "ok": true,
+      "detail": {
+        "card": "Bound Workspace: W2 | Relative directory: A | Change directory | The directory change is not confirmed yet. Continue confirming the original request. | Continue confirming",
+        "send": true,
+        "postsSinceReload": 0,
+        "dir": "Relative directory: A"
+      }
+    },
+    {
+      "name": "U3 Continue replays the original key once; server answers replayed",
+      "ok": true,
+      "detail": {
+        "firstKey": "managed_722bf87d-8f1e-411a-8f8b-a86a76ae7995",
+        "replayKeys": [
+          "managed_722bf87d-8f1e-411a-8f8b-a86a76ae7995"
+        ],
+        "replayRes": [
+          {
+            "status": 202,
+            "replayed": true,
+            "op": "op_9fd7cd1b8b164acaa45f82e6d378d3cb",
+            "status2": "completed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "U3 confirmed: directory A, Send usable with text, still exactly one CWD_CHANGE op",
+      "ok": true,
+      "detail": {
+        "draftAfterReload": "",
+        "card": "Bound Workspace: W2 | Relative directory: A | Change directory",
+        "send": false,
+        "dir": "Relative directory: A",
+        "ops": "1",
+        "pageerrors": 0
+      }
+    },
+    {
+      "name": "U4 another operator changes the directory: dialog shows the new directory and blocks submit",
+      "ok": true,
+      "detail": {
+        "other": {
+          "status": 202,
+          "cwd": "docs"
+        },
+        "submitDisabled": true,
+        "dialog": "Change directory | Enter a path relative to the Workspace root. Use . for the root. Future tasks run in the new directory; conversation history is kept. | Directory relative to Workspace root | The current directory changed to docs. Confirm this context before submitting. | Use the current directory context | Close | Change directory"
+      }
+    },
+    {
+      "name": "U4 after acknowledging, the change applies on the new basis",
+      "ok": true,
+      "detail": {
+        "enabled": true,
+        "moved": true,
+        "row": {
+          "cwd": "B",
+          "rev": 3
+        },
+        "ops": "COMPLETED:docs: | COMPLETED:B:"
+      }
+    },
+    {
+      "name": "U4 root-directory banner text (R1-25 copy)",
+      "ok": true,
+      "detail": "The current directory changed to .. Confirm this context before submitting."
+    },
+    {
+      "name": "U5 missing directory: op FAILED, cwd unchanged, failure explained, Send unlocked",
+      "ok": true,
+      "detail": {
+        "card": "Bound Workspace: W4 | Relative directory: . | Change directory | The Workspace is currently unavailable for a directory change.",
+        "dialog": "Change directory | Enter a path relative to the Workspace root. Use . for the root. Future tasks run in the new directory; conversation history is kept. | Directory relative to Workspace root | The Workspace is currently unavailable for a directory change. | Close | Change directory",
+        "send": false,
+        "ops": "FAILED:missing/dir:workspace_unavailable",
+        "row": {
+          "cwd": ".",
+          "rev": 1
+        }
+      }
+    },
+    {
+      "name": "U5 reopening the dialog keeps the failed target",
+      "ok": true,
+      "detail": "prefill=\"missing/dir\""
+    },
+    {
+      "name": "U5 parent escape: 400 invalid_cwd explained",
+      "ok": true,
+      "detail": {
+        "status": 400,
+        "code": "invalid_cwd",
+        "card": "Bound Workspace: W4 | Relative directory: . | Change directory | The directory is invalid or cannot be accessed.",
+        "dialog": "Change directory | Enter a path relative to the Workspace root. Use . for the root. Future tasks run in the new directory; conversation history is kept. | Directory relative to Workspace root | The directory is invalid or cannot be accessed. | Close | Change directory"
+      }
+    },
+    {
+      "name": "U6 running Turn: entry disabled with the busy reason",
+      "ok": true,
+      "detail": {
+        "disabled": true,
+        "card": "Bound Workspace: W4 | Relative directory: . | Change directory | Finish the active task, approval or unconfirmed request before changing directory."
+      }
+    },
+    {
+      "name": "U7 settlement parked: old directory kept, Send locked, card tracks the operation after closing the dialog",
+      "ok": true,
+      "detail": {
+        "card": "Bound Workspace: W2 | Relative directory: . | Change directory | Changing directory… | Changing directory…",
+        "dir": "Relative directory: .",
+        "send": true,
+        "parked": true,
+        "opId": "op_161f79c3e1ed4623b685c9ff8785735a"
+      }
+    },
+    {
+      "name": "U7 after reload the saved operation id is queried automatically (no resubmit)",
+      "ok": true,
+      "detail": {
+        "queries": 3,
+        "submits": 0,
+        "card": "Bound Workspace: W2 | Relative directory: . | Change directory | Changing directory… | Changing directory…"
+      }
+    },
+    {
+      "name": "U7 still unsettled after ~30 s: parked as unconfirmed, Send locked",
+      "ok": true,
+      "detail": {
+        "afterMs": 27177,
+        "card": "Bound Workspace: W2 | Relative directory: . | Change directory | The directory change is not confirmed yet. Continue confirming the original request. | The directory change is not confirmed yet. Continue confirming the original request. | Continue confirming"
+      }
+    },
+    {
+      "name": "U7 Continue confirming queries the known operation and completes",
+      "ok": true,
+      "detail": {
+        "moved": true,
+        "queries": 1,
+        "submits": 0,
+        "card": "Bound Workspace: W2 | Relative directory: B | Change directory",
+        "ops": "COMPLETED:B:",
+        "send": false,
+        "pageerrors": 0
+      }
+    },
+    {
+      "name": "U8 zh-CN: Unicode target 目录 applies",
+      "ok": true,
+      "detail": {
+        "row": {
+          "cwd": "目录",
+          "rev": 2
+        },
+        "card": "已绑定工作区: W3 | 相对目录: 目录 | 切换目录 | 正在切换目录… | 正在切换目录…"
+      }
+    }
+  ]
+}
