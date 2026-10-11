@@ -1,0 +1,72 @@
+# PR #13777 re-verification, head e29a4e14 (one commit on 79accd43), merge base 6936c77e, 2026-10-11
+# Linux aarch64, Ubuntu 24.04 container, Node 22, OpenJDK 21, MySQL 8.
+# dist/cli.js sha256 9e0cbeb6... (head, re-bundled), 5d0f24ff... (candidate = head + candidate-final-plan.patch); jars: head a4e9ac18... (unchanged), base da7d8e85...
+# Expected rc=1 rows (judge by the PROBE lines in each console):
+#   live-*                    no-kill control arms exit 1 by design ("PROBE control run complete"); all completed + next Turn completed
+#   inflight-*, prepare-62000-allow, prepare-63500/62868-*, base-inflight-*, base-prepare-*   probe exits after recording ("PROBE relax recovery observed") or after the hold
+#   kill-63500-allow/deny, base-kill-63500-allow/deny   oversized (v2) approval parked across a Harness replacement: Turn RUNNING on head and merge base alike
+#   prepare-62821/62840/62867-allow(-cancelnext)   NEW: v2 approval + stored final plan, crash before prepare -> "Original approval verdict conflicts." on every open
+#   mix-headts-basejar-session-1   head Harness + base Store: ordinary Turn hangs (upgrade order, unchanged)
+#   cand-*                    candidate build; cand-g3-allow-1 is the pristine runner
+# Unit (Linux container): new test 4/4; 6 related files 283/283; size check deleted -> the two 63,500 B cases fail; candidate 7 files 287/287.
+# Probe hooks: probe-runner.diff (env-gated; the pristine runner drives g3-*, std-*, mix-* and cand-g3-*).
+RESULT label=live-62000-allow rc=1 seconds=29 args=--continuation-failover --harness-only
+RESULT label=g3-allow-1 rc=0 seconds=38 args=--continuation-failover --harness-only
+RESULT label=live-62820-allow rc=1 seconds=28 args=--continuation-failover --harness-only
+RESULT label=g3-allow-2 rc=0 seconds=39 args=--continuation-failover --harness-only
+RESULT label=live-62821-allow rc=1 seconds=28 args=--continuation-failover --harness-only
+RESULT label=live-63500-allow rc=1 seconds=27 args=--continuation-failover --harness-only
+RESULT label=g3-allow-3 rc=0 seconds=38 args=--continuation-failover --harness-only
+RESULT label=live-63500-deny rc=1 seconds=29 args=--continuation-failover --harness-only
+RESULT label=g3-deny-1 rc=0 seconds=38 args=--continuation-failover --harness-only
+RESULT label=live-64500-allow rc=1 seconds=29 args=--continuation-failover --harness-only
+RESULT label=g3-deny-2 rc=0 seconds=37 args=--continuation-failover --harness-only
+RESULT label=live-64948-allow rc=1 seconds=27 args=--continuation-failover --harness-only
+RESULT label=live-62815-deny rc=1 seconds=28 args=--continuation-failover --harness-only
+RESULT label=g3-deny-3 rc=0 seconds=37 args=--continuation-failover --harness-only
+RESULT label=g3-cancel-1 rc=0 seconds=36 args=--continuation-failover --harness-only
+RESULT label=kill-62820-allow rc=0 seconds=37 args=--continuation-failover --harness-only
+RESULT label=g3-cancel-2 rc=0 seconds=36 args=--continuation-failover --harness-only
+RESULT label=kill-62815-deny rc=0 seconds=38 args=--continuation-failover --harness-only
+RESULT label=g3-cancel-3 rc=0 seconds=37 args=--continuation-failover --harness-only
+RESULT label=kill-62800-expiry rc=0 seconds=57 args=--continuation-failover --harness-only
+RESULT label=g3-expiry-1 rc=0 seconds=56 args=--continuation-failover --harness-only
+RESULT label=g3-expiry-2 rc=0 seconds=56 args=--continuation-failover --harness-only
+RESULT label=g3-expiry-3 rc=0 seconds=58 args=--continuation-failover --harness-only
+RESULT label=g3-continuation-1 rc=0 seconds=36 args=--continuation-failover --harness-only
+RESULT label=g3-continuation-2 rc=0 seconds=36 args=--continuation-failover --harness-only
+RESULT label=kill-63500-allow rc=1 seconds=219 args=--continuation-failover --harness-only
+RESULT label=g3-continuation-3 rc=0 seconds=38 args=--continuation-failover --harness-only
+RESULT label=std-session rc=0 seconds=34 args=--session-failover
+RESULT label=std-inflight rc=0 seconds=36 args=--inflight-failover
+RESULT label=std-continuation rc=0 seconds=36 args=--continuation-failover
+RESULT label=std-big-output rc=0 seconds=38 args=--big-output
+RESULT label=std-hr-session rc=0 seconds=29 args=--session-failover --harness-only
+RESULT label=kill-63500-deny rc=1 seconds=220 args=--continuation-failover --harness-only
+RESULT label=std-hr-inflight rc=0 seconds=35 args=--inflight-failover --harness-only
+RESULT label=std-hr-continuation rc=0 seconds=36 args=--continuation-failover --harness-only
+RESULT label=std-frozen rc=0 seconds=43 args=--continuation-failover --freeze
+RESULT label=mix-headts-basejar-session-1 rc=1 seconds=150 args=--session-failover --harness-only
+RESULT label=inflight-62000-allow rc=1 seconds=96 args=--continuation-failover --harness-only
+RESULT label=inflight-62840-allow rc=1 seconds=96 args=--continuation-failover --harness-only
+RESULT label=inflight-63500-allow rc=1 seconds=97 args=--continuation-failover --harness-only
+RESULT label=base-inflight-62840-allow rc=1 seconds=96 args=--continuation-failover --harness-only
+RESULT label=prepare-62000-allow rc=1 seconds=97 args=--continuation-failover --harness-only
+RESULT label=base-kill-63500-allow rc=1 seconds=189 args=--continuation-failover --harness-only
+RESULT label=prepare-62840-allow rc=1 seconds=208 args=--continuation-failover --harness-only
+RESULT label=base-kill-63500-deny rc=1 seconds=189 args=--continuation-failover --harness-only
+UNIT rc=0
+RESULT label=prepare-63500-allow rc=1 seconds=209 args=--continuation-failover --harness-only
+CAND BUILD rc=0 5d0f24ff9998227d
+CAND UNIT rc=0
+RESULT label=base-prepare-62840-allow rc=1 seconds=208 args=--continuation-failover --harness-only
+RESULT label=prepare-62821-allow rc=1 seconds=177 args=--continuation-failover --harness-only
+RESULT label=prepare-62867-allow rc=1 seconds=177 args=--continuation-failover --harness-only
+RESULT label=prepare-62868-allow rc=1 seconds=177 args=--continuation-failover --harness-only
+RESULT label=prepare-62840-allow-cancelnext rc=1 seconds=283 args=--continuation-failover --harness-only
+RESULT label=cand-prepare-62840-allow rc=1 seconds=177 args=--continuation-failover --harness-only
+RESULT label=cand-prepare-62000-allow rc=1 seconds=66 args=--continuation-failover --harness-only
+RESULT label=cand-inflight-62840-allow rc=1 seconds=66 args=--continuation-failover --harness-only
+RESULT label=cand-live-62840-allow rc=1 seconds=28 args=--continuation-failover --harness-only
+RESULT label=cand-g3-allow-1 rc=0 seconds=36 args=--continuation-failover --harness-only
+CAND-DONE

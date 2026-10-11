@@ -1,0 +1,28 @@
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts	2026-10-11 21:17:44
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -782,6 +782,9 @@
+     inputRefs: Map<number, ManagedSessionDurableRef>;
+     definitionRefs: Map<number, ManagedSessionDurableRef>;
+     actionIds: Map<number, string>;
++    // An approval in this batch was asked without a saved plan; no later
++    // plan may cite it, since the reader requires v3 options for each call.
++    uncaptured?: boolean;
+   };
+   hookStopReason?: string;
+   private readonly broker: HostedWorkspaceBroker;
+@@ -1650,6 +1653,7 @@
+     const runtime = this.broker.runtime;
+     if (
+       !batch ||
++      batch.uncaptured ||
+       !runtime ||
+       isHostedWorkspaceShellProfile(this.profile) ||
+       this.hooks ||
+@@ -4687,6 +4691,7 @@
+       ordinal < 0
+         ? undefined
+         : await this.captureNativeBatch('approval', requestId, ordinal);
++    if (ordinal >= 0 && !continuationRef) this.nativeBatch!.uncaptured = true;
+     const options: HostedActionOptions = {
+       ...(continuationRef
+         ? {
