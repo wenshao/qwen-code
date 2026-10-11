@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="card">
+<h1>Stored AgentDefinitions now follow the public Shell rules</h1>
+<p class="sub">Same script on current main <code>fce50611</code> and on head <code>4b2bb453</code> · macOS · JDK 21 · MySQL 8.4.7 · real Spring jar + packaged Harness · approval mode <code>default</code> · definition allowlist <code>hosted-workspace-files/1, hosted-workspace-shell/1, hosted-workspace-team-lead/1</code> · W1 grants <code>op</code> (creator) and <code>op2</code> OPERATOR</p>
+<table>
+<tr><th>Definition-pinned Session</th><th>main fce50611 (shipped in v0.25.1)</th><th>head · Shell flag off</th><th>head · Shell flag on</th></tr>
+<tr><td class="k">Shell/1 definition + initial input (REST, WebShell)</td><td class="mute">202, 202 · runs</td><td class="ok">409 workspace_unavailable ×2 · 0 Session / Turn / create-command rows · 0 model requests</td><td class="ok">202 · asks approval</td></tr>
+<tr><td class="k">op2 (OPERATOR, not the creator) answers its Shell Action</td><td class="bad">202 · command ran</td><td class="mute">n/a</td><td class="ok">403 action_forbidden · owner Allow → ran once</td></tr>
+<tr><td class="k">Empty creation, then a fresh Turn</td><td class="mute">202 → 202</td><td class="ok">202 (shell/1, foreground_shell=false) → 409, no Turn row · creation replay keeps the id</td><td class="ok">202 (foreground_shell=true) → 202, completes</td></tr>
+<tr><td class="k">Tools offered to the model</td><td class="bad">12: agent, edit, monitor, read_file, run_shell_command, send_message, task_create, task_list, task_update, team_create, team_delete, write_file</td><td class="mute">no Turn runs</td><td class="ok">5: edit, monitor, read_file, run_shell_command, write_file · a scripted send_message call fails the Turn closed</td></tr>
+<tr><td class="k">files/1 definition</td><td class="ok">files/1 · completes</td><td class="ok">files/1 · completes</td><td class="ok">stays files/1 (pin kept, not upgraded to Shell) · completes</td></tr>
+<tr><td class="k">team-lead/1 definition (yolo and default; REST and WebShell; with and without input)</td><td class="mute">202 ×4 · rows pinned team-lead/1 (two with yolo) · main's Harness rejects the unknown profile</td><td class="ok">409 agent_definition_unsupported ×4 · 0 rows</td><td class="ok">409 agent_definition_unsupported ×4 · 0 rows</td></tr>
+</table>
+<p class="mute">Rig checks: main 17/17 (records main's behaviour) · head flag off 20/20 · head flag on 26/26 · head merged with latest main edec849a, flag on 26/26</p>
+</div></body></html>

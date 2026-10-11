@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="card">
+<h1>Reserved profile <code>hosted-workspace-team-lead/1</code>: no public path reaches it</h1>
+<p class="sub">Head <code>4b2bb453</code> vs current main <code>fce50611</code> · same rig · a record carrying the reserved profile is simulated by an SQL update (the trusted Java entry has no route)</p>
+<table>
+<tr><th>Public path</th><th>main fce50611</th><th>head 4b2bb453</th></tr>
+<tr><td class="k">AgentDefinition naming it, even when the deployment allowlist lists it</td><td class="mute">admitted (4 Sessions); main's Harness does not know the profile, so their Turns fail <code>hosted_harness_rejected</code></td><td class="ok">409 agent_definition_unsupported · 0 rows</td></tr>
+<tr><td class="k">Public create body with <code>tool_profile</code> / <code>toolProfile</code> members</td><td class="mute">not tried</td><td class="ok">members ignored · Session is files/1</td></tr>
+<tr><td class="k">REST creation replay (same key, same body) onto a record that carries it</td><td class="mute">202 · returns that record (main has no internal records)</td><td class="ok">409 idempotency_conflict</td></tr>
+<tr><td class="k">WebShell creation replay, same</td><td class="mute">202 · returns that record</td><td class="ok">409 idempotency_conflict · no new rows</td></tr>
+</table>
+<h2>Control: what the reserved profile grants (head, public Shell flag off)</h2>
+<table>
+<tr><td class="k">Fresh Turn</td><td class="ok">202 (the public flag does not govern it, by design)</td></tr>
+<tr><td class="k">op2 (OPERATOR) answers its Shell Action</td><td class="ok">202 · command ran once (private Workspace rule, by design)</td></tr>
+<tr><td class="k">Tools</td><td class="ok">the 12 above, including agent, team_* and send_message</td></tr>
+<tr><td class="k">Capabilities · close</td><td class="ok">no foreground_shell member · close gives the same 409 as a files Session on this macOS host (no durable local-process close); CI's Linux/MySQL TeamLead job covers close</td></tr>
+</table>
+<p class="mute">This is why the three refusals matter: the profile carries agent/team tools and operator answers with no flag. Mutants: compiler refusal removed → killed by AgentDefinitionCompilerTest.definitionsCannotAcquireInternalTeamLeadEvenWhenAllowlisted · replay kind check removed (both directions, or the public direction only) → killed, by one method: ManagedWorkspaceAdmissionTest.internalTeamLeadPinsPrivatePolicyAndSeparatesPublicReplay</p>
+</div></body></html>
