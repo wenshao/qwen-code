@@ -1,0 +1,16 @@
+diff --git a/packages/cli/src/serve/hosted-hook-session.ts b/packages/cli/src/serve/hosted-hook-session.ts
+index 2246487737..f7eac40d03 100644
+--- a/packages/cli/src/serve/hosted-hook-session.ts
++++ b/packages/cli/src/serve/hosted-hook-session.ts
+@@ -300,6 +300,11 @@ export class HostedHookSession {
+       this.catalog = await this.read<ManagedHookCatalog>(
+         registration.catalogRef,
+       );
++      // A restored owner starts with acquired=false, but the previous
++      // activation's Session-scoped mount is still held at the Broker until
++      // someone releases it; release settled earlier owners now so neither
++      // child admission nor a child's acquire sees a hold nobody reports.
++      await this.releaseEarlierOwners();
+       return;
+     }
+     await this.configure(
