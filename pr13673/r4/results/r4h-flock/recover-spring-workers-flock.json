@@ -1,0 +1,437 @@
+{
+  "name": "recover-spring-workers-flock",
+  "db": "r4h-flock",
+  "arm": "head",
+  "pass": 17,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "warm-up Session in ws-z",
+      "note": true,
+      "detail": {
+        "status": 202,
+        "turn": "COMPLETED"
+      }
+    },
+    {
+      "label": "neighbor Session (no Hooks) created in ws-a, first Turn completes",
+      "ok": true,
+      "detail": {
+        "status": 202,
+        "turn": {
+          "turn_id": "turn_894c97dca1094584a2585530b01f3439",
+          "status": "COMPLETED",
+          "err": ""
+        }
+      }
+    },
+    {
+      "label": "target Session with original command Hook catalog created in ws-a, first Turn completes",
+      "ok": true,
+      "detail": {
+        "status": 202,
+        "turn": {
+          "turn_id": "turn_c5be8a828c7e4557b605b23b73f31a41",
+          "status": "COMPLETED",
+          "err": ""
+        }
+      }
+    },
+    {
+      "label": "target Session row",
+      "note": true,
+      "detail": {
+        "status": "ACTIVE",
+        "deleted_at": null,
+        "harness_boot_id": "ab8b6be6-b952-4731-b61e-db773828b88a",
+        "workspace_id": "ws-a",
+        "tool_profile": "hosted-workspace-files/1"
+      }
+    },
+    {
+      "label": "before: target runtime sessions (original Hook + tool sessions on one binding)",
+      "note": true,
+      "detail": [
+        {
+          "id": "hooks-activation-d53e982ac7d86ed285c874817b8b501ac0aef387d770856a15bf4d102447b125",
+          "state": "READY",
+          "gen": 1,
+          "kind": "bootstrap"
+        }
+      ]
+    },
+    {
+      "label": "before: storage holders",
+      "note": true,
+      "detail": [
+        {
+          "st": null,
+          "held": 1,
+          "b": "ceb6a4a4-01ef-4ca7-b522-ac3311c54ad6",
+          "g": 1,
+          "rs": "hooks-activation-d53e982ac7d86ed285c874817b8b501ac0aef387d770856a15bf4d102447b125"
+        },
+        {
+          "st": null,
+          "held": 0,
+          "b": null,
+          "g": null,
+          "rs": null
+        }
+      ]
+    },
+    {
+      "label": "before: workers",
+      "note": true,
+      "detail": {
+        "T": {
+          "binding": "ceb6a4a4-01ef-4ca7-b522-ac3311c54ad6",
+          "bstate": "READY",
+          "rid": "277bf10f51db",
+          "pid": 2771,
+          "regState": "READY",
+          "regFiles": "json,lock,ready",
+          "pidAlive": true
+        },
+        "N": {
+          "binding": "00a644fc-cbcf-4745-81bf-e8563f72b6a1",
+          "bstate": "READY",
+          "rid": "adc6d13a60d0",
+          "pid": 2757,
+          "regState": "READY",
+          "regFiles": "json,lock,ready",
+          "pidAlive": true
+        }
+      }
+    },
+    {
+      "label": "DELETE accepted",
+      "note": true,
+      "detail": {
+        "status": 202,
+        "op": "op_8f8e0f96a30f43ed9059a04e104c454b"
+      }
+    },
+    {
+      "label": "fault point reached: End and Delete command Hooks ran once each, effects durable, detach held by the tap",
+      "ok": true,
+      "detail": {
+        "heldAfterMs": 1833,
+        "hooks": [
+          "SessionEnd:ran:pid2794:0::/rig-hooks/qwen-hook-13c57548-99d6-4889-86c6-48634f75eaf8",
+          "SessionDelete:ran:pid2818:0::/rig-hooks/qwen-hook-8853d2d6-5e48-4f91-b1c1-e566e09f670c"
+        ],
+        "op": {
+          "state": "RUNNING",
+          "delivery": "LEASED",
+          "err": "",
+          "gen": 1,
+          "attempts": 0,
+          "proto": 1,
+          "effects": [
+            "SessionEnd",
+            "SessionDelete"
+          ]
+        }
+      }
+    },
+    {
+      "label": "operation timeline after the fault (state/delivery/error/claim)",
+      "note": true,
+      "detail": [
+        "+11.5s RUNNING/LEASED//g1",
+        "+59.5s RUNNING/LEASED//g2",
+        "+60.0s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g2",
+        "+61.5s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g3",
+        "+64.5s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g4",
+        "+69.5s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g5",
+        "+78.6s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g6",
+        "+95.6s RUNNING/LEASED/workspace_lifecycle_hooks_unsettled/g7",
+        "+96.1s COMPLETED/CONFIRMED//g7"
+      ]
+    },
+    {
+      "label": "[spring-workers] original operation COMPLETED and target DELETED within 300s of the fault",
+      "ok": true,
+      "detail": {
+        "op": {
+          "state": "COMPLETED",
+          "err": "",
+          "gen": 7,
+          "attempts": 5
+        },
+        "session": "DELETED",
+        "ms": 96138
+      }
+    },
+    {
+      "label": "[spring-workers] End and Delete command Hooks each executed exactly once (no replay)",
+      "ok": true,
+      "detail": [
+        "SessionEnd:ran@11:33:31.768",
+        "SessionDelete:ran@11:33:32.568"
+      ]
+    },
+    {
+      "label": "[spring-workers] effect receipt bytes unchanged",
+      "ok": true,
+      "detail": {
+        "same": true
+      }
+    },
+    {
+      "label": "[spring-workers] exactly one retirement row",
+      "ok": true,
+      "detail": [
+        {
+          "op": "op_8f8e0f96a30f43ed9059a04e104c454b",
+          "generation": 1
+        }
+      ]
+    },
+    {
+      "label": "[spring-workers] original binding/generation/handle/seed/lease kept, no replacement generation",
+      "ok": true,
+      "detail": {
+        "bindings": [
+          {
+            "id": "ceb6a4a4-01e",
+            "gen": 1,
+            "state": "RELEASED",
+            "drainReq": 1,
+            "drainRcpt": 1,
+            "opGen": 4
+          }
+        ]
+      }
+    },
+    {
+      "label": "[spring-workers] binding drained with a persisted stop receipt for the original resource",
+      "ok": true,
+      "detail": {
+        "state": "RELEASED",
+        "drainRcpt": 1,
+        "receipt": {
+          "handleVersion": 2,
+          "bindingId": "ceb6a4a4-01ef-4ca7-b522-ac3311c54ad6",
+          "handleKind": "local-process",
+          "handle": "{\"resourceId\":\"277bf10f51db46e1cf1107044b1f4ed43222fcbb6531c08d9cec5deac066ac19\",\"hostId\":\"34d75b12038d43be99419f1f606aa520\",\"bootId\":\"4ddc0852-04a9-43ec-a78b-e779c4dac7fa\",\"pidNamespace\":\"pid:[4026532442]\",\"timeNamespace\":\"time:[4026532502]\",\"identityDigest\":\"4483612774337c3ea0ff5ac8fbaba1226f525c74aba5371a6dc2152925ec409f\"}",
+          "generation": 1,
+          "version": 1,
+          "provisionRequestId": "ceb6a4a4-01ef-4ca7-b522-ac3311c54ad6:1",
+          "stoppedAt": "2026-10-11T11:35:08.376737275Z"
+        }
+      }
+    },
+    {
+      "label": "[spring-workers] all original RuntimeSessions RELEASED",
+      "ok": true,
+      "detail": [
+        "hooks-activation-d53e982ac7d:bootstrap:RELEASED"
+      ]
+    },
+    {
+      "label": "[spring-workers] storage holder cleared (no LOCAL holder row still held)",
+      "ok": true,
+      "detail": [
+        {
+          "st": null,
+          "held": 0,
+          "b": null,
+          "g": null,
+          "rs": null
+        },
+        {
+          "st": null,
+          "held": 0,
+          "b": null,
+          "g": null,
+          "rs": null
+        }
+      ]
+    },
+    {
+      "label": "[spring-workers] original target worker process gone (pid 2771)",
+      "ok": true,
+      "detail": {
+        "before": {
+          "binding": "ceb6a4a4-01ef-4ca7-b522-ac3311c54ad6",
+          "bstate": "READY",
+          "rid": "277bf10f51db",
+          "pid": 2771,
+          "regState": "READY",
+          "regFiles": "json,lock,ready",
+          "pidAlive": true
+        },
+        "after": {
+          "binding": "ceb6a4a4-01ef-4ca7-b522-ac3311c54ad6",
+          "bstate": "RELEASED",
+          "rid": "277bf10f51db",
+          "pid": 2771,
+          "regState": "RETIRED",
+          "regFiles": "json,lock,ready",
+          "pidAlive": false
+        }
+      }
+    },
+    {
+      "label": "[spring-workers] no replacement worker for the target",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "label": "[spring-workers] no model replay after the fault",
+      "ok": true,
+      "detail": {
+        "atFault": 6,
+        "now": 6
+      }
+    },
+    {
+      "label": "[spring-workers] shared workspace files byte-identical (target + neighbor files kept)",
+      "ok": true,
+      "detail": {
+        "before": {
+          "neighbor-mv3qviym.txt": "fc2543d5dcb3ebf4",
+          "target-mv3qvltb.txt": "3dc0db889344edf0"
+        },
+        "after": {
+          "neighbor-mv3qviym.txt": "fc2543d5dcb3ebf4",
+          "target-mv3qvltb.txt": "3dc0db889344edf0"
+        }
+      }
+    },
+    {
+      "label": "[spring-workers] neighbor Session not retired",
+      "ok": true,
+      "detail": {
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "label": "journal head (target)",
+      "note": true,
+      "detail": {
+        "state": "DELETED",
+        "writer": "",
+        "leaseUntil": ""
+      }
+    },
+    {
+      "label": "harness drain fence (target)",
+      "note": true,
+      "detail": [
+        {
+          "phase": "DRAINING",
+          "op": "op_8f8e0f96a30f43ed9059a04e104c454b",
+          "gen": 1
+        }
+      ]
+    },
+    {
+      "label": "neighbor follow-up Turn after the retirement (its worker was part of the fault)",
+      "note": true,
+      "detail": {
+        "send": 202,
+        "turn": "ACCEPTED",
+        "ms": 90057,
+        "timeout": true,
+        "neighborWriterStaleRenewals": 0,
+        "cause": "unclassified"
+      }
+    },
+    {
+      "label": "target binding drain claim and RuntimeSessions after the fault (25 ms sampler)",
+      "note": true,
+      "detail": {
+        "samples": 6134,
+        "transitions": [
+          "+10.88s READY/drain=0/rcpt=0/owner=0/opGen=2 rt=bootstrap:READY",
+          "+59.46s READY/drain=0/rcpt=0/owner=1/opGen=3 rt=bootstrap:READY",
+          "+59.49s DRAINING/drain=1/rcpt=0/owner=1/opGen=3 rt=bootstrap:READY",
+          "+59.54s DRAINING/drain=1/rcpt=0/owner=0/opGen=3 rt=bootstrap:READY",
+          "+95.46s DRAINING/drain=1/rcpt=0/owner=1/opGen=4 rt=bootstrap:READY",
+          "+95.49s DRAINING/drain=1/rcpt=1/owner=1/opGen=4 rt=bootstrap:READY",
+          "+95.52s DRAINING/drain=1/rcpt=1/owner=1/opGen=4 rt=bootstrap:RELEASING",
+          "+95.54s RELEASED/drain=1/rcpt=1/owner=1/opGen=4 rt=bootstrap:RELEASED"
+        ],
+        "states": [
+          "READY",
+          "DRAINING",
+          "RELEASED"
+        ],
+        "lapses": [],
+        "minLeftMs": 30581,
+        "maxLeaseStallMs": 90936
+      }
+    },
+    {
+      "label": "binding states seen after the fault",
+      "note": true,
+      "detail": [
+        "READY",
+        "DRAINING",
+        "RELEASED"
+      ]
+    },
+    {
+      "label": "Harness -> Broker answers for the target after the fault",
+      "note": true,
+      "detail": [
+        "11:34:32.277 tool-sessions/hooks-…:release -> 409 workspace_close_identity_unverified",
+        "11:34:34.244 tool-sessions/hooks-…:release -> 409 workspace_close_identity_unverified",
+        "11:34:37.179 tool-sessions/hooks-…:release -> 409 workspace_close_identity_unverified",
+        "11:34:42.280 tool-sessions/hooks-…:release -> 409 workspace_close_identity_unverified",
+        "11:34:51.265 tool-sessions/hooks-…:release -> 409 workspace_close_identity_unverified",
+        "11:35:08.327 tool-sessions/hooks-…:release -> 200"
+      ]
+    },
+    {
+      "label": "LocalRuntimeStore lock grab (LockGrab)",
+      "note": true,
+      "detail": [
+        {
+          "epochMs": 1791718413005,
+          "event": "started",
+          "at": 0.1
+        },
+        {
+          "epochMs": 1791718472355,
+          "event": "grabbed",
+          "retiredSeenEpochMs": 1791718472334,
+          "busySpinsBeforeGrab": 0,
+          "msAfterRetiredSeen": 10,
+          "at": 59.45,
+          "retiredAt": 59.43
+        },
+        {
+          "epochMs": 1791718492380,
+          "event": "released",
+          "heldMs": 20019,
+          "at": 79.48
+        }
+      ]
+    },
+    {
+      "label": "[spring-workers+flock] the lock was grabbed after the first reconcile retired the registration and later released",
+      "ok": true,
+      "detail": [
+        "started@0.1",
+        "grabbed@59.45",
+        "released@79.48"
+      ]
+    }
+  ],
+  "doneMs": 96138,
+  "timeline": [
+    "+11.5s RUNNING/LEASED//g1",
+    "+59.5s RUNNING/LEASED//g2",
+    "+60.0s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g2",
+    "+61.5s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g3",
+    "+64.5s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g4",
+    "+69.5s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g5",
+    "+78.6s RECOVERY_BLOCKED/BLOCKED/workspace_lifecycle_hooks_unsettled/g6",
+    "+95.6s RUNNING/LEASED/workspace_lifecycle_hooks_unsettled/g7",
+    "+96.1s COMPLETED/CONFIRMED//g7"
+  ]
+}
