@@ -1,0 +1,44 @@
+# Candidate ToolPublicationLockOrderMySqlIT (+ existing ToolPublicationLifecycleMySqlIT), final version
+base mysql: [ERROR] Tests run: 7, Failures: 0, Errors: 2, Skipped: 0
+head mysql: [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0
+base mariadb: [ERROR] Tests run: 7, Failures: 0, Errors: 2, Skipped: 0
+head mariadb: [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0
+M1-receipt-no-staged-placement: [ERROR] Tests run: 7, Failures: 0, Errors: 1, Skipped: 0
+M2-prepare-no-staged-placement: [ERROR] Tests run: 7, Failures: 0, Errors: 1, Skipped: 0
+M4-apply-retention-first: [ERROR] Tests run: 7, Failures: 0, Errors: 2, Skipped: 0
+M5-receipt-tx-retention-first: [ERROR] Tests run: 7, Failures: 0, Errors: 2, Skipped: 0
+M6-prepare-tx-retention-first: [ERROR] Tests run: 7, Failures: 0, Errors: 1, Skipped: 0
+
+# Failing cases (every one is 'Deadlock found when trying to get lock')
+base-mariadb                       ToolPublicationLockOrderMySqlIT    receipt (ambient)              Deadlock
+base-mariadb                       ToolPublicationLockOrderMySqlIT    admission+receipt (ambient)    Deadlock
+base-mysql                         ToolPublicationLockOrderMySqlIT    receipt (ambient)              Deadlock
+base-mysql                         ToolPublicationLockOrderMySqlIT    admission+receipt (ambient)    Deadlock
+M1-receipt-no-staged-placement     ToolPublicationLockOrderMySqlIT    receipt (ambient)              Deadlock
+M2-prepare-no-staged-placement     ToolPublicationLockOrderMySqlIT    admission+receipt (ambient)    Deadlock
+M4-apply-retention-first           ToolPublicationLockOrderMySqlIT    renew (standalone)             Deadlock
+M4-apply-retention-first           ToolPublicationLockOrderMySqlIT    renew (ambient)                Deadlock
+M6-prepare-tx-retention-first      ToolPublicationLockOrderMySqlIT    admission (standalone)         Deadlock
+M5-receipt-tx-retention-first      ToolPublicationLifecycleMySqlIT    receiptAndReplayDoNotDeadlockWithSameTenantLifecycleCompletion(boolean)[1] Deadlock
+M5-receipt-tx-retention-first      ToolPublicationLifecycleMySqlIT    receiptAndReplayDoNotDeadlockWithSameTenantLifecycleCompletion(boolean)[2] Deadlock
+
+# ToolPublicationStoreTest#streamsLargeOutputAndReadsItsTailAfterStoreReplacement, base and head run simultaneously (host load 70-150)
+pair1 base: F=0 E=1 elapsed=27.60s Publication operation expired
+pair1 head: F=0 E=1 elapsed=29.42s Publication operation expired
+pair2 base: F=0 E=0 elapsed=28.61s 
+pair2 head: F=0 E=1 elapsed=12.78s Publication operation claim expired
+pair3 base: F=0 E=0 elapsed=21.40s 
+pair3 head: F=0 E=1 elapsed=14.21s Publication operation claim expired
+pair4 base: F=0 E=1 elapsed=35.36s Publication operation expired
+pair4 head: F=0 E=1 elapsed=37.00s Publication operation expired
+pair5 base: F=0 E=0 elapsed=22.76s 
+pair5 head: F=0 E=0 elapsed=24.12s 
+pair6 base: F=0 E=0 elapsed=21.20s 
+pair6 head: F=0 E=0 elapsed=20.84s 
+pair7 base: F=0 E=0 elapsed=24.73s 
+pair7 head: F=0 E=0 elapsed=26.93s 
+pair8 base: F=0 E=1 elapsed=8.273s Publication operation claim expired
+pair8 head: F=0 E=0 elapsed=22.96s 
+pair9 base: F=0 E=0 elapsed=29.15s 
+pair9 head: F=0 E=1 elapsed=9.000s Publication operation claim expired
+alone: base 2/2 pass, head 2/2 pass
