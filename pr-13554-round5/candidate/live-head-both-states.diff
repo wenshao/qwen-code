@@ -1,0 +1,24 @@
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java	2026-10-11 10:20:18
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/SessionResourceCollectionCollectorTest.java	2026-10-11 11:55:48
+@@ -168,14 +168,17 @@
+         assertThat(rows().getFirst().get("state")).isEqualTo("PUBLISHED");
+     }
+ 
+-    @Test
+-    void liveHeadBlocksCollection() {
++    // Every non-DELETED head is live; ACTIVE alone would miss a narrowing that drops the
++    // other states, SEALED alone one that drops ACTIVE.
++    @org.junit.jupiter.params.ParameterizedTest
++    @org.junit.jupiter.params.provider.ValueSource(strings = {"ACTIVE", "SEALED"})
++    void liveHeadBlocksCollection(String state) {
+         initSession();
+         head(session);
+         publish("segment", CONTENT, new byte[64]);
+         retire();
+-        jdbc.update("UPDATE qwen_managed_session_journal_head SET state = 'ACTIVE'"
+-                + " WHERE tenant_id = ? AND session_id = ?", tenant, session);
++        jdbc.update("UPDATE qwen_managed_session_journal_head SET state = ?"
++                + " WHERE tenant_id = ? AND session_id = ?", state, tenant, session);
+         assertThat(collector(true, Duration.ZERO).runOnce()).isFalse();
+         var ledger = ledger();
+         assertThat(ledger.get("gc_blocker")).isEqualTo("session_head_live");
