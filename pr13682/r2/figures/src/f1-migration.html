@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="card">
+<h1>#13682 R2 · Migration order on real MySQL 8.0: R1's item 1, the second collision, and the head that fixes both</h1>
+<div class="sub">Each row starts a real Spring Boot server jar on a database left behind by the "from" build (Flyway defaults, no <code>outOfOrder</code>). Main moved during this round: #13530 merged <code>V66__managed_session_agent_definition_digest.sql</code> at 04:00 UTC, which collided with this PR's V66; ab1af693 (04:14 UTC) merged main d35277c2 and moved the PR's file to V67.</div>
+<table>
+<tr><th style="width:30%">Database from → server build</th><th>Outcome</th></tr>
+<tr><td class="s">main d35277c2 (…64, 65, 66 agent-definition digest) → <b>ab1af693</b> (V67)<small>with main-created Sessions (one with a recorder-written title)</small></td>
+<td class="good">applies V67 only (0.09 s). Every pre-upgrade Session renames and closes: the first answer is 503 while the stopped Harness still holds the writer lease (<code>managed_session_writer_conflict</code> on load, A's log); the delivery lands by itself at +65.4 s with both titles equal, then close 202 → CLOSED. A new Session's lost reply recovers in 0.69 s.</td></tr>
+<tr><td class="s">fresh database → main d35277c2 + PR merged, PR file renamed to V67 (same tree as ab1af693's Java)</td>
+<td class="good">all migrations through V67 apply</td></tr>
+<tr><td class="s">main 543f03e5 (…64, 65) → 7105fb1e (V66)</td>
+<td class="good">applies V66 (0.14 s); pre-upgrade Session's rename lands by recovery at +66.7 s (same writer-lease window), close admitted</td></tr>
+<tr><td class="s">main 9763580b (…60, 62, 64) → 7105fb1e</td>
+<td class="good">applies V65, V66 (0.34 s)</td></tr>
+<tr><td class="s">main 2ebbd4e1 (…57, 60, 62) → 7105fb1e</td>
+<td class="good">applies V64, V65, V66 — R1's refusal (<code>Detected resolved migration not applied to database: 59</code>) is gone</td></tr>
+<tr><td class="s">V57 → 7105fb1e</td>
+<td class="good">applies 60, 62, 64, 65, 66</td></tr>
+<tr><td class="s">main d35277c2 → 7105fb1e (V66 = rename delivery)</td>
+<td class="bad">refused: <code>Migration checksum mismatch for migration version 66</code></td></tr>
+<tr><td class="s">7105fb1e merged into main d35277c2 as-is (two V66 files) → fresh database, and the main database</td>
+<td class="bad">refused on <b>both</b>: <code>FlywayException: Found more than one migration with version 66</code> — merged main would not boot anywhere. The PR's "Flyway migration version uniqueness (latest main)" check was red for this head.</td></tr>
+<tr><td class="s">Development databases that ran an earlier build of this PR</td>
+<td class="warn">V59 applied → <code>Detected applied migration not resolved locally: 59</code>; V66 (rename delivery) applied → V67 build: <code>checksum mismatch for migration version 66</code>. Recreate those databases.</td></tr>
+</table>
+<div class="foot">up4.sh, r2.sh (upgrade rows), arm4b.sh (ab1af693 row), probe p12-upgraded-old (VERIFICATION RIG ONLY). Main keeps adding migrations; the latest-main uniqueness check is the gate to watch right before merge.</div>
+</div></body></html>

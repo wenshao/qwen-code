@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="card">
+<h1>#13682 R2 · Bot finding R2-4 on the real stack: an open title delivery while the Harness is rolled back</h1>
+<div class="sub">Head 7105fb1e (Java and Harness payload identical at ab1af693). A title delivery is left open, then the Hosted Harness is replaced by main's bundle (543f03e5, no title protocol v1) for 150 s / 90 s, then rolled forward again. A = dispatcher with <code>SessionRenameCoordinator</code> DEBUG; the public title is read from SQL, the private one from the Harness journal in the Session Store.</div>
+<table>
+<tr><th style="width:23%">Step</th><th>lost — the first attempt committed in the Harness, its reply was lost</th><th>unsent — no attempt ever reached the Harness</th></tr>
+<tr><td class="s">Rename answer<small>tap: drop-after, then 503 · drop-before</small></td>
+<td class="neutral">503 <code>hosted_harness_unavailable</code>; public <code>null</code>, private journal <b>"Rollback Title"@1</b>; delivery PENDING</td>
+<td class="neutral">503 <code>hosted_harness_unavailable</code>; public <code>null</code>, private journal empty; delivery PENDING</td></tr>
+<tr><td class="s">While rolled back<small>every attempt refused before sending</small></td>
+<td class="warn">attempts 2→3→4→5→6→7 at +0 / 1.8 / 11 / 28 / 60 / 121 s (backoff to the 60 s cap); 0 title POSTs reached the Harness; failures: generation changed, <code>managed_session_writer_conflict</code> ×2, then <code>DaemonProtocolException: Hosted Harness title protocol version 1 is required</code>. <b>No terminal state.</b></td>
+<td class="warn">same shape: attempts 2→6 over 90 s, 0 POSTs, same <code>DaemonProtocolException</code>; no terminal state</td></tr>
+<tr><td class="s">What stays blocked</td>
+<td class="warn">renamed Session: close 409 <code>session_operation_active</code>, cwd 409 <code>session_context_busy</code> · a sibling Session on the same storage: close <b>202</b> · storage-wide <code>requireIdle</code> rename predicate = 1 → the offline migration tool would answer <code>migration_work_unsettled</code> for the whole storage</td>
+<td class="warn">same: 409 / 409 / sibling 202 / predicate = 1</td></tr>
+<tr><td class="s">Public vs private title while rolled back</td>
+<td class="bad">public <code>null</code> / private <b>"Rollback Title"</b> — diverged, waiting for the delivery</td>
+<td class="good">public <code>null</code> / private <code>null</code> — nothing to reconcile</td></tr>
+<tr><td class="s">Roll forward<small>new Harness back</small></td>
+<td class="good">heals by itself at <b>+91.5 s</b> (attempt 9: one attempt lost to the generation change, then the 60 s cap); titles equal; still 1 journal record; close 202 → CLOSED</td>
+<td class="good">heals at <b>+92.0 s</b> (attempt 8); titles equal; close 202 → CLOSED</td></tr>
+<tr><td class="s">If a pre-send refusal were terminal<small>the review's suggested fix</small></td>
+<td class="bad">the row would retire while public = <code>null</code> and private = "Rollback Title": exactly the divergence this PR closes, frozen. A refusal before <i>this</i> send does not prove an <i>earlier</i> send never landed.</td>
+<td class="good">safe: nothing was ever sent for this revision</td></tr>
+</table>
+<h1 style="margin-top:18px">Sibling replica configuration: Harness enabled, Hosted Workspace files disabled (the property's default)</h1>
+<div class="sub">The PR stops a Harness-<i>disabled</i> replica from claiming deliveries; both coordinators still gate only on <code>harness.isAvailable()</code>, which <code>QwenHostedHarnessConnector</code> hard-codes to <code>true</code>. Replica C runs next to A with <code>workspace-files-enabled=false</code>.</div>
+<table>
+<tr><th style="width:23%">Item</th><th>A only</th><th>A + C (workspace files off)</th></tr>
+<tr><td class="s">Approval answer, first resolve 503</td>
+<td class="good">settles in 1.3–2.2 s, 1 attempt (4/4)</td>
+<td class="warn">C claims it once in 5/5: <code>IllegalStateException: Hosted Workspace files are disabled</code>; settles in 3.5–4.2 s, 2 attempts</td></tr>
+<tr><td class="s">Title, lost reply</td>
+<td class="good">recovery lands in 0.85–1.07 s (4/4)</td>
+<td class="warn">4/6 unaffected (0.86–1.5 s); 1/6 C claims once (5.5 s); <b>1/6 C claims 6 times in a row</b> (+4, 8, 16, 32, 60 s) and the title lands after ≈183 s — close/cwd refused 409 meanwhile</td></tr>
+<tr><td class="s">Context</td>
+<td colspan="2" class="neutral">The same replica already fails workspace Turns before submission on main (<code>HarnessCoordinator</code>: workspace Session + files disabled → <code>workspace_unavailable</code>; 1/6 Turns here), so this topology is not supported today. Recorded because it is the same class as the fixed B-replica bug, not as a merge item.</td></tr>
+</table>
+<div class="foot">Probes p10-rollback, p11-wsoff (VERIFICATION RIG ONLY). Failure strings are from replica A's / C's DEBUG log lines naming the Session.</div>
+</div></body></html>

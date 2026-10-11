@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body><div class="card">
+<h1>#13682 R2 · R1's A/B cells on the merged code: main 543f03e5 vs head (7105fb1e and ab1af693)</h1>
+<div class="sub">Same probes as round 1. A = dispatcher with embedded Broker; B = Session Store replica with the Harness disabled (normal 1 s scan); C = optional second Harness-enabled dispatcher. Public title from SQL, private title from the Harness journal in the Session Store. "h3" = 7105fb1e, "h4" = ab1af693 (merged payload).</div>
+<table>
+<tr><th style="width:23%">Cell</th><th>base (main 543f03e5)</th><th>head (h3 / h4)</th></tr>
+<tr><td class="s">Unicode-only titles<small>NBSP, U+FEFF, U+2007, U+202F, mixed, U+3000, U+2028</small></td>
+<td class="bad">5 of 7 admitted → Harness refuses → public 503, one FAILED command row each</td>
+<td class="good">all 7 → 400 <code>invalid_title</code>, 0 rows, 0 Harness calls; close still admitted (h3, h4)</td></tr>
+<tr><td class="s">Lost reply<small>Harness commits, reply dropped; bound / empty / unbound Session</small></td>
+<td class="bad">receipt stays FAILED; public <code>null</code> vs private "Lost Reply Title"; a replay writes a 2nd journal record (3/3)</td>
+<td class="good">recovery completes the receipt with no client retry in 0.60–1.43 s; 1 journal record; replay writes nothing, changed content 409 (6/6)</td></tr>
+<tr><td class="s">Late older write<small>K1 held 40 s at the tap (past the 30 s timeout), K2 completes</small></td>
+<td class="bad">public Bravo / private <b>Alpha</b> (bound and unbound)</td>
+<td class="good">Harness answers K1 409 superseded; both stores Bravo; K1 retry gets revision 3 and wins in both</td></tr>
+<tr><td class="s">Sealing while a delivery is open</td>
+<td class="bad">close 202 → CLOSED with public <code>null</code> / private "Sealed Title" (3/3, incl. an empty Session)</td>
+<td class="good">close / archive / cwd 409 while open; close or delete admitted once it settles (close 23–46 ms later); titles equal (5/5)</td></tr>
+<tr><td class="s">#13163 c19 / c21 races</td>
+<td class="bad">c21 ends public Alpha / private Bravo</td>
+<td class="good">both end with equal titles (h3, h4)</td></tr>
+<tr><td class="s">Disabled replica alone<small>answer in retry, A stopped, only B for 20 s</small></td>
+<td class="bad">B claims it: attempts 4→5, <code>available_at</code> +16.0 s; after A returns, not delivered within 142 s</td>
+<td class="good">B leaves it untouched (attempts 1→1, +0 ms); A delivers it once on return (h3, h4) — the Turn then hits the restart wedge below</td></tr>
+<tr><td class="s">Warm retry, no restart<small>503 × 4 at the tap, then healed</small></td>
+<td class="bad">not delivered (7 attempts, Action still <code>requested</code>), Turn RUNNING</td>
+<td class="good">delivered once, Turn completes, file written (h3, h4)</td></tr>
+<tr><td class="s">Slow delivery past the lease<small>6 s lease / 2 s renew, resolve held 20 s, C running</small></td>
+<td class="bad">5 attempts; B and C claim in turn (B 1, C 3 retry lines)</td>
+<td class="good">1 owner, 1 attempt, 1 resolve, Turn completes (h3, h4)</td></tr>
+<tr><td class="s">Cache loss through a peer<small>answer via C, Broker A untouched</small></td>
+<td class="warn">C's load 409, A's warm cache rescues it: 1.4–1.7 s (2/2)</td>
+<td class="good">passive load 200 → resolve 200 in 0.23–0.47 s, first attempt (4/4)</td></tr>
+<tr><td class="s">Answer after a dispatcher restart<small>A TERM/KILL + restart: cache and Broker restart together</small></td>
+<td class="bad">answer never delivered (7–8 attempts over 107–142 s), Turn RUNNING</td>
+<td class="warn">answer delivered (op COMPLETED at +0.63–0.65 s, Action decided, 1 resolve) but the Turn stays RUNNING, no file — h3 3/3, h4 2/2; an approved Turn across SIGKILL also stays RUNNING</td></tr>
+<tr><td class="s">Control: plain tool Turn across a TERM restart<small>no approval involved</small></td>
+<td class="bad">Turn RUNNING, no file</td>
+<td class="bad">same — the wedge is pre-existing and still untracked</td></tr>
+<tr><td class="s">Who may answer</td>
+<td class="neutral">READER 403; second OPERATOR 202; same-key replay → same operation</td>
+<td class="good">same (h3, h4)</td></tr>
+</table>
+<div class="foot">Probes p1–p9, c19, c21, c23 (VERIFICATION RIG ONLY). Base cells match round 1's base on 2ebbd4e1.</div>
+</div></body></html>
