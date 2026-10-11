@@ -1,0 +1,98 @@
+diff --git a/packages/cli/src/serve/hosted-workflow-turn.ts b/packages/cli/src/serve/hosted-workflow-turn.ts
+index 1c147fc154..7ae43cb8cc 100644
+--- a/packages/cli/src/serve/hosted-workflow-turn.ts
++++ b/packages/cli/src/serve/hosted-workflow-turn.ts
+@@ -257,6 +257,7 @@ export async function runHostedWorkflowTurn(input: {
+       // Admission already refuses a script with any `workflow(` call; this
+       // is the runtime second line if resolution is somehow reached.
+       restrictNestedScriptPaths: true,
++      refuseNestedWorkflows: true,
+     });
+     input.signal.addEventListener('abort', () => handle.abort(), {
+       once: true,
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index 20d75a2149..b0b5dc7ccf 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -2801,7 +2801,12 @@ export class HostedWorkspaceToolTurn {
+         }
+         if (request.workflow) {
+           responses.push(
+-            ...(await this.acceptChildWorkflow(request, model, signal)),
++            ...(await this.acceptChildWorkflow(
++              request,
++              model,
++              signal,
++              messageId,
++            )),
+           );
+           continue;
+         }
+@@ -3680,6 +3685,7 @@ export class HostedWorkspaceToolTurn {
+     },
+     model: string,
+     signal: AbortSignal,
++    modelMessageId: string,
+   ): Promise<Part[]> {
+     if (signal.aborted) {
+       const skipped = convertToFunctionErrorResponse(
+@@ -3732,7 +3738,7 @@ export class HostedWorkspaceToolTurn {
+         return refused;
+       }
+     }
+-    await children.admitWorkflow({
++    const launched = await children.admitWorkflow({
+       childRunId,
+       ownerScopeId: key.sessionId,
+       rootSessionId: key.sessionId,
+@@ -3745,6 +3751,21 @@ export class HostedWorkspaceToolTurn {
+     });
+     this.agentDispatched.add(request.call.callId);
+     if (!request.agentBackground) {
++      // The durable wait (#13708), exactly as acceptChildAgent parks it:
++      // without it a Harness restart declines the parked Turn.
++      await this.harness.commitAwaitAgent(
++        [
++          {
++            childRunId,
++            functionCallId: request.call.callId,
++            toolName: request.call.name,
++            modelMessageId,
++            consumed: false,
++          },
++        ],
++        { turnId: this.promptId, promptId: this.promptId },
++        { attemptId: modelMessageId, routeRef: launched.inputRef },
++      );
+       return await this.awaitChildToolResult(
+         children,
+         request,
+diff --git a/packages/core/src/agents/runtime/workflow-runner.ts b/packages/core/src/agents/runtime/workflow-runner.ts
+index 575df57e09..d4ac254b08 100644
+--- a/packages/core/src/agents/runtime/workflow-runner.ts
++++ b/packages/core/src/agents/runtime/workflow-runner.ts
+@@ -115,6 +115,12 @@ export interface WorkflowRunnerOptions {
+    * host starts itself is not the model's and is left unrestricted.
+    */
+   restrictNestedScriptPaths?: boolean;
++  /**
++   * Refuse every nested `workflow()` resolution, by name or path. Set by a
++   * host whose launch pinned exactly one script (the managed workflow
++   * child): any nested resolution would run bytes the pin never examined.
++   */
++  refuseNestedWorkflows?: boolean;
+ }
+ 
+ /**
+@@ -775,6 +781,11 @@ export class WorkflowRunner {
+             emitter,
+             budget,
+             resolveSavedWorkflow: async (ref) => {
++              if (options.refuseNestedWorkflows === true) {
++                throw new Error(
++                  'workflow(): nested workflow runs are unavailable here; this run executes only its pinned script.',
++                );
++              }
+               // A model call in a name-only session runs no script it cannot
+               // name, nested or not. Any other malformed ref falls through to
+               // the resolver's own type error.
