@@ -1,0 +1,47 @@
+diff --git a/packages/sdk-java/qwencode/src/test/java/com/alibaba/qwen/code/daemon/HostedHarnessClientTest.java b/packages/sdk-java/qwencode/src/test/java/com/alibaba/qwen/code/daemon/HostedHarnessClientTest.java
+index c37d68e820..d4d90f6e48 100644
+--- a/packages/sdk-java/qwencode/src/test/java/com/alibaba/qwen/code/daemon/HostedHarnessClientTest.java
++++ b/packages/sdk-java/qwencode/src/test/java/com/alibaba/qwen/code/daemon/HostedHarnessClientTest.java
+@@ -664,6 +664,42 @@ class HostedHarnessClientTest {
+         assertEquals(1, promptCalls.get());
+     }
+ 
++    // A restarted Harness answers the probe under a new boot id. The
++    // generation change must surface as itself — the dispatcher adopts the
++    // new generation on that signal — never as the busy-turn refusal, which
++    // would keep the Session pinned to the dead generation until the budget
++    // runs out.
++    @Test
++    void aStatusProbeFromARestartedHarnessSurfacesTheGenerationChange() {
++        createSessionRoute();
++        server.createContext("/session/" + SESSION_ID + "/prompt",
++                exchange -> sendSessionJson(exchange, 503,
++                        "{\"code\":\"temporarily_unavailable\"}"));
++        server.createContext("/session/" + SESSION_ID + "/status",
++                exchange -> sendJson(exchange, 404,
++                        "{\"code\":\"hosted_session_not_found\"}", true,
++                        OTHER_BOOT_ID));
++        Map<String, Object> block = Map.of(
++                "type", "text", "text", "retry");
++        try (HostedHarnessClient client = newClient()) {
++            HarnessSessionRef session = createSession(client);
++            assertThrows(PromptAdmissionUnknownException.class,
++                    () -> client.submitTurn(requestForSession(block,
++                            session)));
++            HostedHarnessGenerationException change = assertThrows(
++                    HostedHarnessGenerationException.class,
++                    () -> client.submitTurn(SubmitHarnessTurn.builder()
++                            .session(session)
++                            .promptId(SECOND_PROMPT_ID)
++                            .addContent(block)
++                            .payloadDigest(
++                                    SubmitHarnessTurn.computePayloadDigest(
++                                            List.of(block)))
++                            .build()));
++            assertEquals(OTHER_BOOT_ID, change.getActualBootId());
++        }
++    }
++
+     // The same fail-closed shape for a probe that answers 200 without the
+     // hasActivePrompt field: the malformed read must surface as the
+     // retryable busy-turn refusal, not as a DaemonProtocolException.
