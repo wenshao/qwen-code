@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"><style>table.paths{table-layout:fixed}table.paths td.k{white-space:normal}table.paths td:nth-child(2) code{word-break:break-all}</style></head><body><div class="card">
+<h1>R4-2: every place <code>suppressChildAgents</code> comes from, and the merge with main <code>b437892f</code></h1>
+<p class="sub">The Harness reads the flag from the HTTP body that Java sends on create and load. Each Java sender was mutated in turn to send <code>false</code>, then the PR's 14 Java test classes ran (608 tests). Real-stack rows use the packaged Harness.</p>
+<table class="paths">
+<colgroup><col style="width:24%"><col style="width:42%"><col style="width:34%"></colgroup>
+<tr><th>Path that builds the Harness Session</th><th>Mutant: send false</th><th>Real stack</th></tr>
+<tr><td class="k">Create (first Turn, rename-first, cwd-first)</td><td class="ok">F2a (round 4) killed · <code>boundCreateConflictLoadsOriginalWorkspaceAndProfileAndRechecksCachedGrant</code></td><td class="ok">5 tools after REST and WebShell create, rename-first and cwd-first</td></tr>
+<tr><td class="k">Load for Turns, runtime recovery and cancel takeover</td><td class="ok">F2d killed · 5 failures, incl. <code>resolvesActionsThroughAuthorizedColdAndCachedWorkspaceAttachments</code>, <code>ManagedAgentApiContractTest.routesAnswerWithTheirSchemas</code></td><td class="ok">Harness-only restart, then Turn / rename / cwd: 5 tools; scripted <code>agent</code> call fails the Turn closed, 0 child rows</td></tr>
+<tr><td class="k">Message-stop load</td><td class="ok">F2c killed · <code>aMessageStopLoadsTheSessionWithItsMessagesAlreadyStopped</code>, <code>aMessageStopOfAPinnedSessionCarriesTheAgentDefinition</code></td><td class="mute">not driven (needs a stopped child run)</td></tr>
+<tr><td class="k">Lifecycle-settle load</td><td class="warn">F2b survives 608/608</td><td class="mute">public Shell close / archive / unarchive / delete are refused at admission, and a lifecycle load runs no Turn</td></tr>
+<tr><td class="k">Harness: load with no body, or <code>{}</code> (protocol headers set; resident and unknown Session)</td><td class="mute">n/a</td><td class="ok">400 invalid_managed_session_store ×3 ("managedSessionStore must be an object"); the next Turn still sees the same 5 tools</td></tr>
+</table>
+<h2>Head merged locally with main <code>b437892f</code> (15 commits past round 4's <code>edec849a</code>; clean merge, tree <code>b6fa7ebc</code>)</h2>
+<table>
+<tr><th>Rig phase</th><th>Result</th><th>Tests</th><th>Result</th></tr>
+<tr><td class="k">Definitions, Shell flag on</td><td class="ok">26/26</td><td class="k">Java, 14 classes</td><td class="ok">630/630 (608 on head; main added 22)</td></tr>
+<tr><td class="k">Owner-only Shell Actions (N1)</td><td class="ok">23/23</td><td class="k">SDK</td><td class="ok">68/68</td></tr>
+<tr><td class="k">Flag-on scenarios</td><td class="ok">31/31</td><td class="k">vitest: the PR's 4 CLI files</td><td class="ok">191/191</td></tr>
+<tr><td class="k">Reserved profile: replay kind · internal TeamLead</td><td class="ok">4/4 · 9/9</td><td class="k">vitest: hosted-harness-session</td><td class="ok">366/366</td></tr>
+<tr><td class="k">Harness-only restart</td><td class="ok">2/2</td><td class="k">vitest: WebShell provider + actions</td><td class="ok">65/65</td></tr>
+<tr><td class="k">Mixed-case approval mode (<code>Default</code>)</td><td class="ok">22/22</td><td class="k">HostedPublicWorkspaceIT</td><td class="ok">8 run · 0 failures · 1 skipped (Linux-only) · receipt faults <code>receiptAttempts=3 effect=once</code></td></tr>
+<tr><td class="k">Rename / cwd / tamper</td><td class="warn">15/16 · the miss is main's 503 window after a Harness restart (4 retries too few)</td><td class="k"></td><td></td></tr>
+</table>
+<p class="mute">Main's overlap with the PR: <code>QwenHostedHarnessConnector</code> gained <code>approvalModeConfirmed</code> (#13877); the merged file keeps all 8 <code>requireShellApproval</code> calls and all 4 suppress senders. Main's production changes under <code>packages/cli/src/serve</code> only reword a child run's end text (#13872).</p>
+</div></body></html>
