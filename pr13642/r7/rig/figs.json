@@ -1,0 +1,97 @@
+[
+ {
+  "name": "r7-01-merge-break-and-fix",
+  "title": "Round 7: merged with current main, the PR fails the Broker schema parity test; one index line in schema.sql fixes it",
+  "subtitle": "head a1146f34 (docs only since 9e928555) · main b437892f / a8990042 · cause: main #13673 (7cbb993c) put managed_workspace_execution_lease into the Broker schema.sql snapshot · 2026-10-12",
+  "blocks": [
+   {
+    "label": "Where it fails: locally on the trial merge, and in this PR's CI on Merge a1146f34 into b437892f (run 38153449897)",
+    "lines": [
+     "==                                                         RuntimeBrokerFlywaySchemaTest",
+     "++ main b437892f alone                                     4/4 pass",
+     "++ PR head alone (round-6 suites, both engines)            5/5 pass",
+     "-- trial merge 9e928555 + b437892f (local)                 flywayCreatesTheBrokerSchema FAILS",
+     "-- CI: MariaDB lane                                        Tests run: 2088, Failures: 1 = this test",
+     "-- CI: Hosted 'Verify Hosted Java, Spring and MySQL'       Tests run: 2088, Failures: 1 = this test -> Hosted ITs, fault gates, 8 E2E steps skipped",
+     "-- CI: Hosted 'Verify O4 filesystem process and capacity'  Tests run: 2088, Failures: 1 = this test -> O4 gates never start",
+     "==   indexes of managed_workspace_execution_lease: Flyway (V68) has INDEX [binding_id, runtime_generation]; schema.sql does not",
+     "==   no textual conflict, so GitHub shows nothing to resolve"
+    ]
+   },
+   {
+    "label": "Fix: runtime-broker/src/main/resources/.../schema.sql, lease table",
+    "lines": [
+     "==      maintenance_id CHAR(32),",
+     "-- -    INDEX idx_execution_lease_maintenance (maintenance_id)",
+     "++ +    INDEX idx_execution_lease_maintenance (maintenance_id),",
+     "++ +    INDEX idx_workspace_execution_binding (binding_id, runtime_generation)",
+     "==   ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;"
+    ]
+   },
+   {
+    "label": "Verified on trial merge a1146f34 + main a8990042 + that line",
+    "lines": [
+     "++ RuntimeBrokerFlywaySchemaTest                                                               5/5",
+     "++ server: retention, guard, race, config, TPS, properties, #13673 WorkspaceRuntimeTest        195/195, checkstyle 0",
+     "++ broker: JdbcRuntimeRetentionTest, JdbcPlacementGuardTest, #13673 RuntimeHarnessDrainTest    76/76",
+     "++ JdbcRuntimeRetentionMySqlIT                                                                 MySQL 2/2, MariaDB 2/2",
+     "++ real-jar E2E, main jar -> merged jar: V67 -> V68, rollback warns, 19 / 6 / 5, 287 rows      MySQL + MariaDB, same as round 6"
+    ]
+   },
+   {
+    "label": "Full suites on the unfixed trial merge 9e928555 + b437892f",
+    "lines": [
+     "==                                   MySQL 8.4.7                         MariaDB 10.11.18",
+     "++ runtime-broker unit + IT          809 (3 skipped) + 9, all pass       809 (3 skipped) + 9, all pass",
+     "-- server unit (2088)                parity test (the break)             parity test (the break)",
+     "!!                                   + NotUtf8 (macOS; main too)         + NotUtf8 (macOS; main too)",
+     "!! server IT (205)                   1 error: hook IT, 60 s lease        1 error: hook IT, 60 s lease",
+     "++   hook IT alone, alternating      main 3/3, trial merge 3/3 pass      (26-37 s each; host load average 56-71)",
+     "++ checkstyle                        0                                   0"
+    ]
+   }
+  ],
+  "note": "Runtime impact is nil for the managed server (Flyway builds its schema); the break is in CI and would be on main once merged. Merge main, add the line, and check that the Hosted and O4 jobs actually run."
+ },
+ {
+  "name": "r7-02-reference-pinning-real-jar",
+  "title": "Round 7: publication / CSI-ACK references keep a family at any age; the sweep re-checks them on every pass",
+  "subtitle": "head a1146f34 (code = 9e928555, round-6 jar) · MySQL 8.4.7 / MariaDB 10.11.18 · real jar through application.yml · 2026-10-12",
+  "blocks": [
+   {
+    "label": "Review R5-1: three 3650-day-old RELEASED families per run (binding + session + executions x1, x2); x1 referenced or not",
+    "lines": [
+     "==                                 max-age 1d        max-age 30d       max-age 3000d     (same on both engines)",
+     "++ r-ctl no reference              all deleted       all deleted       all deleted",
+     "!! r-pub COLLECTED publication     kept 1/1/1        kept 1/1/1        kept 1/1/1        x2 (unreferenced sibling) deleted",
+     "!! r-ack CSI worker ACK            kept 1/1/1        kept 1/1/1        kept 1/1/1        x2 (unreferenced sibling) deleted",
+     "==   1/1/1 = binding / session / execution x1 still present; the publication and ACK rows are untouched",
+     ">> a1146f34 now says exactly this: references retain the execution, session and binding \"regardless of age\"",
+     "==   no production code deletes qwen_tool_publication or managed_workspace_csi_worker_ack rows (grep of sdk-java src/main)"
+    ]
+   },
+   {
+    "label": "What referenced families cost: 500 ten-year-old families, max-age 30d, batch 100, scan-delay 2s (MySQL)",
+    "lines": [
+     "==                                     steady-state tick                                                       new eligible family removed after",
+     "!! 500 referenced (COLLECTED pub)      bindings_scanned=51 children_scanned=100 skipped=100, 0 deleted         4 / 10 / 10 ticks",
+     "++ 500 unreferenced (control)          deleted in the first ticks, then bindings_scanned=0 (idle)              2 / 2 / 2 ticks",
+     "==   a pass re-checks every referenced family: about 2P/batch ticks for P families (500 -> 10 ticks)",
+     "==   at the defaults (batch 100, scan-delay 1m) that is roughly one minute of pass length per 50 referenced families (estimate)"
+    ]
+   },
+   {
+    "label": "Two deferred review items, measured (MySQL, the DB above, 20 s per case)",
+    "lines": [
+     "==   setting                         ticks in 20 s    server queries in 20 s (background ~6k)",
+     "++ SCAN_DELAY=60s                    1                5,745",
+     "-- SCAN_DELAY=60   (read as 60 ms)   88               100,175",
+     "-- SCAN_DELAY=1    (read as 1 ms)    152              169,938",
+     "!! RETENTION_ENABLED=1               0  (job not registered; the bound boolean reads true)",
+     "++ RETENTION_ENABLED=TRUE            10"
+    ]
+   }
+  ],
+  "note": "Not blockers. R5-1 is resolved by a1146f34's wording. The scan cost and the two settings are follow-up material: max-age without a unit means days, scan-delay without a unit means milliseconds, and \"1\" disables retention the same way it disables the Broker's own flag."
+ }
+]

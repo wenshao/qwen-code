@@ -1,0 +1,36 @@
+# Cost of permanently referenced families (MySQL 8.4.7, head jar, max-age 30d, batch 100, scan-delay 2s).
+# Arm A: 500 ten-year-old families, each binding + session + one execution referenced by a COLLECTED publication.
+# Arm B (control): the same 500 families without a publication.
+# After 40 ticks, insert one newly eligible 40-day-old unreferenced family three times and count ticks until it is gone.
+
+## [r7s-pub] jar=head.jar n=500 kind=pub (max-age 30d, batch 100, delay 2s)
+seeded 500 families in 120s: bindings=500 publications=500
+after 40 ticks: bindings left=500 sessions=500 executions=500
+ticks 36-40:
+  runtime_retention bindings_scanned=51 children_scanned=100 skipped=100 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=783
+  runtime_retention bindings_scanned=51 children_scanned=100 skipped=100 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=590
+  runtime_retention bindings_scanned=51 children_scanned=100 skipped=100 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=811
+  runtime_retention bindings_scanned=51 children_scanned=100 skipped=100 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=1563
+  runtime_retention bindings_scanned=51 children_scanned=100 skipped=100 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=1692
+late family 1: removed=yes after 4 ticks / 8s
+late family 2: removed=yes after 10 ticks / 31s
+late family 3: removed=yes after 10 ticks / 25s
+## [r7s-pub] done
+
+## [r7s-ctl] jar=head.jar n=500 kind=ctl (max-age 30d, batch 100, delay 2s)
+seeded 500 families in 48s: bindings=500 publications=0
+after 40 ticks: bindings left=0 sessions=0 executions=0
+ticks 36-40:
+  runtime_retention bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=4
+  runtime_retention bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=2
+  runtime_retention bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=3
+  runtime_retention bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=6
+  runtime_retention bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=2
+late family 1: removed=yes after 2 ticks / 2s
+late family 2: removed=yes after 2 ticks / 2s
+late family 3: removed=yes after 2 ticks / 2s
+## [r7s-ctl] done
+
+# Reading: with P referenced families every full pass re-checks P bindings and 2P children; the child budget is batch-size per tick,
+# so a pass takes about 2P/batch ticks (500 -> 10 ticks here). At the defaults (batch 100, scan-delay 1m) that is roughly
+# 1 minute of pass length per 50 referenced families (estimate, linear in P; not measured beyond 500).

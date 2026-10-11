@@ -1,0 +1,18 @@
+# Unit-less scan-delay and 'enabled' spellings on the real jar (MySQL 8.4.7, DB holding the 500 referenced families of arm A).
+# 20 s window per case after 'Started'. 'Questions' is the server-wide counter; the managed-agent-server MySQL IT suite was running
+# against the same server, so the ENABLED=1 row (0 ticks) is the background baseline (~6k per 20 s).
+## [r7d-my] jar=head.jar db=r7scale_pub (500 pinned families), 20 s window per case
+[QWEN_MANAGED_AGENT_RUNTIME_RETENTION_ENABLED=true QWEN_MANAGED_AGENT_RUNTIME_RETENTION_SCAN_DELAY=60s] ticks in 20 s=1    server Questions delta=5745
+[QWEN_MANAGED_AGENT_RUNTIME_RETENTION_ENABLED=true QWEN_MANAGED_AGENT_RUNTIME_RETENTION_SCAN_DELAY=60] ticks in 20 s=88   server Questions delta=100175
+[QWEN_MANAGED_AGENT_RUNTIME_RETENTION_ENABLED=true QWEN_MANAGED_AGENT_RUNTIME_RETENTION_SCAN_DELAY=1] ticks in 20 s=152  server Questions delta=169938
+[QWEN_MANAGED_AGENT_RUNTIME_RETENTION_ENABLED=1 QWEN_MANAGED_AGENT_RUNTIME_RETENTION_SCAN_DELAY=2s] ticks in 20 s=0    server Questions delta=6426
+[QWEN_MANAGED_AGENT_RUNTIME_RETENTION_ENABLED=TRUE QWEN_MANAGED_AGENT_RUNTIME_RETENTION_SCAN_DELAY=2s] ticks in 20 s=10   server Questions delta=16559
+## [r7d-my] done
+
+# scan-delay has no @DurationUnit, so Spring reads a bare number as milliseconds: 60 -> 60 ms, 1 -> 1 ms (validate() only requires >= 1 ms).
+# enabled: @ConditionalOnProperty(havingValue = "true") compares the string case-insensitively, so '1' leaves the job unregistered while
+# the bound boolean reads true. The Broker's own QWEN_MANAGED_AGENT_RUNTIME_BROKER_ENABLED uses the same condition.
+
+# Same spelling on the Broker's own flag (real jar, broker port 18713):
+BROKER_ENABLED=1 -> STARTED pid=75979; broker port 18713 listening=no
+BROKER_ENABLED=true -> STARTED pid=77088; broker port 18713 listening=java

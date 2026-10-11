@@ -1,0 +1,61 @@
+# e2e7.sh = round-6 e2e6.sh with the main jar parameterised. main jar = b437892f (current main at the time), PR jar = trial merge 9e928555 + b437892f + the one-line schema.sql index (code of a1146f34 + main).
+## [r7-merge-mdb] 1. main (base) jar creates the schema
+Successfully applied 63 migrations to schema `r7e2e_merge_mdb`, now at version v67
+## [r7-merge-mdb] 2. seed terminal history through the real Broker repositories
+runtime_binding=26 runtime_session=29 tool_execution=260 runtime_binding_slot=26 runtime_placement_guard=26 
+## [r7-merge-mdb] 3. head jar, retention disabled (default): V67 -> V68 upgrade
+Successfully applied 1 migration to schema `r7e2e_merge_mdb`, now at version v68
+GET h-exec: HTTP=200
+retention log lines while disabled: 0
+runtime_binding=26 runtime_session=29 tool_execution=260 runtime_binding_slot=26 runtime_placement_guard=26 
+## [r7-merge-mdb] 4. rollback: main jar boots on the V67+V68 schema
+STARTED pid=63280
+has a version (68) that is newer than the latest available migration (67)
+## [r7-merge-mdb] 5. head jar, retention enabled (30d / 100 / 3s); tenant-e-big placement domain held 25 s by another connection
+HOLDING placement domain tenant-e-big at 16:26:54.497204Z
+RELEASED placement domain tenant-e-big at 16:27:19.526622Z
+00:27:11.388 Runtime retention failed; retrying on the next scheduled tick
+00:27:22.061 runtime_retention bindings_scanned=2 children_scanned=100 skipped=1 executions_deleted=100 sessions_deleted=0 bindings_deleted=0 duration_ms=7676
+00:27:25.846 runtime_retention bindings_scanned=1 children_scanned=100 skipped=0 executions_deleted=100 sessions_deleted=0 bindings_deleted=0 duration_ms=781
+00:27:36.912 runtime_retention bindings_scanned=16 children_scanned=81 skipped=15 executions_deleted=53 sessions_deleted=22 bindings_deleted=4 duration_ms=8061
+00:27:40.578 runtime_retention bindings_scanned=13 children_scanned=6 skipped=16 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=657
+00:27:44.042 runtime_retention bindings_scanned=13 children_scanned=6 skipped=16 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=457
+Caused by: com.mysql.cj.jdbc.exceptions.MySQLTimeoutException: Statement cancelled due to timeout o
+runtime_binding=19 runtime_session=6 tool_execution=5 runtime_binding_slot=26 runtime_placement_guard=26 
+binding c-half                       RELEASED           gen=1 sessions=0 executions=0
+binding c-missing                    RELEASED           gen=1 sessions=0 executions=0
+binding c-pending                    RELEASED           gen=1 sessions=1 executions=0
+binding c-rawid                      RELEASED           gen=1 sessions=0 executions=0
+binding p-ack                        RELEASED           gen=1 sessions=1 executions=1
+binding p-active-slot                RELEASED           gen=1 sessions=0 executions=0
+binding p-dispatch-lease             RELEASED           gen=1 sessions=1 executions=1
+binding p-failed-seeded              FAILED             gen=1 sessions=0 executions=0
+binding p-holder                     RELEASED           gen=1 sessions=0 executions=0
+binding p-managed-unproven           RELEASED           gen=1 sessions=0 executions=0
+binding p-nonterminal                RELEASED           gen=1 sessions=1 executions=1
+binding p-operator                   RELEASED           gen=1 sessions=1 executions=1
+binding p-publication                RELEASED           gen=1 sessions=1 executions=1
+binding p-recent                     RELEASED           gen=1 sessions=0 executions=0
+binding p-state-draining             DRAINING           gen=1 sessions=0 executions=0
+binding p-state-lost                 LOST               gen=1 sessions=0 executions=0
+binding p-state-operator-recovery    OPERATOR_RECOVERY  gen=1 sessions=0 executions=0
+binding p-state-ready                READY              gen=1 sessions=0 executions=0
+binding p-state-recovery-blocked     RECOVERY_BLOCKED   gen=1 sessions=0 executions=0
+kept-execution p-ack-x
+kept-execution p-pub-referenced-雪
+GET h-exec (expired):              {"error":"Runtime execution was not found","code":"runtime_execution_not_found","retryable":false} HTTP=404
+GET p-pub-sibling (unreferenced):  {"error":"Runtime execution was not found","code":"runtime_execution_not_found","retryable":false} HTTP=404
+GET p-pub-referenced (COLLECTED):  "state":"settled" HTTP=200 
+lineage rows: sessions=6 child_run projections=3
+## [r7-merge-mdb] 6. settle the parent's canonical child_run for c-pending while the real scheduler keeps running
+settled child_run run-c-pending
+00:27:51.989 runtime_retention bindings_scanned=13 children_scanned=7 skipped=15 executions_deleted=0 sessions_deleted=1 bindings_deleted=1 duration_ms=476
+00:27:55.562 runtime_retention bindings_scanned=12 children_scanned=6 skipped=15 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=568
+00:27:58.857 runtime_retention bindings_scanned=12 children_scanned=6 skipped=15 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=286
+c-* bindings left:
+binding c-half                       RELEASED           gen=1 sessions=0 executions=0
+binding c-missing                    RELEASED           gen=1 sessions=0 executions=0
+binding c-rawid                      RELEASED           gen=1 sessions=0 executions=0
+lineage rows: sessions=6 child_run projections=3
+regen e-legacy -> binding=e-legacy-gen2 generation=2 state=PROVISIONING
+## [r7-merge-mdb] done

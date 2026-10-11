@@ -1,0 +1,23 @@
+# Full suites on the unfixed trial merge b51898a9 = PR 9e928555 (same code as a1146f34) + main b437892f
+# suite6.sh: runtime-broker verify -Pmysql-integration, broker install, managed-agent-server verify -Pmysql-integration checkstyle:check
+# MySQL 8.4.7 (local mysqld) and MariaDB 10.11.18 (container), Java 21, macOS host (load average ~55-75 from other sessions)
+
+runtime-broker            MySQL: 809 unit (3 skipped) + 9 IT, all pass      MariaDB: 809 unit (3 skipped) + 9 IT, all pass
+managed-agent-server unit 2088 on each engine, 2 failures on each:
+  RuntimeBrokerFlywaySchemaTest.flywayCreatesTheBrokerSchema   the merge break (section 1); passes 5/5 once the schema.sql line is added
+  ChildWorktreeGitTest.namesBeyondAsciiMerge...NotUtf8...      macOS filesystem; fails on main too (rounds 4-6)
+managed-agent-server IT   205 on each engine, 1 error on each:
+  ManagedAgentMySqlIT.admitsHookExecutionsWithoutReadingTheirHistoryOnMySql
+    "The Managed Session writer grant is stale or unavailable." after 60 s (the writer lease) on both engines
+    round 6: MariaDB only; rounds 2-3 isolated runs: PR 1/6, main 1/6 failing -> host load
+    isolated A/B this round (MySQL, alternating, idle of my own jobs): main b437892f 3/3 pass (34.2, 35.5, 27.8 s), trial merge 3/3 pass (37.3, 25.9, 27.0 s);
+    the 60 s limit is the writer lease, and the host load average was 56-71 during the runs -> load, symmetric, not the merge
+checkstyle                0 violations (both runs)
+
+# Fixed trial merge e9200fdd = a1146f34 + main a8990042 + schema.sql line (targeted, H2 unless noted)
+RuntimeBrokerFlywaySchemaTest 5/5; RuntimeRetentionConfigurationTest 15; ManagedAgentPropertiesTest 9; ToolPublicationStoreTest 113;
+ManagedRuntimeRetentionRaceTest 8; WorkspaceRuntimeTest 36; RuntimeRetentionJobTest 2; ManagedRuntimeRetentionGuardTest 7  -> 195/195, checkstyle 0
+JdbcRuntimeRetentionTest 17; JdbcPlacementGuardTest 5; RuntimeHarnessDrainTest 54 -> 76/76
+JdbcRuntimeRetentionMySqlIT: MySQL 2/2, MariaDB 2/2
+(an earlier targeted run that pulled JdbcRuntimeRetentionMySqlIT into surefire without -Pmysql-integration errored with "mysql.url is required" /
+ "No suitable driver"; that was my command, rerun correctly above)
