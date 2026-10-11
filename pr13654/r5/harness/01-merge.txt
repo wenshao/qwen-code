@@ -1,0 +1,23 @@
+PR #13654 round 5: the merge commit fe0ae13e (569befb8 + main a8990042)
+PR code unchanged since round 4: store, verifier, V68 and client blobs identical to 569befb8. Rig: MySQL 8.4.7, packaged Spring jar + bundled CLI worker + TLS OSS double
+## The one conflict: .github/workflows/sdk-java.yml, MariaDB lane
+==    PR side   timeout-minutes 15 -> 25          main side   ECS pool routing + per-host flock, timeout 15 -> 85
+++    fe0ae13e takes main's file byte-for-byte (blob 059b76bd); every other path equals the automatic merge (tree 858886cf)
+++    keeping the PR's 25 fails scripts/tests/sdk-java-workflow.test.js: "expected 1500 to be greater than or equal to 4440"
+++    the MariaDB lane on fe0ae13e ran 32m35s in CI, past the PR's old 25-minute ceiling
+## Main's 24 new commits
+++    none touches tool publication; no new migration (main still tops out at V67)
+==    #13674 auto-merged next to the PR's settings in ManagedAgentProperties / application.yml; its public Shell skips the H3 publication lane
+## CI's managed-agent-server command on fe0ae13e (MySQL 8.4.7 instead of CI's MariaDB)
+++    2417 tests, 245 MySQL ITs; the PR-touched classes 375/375; async suite 52/52 on H2 and on MySQL; Checkstyle 0, SpotBugs 0
+!!    ChildWorktreeGitTest (non-UTF-8 file name): APFS refuses the name, "Illegal byte sequence"; main's code, host limitation
+!!    ManagedAgentMySqlIT Hook admission: writer grant went stale after 60 s at load ~90; 3/3 alone in 20 s; identical to main
+## Migration V68
+++    G1 schema built by main to V67, then fe0ae13e: 1 migration applied, now v68, server starts
+++    G2 fresh schema: 64 migrations; G3 schema built by 569befb8: up to date; CI guard: 64 versions, all unique
+## Packaged stack on fe0ae13e (async admission on), same scenarios as round 4
+++    5 + 1 MiB and 64 + 8 MiB             bytes exact, 14 / 78 ops ASYNC SUCCEEDED
+++    readback held 8 s                    first POST 202 in 53 ms while the GET was held
+++    first PUT delayed 5 s / GETs 500     202 waited 5116 ms / retried to claim epoch 3, then SUCCEEDED
+++    byte flipped / replay                FAILED 400 + QUARANTINED, turn blocked / replay 200, 0 object GETs
+++    R6-1 AccessDenied on finish read     finish FAILED 403, no terminal row left, 0 non-VERIFIED rows
