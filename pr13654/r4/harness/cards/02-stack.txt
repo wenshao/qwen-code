@@ -1,0 +1,26 @@
+PR #13654 round 4: CSI re-run, migration V68 and the packaged stack at 569befb8
+Base = merge base 6936c77e (main); trial merge with main fce50611 is clean. Stack: packaged Spring jar + bundled CLI worker + fake OSS over TLS + MySQL 8.4.7
+## Round-3 finding re-run: accepted op -> CSI retirement -> execution SETTLED -> scan (author deferred it; unchanged)
+++ A  segment                                   head: SUCCEEDED                 head + round-3 candidate: SUCCEEDED
+-- G/H/E seal, prefix, finish                   head: FAILED 400                head + round-3 candidate: SUCCEEDED
+-- I  whole sequence                            head: never finishes            head + round-3 candidate: FINISHED
+==    candidate still applies unchanged; controls B C D E2 E3 F identical; PR suite with candidate: 52/52 H2; MySQL 51/52, the one 5 s timing test then 3/3 alone
+## Migration V68 (byte-identical DDL to the old V63)
+++ CI guard (check-flyway-migrations.js): head 64 unique; head + main fce50611: 64 unique; main: 63
+++ G1 schema built by main to V67, then head: "Successfully applied 1 migration ... now at version v68", server starts
+++ G2 fresh schema: 64 migrations applied, server starts
+!! G3 schema from the round-3 build (PR at V63), then head: "Detected applied migration not resolved locally: 63" (test DBs only)
+!! open #13642 and #13219 also add V68 in this module; whichever merges later renumbers
+## Async contract, re-run on head (async admission on)
+++ 5 + 1 MiB and 64 + 8 MiB                     bytes exact, 14 / 78 ops ASYNC SUCCEEDED
+++ readback held 8 s                            first POST 202 in 172 ms while the GET was held
+++ first object PUT delayed 5 s                 that 202 waited for the PUT (5093 ms)
+++ first six object GETs answer 500             retried to claim epoch 3, then SUCCEEDED
+++ one byte flipped while readback held         FAILED 400 invalid_request, segment QUARANTINED, turn blocked
+++ replay of a SUCCEEDED op                     200 in 92 ms with 0 object GETs; a later real read still caught the flip
+## R6-1 on the stack: one AccessDenied on the first object GET after POST /finish (inline terminal)
+-- round-3 jar 50312cfb   finish FAILED 403; leaves terminal:failed:finish CANDIDATE (1 non-VERIFIED row)
+++ head 569befb8          finish FAILED 403; no terminal row left, 0 non-VERIFIED rows
+## Latency, paired 128 MiB (client byte-identical to round 3), load 54-69
+==    base 6936c77e (sync)    turn 45.1 / 67.3 s    all output written in 25.6 / 28.3 s    segment receipt median 127 / 146 ms
+!!    head 569befb8 (async)   turn 64.8 / 83.4 s    all output written in 49.0 / 57.3 s    segment receipt median 334 / 350 ms

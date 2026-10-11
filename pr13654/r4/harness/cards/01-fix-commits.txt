@@ -1,0 +1,33 @@
+PR #13654 round 4: the three fix commits since round 3, store-level A/B per commit
+PR's own fixture and helpers; ToolPublicationStore + ToolPublicationDataStore taken from each commit, everything else at head 569befb8; every probe agrees on real MySQL 8.4.7 and H2
+==                                               round-3 head        99ff6152            f4eee7cb            head 569befb8
+==                                               50312cfb            (1st fix)           (2nd fix)           (3rd fix)
+## R5-1: the publication grant expires while the writer is live and the activation current, then it is renewed
+++ N  accepted segment, scan, renew, scan        FAILED 400          PENDING, then OK    PENDING, then OK    PENDING, then OK
+++    PR test fencedAcceptedWork [lease]         pass *              FAIL                FAIL                pass
+++    PR test fencedAcceptedWork [takeover]      pass *              FAIL                FAIL                pass
+== * r3 passes only because it failed every expired grant. On 99ff/f4ee a lapsed lease or a takeover stays PENDING (expected FAILED).
+## R6-1 and yiliang P2: a 70 KB terminal (stored as an object), read-back AccessDenied -> FAILED 403
+++ J1 terminal row / object / non-VERIFIED       kept / kept / 1     gone / gone / 0     gone / gone / 0     gone / gone / 0
+++    object DELETE inside the transaction       - (no delete)       yes                 no                  no
+++ J2 later finish, same bytes: result           SUCCEEDED           SUCCEEDED           SUCCEEDED           SUCCEEDED
+++    non-VERIFIED rows left after it            1                   0                   0                   0
+== the collector counts any non-VERIFIED row of the publication as object_unverified and skips it
+## yiliang P3: candidate 1's failure handler cannot open a transaction; candidate 2 is queued behind it in the same page
+++ M  verifyNextOperation()                      throws              throws              returns             returns
+++    candidate 1 next_at                        unchanged, first    unchanged, first    pushed +1 s         pushed +1 s
+++    candidate 2                                not reached         not reached         claimed             claimed
+## yiliang P2: transient 409 (busy / claim_lost / claim_expired / operation_expired) before the claim
+++ PR test transientVerificationErrors x4        FAIL                FAIL                FAIL                pass
+++    (beforeClaim) + lostSlotBeforeClaim
+## New edge (low): the post-commit object DELETE fails too (here: the same denied credential)
+!! K1 the failed finish                          FAILED 403,         scan throws,        FAILED 403,         FAILED 403,
+!!                                               row + object kept   stays PENDING       object orphaned     object orphaned
+!! K2 later finish, different bytes              FAILED 400          refused             FAILED 400          FAILED 400
+++ L2 later finish, same bytes                   SUCCEEDED           refused             SUCCEEDED           SUCCEEDED
+== orphaned = still in the bucket, no DB row references it, producer bytes 0. K2 reads the stale object at the deterministic terminal key.
+== r3 keeps the row and object on every failed object finish, so K2 happens there without any delete failure.
+## PR suite ToolPublicationAsyncVerificationTest (52)
+== H2                                            45/52               45/52               45/52               52/52
+== MySQL 8.4.7                                   -                   -                   -                   52/52
+>> f4eee7cb has no test of its own: 99ff6152 and f4eee7cb fail the same 7 PR tests. Only probes M and J1 tell them apart.

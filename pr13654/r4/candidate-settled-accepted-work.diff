@@ -1,0 +1,22 @@
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationDataStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationDataStore.java
+@@ -1256,7 +1256,9 @@
+                 "Invalid finish operation ID");
+         var authorization = authorizeClaim(key, scope, publicationId, token);
+         JsonNode binding = authorization.binding();
+-        if (authorization.execution().getState()
++        // Accepted async work was admitted before the execution settled, so it
++        // is not a replay; only a new request after settlement must be one.
++        if (verificationTask.get() == null && authorization.execution().getState()
+                 == ToolExecutionRecord.State.SETTLED) {
+             JsonNode receipt = exactSucceededReplay(scope, publicationId, operationId,
+                     "terminal", requestDigest("terminal", length, digest));
+@@ -1493,7 +1495,7 @@
+         require(operationId != null && operationId.matches("[a-z0-9_-]{1,128}"),
+                 "Invalid publication operation ID");
+         var authorization = authorizeClaim(key, scope, publicationId, token);
+-        if (authorization.execution().getState()
++        if (verificationTask.get() == null && authorization.execution().getState()
+                 == ToolExecutionRecord.State.SETTLED) {
+             return new ScanClaim(0, exactSucceededReplay(scope, publicationId, operationId, slot, requestDigest));
+         }
