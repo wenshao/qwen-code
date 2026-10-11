@@ -1,0 +1,33 @@
+# recover-all  db=r5l-all arm=landed  2026-10-11T16:23:35.331Z
+NOTE  warm-up Session in ws-z  -> {"status":202,"turn":"COMPLETED"}
+PASS  neighbor Session (no Hooks) created in ws-a, first Turn completes  -> {"status":202,"turn":{"turn_id":"turn_febd7cd9883843519f87397f0624852f","status":"COMPLETED","err":""}}
+PASS  target Session with original command Hook catalog created in ws-a, first Turn completes  -> {"status":202,"turn":{"turn_id":"turn_e82872f20e2d4f8c98ffb0d1553ba786","status":"COMPLETED","err":""}}
+NOTE  target Session row  -> {"status":"ACTIVE","deleted_at":null,"harness_boot_id":"9bc30c6e-130f-4b8e-a6ff-57593bc3e574","workspace_id":"ws-a","tool_profile":"hosted-workspace-files/1"}
+NOTE  before: target runtime sessions (original Hook + tool sessions on one binding)  -> [{"id":"hooks-activation-b92bef9e2280a1ebd562bcfac10535e978049f09b28eb85803f061b32d1888ae","state":"READY","gen":1,"kind":"bootstrap"}]
+NOTE  before: storage holders  -> [{"st":null,"held":1,"b":"0cb60376-147f-44ba-9e30-b28bdd7a46db","g":1,"rs":"hooks-activation-b92bef9e2280a1ebd562bcfac10535e978049f09b28eb85803f061b32d1888ae"},{"st":null,"held":0,"b":null,"g":null,"rs":null}]
+NOTE  before: workers  -> {"T":{"binding":"0cb60376-147f-44ba-9e30-b28bdd7a46db","bstate":"READY","rid":"7def3d0d237c","pid":2757,"regState":"READY","regFiles":"json,lock,ready","pidAlive":true},"N":{"binding":"97e2817d-06b5-4ad0-afce-2377102588b4","bstate":"READY","rid":"f2a18549168c","pid":2742,"regState":"READY","regFiles":"json,lock,ready","pidAlive":true}}
+NOTE  DELETE accepted  -> {"status":202,"op":"op_04a163e9b2204afda7e86e2d1bd85791"}
+PASS  fault point reached: End and Delete command Hooks ran once each, effects durable, detach held by the tap  -> {"heldAfterMs":5420,"hooks":["SessionEnd:ran:pid2780:0::/rig-hooks/qwen-hook-585dccfb-6ada-4936-9513-7103b1e89da8","SessionDelete:ran:pid2805:0::/rig-hooks/qwen-hook-390f51cc-b44d-43eb-8244-3df9b9020fa6"],"op":{"state":"RUNNING","delivery":"LEASED","err":"","gen":1,"attempts":0,"proto":1,"effects":["SessionEnd","SessionDelete"]}}
+fault: stopped spring pid=2438 sig=KILL | target worker pid=2757 SIGKILL | neighbor worker pid=2742 SIGKILL | stopped harness pid=2388 sig=KILL
+restart: harness pid=2848 up after 5s log=/Users/wenshao/pr13673-rig/run/r5l-all/harness-1.log | spring pid=2897 up after 11s log=/Users/wenshao/pr13673-rig/run/r5l-all/spring-1.log
+NOTE  operation timeline after the fault (state/delivery/error/claim)  -> ["+15.9s RUNNING/LEASED//g1","+55.3s RUNNING/LEASED//g2","+55.8s COMPLETED/CONFIRMED//g2"]
+PASS  [all] original operation COMPLETED and target DELETED within 180s of the fault  -> {"op":{"state":"COMPLETED","err":"","gen":2,"attempts":0},"session":"DELETED","ms":55835}
+PASS  [all] End and Delete command Hooks each executed exactly once (no replay)  -> ["SessionEnd:ran@16:24:04.826","SessionDelete:ran@16:24:07.419"]
+PASS  [all] effect receipt bytes unchanged  -> {"same":true}
+PASS  [all] exactly one retirement row  -> [{"op":"op_04a163e9b2204afda7e86e2d1bd85791","generation":1}]
+PASS  [all] original binding/generation/handle/seed/lease kept, no replacement generation  -> {"bindings":[{"id":"0cb60376-147","gen":1,"state":"RELEASED","drainReq":1,"drainRcpt":1,"opGen":3}]}
+PASS  [all] binding drained with a persisted stop receipt for the original resource  -> {"state":"RELEASED","drainRcpt":1,"receipt":{"bindingId":"0cb60376-147f-44ba-9e30-b28bdd7a46db","handleVersion":2,"stoppedAt":"2026-10-11T16:25:03.968144307Z","provisionRequestId":"0cb60376-147f-44ba-9e30-b28bdd7a46db:1","version":1,"generation":1,"handle":"{\"resourceId\":\"7def3d0d237c63b37afdfc55637f5adf96619b4a88cab98cddfba1680c411dde\",\"hostId\":\"34d75b12038d43be99419f1f606aa520\",\"bootId\":\"10045970-54ce-462f-967c-6eeb3d12a231\",\"pidNamespace\":\"pid:[4026532507]\",\"timeNamespace\":\"time:[4026532630]\",\"identityDigest\":\"7ba171a732bbee024bf06aba8197aed1dec1108ae62d949fd66853a4a98ec8a9\"}","handleKind":"local-process"}}
+PASS  [all] all original RuntimeSessions RELEASED  -> ["hooks-activation-b92bef9e228:bootstrap:RELEASED"]
+PASS  [all] storage holder cleared (no LOCAL holder row still held)  -> [{"st":null,"held":0,"b":null,"g":null,"rs":null},{"st":null,"held":0,"b":null,"g":null,"rs":null}]
+PASS  [all] original target worker process gone (pid 2757)  -> {"before":{"binding":"0cb60376-147f-44ba-9e30-b28bdd7a46db","bstate":"READY","rid":"7def3d0d237c","pid":2757,"regState":"READY","regFiles":"json,lock,ready","pidAlive":true},"after":{"binding":"0cb60376-147f-44ba-9e30-b28bdd7a46db","bstate":"RELEASED","rid":"7def3d0d237c","pid":2757,"regState":"RETIRED","regFiles":"json,lock,ready","pidAlive":false}}
+PASS  [all] no replacement worker for the target  -> []
+PASS  [all] no model replay after the fault  -> {"atFault":6,"now":6}
+PASS  [all] shared workspace files byte-identical (target + neighbor files kept)  -> {"before":{"neighbor-mv418y7w.txt":"fc2543d5dcb3ebf4","target-mv41956o.txt":"3dc0db889344edf0"},"after":{"neighbor-mv418y7w.txt":"fc2543d5dcb3ebf4","target-mv41956o.txt":"3dc0db889344edf0"}}
+PASS  [all] neighbor Session not retired  -> {"status":"ACTIVE"}
+NOTE  journal head (target)  -> {"state":"DELETED","writer":"","leaseUntil":""}
+NOTE  harness drain fence (target)  -> [{"phase":"DRAINING","op":"op_04a163e9b2204afda7e86e2d1bd85791","gen":1}]
+NOTE  neighbor follow-up Turn after the retirement (its worker was part of the fault)  -> {"send":202,"turn":"FAILED","ms":8695,"timeout":false,"neighborWriterStaleRenewals":0,"cause":"unclassified"}
+NOTE  target binding drain claim and RuntimeSessions after the fault (25 ms sampler)  -> {"samples":1502,"transitions":["+15.47s READY/drain=0/rcpt=0/owner=0/opGen=2 rt=bootstrap:READY","+55.45s READY/drain=0/rcpt=0/owner=1/opGen=3 rt=bootstrap:READY","+55.51s DRAINING/drain=1/rcpt=0/owner=1/opGen=3 rt=bootstrap:READY","+55.56s DRAINING/drain=1/rcpt=1/owner=1/opGen=3 rt=bootstrap:READY","+55.59s DRAINING/drain=1/rcpt=1/owner=1/opGen=3 rt=bootstrap:RELEASED","+55.65s RELEASED/drain=1/rcpt=1/owner=1/opGen=3 rt=bootstrap:RELEASED"],"states":["READY","DRAINING","RELEASED"],"lapses":[],"minLeftMs":29950,"maxLeaseStallMs":10027}
+NOTE  binding states seen after the fault  -> ["READY","DRAINING","RELEASED"]
+NOTE  Harness -> Broker answers for the target after the fault  -> []
+== recover-all: 16 passed, 0 failed
