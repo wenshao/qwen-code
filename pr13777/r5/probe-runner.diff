@@ -1,0 +1,347 @@
+diff --git a/scripts/run-managed-agent-server-e2e.ts b/scripts/run-managed-agent-server-e2e.probe.ts
+index 9e8f1684aa..49ea1146b7 100644
+--- a/scripts/run-managed-agent-server-e2e.ts
++++ b/scripts/run-managed-agent-server-e2e.probe.ts
+@@ -223,7 +223,9 @@ const trustedActorHeader = 'x-qwen-e2e-trusted-actor';
+ const trustedActor = 'e2e-actor';
+ const inflightSideEffectName = 'managed-inflight-side-effect.txt';
+ const inflightSideEffect = path.join(workspaceMount, inflightSideEffectName);
+-const inflightSideEffectContent = 'MANAGED_INFLIGHT_TOOL_EXECUTED\n';
++const inflightSideEffectContent =
++  'MANAGED_INFLIGHT_TOOL_EXECUTED\n' +
++  'p'.repeat(Number(process.env['PROBE_TOOL_PAD'] ?? 0));
+ const workspaceId = createHash('sha256')
+   .update(workspace)
+   .digest('hex')
+@@ -250,6 +252,15 @@ try {
+       ...(directory === runtimeState && workspaceTurns ? { mode: 0o700 } : {}),
+     });
+   }
++  if (process.env['PROBE_QWEN_MD']) {
++    writeFileSync(
++      path.join(workspaceMount, 'QWEN.md'),
++      `# Project rules\n\n${process.env['PROBE_QWEN_MD']}\n` +
++        '- keep the workspace tidy and the tests green.\n'
++          .repeat(Math.ceil(Number(process.env['PROBE_QWEN_MD_PAD'] ?? 0) / 47))
++          .slice(0, Number(process.env['PROBE_QWEN_MD_PAD'] ?? 0)),
++    );
++  }
+   if (durableFailover) {
+     for (const home of [harnessHome, replacementHarnessHome]) {
+       writeFileSync(
+@@ -794,6 +805,70 @@ function tenantHeaders(tenant: string): Record<string, string> {
+   };
+ }
+ 
++async function probeRename(
++  base: string,
++  tenantId: string,
++  sessionId: string,
++  port: number,
++  title: string,
++  revision: number,
++  phase: string,
++): Promise<void> {
++  const started = Date.now();
++  const filter = `tenant_id=${sqlString(tenantId)} AND session_id=${sqlString(sessionId)}`;
++  let status = 0;
++  let body = '';
++  let delivery = '';
++  let journal = '';
++  let publicTitle: unknown;
++  try {
++    const response = await fetch(`${base}/v1/agents/sessions/${sessionId}`, {
++      method: 'PATCH',
++      headers: {
++        'content-type': 'application/json',
++        'idempotency-key': `probe-rename-${revision}`,
++        ...tenantHeaders(tenantId),
++      },
++      body: JSON.stringify({ title }),
++    });
++    status = response.status;
++    body = (await response.text()).slice(0, 400);
++    while (Date.now() - started < 60_000) {
++      delivery = runMysql(
++        port,
++        `SELECT revision, delivery_state, attempt_count FROM qwen_managed_agent.managed_session_rename_delivery WHERE ${filter}`,
++      );
++      journal = runMysql(
++        port,
++        `SELECT COUNT(*) FROM qwen_managed_agent.qwen_managed_session_journal_tx WHERE ${filter} AND command_id=${sqlString(`hosted-title:${revision}`)}`,
++      );
++      const current = await fetchJson<{ metadata?: Record<string, unknown> }>(
++        `${base}/v1/agents/sessions/${sessionId}`,
++        { headers: tenantHeaders(tenantId) },
++      );
++      publicTitle = current.metadata?.['title'];
++      if (
++        delivery.split('\t')[1] === 'COMPLETED' &&
++        journal === '1' &&
++        publicTitle === title
++      )
++        break;
++      await new Promise((resolve) => setTimeout(resolve, 500));
++    }
++  } catch (error) {
++    body += ` ERROR ${String(error)}`;
++  }
++  const result = { phase, revision, title, status, body, delivery, journalTitleTx: journal, publicTitle, ms: Date.now() - started };
++  console.log(`PROBE rename ${JSON.stringify(result)}`);
++  if (process.env['PROBE_DUMP_DIR']) {
++    mkdirSync(process.env['PROBE_DUMP_DIR'], { recursive: true });
++    writeFileSync(
++      path.join(process.env['PROBE_DUMP_DIR'], `rename-${revision}.json`),
++      JSON.stringify(result, null, 2),
++    );
++  }
++}
++
+ async function waitForTerminal(
+   springUrl: string,
+   tenant: string,
+@@ -854,10 +929,13 @@ const continuationHold = new Promise<void>((resolve) => {
+ });
+ 
+ let fake: Awaited<ReturnType<typeof startFakeOpenAIServer>> | undefined;
++let probeKillIndex: number | undefined;
++const probeTimes: number[] = [];
+ let heldStartProxy: HeldExecutionStartProxy | undefined;
+ let replacementBrokerProxy: HeldExecutionStartProxy | undefined;
+ let failure: unknown;
+ let dumpPort: number | undefined;
++let probeSpringUrl: string | undefined;
+ try {
+   const harnessToken = randomBytes(24).toString('base64url');
+   const brokerToken = randomBytes(24).toString('base64url');
+@@ -881,6 +959,7 @@ try {
+ 
+   if (durableFailover) {
+     fake = await startFakeOpenAIServer(({ body }) => {
++      probeTimes.push(Date.now());
+       const messages = Array.isArray(body['messages']) ? body['messages'] : [];
+       const serialized = JSON.stringify(messages);
+       // Match the new current input before any marker from restored history.
+@@ -1092,6 +1171,7 @@ try {
+     'Spring Managed Agent Server',
+   );
+   const springUrl = `http://127.0.0.1:${springPort}`;
++  probeSpringUrl = springUrl;
+   await waitUntil(
+     'Spring Managed Agent Server',
+     async () => {
+@@ -1294,6 +1374,15 @@ try {
+           `SELECT options_json FROM qwen_managed_agent.managed_agent_action WHERE ${actionFilter}`,
+         ),
+       );
++      if (process.env['PROBE_BASE_RELAX']) {
++        originalRuntimeSessionId = runMysql(
++          mysqlPort,
++          'SELECT runtime_session_id FROM qwen_managed_agent.qwen_runtime_session ORDER BY last_active_at DESC LIMIT 1',
++        );
++        console.log(
++          `PROBE base relax: options=${JSON.stringify(originalApprovalOptions)} runtime=${originalRuntimeSessionId}`,
++        );
++      } else {
+       if (
+         originalApprovalOptions?.v !== 3 ||
+         !originalApprovalOptions.continuationRef
+@@ -1395,6 +1484,43 @@ try {
+         executionCount,
+         physicalFileExists: existsSync(inflightSideEffect),
+       });
++      }
++      if (process.env['PROBE_RENAME']) {
++        await probeRename(springUrl, tenant, session.id, mysqlPort, 'probe-title-parked', 1, 'parked-original-harness');
++      }
++      if (process.env['PROBE_ALLOW_BEFORE_KILL']) {
++        // Control arm: answer the approval on the ORIGINAL Harness (no kill).
++        const controlResponse = await fetch(
++          `${springUrl}/v1/agents/sessions/${session.id}/actions/${originalApprovalId}/responses`,
++          {
++            method: 'POST',
++            headers: {
++              'content-type': 'application/json',
++              'idempotency-key': `probe-allow-${originalApprovalId}`,
++              ...tenantHeaders(tenant),
++            },
++            body: JSON.stringify({
++              kind: 'permission',
++              input_revision: 1,
++              policy_revision: originalApprovalOptions!.policyRevision,
++              option_id: 'allow',
++            }),
++          },
++        );
++        console.log(`PROBE control allow -> ${controlResponse.status}`);
++        const controlDone = await waitForTerminal(
++          springUrl,
++          tenant,
++          session.id,
++          0,
++          spring,
++          120_000,
++        );
++        console.log(
++          `PROBE control terminal ${JSON.stringify(controlDone.events.filter((event) => event.terminal).map((event) => event.type))}`,
++        );
++        throw new Error('PROBE control run complete (no kill)');
++      }
+     } else if (continuationFailover) {
+       await waitUntil(
+         'Continuation partial text',
+@@ -1546,6 +1672,8 @@ try {
+     } else if (harnessOnly) {
+       // Kill only the Harness: a live control plane must adopt the next
+       // generation instead of failing every bound Session (G3).
++      probeKillIndex = fake?.requests.length;
++      console.log(`PROBE kill index ${probeKillIndex} at ${Date.now()}`);
+       await crashChild(harness.child, `${hostedHarnessLabel} (original)`);
+     } else {
+       await Promise.all([
+@@ -1971,6 +2099,9 @@ try {
+         throw new Error(
+           `Original cleanup did not release the original Runtime: state=${runtimeAfter.join(',')} confirmed=${cleanupConfirmed}`,
+         );
++      if (process.env['PROBE_RENAME']) {
++        await probeRename(replacementSpringUrl, tenant, session.id, mysqlPort, 'probe-title-recovered', 2, 'after-recovered-terminal');
++      }
+       saveEvidence('approval-result.json', {
+         mode: verificationMode,
+         sessionId: session.id,
+@@ -2850,6 +2981,92 @@ try {
+       console.error(`Durable state dump failed: ${String(dumpError)}`);
+     }
+   }
++  if (process.env['PROBE_HOLD_SECONDS'] && dumpPort !== undefined) {
++    const holdMs = Number(process.env['PROBE_HOLD_SECONDS']) * 1000;
++    const holdStart = Date.now();
++    if (process.env['PROBE_HOLD_NEXT'] && probeSpringUrl) {
++      try {
++        const [nextTenant, nextSession] = runMysql(
++          dumpPort,
++          'SELECT tenant_id, session_id FROM qwen_managed_agent.managed_agent_session LIMIT 1',
++        ).split('\t');
++        const next = await fetch(
++          `${probeSpringUrl}/v1/agents/sessions/${nextSession}/events`,
++          {
++            method: 'POST',
++            headers: {
++              'content-type': 'application/json',
++              'idempotency-key': `probe-next-${nextSession}`,
++              ...tenantHeaders(nextTenant),
++            },
++            body: JSON.stringify({
++              type: 'agent.session.input.message',
++              input: [{ type: 'text', text: `${reliefMarker}. Reply exactly ${reliefResponse}. Use no tools.` }],
++            }),
++          },
++        );
++        console.error(`PROBE next input -> ${next.status} ${(await next.text()).slice(0, 300)}`);
++      } catch (nextError) {
++        console.error(`PROBE next input failed: ${String(nextError)}`);
++      }
++    }
++    if (process.env['PROBE_HOLD_CANCEL'] && probeSpringUrl) {
++      try {
++        const [cancelTenant, cancelSession] = runMysql(
++          dumpPort,
++          'SELECT tenant_id, session_id FROM qwen_managed_agent.managed_agent_session LIMIT 1',
++        ).split('\t');
++        const cancelTurn = runMysql(
++          dumpPort,
++          "SELECT turn_id FROM qwen_managed_agent.managed_agent_turn WHERE status='RUNNING' LIMIT 1",
++        );
++        const cancel = await fetch(
++          `${probeSpringUrl}/v1/agents/sessions/${cancelSession}/events`,
++          {
++            method: 'POST',
++            headers: {
++              'content-type': 'application/json',
++              'idempotency-key': `probe-cancel-${cancelTurn}`,
++              ...tenantHeaders(cancelTenant),
++            },
++            body: JSON.stringify({ type: 'agent.session.cancel', turn_id: cancelTurn }),
++          },
++        );
++        console.error(`PROBE cancel ${cancelTurn} -> ${cancel.status} ${(await cancel.text()).slice(0, 300)}`);
++        if (process.env['PROBE_HOLD_CANCEL_NEXT']) {
++          await new Promise((resolve) => setTimeout(resolve, 15_000));
++          const after = await fetch(
++            `${probeSpringUrl}/v1/agents/sessions/${cancelSession}/events`,
++            {
++              method: 'POST',
++              headers: {
++                'content-type': 'application/json',
++                'idempotency-key': `probe-after-cancel-${cancelSession}`,
++                ...tenantHeaders(cancelTenant),
++              },
++              body: JSON.stringify({
++                type: 'agent.session.input.message',
++                input: [{ type: 'text', text: `${reliefMarker}. Reply exactly ${reliefResponse}. Use no tools.` }],
++              }),
++            },
++          );
++          console.error(`PROBE next after cancel -> ${after.status} ${(await after.text()).slice(0, 300)}`);
++        }
++      } catch (cancelError) {
++        console.error(`PROBE cancel failed: ${String(cancelError)}`);
++      }
++    }
++    while (Date.now() - holdStart < holdMs) {
++      await new Promise((resolve) => setTimeout(resolve, 30_000));
++      try {
++        console.error(
++          `PROBE hold +${Math.round((Date.now() - holdStart) / 1000)}s modelRequests=${fake?.requests.length} turns=${runMysql(dumpPort, 'SELECT turn_id, status, error_code FROM qwen_managed_agent.managed_agent_turn').replace(/\n/g, ' | ')} lastEvent=${runMysql(dumpPort, 'SELECT sequence_id, event_type FROM qwen_managed_agent.managed_agent_event ORDER BY sequence_id DESC LIMIT 1')}`,
++        );
++      } catch (holdError) {
++        console.error(`PROBE hold dump failed: ${String(holdError)}`);
++      }
++    }
++  }
+   if (replacementBrokerProxy !== undefined) {
+     console.error(
+       `\n--- Replacement Runtime Broker requests ---\n${replacementBrokerProxy.observations().join('\n')}`,
+@@ -2883,12 +3100,42 @@ try {
+       );
+     }
+   }
++  if (process.env['PROBE_DUMP_DIR'] && dumpPort !== undefined) {
++    try {
++      mkdirSync(process.env['PROBE_DUMP_DIR'], { recursive: true });
++      writeFileSync(
++        path.join(process.env['PROBE_DUMP_DIR'], 'recovery-resources.tsv'),
++        runMysql(
++          dumpPort,
++          "SELECT kind, byte_length, storage_kind, state FROM qwen_managed_agent.qwen_managed_session_resource WHERE kind LIKE 'hosted-%' ORDER BY created_at",
++        ) + '\n',
++      );
++    } catch (error) {
++      console.error(`PROBE resource dump failed: ${String(error)}`);
++    }
++  }
+   for (const child of children.reverse()) {
+     await stopChild(child.child);
+   }
+   await heldStartProxy?.close();
+   await replacementBrokerProxy?.close();
+   releaseContinuationHold();
++  if (process.env['PROBE_DUMP_DIR']) {
++    mkdirSync(process.env['PROBE_DUMP_DIR'], { recursive: true });
++    writeFileSync(
++      path.join(process.env['PROBE_DUMP_DIR'], 'provider-requests.json'),
++      JSON.stringify(
++        {
++          killIndex: probeKillIndex,
++          times: probeTimes,
++          requests: fake?.requests.map((request) => request.body) ?? [],
++          failure: failure ? String(failure) : null,
++        },
++        null,
++        2,
++      ),
++    );
++  }
+   await fake?.close();
+   if (failure && process.env['QWEN_MANAGED_E2E_KEEP_TMP'] === '1') {
+     console.error(`Keeping temporary directory: ${temporary}`);
