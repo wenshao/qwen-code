@@ -48,41 +48,28 @@ jobs:
 
       - name: 'R4-3 probe: head runtime'
         run: |-
-          (cd packages/cli && PROBE_ARM=head npx vitest run "$PROBE" --reporter=verbose) 2>&1 | tee probe-r43-head.txt
+          (cd packages/cli && PROBE_ARM=head PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-head.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-head.txt
 
       - name: 'R4-3 probe: head runtime + suggested fix'
         run: |-
           node probe13243/apply-fix.mjs
           git diff --stat
-          (cd packages/cli && PROBE_ARM=head+fix npx vitest run "$PROBE" --reporter=verbose) 2>&1 | tee probe-r43-fix.txt
+          (cd packages/cli && PROBE_ARM=head+fix PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-fix.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-fix.txt
           git checkout -- "$RUNTIME"
 
       - name: 'R4-3 probe: merge-base runtime'
         run: |-
           git checkout "$BASE_SHA" -- "$RUNTIME"
           git diff --stat HEAD
-          (cd packages/cli && PROBE_ARM=base npx vitest run "$PROBE" --reporter=verbose) 2>&1 | tee probe-r43-base.txt
+          (cd packages/cli && PROBE_ARM=base PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-base.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-base.txt
           git checkout HEAD -- "$RUNTIME"
-
-      - name: 'Head arm: PR suites (x3)'
-        run: |-
-          # shellcheck disable=SC2086
-          bash probe13243/run-arm.sh head 3 $FILES | tee probe-head.txt
-
-      - name: 'Base arm: merge-base code and tests (x2)'
-        run: |-
-          git checkout "$BASE_SHA" -- packages/cli/src/serve/managed-hook-runtime.ts packages/cli/src/serve/managed-hook-runtime.test.ts packages/cli/src/serve/hosted-hook-session.ts packages/cli/src/serve/hosted-hook-session.test.ts
-          git diff --stat HEAD
-          # shellcheck disable=SC2086
-          bash probe13243/run-arm.sh base 2 $FILES | tee probe-base.txt
-          git checkout HEAD -- packages/cli/src/serve
 
       - name: 'Collect'
         if: '${{ always() }}'
         run: |-
           mkdir -p probe-out
-          cp probe-*.txt probe-out/ 2>/dev/null || true
-          grep -h PROBE_JSON probe-out/*.txt | sort -u
+          cp probe-*.txt probe-*.jsonl probe-out/ 2>/dev/null || true
+          grep -h PROBE_JSON probe-out/*.txt probe-out/*.jsonl | sort -u
 
       - uses: 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' # v4.6.2
         if: '${{ always() }}'

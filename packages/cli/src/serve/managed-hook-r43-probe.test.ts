@@ -5,6 +5,7 @@
  * receipt, hasHolds before and after the module-evaluation budget, and whether
  * close() resolves. Emits PROBE_JSON lines; asserts nothing about the outcome.
  */
+import { appendFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -25,7 +26,10 @@ const pin = { catalogId: 'hooks', catalogRevision: 1, definitionDigest: 'a'.repe
 let directory: string;
 
 function emit(fields: Record<string, unknown>): void {
-  console.log('PROBE_JSON ' + JSON.stringify({ probe: 'r43-runtime', arm: ARM, platform: process.platform, ...fields }));
+  const line = 'PROBE_JSON ' + JSON.stringify({ probe: 'r43-runtime', arm: ARM, platform: process.platform, ...fields });
+  console.log(line);
+  // The cli vitest config sets silent: true; keep a file copy as well.
+  if (process.env['PROBE_OUT']) appendFileSync(process.env['PROBE_OUT'], line + '\n');
 }
 
 function definition(modulePath: string): ManagedHookDefinition {
