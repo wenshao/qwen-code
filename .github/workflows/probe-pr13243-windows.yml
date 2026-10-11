@@ -47,9 +47,10 @@ jobs:
             (cd packages/cli && npx vitest run "$TEST_FILE") > "$OUT" 2>&1
             rc=$?
             set -e
-            TESTS=$(grep -E '^ +Tests +' "$OUT" | tail -1 | sed -E 's/^ +Tests +//')
-            STRAY=$(grep -c 'writeStderrLineSafe" to not be called' "$OUT" || true)
-            FAILED=$(grep -E '^ FAIL ' "$OUT" | sort -u | sed -E 's/.*> //' | tr '\n' ';' | tr -d '"')
+            # The step shell is bash -eo pipefail: a grep with no match must not end the loop.
+            TESTS=$({ grep -E '^ +Tests +' "$OUT" || true; } | tail -1 | sed -E 's/^ +Tests +//')
+            STRAY=$({ grep -c 'writeStderrLineSafe" to not be called' "$OUT" || true; } | head -1)
+            FAILED=$({ grep -E '^ FAIL ' "$OUT" || true; } | sort -u | sed -E 's/.*> //' | tr '\n' ';' | tr -d '"')
             echo "PROBE_JSON {\"os\":\"${{ matrix.os }}\",\"i\":${i},\"exit\":${rc},\"tests\":\"${TESTS}\",\"strayStderrFailures\":${STRAY},\"failed\":\"${FAILED}\"}" | tee -a probe-out/summary.txt
           done
 
