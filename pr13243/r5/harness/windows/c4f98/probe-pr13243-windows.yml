@@ -1,0 +1,94 @@
+name: 'probe-pr13243-windows'
+
+# Verification probe for QwenLM/qwen-code#13243 on a GitHub-hosted Windows
+# runner. Runs only on pushes to probe/pr13243-* branches of this fork.
+on:
+  push:
+    branches: ['probe/pr13243-**']
+
+permissions:
+  contents: 'read'
+
+jobs:
+  probe:
+    runs-on: 'windows-2022'
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: 'bash'
+    env:
+      BASE_SHA: 'd9c6f8c0fe73ed4076e16e0feb750aba4a89c54a'
+      FILES: 'src/serve/managed-hook-runtime.test.ts src/serve/hosted-hook-session.test.ts'
+      PROBE: 'src/serve/managed-hook-r43-probe.test.ts'
+      RUNTIME: 'packages/cli/src/serve/managed-hook-runtime.ts'
+      NO_COLOR: 'true'
+    steps:
+      - name: 'Disable CRLF conversion'
+        shell: 'powershell'
+        run: 'git config --global core.autocrlf false'
+
+      - uses: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10' # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - uses: 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e' # v6.4.0
+        with:
+          node-version: '22.x'
+          package-manager-cache: false
+
+      - name: 'Runner facts'
+        run: |-
+          echo "PROBE_JSON {\"probe\":\"runner\",\"node\":\"$(node -v)\",\"os\":\"$(cmd //c ver | tr -d '\r\n')\",\"head\":\"$(git rev-parse HEAD)\",\"cpus\":\"${NUMBER_OF_PROCESSORS}\"}"
+
+      - name: 'Native isAbsolute / pathToFileURL facts'
+        run: 'node probe13243/native-paths.mjs | tee probe-native.txt'
+
+      - name: 'Install dependencies'
+        run: 'corepack pnpm install --frozen-lockfile --reporter=append-only'
+
+      - name: 'R4-3 probe: head runtime'
+        run: |-
+          (cd packages/cli && PROBE_ARM=head PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-head.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-head.txt
+
+      - name: 'R4-3 probe: previous head 9aa7997816 runtime (before the fix)'
+        run: |-
+          git checkout 9aa79978169c49bdf2f17cfe03d71dfa0da4e502 -- "$RUNTIME"
+          git diff --stat HEAD
+          (cd packages/cli && PROBE_ARM=prev-9aa7997 PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-prev.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-prev.txt
+          git checkout HEAD -- "$RUNTIME"
+
+      - name: 'R4-3 probe: merge-base runtime'
+        run: |-
+          git checkout "$BASE_SHA" -- "$RUNTIME"
+          git diff --stat HEAD
+          (cd packages/cli && PROBE_ARM=base PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-base.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-base.txt
+          git checkout HEAD -- "$RUNTIME"
+
+      - name: 'Head arm: PR suites (x3)'
+        run: |-
+          # shellcheck disable=SC2086
+          bash probe13243/run-arm.sh head 3 $FILES | tee probe-head.txt
+
+      - name: 'Mutant: new R4-3 unit test with only the fix reverted (x1)'
+        run: |-
+          git checkout 9aa79978169c49bdf2f17cfe03d71dfa0da4e502 -- "$RUNTIME"
+          git diff --stat HEAD
+          set +e
+          (cd packages/cli && npx vitest run src/serve/managed-hook-runtime.test.ts -t 'settles without a hold when pathToFileURL throws before evaluation starts' --reporter=verbose) > probe-unit-mutant.txt 2>&1
+          rc=$?
+          set -e
+          echo "PROBE_JSON {\"probe\":\"unit-mutant\",\"exit\":${rc},\"tests\":\"$(grep -E '^ +Tests +' probe-unit-mutant.txt | tail -1 | sed -E 's/^ +Tests +//')\"}" | tee -a probe-unit-mutant.txt
+          git checkout HEAD -- "$RUNTIME"
+
+      - name: 'Collect'
+        if: '${{ always() }}'
+        run: |-
+          mkdir -p probe-out
+          cp probe-*.txt probe-*.jsonl probe-out/ 2>/dev/null || true
+          grep -h PROBE_JSON probe-out/*.txt probe-out/*.jsonl | sort -u
+
+      - uses: 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' # v4.6.2
+        if: '${{ always() }}'
+        with:
+          name: 'probe-pr13243-windows'
+          path: 'probe-out/'
