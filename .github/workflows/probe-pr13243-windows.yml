@@ -50,18 +50,34 @@ jobs:
         run: |-
           (cd packages/cli && PROBE_ARM=head PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-head.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-head.txt
 
-      - name: 'R4-3 probe: head runtime + suggested fix'
+      - name: 'R4-3 probe: previous head 9aa7997816 runtime (before the fix)'
         run: |-
-          node probe13243/apply-fix.mjs
-          git diff --stat
-          (cd packages/cli && PROBE_ARM=head+fix PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-fix.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-fix.txt
-          git checkout -- "$RUNTIME"
+          git checkout 9aa79978169c49bdf2f17cfe03d71dfa0da4e502 -- "$RUNTIME"
+          git diff --stat HEAD
+          (cd packages/cli && PROBE_ARM=prev-9aa7997 PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-prev.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-prev.txt
+          git checkout HEAD -- "$RUNTIME"
 
       - name: 'R4-3 probe: merge-base runtime'
         run: |-
           git checkout "$BASE_SHA" -- "$RUNTIME"
           git diff --stat HEAD
           (cd packages/cli && PROBE_ARM=base PROBE_OUT="$GITHUB_WORKSPACE/probe-r43-base.jsonl" npx vitest run "$PROBE" --reporter=verbose --silent=false) 2>&1 | tee probe-r43-base.txt
+          git checkout HEAD -- "$RUNTIME"
+
+      - name: 'Head arm: PR suites (x3)'
+        run: |-
+          # shellcheck disable=SC2086
+          bash probe13243/run-arm.sh head 3 $FILES | tee probe-head.txt
+
+      - name: 'Mutant: new R4-3 unit test with only the fix reverted (x1)'
+        run: |-
+          git checkout 9aa79978169c49bdf2f17cfe03d71dfa0da4e502 -- "$RUNTIME"
+          git diff --stat HEAD
+          set +e
+          (cd packages/cli && npx vitest run src/serve/managed-hook-runtime.test.ts -t 'settles without a hold when pathToFileURL throws before evaluation starts' --reporter=verbose) > probe-unit-mutant.txt 2>&1
+          rc=$?
+          set -e
+          echo "PROBE_JSON {\"probe\":\"unit-mutant\",\"exit\":${rc},\"tests\":\"$(grep -E '^ +Tests +' probe-unit-mutant.txt | tail -1 | sed -E 's/^ +Tests +//')\"}" | tee -a probe-unit-mutant.txt
           git checkout HEAD -- "$RUNTIME"
 
       - name: 'Collect'
