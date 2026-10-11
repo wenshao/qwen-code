@@ -1,0 +1,168 @@
+2c2
+< index 3f1a5ca1a9..d90f1fcd39 100644
+---
+> index b539ef54b7..a07f3ca013 100644
+5c5
+< @@ -762,6 +762,40 @@ when `sql_require_primary_key` is set: V12 fails before it changes anything, and
+---
+> @@ -771,6 +771,40 @@ when `sql_require_primary_key` is set: V12 fails before it changes anything, and
+16,21c16,21
+< +| Variable                                          | Default | Meaning                                                                             |
+< +| ------------------------------------------------- | ------- | ----------------------------------------------------------------------------------- |
+< +| `QWEN_MANAGED_AGENT_RUNTIME_RETENTION_ENABLED`    | `false` | Enable cleanup when the Runtime Broker is also enabled                              |
+< +| `QWEN_MANAGED_AGENT_RUNTIME_RETENTION_MAX_AGE`    | `30d`   | Minimum age of eligible terminal records; must be positive                          |
+< +| `QWEN_MANAGED_AGENT_RUNTIME_RETENTION_BATCH_SIZE` | `100`   | Per-tick bound on scanned bindings, scanned children and total deleted rows; 1–1000 |
+< +| `QWEN_MANAGED_AGENT_RUNTIME_RETENTION_SCAN_DELAY` | `1m`    | Positive delay between ticks, at least 1ms                                          |
+---
+> +| Variable                                          | Default | Meaning                                                                                                                           |
+> +| ------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+> +| `QWEN_MANAGED_AGENT_RUNTIME_RETENTION_ENABLED`    | `false` | Enable cleanup when the Runtime Broker is also enabled                                                                            |
+> +| `QWEN_MANAGED_AGENT_RUNTIME_RETENTION_MAX_AGE`    | `30d`   | Minimum age of eligible terminal records; must be positive; unit-less values use days; explicit units such as `12h` are preserved |
+> +| `QWEN_MANAGED_AGENT_RUNTIME_RETENTION_BATCH_SIZE` | `100`   | Per-tick bound on scanned bindings, scanned children and total deleted rows; 1–1000                                               |
+> +| `QWEN_MANAGED_AGENT_RUNTIME_RETENTION_SCAN_DELAY` | `1m`    | Positive delay between ticks, at least 1ms                                                                                        |
+37c37
+< +expired Runtime Session IDs or idempotency keys. Deploy Flyway V63 and the code
+---
+> +expired Runtime Session IDs or idempotency keys. Deploy Flyway V66 and the code
+47c47
+< index 6b4682ff88..c10e9b29c0 100644
+---
+> index c683ef8be2..1f8ab8a0e7 100644
+50c50,61
+< @@ -87,6 +87,7 @@ public class ManagedAgentProperties {
+---
+> @@ -2,10 +2,12 @@ package com.alibaba.qwen.code.managedagent.config;
+>  
+>  import jakarta.annotation.PostConstruct;
+>  import java.time.Duration;
+> +import java.time.temporal.ChronoUnit;
+>  import java.util.LinkedHashMap;
+>  import java.util.List;
+>  import java.util.Map;
+>  import org.springframework.boot.context.properties.ConfigurationProperties;
+> +import org.springframework.boot.convert.DurationUnit;
+>  import java.util.Locale;
+>  import java.util.Set;
+51a63,64
+> @@ -107,6 +109,7 @@ public class ManagedAgentProperties {
+>  
+58c71
+< @@ -640,6 +641,7 @@ public class ManagedAgentProperties {
+---
+> @@ -670,6 +673,7 @@ public class ManagedAgentProperties {
+66c79
+< @@ -683,6 +685,35 @@ public class ManagedAgentProperties {
+---
+> @@ -713,6 +717,36 @@ public class ManagedAgentProperties {
+75a89
+> +            @DurationUnit(ChronoUnit.DAYS)
+313c327
+< index 12827989b8..75f7e94ba8 100644
+---
+> index b2c0d30cd6..a003ab3c1c 100644
+316c330
+< @@ -102,6 +102,11 @@ qwen:
+---
+> @@ -104,6 +104,11 @@ qwen:
+328c342
+< diff --git a/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V63__runtime_broker_retention.sql b/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V63__runtime_broker_retention.sql
+---
+> diff --git a/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V68__runtime_broker_retention.sql b/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V68__runtime_broker_retention.sql
+332c346
+< +++ b/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V63__runtime_broker_retention.sql
+---
+> +++ b/packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V68__runtime_broker_retention.sql
+858c872
+< index 0000000000..f9807d7cbf
+---
+> index 0000000000..d501f5fd96
+861c875
+< @@ -0,0 +1,127 @@
+---
+> @@ -0,0 +1,134 @@
+876a891
+> +import java.util.Map;
+956a972,977
+> +        for (var entry : Map.of("30", Duration.ofDays(30),
+> +                "12h", Duration.ofHours(12), "30ms", Duration.ofMillis(30)).entrySet()) {
+> +            configured.withPropertyValues("QWEN_MANAGED_AGENT_RUNTIME_RETENTION_MAX_AGE=" + entry.getKey())
+> +                    .run(ctx -> assertThat(ctx.getBean(ManagedAgentProperties.class)
+> +                            .getRuntimeBroker().getRetention().getMaxAge()).isEqualTo(entry.getValue()));
+> +        }
+1385c1406
+< index 1722dd0f0e..5164621b26 100644
+---
+> index a837e3a498..333e9765ee 100644
+1388,1389c1409
+< @@ -63,7 +63,7 @@ class WorkspaceMigrationMySqlIT {
+<          assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history"
+---
+> @@ -64,7 +64,7 @@ class WorkspaceMigrationMySqlIT {
+1392,1393c1412,1414
+< -                "51", "52", "53", "54", "55", "56", "57", "60", "62");
+< +                "51", "52", "53", "54", "55", "56", "57", "60", "62", "63");
+---
+>                  "51", "52", "53", "54", "55", "56", "57", "60", "62", "64",
+> -                "65", "66", "67");
+> +                "65", "66", "67", "68");
+1495c1516
+< index 0000000000..783ef35ef0
+---
+> index 0000000000..69e34d582d
+1498c1519
+< @@ -0,0 +1,395 @@
+---
+> @@ -0,0 +1,397 @@
+1590,1591c1611,1614
+< +        } catch (IllegalArgumentException | IllegalStateException invalidEvidence) {
+< +            // Invalid historical evidence must neither be deleted nor hold up the sweep.
+---
+> +        } catch (RuntimeException invalidEvidence) {
+> +            // Mapping throws RuntimeBrokerException, ClassCastException and
+> +            // DateTimeParseException as well as IllegalStateException. Skip the
+> +            // row so one corrupt history record cannot stall the keyset.
+2227c2250
+< index 0000000000..325abc3111
+---
+> index 0000000000..2b8e4a3560
+2230c2253
+< @@ -0,0 +1,662 @@
+---
+> @@ -0,0 +1,674 @@
+2443a2467,2478
+> +    void corruptHistoricalEvidenceSkipsTheRowAndContinues() throws Exception {
+> +        Fixture fixture = new Fixture();
+> +        RuntimeBindingRecord corrupt = fixture.binding("corrupt", "legacy", false, "RELEASED");
+> +        fixture.execute("UPDATE qwen_runtime_binding SET loss_evidence_json = ? WHERE binding_id = ?",
+> +                "{", corrupt.getBindingId());
+> +        fixture.binding("healthy", "legacy", false, "RELEASED");
+> +
+> +        assertEquals(List.of(0, 0, 1), fixture.complete(100, NO_REFERENCES));
+> +        assertEquals(1, fixture.count("qwen_runtime_binding"));
+> +    }
+> +
+> +    @Test
+3c3
+< index 0000000000..87aff97e90
+---
+> index 0000000000..ba65f2b909
+35c35
+< +Managed-server owns a separate single-thread scheduler gated by both Broker and retention enablement. Settings under qwen.managed-agent.runtime-broker.retention are enabled=false, max-age=30d, batch-size=100 (1–1000) and scan-delay=1m. Age and delay must be positive. Successful ticks log counts; failed ticks log the error and retry on the next scheduled run. A failure rolls back the current binding transaction; earlier commits in that tick remain committed and are not included in a partial-count report. Recovery scheduling remains independent. Existing HTTP and business repository interfaces remain unchanged.
+---
+> +Managed-server owns a separate single-thread scheduler gated by both Broker and retention enablement. Settings under qwen.managed-agent.runtime-broker.retention are enabled=false, max-age=30d, batch-size=100 (1–1000) and scan-delay=1m. Age and delay must be positive. A unit-less max-age is interpreted as days; explicit units, including sub-day windows, are preserved. Successful ticks log counts; failed ticks log the error and retry on the next scheduled run. A failure rolls back the current binding transaction; earlier commits in that tick remain committed and are not included in a partial-count report. Recovery scheduling remains independent. Existing HTTP and business repository interfaces remain unchanged.
+43c43
+< +Deploy V63 after the existing V62 task-cancel migration with retention disabled, and verify upgrades from V62 preserve existing terminal receipts. Enable only after every instance uses the new publication locking protocol. Observe scan/deletion/skip counts, duration and failures. Disable retention before reverting to older writers. Disabling stops future cleanup but cannot restore deleted records.
+---
+> +Deploy V66 after the existing V65 stream-capture migration with retention disabled, and verify upgrades from V65 preserve existing terminal receipts. Enable only after every instance uses the new publication locking protocol. Observe scan/deletion/skip counts, duration and failures. Disable retention before reverting to older writers. Disabling stops future cleanup but cannot restore deleted records.
+56c56
+< index 0000000000..3cdf3fbb3c
+---
+> index 0000000000..154b1afc02
+88c88
+< +Managed-server 使用独立单线程 scheduler，只有 Broker 和 retention 同时开启才创建。qwen.managed-agent.runtime-broker.retention 配置为 enabled=false、max-age=30d、batch-size=100（1–1000）、scan-delay=1m。保留期和间隔必须为正数。成功轮次记录计数；失败轮次记录错误并在下个周期重试。失败只回滚当前 binding 事务，同轮此前的提交继续保留，暂不提供这些部分提交的计数报告。恢复调度保持独立。已有 HTTP 和业务 repository 接口保持不变。
+---
+> +Managed-server 使用独立单线程 scheduler，只有 Broker 和 retention 同时开启才创建。qwen.managed-agent.runtime-broker.retention 配置为 enabled=false、max-age=30d、batch-size=100（1–1000）、scan-delay=1m。保留期和间隔必须为正数。不带单位的 max-age 按天解析；显式单位（包括小于一天的保留期）保持原义。成功轮次记录计数；失败轮次记录错误并在下个周期重试。失败只回滚当前 binding 事务，同轮此前的提交继续保留，暂不提供这些部分提交的计数报告。恢复调度保持独立。已有 HTTP 和业务 repository 接口保持不变。
+96c96
+< +在已有 V62 task-cancel migration 后部署 V63，并保持清理关闭；验证从 V62 升级后既有终态 receipt 保留。全部实例使用新的 publication 锁协议后才开启。观察扫描、删除、跳过数、耗时和失败次数。回退到旧 writer 前先关闭清理。关闭只停止后续删除，不能恢复已删除数据。
+---
+> +在已有 V65 stream-capture migration 后部署 V66，并保持清理关闭；验证从 V65 升级后既有终态 receipt 保留。全部实例使用新的 publication 锁协议后才开启。观察扫描、删除、跳过数、耗时和失败次数。回退到旧 writer 前先关闭清理。关闭只停止后续删除，不能恢复已删除数据。

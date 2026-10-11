@@ -1,0 +1,26 @@
+# Suites on 9e9285553d (rig/suite6.sh): runtime-broker verify -Pmysql-integration, then managed-agent-server verify -Pmysql-integration checkstyle:check, -Dmaven.test.failure.ignore=true
+
+## MySQL-8.4.7
+runtime-broker: [WARNING] Tests run: 782, Failures: 0, Errors: 0, Skipped: 3 [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0 
+server (unit, then IT): [ERROR] Tests run: 2013, Failures: 1, Errors: 0, Skipped: 3 [INFO] Tests run: 205, Failures: 0, Errors: 0, Skipped: 0 
+checkstyle: You have 0 Checkstyle violations
+failing tests:
+  com.alibaba.qwen.code.managedagent.service.ChildWorktreeGitTest.namesBeyondAsciiMergeAndANameThatIsNotUtf8IsAConflict
+
+## MariaDB-10.11.18
+runtime-broker: [WARNING] Tests run: 782, Failures: 0, Errors: 0, Skipped: 3 [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0 
+server (unit, then IT): [ERROR] Tests run: 2013, Failures: 2, Errors: 1, Skipped: 3 [ERROR] Tests run: 205, Failures: 0, Errors: 1, Skipped: 0 
+checkstyle: You have 0 Checkstyle violations
+failing tests:
+  com.alibaba.qwen.code.managedagent.SurfaceAdmissionAcceptanceTest.submitterRoutesAdmitTheLegacyArmAndAnOperatorHitsDomainRefusal
+  com.alibaba.qwen.code.managedagent.ToolPublicationStoreTest.streamsLargeOutputAndReadsItsTailAfterStoreReplacement(Path)
+  com.alibaba.qwen.code.managedagent.service.ChildWorktreeGitTest.namesBeyondAsciiMergeAndANameThatIsNotUtf8IsAConflict
+  com.alibaba.qwen.code.managedagent.ManagedAgentMySqlIT.admitsHookExecutionsWithoutReadingTheirHistoryOnMySql
+
+## Isolated A/B (H2 unit classes, rig ab-test.sh; head = 9e9285553d in a clean worktree, main = 6936c77e60, run concurrently)
+SurfaceAdmissionAcceptanceTest head: 5/5 runs green
+SurfaceAdmissionAcceptanceTest main: 5/5 runs green
+ToolPublicationStoreTest head: 4/4 runs green
+ToolPublicationStoreTest main: 4/4 runs green
+SurfaceAdmission 503 body in the MariaDB-arm unit phase: {"error":{"code":"hosted_harness_unavailable","message":"The Session title is already being delivered.","request_id":"89678d97-41f6-48b0-a875-217b0482cebf"}} (raised at ManagedAgentService.java:482, added by main's #13682 concurrent session titles; the PR does not touch ManagedAgentService.java)
+(A first head-arm attempt errored on stale target/classes V61__ from an older checkout; discarded and rerun after removing target/.)

@@ -1,0 +1,52 @@
+## [chmy] jar=head.jar sha=fdd5fd2db966
+## [chmy] 1. jar migrates an empty database (retention off)
+Successfully applied 64 migrations to schema `corrupt_head_my`, now at version v68
+## [chmy] 2. seed the usual families, then two corrupt historical bindings sorted first in the keyset
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+CORRUPTED k-trunc (FAILED, loss_evidence_json='{') and k-badtime (RELEASED, stop_evidence observedAt='not-a-time')
+before: runtime_binding=28 runtime_session=31 tool_execution=262 
+## [chmy] 3. retention on (30d / 100 / 2s)
+first 8 ticks:
+19:20:47.495 runtime_retention bindings_scanned=7 children_scanned=97 skipped=3 executions_deleted=96 sessions_deleted=1 bindings_deleted=3 duration_ms=1737
+19:20:50.087 runtime_retention bindings_scanned=1 children_scanned=100 skipped=0 executions_deleted=100 sessions_deleted=0 bindings_deleted=0 duration_ms=588
+19:20:52.942 runtime_retention bindings_scanned=16 children_scanned=87 skipped=15 executions_deleted=59 sessions_deleted=22 bindings_deleted=4 duration_ms=848
+19:20:55.090 runtime_retention bindings_scanned=15 children_scanned=6 skipped=18 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=140
+19:20:57.353 runtime_retention bindings_scanned=15 children_scanned=6 skipped=18 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=260
+19:20:59.604 runtime_retention bindings_scanned=15 children_scanned=6 skipped=18 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=244
+19:21:01.827 runtime_retention bindings_scanned=15 children_scanned=6 skipped=18 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=100
+19:21:03.958 runtime_retention bindings_scanned=15 children_scanned=6 skipped=18 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=125
+failure causes (distinct): 
+after 8 ticks: runtime_binding=21 runtime_session=8 tool_execution=7 
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+row k-badtime            RELEASED  last_active_at=2026-08-22 11:20:29.495108 sessions=1 executions=1
+row k-trunc              FAILED    last_active_at=2026-08-22 11:20:28.926180 sessions=1 executions=1
+rows k-* = 2
+rows e-* = 0
+## [chmy] 4. wait for convergence, then add a zero-DATETIME binding and an ordinary eligible one behind it
+converged: runtime_binding=21 runtime_session=8 tool_execution=7  last tick: 19:21:10.640 runtime_retention bindings_scanned=15 children_scanned=6 skipped=18 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=287
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+session sql_mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+default sql_mode rejected the zero DATETIME: Data truncation: Incorrect datetime value: '0000-00-00 00:00:00' for column 'last_active_at' at row 1
+zero DATETIME written after SET SESSION sql_mode = ''
+k-zero last_active_at stored as 0000-00-00 00:00:00.000000
+6 ticks after the zero DATETIME appeared:
+19:21:14.912 Runtime retention failed; retrying on the next scheduled tick
+19:21:17.042 Runtime retention failed; retrying on the next scheduled tick
+19:21:19.066 Runtime retention failed; retrying on the next scheduled tick
+19:21:21.097 Runtime retention failed; retrying on the next scheduled tick
+19:21:23.119 Runtime retention failed; retrying on the next scheduled tick
+19:21:25.151 Runtime retention failed; retrying on the next scheduled tick
+cause of the newest failure: Caused by: com.mysql.cj.exceptions.DataReadException: Ze
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+row k-after-zero         RELEASED  last_active_at=2026-09-01 11:21:13.744185 sessions=1 executions=0
+rows k-after-zero* = 1
+## [chmy] 5. repair the zero DATETIME; the sweep resumes
+19:21:29.352 runtime_retention bindings_scanned=17 children_scanned=7 skipped=18 executions_deleted=0 sessions_deleted=1 bindings_deleted=2 duration_ms=160
+19:21:31.558 runtime_retention bindings_scanned=15 children_scanned=6 skipped=18 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=203
+19:21:33.936 runtime_retention bindings_scanned=15 children_scanned=6 skipped=18 executions_deleted=0 sessions_deleted=0 bindings_deleted=0 duration_ms=375
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+row k-badtime            RELEASED  last_active_at=2026-08-22 11:20:29.495108 sessions=1 executions=1
+row k-trunc              FAILED    last_active_at=2026-08-22 11:20:28.926180 sessions=1 executions=1
+rows k-* = 2
+ERROR lines: 0  WARN 'Runtime retention failed' lines: 7
+## [chmy] done
