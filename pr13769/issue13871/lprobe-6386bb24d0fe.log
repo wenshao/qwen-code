@@ -1,0 +1,77 @@
+== L0 sanity: foreground delegation, then close and delete
+   parent 315a23b7-4783-44ce-8feb-c844eeaa5a61
+   turn: COMPLETED -
+   01:16:51 close: {"status":202,"json":{"id":"op_13083694f15744b9b9562d7c070381cd","session_id":"315a23b7-4783-44ce-8feb-c844eea
+   parent reached CLOSED after 2s
+   op      parent	CLOSE	COMPLETED	-	0	0	09:16:51	09:16:51
+   ledger  child_acceptance	fe78d392-a759-458d-b011-907c5cf8d681:call_wl0	2	-	consumed	close_debt	0	close debt retained at parent CLOSED
+   ledger  child_run	fe78d392-a759-458d-b011-907c5cf8d681:call_wl0	6	completed	consumed	close_debt	0	close debt retained at parent CLOSED
+   child   cb26d69b-7df1-4af7-883f-d441ebc0a955	ACTIVE
+   delete: {"status":202,"json":{"id":"op_6f4ae69957d247c485a7de666852aeca","session_id":"315a23b7-4783-44ce-8feb-c844eea
+   parent reached DELETED after 1s
+== L1 (round-9 W1) restart during a foreground delegation (child held), then close and delete
+   parent fb02a889-b067-4e1c-9a46-6b31aa42679d
+   01:16:57 harness stop
+killed harness pgid 3117620
+harness pid=3119788
+   01:17:02 harness back
+   01:17:02 released wl1
+   interrupted turn: COMPLETED -
+   turn    parent	COMPLETED	-	09:16:52	09:19:12	-
+   turn    child 	FAILED	managed_runtime_recovery_blocked	09:16:55	09:18:06	The prior Harness generation parked a Turn this Harness cannot take over (unresolved_after_settle).
+   next turn: COMPLETED -
+   ledger  child_run	a7e7356a-19a4-4461-a78e-52f77123405f:call_wl1	4	failed	cancelled	done	7	child Turn FAILED
+   01:19:16 close: {"status":202,"json":{"id":"op_4d8b7ca698564b57acb5b25329a2d5ef","session_id":"fb02a889-b067-4e1c-9a46-6b31aa4
+   parent reached CLOSED after 2s
+   op      child 	CLOSE	COMPLETED	-	0	0	09:19:10	09:19:11
+   op      parent	CLOSE	COMPLETED	-	0	0	09:19:17	09:19:17
+   ledger  child_run	a7e7356a-19a4-4461-a78e-52f77123405f:call_wl1	4	failed	cancelled	done	7	child Turn FAILED
+   child   3436252d-128d-4b36-9142-ac75dd2888a6	CLOSED
+   delete: {"status":202,"json":{"id":"op_93d0bb7475e3435481c92fb8acba4bda","session_id":"fb02a889-b067-4e1c-9a46-6b31aa4
+   parent reached DELETED after 1s
+   spring        3 failure=DaemonTransportException
+   spring        3 failure=DaemonHttpException
+== L2 close sent right after the restart, while the foreground wait is still parked
+   parent b36a23bc-5924-46a8-85f7-c37fffaf4922
+   01:19:22 harness stop
+killed harness pgid 3119788
+harness pid=3122823
+   01:19:26 harness back
+   01:19:26 close: {"status":409,"json":{"error":{"code":"turn_active","message":"The Session has an active Turn.","request_id":"
+   parent NOT CLOSED within 300s (now: ACTIVE )
+   op      child 	CLOSE	COMPLETED	-	0	0	09:21:34	09:21:35
+   ledger  child_run	1698500b-a728-41fc-9a70-6830279850d3:call_wl2	4	failed	cancelled	done	7	child Turn FAILED
+   child   7b568957-a796-40d1-8ca2-15a36ac55fb8	CLOSED
+   01:24:45 released wl2
+   turn    parent	COMPLETED	-	09:19:18	09:21:36	-
+   turn    child 	FAILED	managed_runtime_recovery_blocked	09:19:20	09:20:30	The prior Harness generation parked a Turn this Harness cannot take over (unresolved_after_settle).
+   delete: {"status":409,"json":{"error":{"code":"session_state_conflict","message":"The Session is active and cannot per
+   parent NOT DELETED within 60s (now: ACTIVE )
+   spring        3 failure=DaemonTransportException
+   spring        3 failure=DaemonHttpException
+== L3 cancellation takeover of the parked wait, then a next Turn, then close and delete
+   parent 85eab958-0b65-4042-8aa9-6c4221a32474
+   01:25:52 harness stop
+killed harness pgid 3122823
+   cancel: {"status":202,"json":{"session_id":"85eab958-0b65-4042-8aa9-6c4221a32474","turn_id":"turn_
+harness pid=3131560
+   01:25:55 harness back
+   interrupted turn: CANCELLED -
+   01:26:59 released wl3
+   next turn: COMPLETED -
+   turn    parent	CANCELLED	-	09:25:50	09:26:59	-
+   turn    child 	FAILED	managed_runtime_recovery_blocked	09:25:51	09:27:00	The prior Harness generation parked a Turn this Harness cannot take over (unresolved_after_settle).
+   turn    parent	COMPLETED	-	09:26:59	09:27:01	-
+   ledger  child_run	6df0eda4-c226-4625-a3b9-c077ff2ddff2:call_wl3	1	pending	planned	binding	7	POST /session/:id/load failed with HTTP 409: {"error":"hosted_session_already_attached","code":"hosted_session_already_attached"}
+   01:27:02 close: {"status":202,"json":{"id":"op_51845e0b500d4f76b237966dadd1eede","session_id":"85eab958-0b65-4042-8aa9-6c4221a
+   parent reached CLOSED after 4s
+   op      parent	CLOSE	COMPLETED	-	0	1	09:27:02	09:27:05
+   op      child 	CLOSE	COMPLETED	-	0	0	09:27:02	09:27:03
+   ledger  child_run	6df0eda4-c226-4625-a3b9-c077ff2ddff2:call_wl3	5	cancelled	cancelled	binding	7	POST /session/:id/load failed with HTTP 409: {"error":"hosted_session_already_attached","code":"hosted_session_already_attached"}
+   child   d1ab0da9-59f2-4723-8ac1-394637d5d895	CLOSED
+   delete: {"status":202,"json":{"id":"op_ddb2e0a11006491abff6dbf1e58e8dcb","session_id":"85eab958-0b65-4042-8aa9-6c4221a
+   parent reached DELETED after 1s
+   spring        2 failure=MutationOutcomeUnknownException
+   spring        2 failure=DaemonHttpException
+   spring        1 failure=IllegalStateException Child cascade journal debt: the stop or terminal revisions are owed
+== 01:27:05 Lprobe DONE workers=1
