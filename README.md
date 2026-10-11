@@ -1,0 +1,1 @@
+# Assets for PR #13852 verification
