@@ -1,0 +1,565 @@
+226c226,231
+< const inflightSideEffectContent = 'MANAGED_INFLIGHT_TOOL_EXECUTED\n';
+---
+> const probeSecondName = 'probe-second-call.txt';
+> const probeSecondContent = 'PROBE_SECOND_CALL_EXECUTED\n';
+> const probeSecondFile = path.join(workspaceMount, probeSecondName);
+> const inflightSideEffectContent =
+>   'MANAGED_INFLIGHT_TOOL_EXECUTED\n' +
+>   'p'.repeat(Number(process.env['PROBE_TOOL_PAD'] ?? 0));
+251a257,265
+>   }
+>   if (process.env['PROBE_QWEN_MD']) {
+>     writeFileSync(
+>       path.join(workspaceMount, 'QWEN.md'),
+>       `# Project rules\n\n${process.env['PROBE_QWEN_MD']}\n` +
+>         '- keep the workspace tidy and the tests green.\n'
+>           .repeat(Math.ceil(Number(process.env['PROBE_QWEN_MD_PAD'] ?? 0) / 47))
+>           .slice(0, Number(process.env['PROBE_QWEN_MD_PAD'] ?? 0)),
+>     );
+516,517c530,533
+<         target.pathname.includes('/executions/') &&
+<         target.pathname.endsWith(':start')
+---
+>         (process.env['PROBE_HOLD_PREPARE']
+>           ? target.pathname.endsWith('/executions:prepare')
+>           : target.pathname.includes('/executions/') &&
+>             target.pathname.endsWith(':start'))
+796a813,986
+> async function probeRename(
+>   base: string,
+>   tenantId: string,
+>   sessionId: string,
+>   port: number,
+>   title: string,
+>   revision: number,
+>   phase: string,
+> ): Promise<void> {
+>   const started = Date.now();
+>   const filter = `tenant_id=${sqlString(tenantId)} AND session_id=${sqlString(sessionId)}`;
+>   let status = 0;
+>   let body = '';
+>   let delivery = '';
+>   let journal = '';
+>   let publicTitle: unknown;
+>   try {
+>     const response = await fetch(`${base}/v1/agents/sessions/${sessionId}`, {
+>       method: 'PATCH',
+>       headers: {
+>         'content-type': 'application/json',
+>         'idempotency-key': `probe-rename-${revision}`,
+>         ...tenantHeaders(tenantId),
+>       },
+>       body: JSON.stringify({ title }),
+>     });
+>     status = response.status;
+>     body = (await response.text()).slice(0, 400);
+>     while (Date.now() - started < 60_000) {
+>       delivery = runMysql(
+>         port,
+>         `SELECT revision, delivery_state, attempt_count FROM qwen_managed_agent.managed_session_rename_delivery WHERE ${filter}`,
+>       );
+>       journal = runMysql(
+>         port,
+>         `SELECT COUNT(*) FROM qwen_managed_agent.qwen_managed_session_journal_tx WHERE ${filter} AND command_id=${sqlString(`hosted-title:${revision}`)}`,
+>       );
+>       const current = await fetchJson<{ metadata?: Record<string, unknown> }>(
+>         `${base}/v1/agents/sessions/${sessionId}`,
+>         { headers: tenantHeaders(tenantId) },
+>       );
+>       publicTitle = current.metadata?.['title'];
+>       if (
+>         delivery.split('\t')[1] === 'COMPLETED' &&
+>         journal === '1' &&
+>         publicTitle === title
+>       )
+>         break;
+>       await new Promise((resolve) => setTimeout(resolve, 500));
+>     }
+>   } catch (error) {
+>     body += ` ERROR ${String(error)}`;
+>   }
+>   const result = { phase, revision, title, status, body, delivery, journalTitleTx: journal, publicTitle, ms: Date.now() - started };
+>   console.log(`PROBE rename ${JSON.stringify(result)}`);
+>   if (process.env['PROBE_DUMP_DIR']) {
+>     mkdirSync(process.env['PROBE_DUMP_DIR'], { recursive: true });
+>     writeFileSync(
+>       path.join(process.env['PROBE_DUMP_DIR'], `rename-${revision}.json`),
+>       JSON.stringify(result, null, 2),
+>     );
+>   }
+> }
+> 
+> function probeState(port: number, label: string): void {
+>   const file = existsSync(inflightSideEffect)
+>     ? readFileSync(inflightSideEffect, 'utf8')
+>     : null;
+>   const q = (sql: string) => {
+>     try {
+>       return runMysql(port, sql).replace(/\n/g, ' | ');
+>     } catch (error) {
+>       return `ERR ${String(error).slice(0, 120)}`;
+>     }
+>   };
+>   const second = existsSync(probeSecondFile)
+>     ? readFileSync(probeSecondFile, 'utf8')
+>     : null;
+>   console.log(
+>     `PROBE state ${label} file=${file === null ? 'absent' : `${file.length}B exact=${file === inflightSideEffectContent}`} second=${second === null ? 'absent' : `exact=${second === probeSecondContent}`} executions=[${q('SELECT execution_state, dispatch_generation FROM qwen_managed_agent.qwen_tool_execution')}] actions=[${q("SELECT action_id, state, JSON_EXTRACT(options_json, '$.v') FROM qwen_managed_agent.managed_agent_action")}] turns=[${q('SELECT turn_id, status, error_code FROM qwen_managed_agent.managed_agent_turn ORDER BY created_at')}] hosted=[${q("SELECT kind, byte_length FROM qwen_managed_agent.qwen_managed_session_resource WHERE kind LIKE 'hosted-%' ORDER BY created_at")}]`,
+>   );
+> }
+> 
+> function probeAutoAllow(
+>   base: string,
+>   tenantId: string,
+>   sessionId: string,
+>   port: number,
+>   label: string,
+>   skip: string[] = [],
+> ): () => Promise<void> {
+>   let stopped = false;
+>   const seen = new Set(skip);
+>   const loop = (async () => {
+>     while (!stopped) {
+>       try {
+>         const page = await fetchJson<PublicList<Record<string, unknown>>>(
+>           `${base}/v1/agents/sessions/${sessionId}/actions?limit=100`,
+>           { headers: tenantHeaders(tenantId) },
+>         );
+>         for (const action of page.data) {
+>           const id = String(action.id);
+>           if (action.state !== 'requested' || seen.has(id)) continue;
+>           seen.add(id);
+>           const options = JSON.parse(
+>             runMysql(
+>               port,
+>               `SELECT options_json FROM qwen_managed_agent.managed_agent_action WHERE action_id=${sqlString(id)}`,
+>             ) || '{}',
+>           );
+>           const response = await fetch(
+>             `${base}/v1/agents/sessions/${sessionId}/actions/${id}/responses`,
+>             {
+>               method: 'POST',
+>               headers: {
+>                 'content-type': 'application/json',
+>                 'idempotency-key': `probe-auto-${id}`,
+>                 ...tenantHeaders(tenantId),
+>               },
+>               body: JSON.stringify({
+>                 kind: 'permission',
+>                 input_revision: 1,
+>                 policy_revision: options.policyRevision,
+>                 option_id: 'allow',
+>               }),
+>             },
+>           );
+>           console.log(
+>             `PROBE auto-allow ${label} ${id} call=${options.functionCallId} v=${options.v} plan=${!!options.continuationRef} -> ${response.status}`,
+>           );
+>         }
+>       } catch (error) {
+>         console.log(`PROBE auto-allow ${label} error ${String(error).slice(0, 200)}`);
+>       }
+>       await new Promise((resolve) => setTimeout(resolve, 500));
+>     }
+>   })();
+>   return async () => {
+>     stopped = true;
+>     await loop;
+>   };
+> }
+> 
+> async function probeNextTurn(
+>   base: string,
+>   tenantId: string,
+>   sessionId: string,
+>   after: number,
+>   child: Child,
+>   label: string,
+> ): Promise<void> {
+>   const response = await fetch(`${base}/v1/agents/sessions/${sessionId}/events`, {
+>     method: 'POST',
+>     headers: {
+>       'content-type': 'application/json',
+>       'idempotency-key': `probe-next-${label}-${sessionId}`,
+>       ...tenantHeaders(tenantId),
+>     },
+>     body: JSON.stringify({
+>       type: 'agent.session.input.message',
+>       input: [{ type: 'text', text: `${reliefMarker}. Reply exactly ${reliefResponse}. Use no tools.` }],
+>     }),
+>   });
+>   console.log(`PROBE ${label} next input -> ${response.status}`);
+>   const done = await waitForTerminal(base, tenantId, sessionId, after, child, 90_000);
+>   const text = done.events
+>     .filter((event) => event.type === 'item.output_text.delta')
+>     .map(eventText)
+>     .join('');
+>   console.log(
+>     `PROBE ${label} next terminal ${JSON.stringify(done.events.filter((event) => event.terminal).map((event) => event.type))} text=${JSON.stringify(text)} reliefRequests=${(fake?.requests ?? []).filter((request) => JSON.stringify(request.body.messages).includes(reliefMarker)).length}`,
+>   );
+> }
+> 
+856a1047,1048
+> let probeKillIndex: number | undefined;
+> const probeTimes: number[] = [];
+860a1053
+> let probeSpringUrl: string | undefined;
+883a1077
+>       probeTimes.push(Date.now());
+900a1095,1103
+>               ...(process.env['PROBE_TWO_CALLS']
+>                 ? [
+>                     fakeToolCall(
+>                       'write_file',
+>                       { file_path: probeSecondName, content: probeSecondContent },
+>                       'call_probe_second',
+>                     ),
+>                   ]
+>                 : []),
+903a1107,1120
+>         if (
+>           process.env['PROBE_TWO_BATCHES'] &&
+>           serialized.split('"role":"tool"').length === 2
+>         ) {
+>           return {
+>             toolCalls: [
+>               fakeToolCall(
+>                 'write_file',
+>                 { file_path: probeSecondName, content: probeSecondContent },
+>                 'call_probe_second_batch',
+>               ),
+>             ],
+>           };
+>         }
+1094a1312
+>   probeSpringUrl = springUrl;
+1112c1330
+<   if (inflightFailover) {
+---
+>   if (inflightFailover || process.env['PROBE_INFLIGHT_AFTER_ALLOW']) {
+1296a1515,1523
+>       if (process.env['PROBE_BASE_RELAX']) {
+>         originalRuntimeSessionId = runMysql(
+>           mysqlPort,
+>           'SELECT runtime_session_id FROM qwen_managed_agent.qwen_runtime_session ORDER BY last_active_at DESC LIMIT 1',
+>         );
+>         console.log(
+>           `PROBE base relax: options=${JSON.stringify(originalApprovalOptions)} runtime=${originalRuntimeSessionId}`,
+>         );
+>       } else {
+1397a1625,1752
+>       }
+>       if (process.env['PROBE_RENAME']) {
+>         await probeRename(springUrl, tenant, session.id, mysqlPort, 'probe-title-parked', 1, 'parked-original-harness');
+>       }
+>       if (process.env['PROBE_TWO_PARK'] === 'second') {
+>         const firstAllow = await fetch(
+>           `${springUrl}/v1/agents/sessions/${session.id}/actions/${originalApprovalId}/responses`,
+>           {
+>             method: 'POST',
+>             headers: {
+>               'content-type': 'application/json',
+>               'idempotency-key': `probe-first-allow-${originalApprovalId}`,
+>               ...tenantHeaders(tenant),
+>             },
+>             body: JSON.stringify({
+>               kind: 'permission',
+>               input_revision: 1,
+>               policy_revision: originalApprovalOptions!.policyRevision,
+>               option_id: 'allow',
+>             }),
+>           },
+>         );
+>         console.log(`PROBE first allow -> ${firstAllow.status}`);
+>         let secondId = '';
+>         await waitUntil(
+>           'PROBE second requested approval',
+>           async () => {
+>             const page = await fetchJson<PublicList<Record<string, unknown>>>(
+>               `${springUrl}/v1/agents/sessions/${session.id}/actions?limit=100`,
+>               { headers: tenantHeaders(tenant) },
+>             );
+>             const second = page.data.find(
+>               (action) =>
+>                 action.state === 'requested' && action.id !== originalApprovalId,
+>             );
+>             secondId = second ? String(second.id) : '';
+>             return !!second;
+>           },
+>           120_000,
+>           harness,
+>         );
+>         const secondOptions = JSON.parse(
+>           runMysql(
+>             mysqlPort,
+>             `SELECT options_json FROM qwen_managed_agent.managed_agent_action WHERE action_id=${sqlString(secondId)}`,
+>           ),
+>         );
+>         console.log(
+>           `PROBE second approval ${secondId} call=${secondOptions.functionCallId} v=${secondOptions.v} plan=${!!secondOptions.continuationRef} first v=${originalApprovalOptions?.v} plan=${!!originalApprovalOptions?.continuationRef}`,
+>         );
+>         await new Promise((resolve) => setTimeout(resolve, 1_000));
+>         probeState(mysqlPort, 'two-second-parked');
+>       }
+>       if (process.env['PROBE_ALLOW_BEFORE_KILL']) {
+>         // Control arm: answer the approval on the ORIGINAL Harness (no kill).
+>         const controlResponse = await fetch(
+>           `${springUrl}/v1/agents/sessions/${session.id}/actions/${originalApprovalId}/responses`,
+>           {
+>             method: 'POST',
+>             headers: {
+>               'content-type': 'application/json',
+>               'idempotency-key': `probe-allow-${originalApprovalId}`,
+>               ...tenantHeaders(tenant),
+>             },
+>             body: JSON.stringify({
+>               kind: 'permission',
+>               input_revision: 1,
+>               policy_revision: originalApprovalOptions!.policyRevision,
+>               option_id: process.env['PROBE_CONTROL_OPTION'] ?? 'allow',
+>             }),
+>           },
+>         );
+>         console.log(`PROBE control ${process.env['PROBE_CONTROL_OPTION'] ?? 'allow'} -> ${controlResponse.status}`);
+>         const stopControlAuto =
+>           process.env['PROBE_TWO_CALLS'] || process.env['PROBE_TWO_BATCHES']
+>             ? probeAutoAllow(springUrl, tenant, session.id, mysqlPort, 'control', [originalApprovalId!])
+>             : undefined;
+>         const controlDone = await waitForTerminal(
+>           springUrl,
+>           tenant,
+>           session.id,
+>           0,
+>           spring,
+>           120_000,
+>         );
+>         await stopControlAuto?.();
+>         console.log(
+>           `PROBE control terminal ${JSON.stringify(controlDone.events.filter((event) => event.terminal).map((event) => event.type))}`,
+>         );
+>         probeState(mysqlPort, 'control-after-terminal');
+>         if (process.env['PROBE_CONTROL_NEXT'])
+>           await probeNextTurn(springUrl, tenant, session.id, controlDone.lastSequence, spring, 'control');
+>         probeState(mysqlPort, 'control-end');
+>         throw new Error('PROBE control run complete (no kill)');
+>       }
+>       if (process.env['PROBE_INFLIGHT_AFTER_ALLOW']) {
+>         const allowResponse = await fetch(
+>           `${springUrl}/v1/agents/sessions/${session.id}/actions/${originalApprovalId}/responses`,
+>           {
+>             method: 'POST',
+>             headers: {
+>               'content-type': 'application/json',
+>               'idempotency-key': `probe-inflight-allow-${originalApprovalId}`,
+>               ...tenantHeaders(tenant),
+>             },
+>             body: JSON.stringify({
+>               kind: 'permission',
+>               input_revision: 1,
+>               policy_revision: originalApprovalOptions!.policyRevision,
+>               option_id: 'allow',
+>             }),
+>           },
+>         );
+>         console.log(`PROBE inflight allow -> ${allowResponse.status}`);
+>         const stopInflightAuto =
+>           process.env['PROBE_TWO_CALLS'] || process.env['PROBE_TWO_BATCHES']
+>             ? probeAutoAllow(springUrl, tenant, session.id, mysqlPort, 'inflight', [originalApprovalId!])
+>             : undefined;
+>         await waitUntil(
+>           'PROBE held Runtime execution start after Allow',
+>           () => heldStartProxy?.heldPath() !== undefined,
+>           120_000,
+>           harness,
+>         );
+>         await stopInflightAuto?.();
+>         console.log(`PROBE inflight held ${heldStartProxy?.heldPath()} proxy=${heldStartProxy?.observations().join(' | ')}`);
+>         probeState(mysqlPort, 'inflight-before-kill');
+>       }
+1548a1904,1905
+>       probeKillIndex = fake?.requests.length;
+>       console.log(`PROBE kill index ${probeKillIndex} at ${Date.now()}`);
+1697a2055
+>     console.log(`PROBE replacement cli ${process.env['PROBE_REPLACEMENT_CLI'] ?? cliBundle}`);
+1701c2059
+<         cliBundle,
+---
+>         process.env['PROBE_REPLACEMENT_CLI'] ?? cliBundle,
+1773c2131,2133
+<         (verificationMode !== 'expiry' &&
+---
+>         (!process.env['PROBE_INFLIGHT_AFTER_ALLOW'] &&
+>           process.env['PROBE_TWO_PARK'] !== 'second' &&
+>           verificationMode !== 'expiry' &&
+1781c2141,2146
+<       if (verificationMode === 'allow' || verificationMode === 'deny') {
+---
+>       if (
+>         process.env['PROBE_INFLIGHT_AFTER_ALLOW'] ||
+>         process.env['PROBE_TWO_PARK'] === 'second'
+>       ) {
+>         console.log(`PROBE replacement sees first action state=${String(actionBeforeResponse.state)}`);
+>       } else if (verificationMode === 'allow' || verificationMode === 'deny') {
+1825,1832c2190,2206
+<       const recovered = await waitForTerminal(
+<         replacementSpringUrl,
+<         tenant,
+<         session.id,
+<         0,
+<         replacementSpring,
+<         120_000,
+<       );
+---
+>       const stopReplacementAuto =
+>         process.env['PROBE_TWO_CALLS'] || process.env['PROBE_TWO_BATCHES']
+>           ? probeAutoAllow(replacementSpringUrl, tenant, session.id, mysqlPort, 'replacement', [originalApprovalId!])
+>           : undefined;
+>       let recovered: Awaited<ReturnType<typeof waitForTerminal>>;
+>       try {
+>         recovered = await waitForTerminal(
+>           replacementSpringUrl,
+>           tenant,
+>           session.id,
+>           0,
+>           replacementSpring,
+>           120_000,
+>         );
+>       } finally {
+>         await stopReplacementAuto?.();
+>       }
+1833a2208,2217
+>       if (
+>         (process.env['PROBE_BASE_RELAX'] && !originalApprovalPlan) ||
+>         process.env['PROBE_INFLIGHT_AFTER_ALLOW']
+>       ) {
+>         console.log(`PROBE relax recovered terminals=${JSON.stringify(terminals.map((event) => event.type))}`);
+>         probeState(mysqlPort, 'relax-after-recovered-terminal');
+>         await probeNextTurn(replacementSpringUrl, tenant, session.id, recovered.lastSequence, replacementSpring, 'relax');
+>         probeState(mysqlPort, 'relax-end');
+>         throw new Error('PROBE relax recovery observed');
+>       }
+1973a2358,2360
+>       if (process.env['PROBE_RENAME']) {
+>         await probeRename(replacementSpringUrl, tenant, session.id, mysqlPort, 'probe-title-recovered', 2, 'after-recovered-terminal');
+>       }
+2850a3238,3313
+>     }
+>   }
+>   if (process.env['PROBE_HOLD_SECONDS'] && dumpPort !== undefined) {
+>     const holdMs = Number(process.env['PROBE_HOLD_SECONDS']) * 1000;
+>     const holdStart = Date.now();
+>     if (process.env['PROBE_HOLD_NEXT'] && probeSpringUrl) {
+>       try {
+>         const [nextTenant, nextSession] = runMysql(
+>           dumpPort,
+>           'SELECT tenant_id, session_id FROM qwen_managed_agent.managed_agent_session LIMIT 1',
+>         ).split('\t');
+>         const next = await fetch(
+>           `${probeSpringUrl}/v1/agents/sessions/${nextSession}/events`,
+>           {
+>             method: 'POST',
+>             headers: {
+>               'content-type': 'application/json',
+>               'idempotency-key': `probe-next-${nextSession}`,
+>               ...tenantHeaders(nextTenant),
+>             },
+>             body: JSON.stringify({
+>               type: 'agent.session.input.message',
+>               input: [{ type: 'text', text: `${reliefMarker}. Reply exactly ${reliefResponse}. Use no tools.` }],
+>             }),
+>           },
+>         );
+>         console.error(`PROBE next input -> ${next.status} ${(await next.text()).slice(0, 300)}`);
+>       } catch (nextError) {
+>         console.error(`PROBE next input failed: ${String(nextError)}`);
+>       }
+>     }
+>     if (process.env['PROBE_HOLD_CANCEL'] && probeSpringUrl) {
+>       try {
+>         const [cancelTenant, cancelSession] = runMysql(
+>           dumpPort,
+>           'SELECT tenant_id, session_id FROM qwen_managed_agent.managed_agent_session LIMIT 1',
+>         ).split('\t');
+>         const cancelTurn = runMysql(
+>           dumpPort,
+>           "SELECT turn_id FROM qwen_managed_agent.managed_agent_turn WHERE status='RUNNING' LIMIT 1",
+>         );
+>         const cancel = await fetch(
+>           `${probeSpringUrl}/v1/agents/sessions/${cancelSession}/events`,
+>           {
+>             method: 'POST',
+>             headers: {
+>               'content-type': 'application/json',
+>               'idempotency-key': `probe-cancel-${cancelTurn}`,
+>               ...tenantHeaders(cancelTenant),
+>             },
+>             body: JSON.stringify({ type: 'agent.session.cancel', turn_id: cancelTurn }),
+>           },
+>         );
+>         console.error(`PROBE cancel ${cancelTurn} -> ${cancel.status} ${(await cancel.text()).slice(0, 300)}`);
+>         if (process.env['PROBE_HOLD_CANCEL_NEXT']) {
+>           await new Promise((resolve) => setTimeout(resolve, 15_000));
+>           const after = await fetch(
+>             `${probeSpringUrl}/v1/agents/sessions/${cancelSession}/events`,
+>             {
+>               method: 'POST',
+>               headers: {
+>                 'content-type': 'application/json',
+>                 'idempotency-key': `probe-after-cancel-${cancelSession}`,
+>                 ...tenantHeaders(cancelTenant),
+>               },
+>               body: JSON.stringify({
+>                 type: 'agent.session.input.message',
+>                 input: [{ type: 'text', text: `${reliefMarker}. Reply exactly ${reliefResponse}. Use no tools.` }],
+>               }),
+>             },
+>           );
+>           console.error(`PROBE next after cancel -> ${after.status} ${(await after.text()).slice(0, 300)}`);
+>         }
+>       } catch (cancelError) {
+>         console.error(`PROBE cancel failed: ${String(cancelError)}`);
+>       }
+2851a3315,3324
+>     while (Date.now() - holdStart < holdMs) {
+>       await new Promise((resolve) => setTimeout(resolve, 30_000));
+>       try {
+>         console.error(
+>           `PROBE hold +${Math.round((Date.now() - holdStart) / 1000)}s modelRequests=${fake?.requests.length} turns=${runMysql(dumpPort, 'SELECT turn_id, status, error_code FROM qwen_managed_agent.managed_agent_turn').replace(/\n/g, ' | ')} lastEvent=${runMysql(dumpPort, 'SELECT sequence_id, event_type FROM qwen_managed_agent.managed_agent_event ORDER BY sequence_id DESC LIMIT 1')}`,
+>         );
+>       } catch (holdError) {
+>         console.error(`PROBE hold dump failed: ${String(holdError)}`);
+>       }
+>     }
+2885a3359,3372
+>   if (process.env['PROBE_DUMP_DIR'] && dumpPort !== undefined) {
+>     try {
+>       mkdirSync(process.env['PROBE_DUMP_DIR'], { recursive: true });
+>       writeFileSync(
+>         path.join(process.env['PROBE_DUMP_DIR'], 'recovery-resources.tsv'),
+>         runMysql(
+>           dumpPort,
+>           "SELECT kind, byte_length, storage_kind, state FROM qwen_managed_agent.qwen_managed_session_resource WHERE kind LIKE 'hosted-%' ORDER BY created_at",
+>         ) + '\n',
+>       );
+>     } catch (error) {
+>       console.error(`PROBE resource dump failed: ${String(error)}`);
+>     }
+>   }
+2891a3379,3394
+>   if (process.env['PROBE_DUMP_DIR']) {
+>     mkdirSync(process.env['PROBE_DUMP_DIR'], { recursive: true });
+>     writeFileSync(
+>       path.join(process.env['PROBE_DUMP_DIR'], 'provider-requests.json'),
+>       JSON.stringify(
+>         {
+>           killIndex: probeKillIndex,
+>           times: probeTimes,
+>           requests: fake?.requests.map((request) => request.body) ?? [],
+>           failure: failure ? String(failure) : null,
+>         },
+>         null,
+>         2,
+>       ),
+>     );
+>   }

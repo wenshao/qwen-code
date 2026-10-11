@@ -1,0 +1,95 @@
+# unit-r7.sh (run inside qwen-managed-e2e:u24, tree = e29a4e14 + e29a4e14..0b925242, file hashes match the commit)
+    #!/bin/bash
+    # r7 (inside qwen-managed-e2e:u24): new + related suites on 0b925242, then one mutant at a time (restored by sha)
+    set -uo pipefail
+    T=/root/pr13777-rig/src-head-r7; TT=packages/cli/src/serve/hosted-workspace-tool-turn.ts; RD=packages/cli/src/serve/hosted-approval-continuation.ts
+    export PATH=$T/node_modules/.bin:$PATH CI=true
+    cd $T/packages/cli
+    echo "## head: new test file"; npx vitest run src/serve/hosted-approval-fallback.test.ts 2>&1 | grep -E "✓|×|Test Files|Tests " | head -20
+    echo "## head: related suites"; npx vitest run src/serve/hosted-approval-fallback src/serve/hosted-approval-inline-limit src/serve/hosted-workspace-tool-turn src/serve/hosted-approval-continuation src/serve/hosted-tool-approval 2>&1 | grep -E "Test Files|Tests |FAIL" | head -12
+    cd $T
+    cp $TT /tmp/tt.orig; cp $RD /tmp/rd.orig
+    mut() { # name file perl-expr
+      local name=$1 file=$2 expr=$3
+      perl -0pi -e "$expr" $file
+      if cmp -s $file /tmp/$( [ $file = $TT ] && echo tt || echo rd ).orig; then echo "## $name: PATTERN DID NOT APPLY"; return; fi
+      echo "## $name"; diff /tmp/$( [ $file = $TT ] && echo tt || echo rd ).orig $file | head -8
+      (cd packages/cli && npx vitest run src/serve/hosted-approval-fallback src/serve/hosted-approval-inline-limit src/serve/hosted-approval-continuation 2>&1 | grep -E "^ +(×|✓).*(keeps|declines|later batch|consistent|inline)|Test Files|Tests |FAIL " | head -20)
+      cp /tmp/tt.orig $TT; cp /tmp/rd.orig $RD
+    }
+    mut M1-no-writer-latch $TT 's/    if \(ordinal >= 0 && !continuationRef\) this\.nativeBatch!\.uncaptured = true;\n//'
+    mut M2-capture-ignores-latch $TT 's/      batch\.uncaptured \|\|\n//'
+    mut M3-legacy-skipped-not-declined $RD 's/    if \(options\.v !== 3\) return undefined;/    if (options.v !== 3) continue;/'
+    mut M4-no-sequence-bound $RD 's/    if \(event\.sequence <= assistantSequence\) break;\n//'
+    mut M5-any-action-state $RD "s/      event\.payload\['source'\] !== 'tool_call' \|\|\n      event\.payload\['state'\] !== 'requested'\n/      event.payload['source'] !== 'tool_call'\n/"
+    mut M6-batch-any-sequence $RD 's/        event\.sequence > assistantSequence &&\n//'
+    cp /root/pr13777-rig/src-head-r6/$RD $RD; echo "## M7-reader-reverted-to-e29a4e14"; (cd packages/cli && npx vitest run src/serve/hosted-approval-fallback src/serve/hosted-approval-inline-limit src/serve/hosted-approval-continuation 2>&1 | grep -E "^ +(×|✓).*(keeps|declines|later batch|consistent|inline)|Test Files|Tests |FAIL " | head -20); cp /tmp/rd.orig $RD
+    sha256sum $TT $RD
+
+# output
+## head: new test file
+ ✓ src/serve/hosted-approval-fallback.test.ts (7 tests) 567ms
+   ✓ keeps final-plan recovery consistent with approval at 62000 content bytes  326ms
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+## head: related suites
+ Test Files  8 passed (8)
+      Tests  294 passed (294)
+## M1-no-writer-latch
+4692d4691
+<     if (ordinal >= 0 && !continuationRef) this.nativeBatch!.uncaptured = true;
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-approval-fallback.test.ts > keeps final-plan recovery consistent with approval at 63080 content bytes
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 14 passed (15)
+## M2-capture-ignores-latch
+1654d1653
+<       batch.uncaptured ||
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-approval-fallback.test.ts > keeps final-plan recovery consistent with approval at 63080 content bytes
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 14 passed (15)
+## M3-legacy-skipped-not-declined
+352c352
+<     if (options.v !== 3) return undefined;
+---
+>     if (options.v !== 3) continue;
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-approval-fallback.test.ts > declines a current v1 approval before selecting a plan (final=false)
+ FAIL  src/serve/hosted-approval-fallback.test.ts > declines a current v2 approval before selecting a plan (final=false)
+ FAIL  src/serve/hosted-approval-fallback.test.ts > declines a current v1 approval before selecting a plan (final=true)
+ FAIL  src/serve/hosted-approval-fallback.test.ts > declines a current v2 approval before selecting a plan (final=true)
+ Test Files  1 failed | 2 passed (3)
+      Tests  4 failed | 11 passed (15)
+## M4-no-sequence-bound
+335d334
+<     if (event.sequence <= assistantSequence) break;
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-approval-fallback.test.ts > keeps a later batch recoverable when an earlier legacy Action updates
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 14 passed (15)
+## M5-any-action-state
+338,339c338
+<       event.payload['source'] !== 'tool_call' ||
+<       event.payload['state'] !== 'requested'
+---
+>       event.payload['source'] !== 'tool_call'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-approval-fallback.test.ts > keeps a later batch recoverable when an earlier legacy Action updates
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 14 passed (15)
+## M6-batch-any-sequence
+329d328
+<         event.sequence > assistantSequence &&
+ Test Files  3 passed (3)
+      Tests  15 passed (15)
+## M7-reader-reverted-to-e29a4e14
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/serve/hosted-approval-fallback.test.ts > declines a current v1 approval before selecting a plan (final=false)
+ FAIL  src/serve/hosted-approval-fallback.test.ts > declines a current v2 approval before selecting a plan (final=false)
+ FAIL  src/serve/hosted-approval-fallback.test.ts > declines a current v1 approval before selecting a plan (final=true)
+ FAIL  src/serve/hosted-approval-fallback.test.ts > declines a current v2 approval before selecting a plan (final=true)
+ Test Files  1 failed | 2 passed (3)
+      Tests  4 failed | 11 passed (15)
+c12a3b61dab03ff174db023b7c3afd9b023033886bb270b5774477da8643b830  packages/cli/src/serve/hosted-workspace-tool-turn.ts
+35f60b2c89b56b2ef0a3dfa6169391e5194891c10944cbbe34f9365f8c7919b4  packages/cli/src/serve/hosted-approval-continuation.ts
