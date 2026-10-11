@@ -46,6 +46,29 @@ function wfVariant(spec: string, id: string): { script: string; argsRaw?: string
   if (spec === 'nthis') return { script: meta('rig-nthis') + "return await globalThis.workflow('host-report');" };
   if (spec === 'nproj') return { script: meta('rig-nproj') + "const w = workflow;\nreturn await w('proj-report');" };
   if (spec === 'nspath') return { script: meta('rig-nspath') + "const w = workflow;\nreturn await w({ scriptPath: '.qwen/workflows/proj-report.js' });" };
+  // round 2: more indirection forms, all lexically admitted; the runtime must refuse every one
+  if (spec === 'ncall') return { script: meta('rig-ncall') + "return await workflow.call(null, 'host-report');" };
+  if (spec === 'napply') return { script: meta('rig-napply') + "return await Reflect.apply(workflow, null, ['host-report']);" };
+  if (spec === 'ncomp') return { script: meta('rig-ncomp') + "return await globalThis['work' + 'flow']('host-report');" };
+  if (spec === 'narr') return { script: meta('rig-narr') + "return await [workflow][0]('host-report');" };
+  if (spec === 'ncomma') return { script: meta('rig-ncomma') + "return await (0, workflow)('host-report');" };
+  if (spec === 'nfnarg') return { script: meta('rig-nfnarg') + "const run = (f) => f('host-report');\nreturn await run(workflow);" };
+  if (spec === 'ncatch') return { script: meta('rig-ncatch') + "const w = workflow;\ntry { return { ran: await w('host-report') }; } catch (e) { return { caught: String(e && e.message) }; }" };
+  if (spec === 'ninpar') return { script: meta('rig-ninpar') + "const w = workflow;\nconst [x] = await parallel([() => w('host-report')]);\nreturn x;" };
+  // round 2: script byte bound (> 32 KiB) and args depth bound (64)
+  if (spec === 'bigscript') return { script: meta('rig-bigscript') + '// ' + 'p'.repeat(33000) + "\nreturn 1;" };
+  // deepN: args = {"d": N nested arrays around 1}; the leaf sits at depth N+1
+  const dm = /^deep(\d+)$/.exec(spec);
+  if (dm) { const n = Number(dm[1]); return { script: meta('rig-deep') + 'let n = args.d, d = 1; while (Array.isArray(n)) { n = n[0]; d++; } return { leafDepth: d, leaf: n };', argsRaw: '{"d":' + '['.repeat(n) + '1' + ']'.repeat(n) + '}' }; }
+  // round 2: a lone surrogate inside the script source (the pin covers the script) and as an args key
+  if (spec === 'slit') return { script: meta('rig-slit') + "const s = 'a\ud800b';\nreturn { len: s.length, units: [...Array(s.length).keys()].map((i) => s.charCodeAt(i).toString(16)) };" };
+  if (spec === 'skey') return { script: meta('rig-skey') + "return { keys: Object.keys(args).map((k) => [...Array(k.length).keys()].map((i) => k.charCodeAt(i).toString(16)).join('-')) };", argsRaw: '{"k\\ud800":1,"ok":2}' };
+  // round 2 (P1 probe): agent() subagents that touch the file system; which directory do they see?
+  const ag = /^ag(rdhost|rdmount|pwdls|wrhost|shwr|shcat|rdabs|shetc)$/.exec(spec);
+  if (ag) return { script: meta('rig-ag-' + ag[1]) + "const r = await agent('CHILD::" + ag[1] + "::" + id + "s Use the tool.');\nreturn { r };" };
+  // round 2: a lone surrogate in the workflow RESULT (child result -> relay -> parent)
+  if (spec === 'rlone') return { script: meta('rig-rlone') + "return 'r' + String.fromCharCode(0xd800) + 's';" };
+  if (spec === 'rlobj') return { script: meta('rig-rlobj') + "const k = 'k' + String.fromCharCode(0xdc00);\nreturn { [k]: 'v' + String.fromCharCode(0xd800) };" };
   if (spec === 'date') return { script: meta('rig-date') + 'return Date.now();' };
   if (spec === 'syntax') return { script: meta('rig-syntax') + 'return (;' };
   if (spec === 'badkey') return { script: meta('rig-badkey') + 'return 1;', extra: ',"name":"x"' };
@@ -122,6 +145,19 @@ const server = await startFakeOpenAIServer(
         const wf = { id: `call_${id}_wf`, type: 'function', function: { name: 'workflow', arguments: '{"script":' + JSON.stringify(v.script) + (v.argsRaw ? ',"args":' + v.argsRaw : '') + ',"run_in_background":false}' } };
         const ag = fakeToolCall('agent', { description: `child task ${id}`, prompt: `CHILD::reply::${id}g Reply with one line.`, run_in_background: false }, `call_${id}_agent`);
         return logAnd({ toolCalls: [ag, wf] }, 'parent-wfag');
+      }
+      // Round 2: a non-workflow tool call (shell) carrying an extra argument
+      // nested spec-deep (deep<N>), to tell a workflow-only gap from a general one.
+      if (mode === 'shdeep' && last?.role !== 'tool' && lastUser.includes('PARENT::') && roundsWith('run_shell_command') === 0) {
+        const n = Number(/^deep(\d+)$/.exec(spec)?.[1] ?? '1');
+        const raw = '{"command":"echo deep-' + id + '","extra":' + '['.repeat(n) + '1' + ']'.repeat(n) + '}';
+        return logAnd({ toolCalls: [{ id: `call_${id}_sh`, type: 'function', function: { name: 'run_shell_command', arguments: raw } }] }, `parent-shdeep-${spec}`);
+      }
+      // Round 2: read_file keeps every argument in its digested input (file tools spread call.args).
+      if (mode === 'rfdeep' && last?.role !== 'tool' && lastUser.includes('PARENT::') && roundsWith('read_file') === 0) {
+        const n = Number(/^deep(\d+)$/.exec(spec)?.[1] ?? '1');
+        const raw = '{"file_path":"README.md","extra":' + '['.repeat(n) + '1' + ']'.repeat(n) + '}';
+        return logAnd({ toolCalls: [{ id: `call_${id}_rf`, type: 'function', function: { name: 'read_file', arguments: raw } }] }, `parent-rfdeep-${spec}`);
       }
       // PR 13858 rig: the managed Workflow tool. spec selects the script/args
       // variant; raw argument text so number edge cases reach the daemon verbatim.
@@ -284,7 +320,25 @@ const server = await startFakeOpenAIServer(
       if (last?.role === 'tool') {
         // msghold: the message to the parent is committed; hold the child's final answer
         if (spec === 'msghold') await hold(id).promise;
-        reply = { content: `CHILD_RESULT::${id}::after-tool` };
+        // round 2 (P1 probe): echo what the tool actually returned
+        if (['rdhost', 'rdmount', 'pwdls', 'wrhost', 'shwr', 'shcat', 'rdabs', 'shetc'].includes(spec))
+          reply = { content: `CHILD_RESULT::${id}::saw=` + text(last.content).replace(/\s+/g, ' ').slice(0, 400) };
+        else reply = { content: `CHILD_RESULT::${id}::after-tool` };
+      } else if (spec === 'rdhost' || spec === 'rdmount') {
+        const file = spec === 'rdhost' ? 'HOST_ONLY.txt' : 'MOUNT_ONLY.txt';
+        reply = { toolCalls: [fakeToolCall('read_file', { file_path: file }, `call_${id}_rd`)] };
+      } else if (spec === 'pwdls') {
+        reply = { toolCalls: [fakeToolCall('run_shell_command', { command: 'pwd; ls' }, `call_${id}_pwd`)] };
+      } else if (spec === 'shetc') {
+        reply = { toolCalls: [fakeToolCall('run_shell_command', { command: 'head -2 /etc/hosts; ls ../harness-home/.qwen' }, `call_${id}_etc`)] };
+      } else if (spec === 'shcat') {
+        reply = { toolCalls: [fakeToolCall('run_shell_command', { command: 'pwd; cat HOST_ONLY.txt MOUNT_ONLY.txt 2>&1' }, `call_${id}_cat`)] };
+      } else if (spec === 'rdabs') {
+        reply = { toolCalls: [fakeToolCall('read_file', { file_path: '/Users/wenshao/git/pr13858-rig/runs/h1/workspace/HOST_ONLY.txt' }, `call_${id}_rda`)] };
+      } else if (spec === 'shwr') {
+        reply = { toolCalls: [fakeToolCall('run_shell_command', { command: `pwd; cat HOST_ONLY.txt MOUNT_ONLY.txt 2>&1; echo written-by-${id} > SUBAGENT_WROTE_${id}.txt; ls` }, `call_${id}_shwr`)] };
+      } else if (spec === 'wrhost') {
+        reply = { toolCalls: [fakeToolCall('write_file', { file_path: `WROTE_${id}.txt`, content: `written by ${id}\n` }, `call_${id}_wr`)] };
       } else if (spec === 'msg' || spec === 'msghold') {
         // H4d-b: the child messages its parent first, then answers
         reply = { toolCalls: [fakeToolCall('send_message', { to: 'parent', message: `MSG_FROM_CHILD::${id}` }, `call_${id}_msg`)] };

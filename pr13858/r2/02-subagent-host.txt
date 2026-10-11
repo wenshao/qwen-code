@@ -1,0 +1,21 @@
+## S1 - workflow agent() subagents run their tools in the Harness process, outside the Session's Workspace runtime
+== Harness started with --workspace runs/h1/workspace (holds HOST_ONLY.txt); the Session's Workspace mount is runs/h1/workspace-mount (holds MOUNT_ONLY.txt)
+
+>> the same tool request: workflow agent() subagent (head)  vs  child_agent child Session (control)
+== shell "pwd; cat HOST_ONLY.txt MOUNT_ONLY.txt"
+--   workflow subagent : cwd .../runs/h1/workspace   HARNESS_HOST_ONLY_R2 ...   cat: MOUNT_ONLY.txt: No such file   PGID 3787 (local child)
+++   child_agent       : cwd .../runs/h1/workspace-mount   cat: HOST_ONLY.txt: No such file   WORKSPACE_MOUNT_ONLY_R2 ...   PGID (none)
+== read_file "MOUNT_ONLY.txt" (relative, as Hosted file tools require)
+--   workflow subagent : "File path must be absolute, but was relative" (the local CLI tool, not the Hosted one)
+++   child_agent       : WORKSPACE_MOUNT_ONLY_R2: this file exists only in the Session Workspace mount
+== read_file "/abs/path/runs/h1/workspace/HOST_ONLY.txt"
+--   workflow subagent : HARNESS_HOST_ONLY_R2: this file exists only in the Harness startup directory
+++   child_agent       : refused - "Absolute paths and '..' traversal are not allowed"
+== shell "echo ... > SUBAGENT_WROTE.txt"
+!!   workflow subagent : denied - "User did not allow tool call" (safeMode: no write anywhere)
+++   child_agent       : written inside the Workspace mount
+
+== cause: hosted-workflow-turn.ts L187-L219 runs AgentHeadless on loadCliConfig(..., input.cwd = the Harness startup directory) with no
+==        tool-invocation guard (design decision 6); safeMode only denies confirmation-needing calls, so reads pass.
+== on this rig both runtimes are local processes without an OS sandbox, so host-wide shell reads (/etc/hosts) succeed from BOTH paths;
+== that is not counted as a difference. Open review thread: discussion_r4242328455 (P1), unresolved at this head.

@@ -1,0 +1,27 @@
+## PR #13858 @ 91ce98cf7d - real-stack verification round 2 (Spring + Hosted Harness daemon + MySQL 8.4 / MariaDB 11.8, scripted model)
+== macOS stacks h1-h3 (non-durable) on the head build itself; Linux arm64 stack l2 (durable-local-process); main 6936c77e60 control m1
+
+>> round-1 problems, re-run at the head                             result
+++ M1  merge damage (#13179 / #13332 reverted)                       repaired: replaying round-1 repair + PR commits + main = head tree (1 intended adaptation)
+==                                                                   main's own restored tests on head: core 15 files pass, web-shell 320/320
+++ N1  nested workflow() by indirection                              12 forms refused at runtime + direct form at admission; host-report bytes never ran
+==     alias, globalThis, project tier, scriptPath, .call, Reflect.apply, ['work'+'flow'], [w][0], (0,w), f(workflow), try/catch, parallel
+++ R1  fg workflow wait parked (await_agent)                         Harness SIGKILL mid-script: 3/3 parent COMPLETED, folds child_failed
+++ R1b NEW: SIGKILL after child COMPLETED, before relay delivery      3/3 parent COMPLETED with the real workflow result (ckpt await_agent -> consumed)
+++ J1  lone surrogate                                                plain prompt COMPLETED (stored EF BF BD); args/keys/script literal -> U+FFFD; pairs kept
+++ A1  subnormal args 5e-324 / 1e-320 (R1-7)                          refused at admission with a tool error; no child_run, no child Session
+
+>> still working (regression re-run)
+++ W1-W3  fg / bg / agent() x3; W5 throw; W6 40000 chars -> 32768 bytes with the new marker; W7 pin tamper refused
+++ W8  numbers 14/16 round-trip (2 subnormals now refused); W4 refusals + NEW 33 KB script -> byte_limit tool error
+++ L3  Linux close parent mid-script (bg) 2/2                        stopRequested -> child_run rev5 cancelled, child CLOSED, parent CLOSED
+++ T   cancel the child's Turn: CANCELLED in ~1 s; bg child failure -> task surface 'failed' (no notification, as documented)
+
+>> new problems at this head
+-- S1  workflow agent() subagents run tools in the Harness process  cwd = Harness startup dir; Session Workspace invisible; absolute read_file reads Harness files
+==                                                                   child_agent control: same requests run in the Workspace mount / absolute path refused
+-- C1  CI red: Checkstyle NeedBraces x3 (ManagedAgentService)         all 192 tests pass in that leg; deterministic, reproduced locally
+!! D1  workflow args depth 64 (sandbox-legal) fails the parent Turn  >64 also fails the Turn: the new depth refusal is unreachable (protocol limit first)
+!! B1  hosted-workflow-turn.test.ts has a raw NUL byte                GitHub shows it as binary: 16 KB of new tests invisible to reviewers and the bot
+
+== suites at head: core 22 files 1044 pass, cli 8 files 728 pass (4 load timeouts, all pass alone), web-shell 320/320, Java 15 + 173
