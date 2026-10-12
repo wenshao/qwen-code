@@ -1,0 +1,23 @@
+PR #13654 round 7: head 876b00ef is unchanged, but current main now breaks the PR's edit of a main test
+Trial merge 74bab6a5 = PR head 876b00ef + main e9789d09 (git merge, no textual conflict, local only). vitest from packages/cli
+## Both sides edited hosted-never-started-reconcile.test.ts after merge-base b1b2b2c6
+==    876b00ef (PR)        flips the guard test to "admits a shell when the production kind gate is restored"
+==    e397445a (#13959)    keeps "refuses a shell admit ..." and makes the mock throw for shell while the gate is closed
+==    the hunks do not touch each other, so git merges them silently
+## hosted-never-started-reconcile.test.ts on its own, 3 runs per arm
+++    A  PR head 876b00ef                          17/17  17/17  17/17
+++    B  main e9789d09                             17/17  17/17  17/17
+--    C  trial merge 74bab6a5                      16/17  16/17  16/17   "admits a shell ..." rejects: "kind shell is
+--                                                                      registered but not enabled for submission"
+++    D  C with main's copy of that one file       17/17  17/17  17/17
+!!    main allows squash merges only and requires no status checks, so merging now puts C's tree on main
+!!    the PR's green CI checked out 876b00ef at 08:20; #13959 reached main at 09:56
+## The rest of the trial merge
+++    remote-shell-result-publication.test.ts (the PR's) and hosted-harness-session.test.ts pass on C
+==    hosted-harness-session.test.ts failed 5 / 1 / 4 different cases on A / B / D at load ~160 on 10 cores; the PR does not touch it
+++    tsc --noEmit: core clean; cli prints the same 25 lines as on main (this machine's stale core dist), none in PR files
+++    Java: sdk-java = round 6's verified trial merge + main aaf97b86's 4 new files. Module verify: 2250 tests,
+++    publication 342/342, aaf97b86's new tests 10/10, Checkstyle 0, SpotBugs 0
+==    2 failures, both in main's ChildWorktreeGitTest (untouched by the PR): the macOS file-name test, and a
+==    linked-worktree case that then passed 8/8 alone (a known race with git 2.55 background maintenance)
+>> Fix: when the PR next syncs main, take main's copy of hosted-never-started-reconcile.test.ts (drop the 876b00ef edit). Test-only.

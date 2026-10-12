@@ -1,0 +1,165 @@
+# Round 7: PR head 876b00ef and current main e9789d09 both edit packages/cli/src/serve/hosted-never-started-reconcile.test.ts.
+# merge-base b1b2b2c6dfb51b4607faf22282318456e4263195; git merge-tree --write-tree 876b00ef e9789d09 -> e472e1f2, no conflicts.
+# Local trial merge commit 74bab6a5 = that tree with parents 876b00ef, e9789d09 (never pushed).
+
+## PR side: 876b00ef flips the guard test to 'admits' (main's mock at b1b2b2c6 delegated to the real gate, which now admits shell after #13889)
+diff --git a/packages/cli/src/serve/hosted-never-started-reconcile.test.ts b/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
+index 963aa98e61..8f22af6ca4 100644
+--- a/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
++++ b/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
+@@ -578,7 +578,7 @@ describe('reconcileNeverStartedChildRuns', () => {
+     expect(broker.backgroundProcessStatus).not.toHaveBeenCalled();
+   });
+ 
+-  it('refuses a shell admit when the production kind gate is restored', async () => {
++  it('admits a shell when the production kind gate is restored', async () => {
+     await open();
+     await createManagedHarnessHandle(session!).ensureRunnable();
+     enablement.childRun = false;
+@@ -590,7 +590,11 @@ describe('reconcileNeverStartedChildRuns', () => {
+         executionCallId: 'shell-1',
+         args: { command: 'printf hi', is_background: true },
+       }),
+-    ).rejects.toThrow('registered but not enabled');
++    ).resolves.toMatchObject({ kind: 'managed-tool-args' });
++    expect(committed('shell-1')).toMatchObject({
++      kind: 'shell',
++      run: { state: 'admitted', execution: 'intent' },
++    });
+   });
+ 
+   it('never scans a child_agent record, the one kind production can commit today', async () => {
+
+## main side: e397445a (#13959, fixes #13953) keeps the guard test as 'refuses' and makes the mock close shell itself when enablement.childRun is false
+diff --git a/packages/cli/src/serve/hosted-never-started-reconcile.test.ts b/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
+index 963aa98e61..8c5a8a8d8f 100644
+--- a/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
++++ b/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
+@@ -33,10 +33,24 @@ vi.mock(
+       >();
+     return {
+       ...actual,
++      // The shell kind is enabled in production (#13856), so every kind the
++      // production list carries goes through the real gate; a case that
++      // needs the shell kind shut closes it per test. A kind production
++      // has not enabled stays a fixture, admitted so the case runs what it
++      // is about rather than the kind gate.
+       assertManagedSessionChildRunKindEnabled: (kind: string) => {
+-        if (!enablement.childRun) {
+-          actual.assertManagedSessionChildRunKindEnabled(kind);
++        if (kind === 'shell' && !enablement.childRun) {
++          throw new actual.ManagedSessionRecordError(
++            'domain child_run kind shell is registered but not enabled for submission.',
++          );
+         }
++        if (
++          !(
++            actual.MANAGED_SESSION_ENABLED_CHILD_RUN_KINDS as readonly string[]
++          ).includes(kind)
++        )
++          return;
++        actual.assertManagedSessionChildRunKindEnabled(kind);
+       },
+     };
+   },
+
+## Trial merge 74bab6a5: main's mock (lines 31-56) plus the PR's flipped assertion (lines 595-612)
+  31        await importOriginal<
+  32          typeof import('@qwen-code/qwen-code-core/managed-runtime/managed-session-records.js')
+  33        >();
+  34      return {
+  35        ...actual,
+  36        // The shell kind is enabled in production (#13856), so every kind the
+  37        // production list carries goes through the real gate; a case that
+  38        // needs the shell kind shut closes it per test. A kind production
+  39        // has not enabled stays a fixture, admitted so the case runs what it
+  40        // is about rather than the kind gate.
+  41        assertManagedSessionChildRunKindEnabled: (kind: string) => {
+  42          if (kind === 'shell' && !enablement.childRun) {
+  43            throw new actual.ManagedSessionRecordError(
+  44              'domain child_run kind shell is registered but not enabled for submission.',
+  45            );
+  46          }
+  47          if (
+  48            !(
+  49              actual.MANAGED_SESSION_ENABLED_CHILD_RUN_KINDS as readonly string[]
+  50            ).includes(kind)
+  51          )
+  52            return;
+  53          actual.assertManagedSessionChildRunKindEnabled(kind);
+  54        },
+  55      };
+  56    },
+ 595    it('admits a shell when the production kind gate is restored', async () => {
+ 596      await open();
+ 597      await createManagedHarnessHandle(session!).ensureRunnable();
+ 598      enablement.childRun = false;
+ 599  
+ 600      await expect(
+ 601        orchestratorOf(session!).admit({
+ 602          shellId: 'shell-1',
+ 603          ownerScopeId: 'scope-main',
+ 604          executionCallId: 'shell-1',
+ 605          args: { command: 'printf hi', is_background: true },
+ 606        }),
+ 607      ).resolves.toMatchObject({ kind: 'managed-tool-args' });
+ 608      expect(committed('shell-1')).toMatchObject({
+ 609        kind: 'shell',
+ 610        run: { state: 'admitted', execution: 'intent' },
+ 611      });
+ 612    });
+
+## Trial merge vs main for this file (= the PR's 876b00ef edit, unchanged)
+diff --git a/packages/cli/src/serve/hosted-never-started-reconcile.test.ts b/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
+index 8c5a8a8d8f..1a6a162c9a 100644
+--- a/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
++++ b/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
+@@ -592,7 +592,7 @@ describe('reconcileNeverStartedChildRuns', () => {
+     expect(broker.backgroundProcessStatus).not.toHaveBeenCalled();
+   });
+ 
+-  it('refuses a shell admit when the production kind gate is restored', async () => {
++  it('admits a shell when the production kind gate is restored', async () => {
+     await open();
+     await createManagedHarnessHandle(session!).ensureRunnable();
+     enablement.childRun = false;
+@@ -604,7 +604,11 @@ describe('reconcileNeverStartedChildRuns', () => {
+         executionCallId: 'shell-1',
+         args: { command: 'printf hi', is_background: true },
+       }),
+-    ).rejects.toThrow('registered but not enabled');
++    ).resolves.toMatchObject({ kind: 'managed-tool-args' });
++    expect(committed('shell-1')).toMatchObject({
++      kind: 'shell',
++      run: { state: 'admitted', execution: 'intent' },
++    });
+   });
+ 
+   it('never scans a child_agent record, the one kind production can commit today', async () => {
+
+## The only sdk-java difference between this trial merge and round 6's verified trial merge b8203960 (main aaf97b86, MQ2a)
+ .../managedagent/store/ManagedEventEnvelope.java   |  17 +
+ .../managedagent/store/ManagedEventEnvelopes.java  | 452 +++++++++++++++++++++
+ .../ManagedEventEnvelopeContractTest.java          | 108 +++++
+ .../store/ManagedEventEnvelopesTest.java           | 144 +++++++
+ 4 files changed, 721 insertions(+)
+
+## Failure in the trial merge (arm C of node-arms.sh)
+ FAIL  src/serve/hosted-never-started-reconcile.test.ts > reconcileNeverStartedChildRuns > admits a shell when the production kind gate is restored
+AssertionError: promise rejected "ManagedSessionRecordError: domain child_r… { code: '…' }" instead of resolving
+ ❯ src/serve/hosted-never-started-reconcile.test.ts:607:5
+    605|         args: { command: 'printf hi', is_background: true },
+    606|       }),
+    607|     ).resolves.toMatchObject({ kind: 'managed-tool-args' });
+       |     ^
+    608|     expect(committed('shell-1')).toMatchObject({
+    609|       kind: 'shell',
+
+Caused by: ManagedSessionRecordError: domain child_run kind shell is registered but not enabled for submission.
+ ❯ assertManagedSessionChildRunKindEnabled src/serve/hosted-never-started-reconcile.test.ts:43:17
+ ❯ ../core/src/managed-runtime/managed-session-authority.ts:1592:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'managed_session_invalid_record' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
