@@ -1,0 +1,73 @@
+From aab8b3b43af2641f7c4c2bda79e12ea4901da8ef Mon Sep 17 00:00:00 2001
+From: wenshao <szujobs@gmail.com>
+Date: Mon, 12 Oct 2026 21:13:21 +0800
+Subject: [PATCH] =?UTF-8?q?rig:=20candidate=20=E2=80=94=20verify=20v3=20ca?=
+ =?UTF-8?q?pture=20identity=20against=20inputDigest?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .../store/WorkspaceProfileLifecycleVerifier.java       |  6 +++++-
+ .../store/WorkspaceProfileLifecycleTest.java           | 10 ++++++++--
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceProfileLifecycleVerifier.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceProfileLifecycleVerifier.java
+index 7f0bd8b97e..2a53e8419a 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceProfileLifecycleVerifier.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceProfileLifecycleVerifier.java
+@@ -278,10 +278,14 @@ public class WorkspaceProfileLifecycleVerifier {
+ 
+     private JsonNode verifyManifest(OperationRecord operation, JsonNode ref, ToolExecutionRecord execution) {
+         JsonNode manifest = ToolPublicationContract.parseToolResult("manifest", read(operation, ref), 2 * 1024 * 1024);
++        // v3 executions hand the worker reference.inputDigest as its argsDigest (WorkspaceRuntimeTransport.wireReference),
++        // so their capture identity carries inputDigest, not the outer sha256:-prefixed argsDigest.
++        Object invocationDigest = execution.getReference().containsKey("inputDigest")
++                ? execution.getReference().get("inputDigest") : execution.getReference().get("argsDigest");
+         if (!"process_pipes".equals(manifest.path("captureScope").asText())
+                 || !"complete_required".equals(manifest.path("capturePolicy").asText())
+                 || !java.util.Objects.equals(execution.getReference().get("callId"), manifest.path("callId").asText())
+-                || !java.util.Objects.equals(execution.getReference().get("argsDigest"), manifest.path("invocationDigest").asText())
++                || !java.util.Objects.equals(invocationDigest, manifest.path("invocationDigest").asText())
+                 || !operation.tenantId().equals(manifest.path("tenantId").asText())
+                 || !operation.sessionId().equals(manifest.path("sessionId").asText())
+                 || !execution.getTurnId().equals(manifest.path("turnId").asText())
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceProfileLifecycleTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceProfileLifecycleTest.java
+index 7e24fa281c..3f0421f22d 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceProfileLifecycleTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceProfileLifecycleTest.java
+@@ -121,15 +121,21 @@ class WorkspaceProfileLifecycleTest {
+     }
+ 
+     @ParameterizedTest
+-    @ValueSource(strings = {"complete", "capture_failed", "wrong_identity", "missing_seal", "open", "receipt", "publication"})
++    @ValueSource(strings = {"complete", "v3_reference", "capture_failed", "wrong_identity", "missing_seal", "open", "receipt", "publication"})
+     void verifiesPublishedForegroundCaptureAndRejectsMissingOrChangedEvidence(String mode) throws Exception {
+         boolean captureFailed = "capture_failed".equals(mode);
++        // Production Shell executions are runtimeProtocol 3: the capture identity carries the bare inputDigest.
++        boolean v3 = "v3_reference".equals(mode);
+         boolean publication = "publication".equals(mode);
+         var f = fixture();
+         var binding = f.bindings.findOrCreate(new RuntimeProvisionRequest(f.scope(), f.session));
+         var ledger = new JdbcToolExecutionRepository(f.jdbc.getDataSource());
+         var reference = new java.util.HashMap<String, Object>(Map.of("sessionId", "original-owner", "promptId", "turn-1", "callId", "runtime-call", "argsDigest", "sha256:" + "a".repeat(64)));
+         if (publication) reference.put("publicationId", "pub-1");
++        if (v3) {
++            reference.put("runtimeProtocol", 3);
++            reference.put("inputDigest", "b".repeat(64));
++        }
+         ledger.findOrCreate(ToolExecutionRecord.prepared("call-1", "call-1", binding.getBindingId(), binding.getGeneration(),
+                 f.session, "original-owner", "turn-1", "runtime-call", "sha256:" + "a".repeat(64),
+                 reference));
+@@ -138,7 +144,7 @@ class WorkspaceProfileLifecycleTest {
+                 "dispatcher", execution.getDispatchGeneration());
+         var manifest = f.json.createObjectNode().put("toolResult", "managed-tool-result/1").put("type", "manifest")
+                 .put("tenantId", "tenant").put("sessionId", f.session).put("turnId", "turn-1").put("executionCallId", "call-1")
+-                .put("callId", "runtime-call").put("invocationDigest", "sha256:" + "a".repeat(64)).put("bindingGeneration", "1")
++                .put("callId", "runtime-call").put("invocationDigest", v3 ? "b".repeat(64) : "sha256:" + "a".repeat(64)).put("bindingGeneration", "1")
+                 .put("captureId", "capture-1").put("revision", 1).put("executionStatus", "success")
+                 .put("captureScope", "process_pipes").put("capturePolicy", "complete_required")
+                 .put("captureStatus", captureFailed ? "unavailable" : "complete")
+-- 
+2.55.0
+
