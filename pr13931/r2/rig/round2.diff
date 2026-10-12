@@ -1,0 +1,124 @@
+--- rig.mjs.r1	2026-10-13 00:25:13.572076832 +0800
++++ rig.mjs	2026-10-13 00:32:37.035496445 +0800
+@@ -12,12 +12,12 @@
+ const [phase, arm, db] = process.argv.slice(2);
+ const cliArm = process.env.RIG_CLI_ARM ?? arm;
+ const ctx = makeCtx({ phase, arm, db, cliArm });
+-ctx.STORAGES = ['st1', 'st2', 'st3', 'st4', 'st5', 'st6'];
++ctx.STORAGES = ['st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9'];
+ for (const st of ctx.STORAGES) for (const c of ['child', 'c2']) fs.mkdirSync(`${ctx.mount(st)}/${c}`, { recursive: true });
+ const sql = sqlFor(ctx);
+ const api = apiFor(ctx);
+ const { log, check, record } = ctx;
+-const W = { W1: 'st1', W2: 'st2', W3: 'st3', W4: 'st4', W5: 'st5', W6: 'st6' };
++const W = { W1: 'st1', W2: 'st2', W3: 'st3', W4: 'st4', W5: 'st5', W6: 'st6', W7: 'st7', W8: 'st8', W9: 'st9' };
+ const OP_WAIT_MS = Number(process.env.RIG_OP_WAIT_MS ?? 120000);
+ 
+ // ---------- helpers ----------
+@@ -94,7 +94,9 @@
+   for (const [call, turnId, gen, refJson, execState] of execs) {
+     const ref = JSON.parse(refJson);
+     const src = sources.find((s) => s.executionCallId === call);
+-    const item = { executionCallId: call, execState, dispatchMode: ref.dispatchMode ?? null, publicationId: ref.publicationId ?? null, hasSource: !!src };
++    const item = { executionCallId: call, execState, dispatchMode: ref.dispatchMode ?? null, runtimeProtocol: ref.runtimeProtocol ?? null, publicationId: ref.publicationId ?? null, hasSource: !!src };
++    // Round 2 (2ef8fba0d2): the verifier takes inputDigest only for runtimeProtocol 3 + dispatchMode deferred.
++    const v2Expected = ref.runtimeProtocol === 3 && ref.dispatchMode === 'deferred' ? ref.inputDigest : ref.argsDigest;
+     if (src?.outcomeRef?.resourceId) {
+       const outcome = JSON.parse(readRes(src.outcomeRef.resourceId) ?? 'null');
+       const mref = outcome?.envelope?.capture?.manifest;
+@@ -108,6 +110,8 @@
+             capturePolicy: [m.capturePolicy, 'complete_required'],
+             callId: [m.callId, ref.callId],
+             'invocationDigest~reference.argsDigest': [m.invocationDigest, ref.argsDigest],
++            'invocationDigest~reference.inputDigest': [m.invocationDigest, ref.inputDigest ?? null],
++            'invocationDigest~2ef8fba0 selection': [m.invocationDigest, v2Expected ?? null],
+             tenantId: [m.tenantId, T],
+             sessionId: [m.sessionId, sid],
+             turnId: [m.turnId, turnId],
+@@ -117,7 +121,7 @@
+             captureStatus: [m.captureStatus, '(not pending)'],
+           };
+           item.identity = Object.fromEntries(Object.entries(pairs).map(([k, [have, want]]) => {
+-            const ok = want.startsWith?.('(not ') ? have !== want.slice(5, -1) : have === want;
++            const ok = want?.startsWith?.('(not ') ? have !== want.slice(5, -1) : have === want;
+             return [k, { manifest: have, expected: want, ok }];
+           }));
+           item.manifestContents = (m.contents ?? []).map((c) => ({ streamId: c.streamId, state: c.state, byteLength: c.byteLength, body: c.body?.ref ? 'ref' : `pages:${c.body?.pages?.length ?? 0}` }));
+@@ -172,6 +176,7 @@
+     for (let i = 0; i < 60 && sessStatus(sid) !== 'ACTIVE'; i++) await sleep(500);
+   }
+   S.resourcesBefore = resources(sid);
++  if (input) { try { S.identityBefore = identityDiff(sid); } catch (e) { S.identityBefore = `error: ${e.message}`; } }
+   if (companion) {
+     const c = await restCreate(ws, null);
+     S.companion = c.json?.id;
+@@ -226,6 +231,34 @@
+   await down();
+ }
+ 
++// Round 2 extras on the fixed head: more capture shapes through the same verifier.
++async function phaseL4x() {
++  ctx.v2Profiles = 'hosted-workspace-shell/1';
++  await up();
++  const allMatch = (S) => Array.isArray(S.identityBefore) && S.identityBefore.length > 0
++    && S.identityBefore.every((it) => it.identity && it.identity['invocationDigest~2ef8fba0 selection']?.ok
++      && Object.entries(it.identity).filter(([k]) => !k.startsWith('invocationDigest~reference.')).every(([, v]) => v.ok));
++  const G = await scenario('G_rest_fg2_delete', { ws: 'W7', id: 'g', input: 'FG2' });
++  check('G two approved Shell calls in one turn completed', G.turn?.status, 'COMPLETED');
++  check('G both Shell calls ran once', G.proof, 'one\ntwo\n');
++  check('G two executions captured', Array.isArray(G.identityBefore) ? G.identityBefore.filter((i) => i.identity).length : G.identityBefore, 2);
++  check('G every identity field matches (2ef8fba0 selection)', allMatch(G), true);
++  check('G delete operation completed', G.op?.final?.status, 'completed');
++  check('G Session DELETED', G.sessionAfter, 'DELETED');
++  const H = await scenario('H_rest_fgx_delete', { ws: 'W8', id: 'h', input: 'FGX' });
++  check('H non-zero-exit Shell turn completed', H.turn?.status, 'COMPLETED');
++  check('H every identity field matches (2ef8fba0 selection)', allMatch(H), true);
++  check('H delete operation completed', H.op?.final?.status, 'completed');
++  check('H Session DELETED', H.sessionAfter, 'DELETED');
++  const K = await scenario('K_rest_fgbig_delete', { ws: 'W9', id: 'k', input: 'FGBIG' });
++  check('K 1 MiB stdout Shell turn completed', K.turn?.status, 'COMPLETED');
++  check('K every identity field matches (2ef8fba0 selection)', allMatch(K), true);
++  check('K delete operation completed', K.op?.final?.status, 'completed');
++  check('K Session DELETED', K.sessionAfter, 'DELETED');
++  record('modelRequests', modelRequests(fake).length);
++  await down();
++}
++
+ async function phaseV1Off() {
+   ctx.v2Profiles = null;
+   await up();
+@@ -270,6 +303,7 @@
+   if (phase === 'resume') await phaseResume();
+   else if (phase === 'l4') await phaseL4();
+   else if (phase === 'v1off') await phaseV1Off();
++  else if (phase === 'l4x') await phaseL4x();
+   else throw new Error(`unknown phase ${phase}`);
+ } catch (e) {
+   log('PHASE ERROR', e.stack ?? String(e));
+--- lib.mjs.r1	2026-10-13 00:32:37.571500581 +0800
++++ lib.mjs	2026-10-13 00:32:37.351498883 +0800
+@@ -122,7 +122,7 @@
+       const userText = lastUser >= 0 ? textOf(messages[lastUser]) : '';
+       const toolResults = messages.slice(lastUser + 1).filter((m) => m.role === 'tool').map(textOf);
+       const tools = (body.tools ?? []).map((t) => t.function?.name).filter(Boolean);
+-      const marker = /(CHILDFAILTEXT|CHILDTEXT|CHILDFAIL|CHILD|SHELL|PEND|HOLD|FILES|MSG|FG2|FG)::([a-z]+::)?([A-Za-z0-9-]+)/.exec(userText);
++      const marker = /(CHILDFAILTEXT|CHILDTEXT|CHILDFAIL|CHILD|SHELL|PEND|HOLD|FILES|MSG|FGBIG|FGX|FG2|FG)::([a-z]+::)?([A-Za-z0-9-]+)/.exec(userText);
+       const kind = marker?.[1] ?? 'TEXT';
+       const mode = marker?.[2]?.slice(0, -2) ?? null;
+       const id = marker?.[3] ?? null;
+@@ -168,6 +168,15 @@
+         if (step === 0) return call('run_shell_command', { command: `printf 'once\\n' >> shell-proof-${id}.txt; echo RIG_FG_STDOUT_${id}; echo RIG_FG_STDERR_${id} 1>&2`, description: `Foreground Shell proof ${id}` });
+         return text(`foreground shell done ${id}`);
+       }
++      // Round 2 extras: non-zero exit, and a 1 MiB stdout capture (paged/segmented manifest contents).
++      if (kind === 'FGX') {
++        if (step === 0) return call('run_shell_command', { command: `printf 'once\\n' >> shell-proof-${id}.txt; echo RIG_FGX_STDOUT_${id}; echo RIG_FGX_STDERR_${id} 1>&2; exit 3`, description: `Failing foreground Shell ${id}` });
++        return text(`failing foreground shell done ${id}`);
++      }
++      if (kind === 'FGBIG') {
++        if (step === 0) return call('run_shell_command', { command: `printf 'once\\n' >> shell-proof-${id}.txt; head -c 1048576 /dev/zero | tr '\\0' x; echo; echo RIG_FGBIG_STDERR_${id} 1>&2`, description: `Large foreground Shell ${id}` });
++        return text(`large foreground shell done ${id}`);
++      }
+       if (kind === 'FG2') {
+         if (step === 0) return call('run_shell_command', { command: `printf 'one\\n' >> shell-proof-${id}.txt; echo RIG_FG_STDOUT_${id}_1`, description: `Foreground Shell proof ${id} #1` });
+         if (step === 1) return call('run_shell_command', { command: `printf 'two\\n' >> shell-proof-${id}.txt; echo RIG_FG_STDOUT_${id}_2`, description: `Foreground Shell proof ${id} #2` });
