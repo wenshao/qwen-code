@@ -1,0 +1,179 @@
+#13777 R8 real-stack runs (Linux test host, Spring + MySQL 8.4 + Runtime Broker + durable Worker + packaged CLI, controlled model fixture)
+Builds by label:
+  (no prefix, -h)  729b5ff4      n-  1d084cb4      c-  4a92b1ef      m-  squash f70344345d (main)
+  -o / -o2         0b925242 (R7 head, before the R3 fixes)      -b2  merge base e977bdac (base TS + base jar, head probe runner)
+Excluded (probe setup errors, not counted): auto-allow-b / auto-ctl-b (base dist not built yet), the first dl-only-h / mixed-live-h / mixed-rec-h
+  (superseded by reruns with the same label), tc-61000-park2 (needed PROBE_BASE_RELAX; rerun as tc-61000-park2-relax),
+  c-mix-headts-basejar (the 4a92 runner no longer passes QWEN_MANAGED_AGENT_CLI_ENTRY, which the old Spring requires; rerun as c-mix-headts-basejar-r1d with the 1d084cb runner).
+mixed-rec-h / -h2: the probe auto-allowed #2 on the replacement (two v3 calls parked on #2 -> both run once); the expiry case is mixed-rec-x1/x2.
+rc=1 on PROBE_OBSERVE / relax / control runs is expected: the probe ends by throwing after it logs its observations.
+
+auto-allow-h                   rc=1  262s | v3         | term=no-public-terminal         | [relax-end] file=absent second=absent exec=0 actions=decided turns=COMPLETED,FAILED/hosted_turn_failed | next=["turn.failed"] | wake:needs-recovery await_action-not-model-start repl-action=requested model-requests=2
+auto-allow-o                   rc=1  263s | v3         | term=no-public-terminal         | [relax-end] file=absent second=absent exec=0 actions=decided turns=COMPLETED,FAILED/hosted_turn_failed | next=["turn.failed"] | wake:needs-recovery await_action-not-model-start repl-action=requested model-requests=2
+auto-ctl-h                     rc=1  138s | v3         | term=no-public-terminal         |  | next=- | model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+auto-ctl-o                     rc=1  137s | v3         | term=no-public-terminal         |  | next=- | model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+cdead-dl-h                     rc=0  185s | -          | term=turn.cancelled,G3:turn.cancelled | [recovered-terminal] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED | next=- | repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+cdead-dl-o                     rc=0  186s | -          | term=turn.cancelled,G3:turn.cancelled | [recovered-terminal] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED | next=- | repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+cdead-nodl-h                   rc=0  186s | -          | term=turn.cancelled,G3:turn.cancelled | [recovered-terminal] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED | next=- | repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+cdead-nodl-o                   rc=0  185s | -          | term=turn.cancelled,G3:turn.cancelled | [recovered-terminal] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED | next=- | repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+dl-only-h                      rc=1  142s | superseded by a rerun with the same label (probe setup error)
+mixed-live-h                   rc=1   21s | superseded by a rerun with the same label (probe setup error)
+mixed-rec-h                    rc=1   21s | superseded by a rerun with the same label (probe setup error)
+close-parked-h                 rc=1   27s | -          | term=turn.completed             | [relax-end] file=31B exact=true second=absent exec=1 actions=decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | close->409 turn_active repl-action=requested model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+close-parked-o                 rc=1   28s | -          | term=turn.completed             | [relax-end] file=31B exact=true second=absent exec=1 actions=decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | close->409 turn_active repl-action=requested model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+g3-allow-1                     rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+g3-allow-2                     rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+g3-allow-3                     rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+g3-deny-1                      rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+g3-deny-2                      rc=0   26s | -          | term=G3:turn.completed          |  | next=- | 
+g3-deny-3                      rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+g3-cancel-1                    rc=0   27s | -          | term=G3:turn.cancelled          |  | next=- | 
+g3-cancel-2                    rc=0   26s | -          | term=G3:turn.cancelled          |  | next=- | 
+g3-cancel-3                    rc=0   27s | -          | term=G3:turn.cancelled          |  | next=- | 
+g3-expiry-1                    rc=0   48s | -          | term=G3:turn.cancelled          |  | next=- | 
+g3-expiry-2                    rc=0   48s | -          | term=G3:turn.cancelled          |  | next=- | 
+g3-expiry-3                    rc=0   48s | -          | term=G3:turn.cancelled          |  | next=- | 
+g3-continuation-1              rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+g3-continuation-2              rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+g3-continuation-3              rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+std-session                    rc=0   25s | -          | term=-                          |  | next=- | 
+std-inflight                   rc=0   28s | -          | term=-                          |  | next=- | 
+std-continuation               rc=0   27s | -          | term=-                          |  | next=- | 
+std-big-output                 rc=0   28s | -          | term=-                          |  | next=- | 
+std-hr-session                 rc=0   21s | -          | term=-                          |  | next=- | 
+std-hr-inflight                rc=0   26s | -          | term=-                          |  | next=- | 
+std-hr-continuation            rc=0   26s | -          | term=-                          |  | next=- | 
+std-frozen                     rc=0   34s | -          | term=-                          |  | next=- | 
+mix-headts-basejar-session-1   rc=1  141s | -          | term=no-public-terminal         |  | next=- | store-v2-unsupported
+prep-62840                     rc=1  199s | v2         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+prep-62821                     rc=1  199s | v2         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+prep-62867                     rc=1  199s | v2         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+prep-62000                     rc=1   87s | v3         | term=-                          | [relax-end] file=62031B exact=true second=absent exec=1 actions=decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+tc-61440-prep                  rc=1  200s | v3         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided,decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+tc-61000-park2                 rc=1   22s | -          | term=-                          |  | next=- | model-requests=1
+live-63500-allow               rc=1   18s | v2         | term=-                          | [control-end] file=63531B exact=true second=absent exec=1 actions=decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+kill-62820-allow               rc=0   27s | -          | term=G3:turn.completed          |  | next=- | repl-action=requested model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+auto-allow-b                   rc=1    1s | -          | term=-                          |  | next=- | 
+auto-allow-h2                  rc=1  261s | v3         | term=no-public-terminal         | [relax-end] file=absent second=absent exec=0 actions=decided turns=COMPLETED,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed | next=["turn.failed"] ["turn.failed"] ["turn.failed"] | wake:needs-recovery await_action-not-model-start repl-action=requested model-requests=2
+auto-ctl-b                     rc=1    1s | -          | term=-                          |  | next=- | 
+mixed-live-h                   rc=1   47s | #1 v3 #2 v3 | term=turn.completed             | [live-mixed-after-terminal] file=31B exact=true second=absent exec=1 actions=expired,decided turns=COMPLETED | next=- | model-requests=2 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to", "[{'type': 'text', 'text': 'Nobody answered the approval requ"]
+mixed-rec-h                    rc=1   29s | #1 v3 #2 v3 | term=turn.completed             | [relax-end] file=31B exact=true second=exact=true exec=2 actions=decided,decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to", "[{'type': 'text', 'text': 'Successfully created and wrote to"]
+mixed-live-h2                  rc=1   47s | #1 v3 #2 v3 | term=turn.completed             | [live-mixed-after-terminal] file=31B exact=true second=absent exec=1 actions=decided,expired turns=COMPLETED | next=- | model-requests=2 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to", "[{'type': 'text', 'text': 'Nobody answered the approval requ"]
+mixed-rec-h2                   rc=1   30s | #1 v3 #2 v3 | term=turn.completed             | [relax-end] file=31B exact=true second=exact=true exec=2 actions=decided,decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to", "[{'type': 'text', 'text': 'Successfully created and wrote to"]
+dl-only-h                      rc=1  141s | -          | term=-                          | [dead-wait-end] file=absent second=absent exec=0 actions=requested turns=RUNNING | next=- | answer->409 action_cancelled repl-action=cancelled model-requests=1
+dl-only-o                      rc=1  141s | -          | term=-                          | [dead-wait-end] file=absent second=absent exec=0 actions=requested turns=RUNNING | next=- | answer->409 action_cancelled repl-action=cancelled model-requests=1
+ckill-0-o                      rc=1  185s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | journal-top=renewActivation repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+ckill-0-h                      rc=1  186s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | journal-top=renewActivation repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+ckill-30-o                     rc=1  185s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | journal-top=requestCancel requestCancel-committed repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+ckill-30-h                     rc=1  185s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | journal-top=requestCancel requestCancel-committed repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+ckill-150-o                    rc=1  186s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | journal-top=commitMessage repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'The turn was cancelled before thi"]
+ckill-150-h                    rc=1  187s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | journal-top=commitMessage repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'The turn was cancelled before thi"]
+auto-allow-b2                  rc=1  262s | v2         | term=no-public-terminal         | [relax-end] file=absent second=absent exec=0 actions=decided turns=COMPLETED,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed | next=["turn.failed"] ["turn.failed"] ["turn.failed"] | wake:needs-recovery await_action-not-model-start repl-action=requested model-requests=2
+auto-ctl-b2                    rc=1  137s | v2         | term=no-public-terminal         |  | next=- | model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+tc-61000-park2-relax           rc=1   30s | #1 v3 #2 v3 | term=turn.completed             | [relax-end] file=61031B exact=true second=exact=true exec=2 actions=decided,decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to", "[{'type': 'text', 'text': 'Successfully created and wrote to"]
+mixed-rec-x1                   rc=1   48s | #1 v3 #2 v3 | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=expired,decided turns=CANCELLED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original approval expired.'}]", "[{'type': 'text', 'text': 'Original approval expired.'}]"]
+mixed-rec-x2                   rc=1   48s | #1 v3 #2 v3 | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=decided,expired turns=CANCELLED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original approval expired.'}]", "[{'type': 'text', 'text': 'Original approval expired.'}]"]
+dl-only-h2                     rc=1  141s | -          | term=-                          | [dead-wait-end] file=absent second=absent exec=0 actions=requested turns=RUNNING | next=- | answer->409 action_cancelled repl-action=requested model-requests=1
+dl-only-o2                     rc=1  142s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+n-auto-allow-1                 rc=1  262s | v3         | term=no-public-terminal         | [relax-end] file=absent second=absent exec=0 actions=decided turns=COMPLETED,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed | next=["turn.failed"] ["turn.failed"] ["turn.failed"] | wake:needs-recovery await_action-not-model-start repl-action=requested model-requests=2
+n-auto-allow-2                 rc=1  261s | v3         | term=no-public-terminal         | [relax-end] file=absent second=absent exec=0 actions=decided turns=COMPLETED,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed | next=["turn.failed"] ["turn.failed"] ["turn.failed"] | wake:needs-recovery await_action-not-model-start repl-action=requested model-requests=2
+n-auto-ctl                     rc=1  137s | v3         | term=no-public-terminal         |  | next=- | model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+n-mixed-live                   rc=1   49s | #1 v3 #2 v3 | term=turn.completed             | [live-mixed-after-terminal] file=31B exact=true second=absent exec=1 actions=expired,decided turns=COMPLETED | next=- | model-requests=2 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to", "[{'type': 'text', 'text': 'Nobody answered the approval requ"]
+n-mixed-rec-1                  rc=1   48s | #1 v3 #2 v3 | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=decided,expired turns=CANCELLED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original approval expired.'}]", "[{'type': 'text', 'text': 'Original approval expired.'}]"]
+n-mixed-rec-2                  rc=1   49s | #1 v3 #2 v3 | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=decided,expired turns=CANCELLED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original approval expired.'}]", "[{'type': 'text', 'text': 'Original approval expired.'}]"]
+n-ckill-30                     rc=1  186s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | journal-top=requestCancel requestCancel-committed repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+n-cdead-dl                     rc=0  186s | -          | term=turn.cancelled,G3:turn.cancelled | [recovered-terminal] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED | next=- | repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+n-dl-only                      rc=1  143s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+n-close-parked                 rc=1   27s | -          | term=turn.completed             | [relax-end] file=31B exact=true second=absent exec=1 actions=decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | close->409 turn_active repl-action=requested model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+n-prep-62840                   rc=1  199s | v2         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+n-prep-62000                   rc=1   87s | v3         | term=-                          | [relax-end] file=62031B exact=true second=absent exec=1 actions=decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+n-tc-61440-prep                rc=1  202s | v3         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided,decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+n-tc-61000-park2               rc=1   30s | #1 v3 #2 v3 | term=turn.completed             | [relax-end] file=61031B exact=true second=exact=true exec=2 actions=decided,decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to", "[{'type': 'text', 'text': 'Successfully created and wrote to"]
+n-live-63500                   rc=1   18s | v2         | term=-                          | [control-end] file=63531B exact=true second=absent exec=1 actions=decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+n-kill-62820                   rc=0   27s | -          | term=G3:turn.completed          |  | next=- | repl-action=requested model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+n-g3-allow-1                   rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+n-g3-allow-2                   rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+n-g3-allow-3                   rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+n-g3-deny-1                    rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+n-g3-deny-2                    rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+n-g3-deny-3                    rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+n-g3-cancel-1                  rc=0   26s | -          | term=G3:turn.cancelled          |  | next=- | 
+n-g3-cancel-2                  rc=0   27s | -          | term=G3:turn.cancelled          |  | next=- | 
+n-g3-cancel-3                  rc=0   28s | -          | term=G3:turn.cancelled          |  | next=- | 
+n-g3-expiry-1                  rc=0   48s | -          | term=G3:turn.cancelled          |  | next=- | 
+n-g3-expiry-2                  rc=0   48s | -          | term=G3:turn.cancelled          |  | next=- | 
+n-g3-expiry-3                  rc=0   48s | -          | term=G3:turn.cancelled          |  | next=- | 
+n-g3-continuation-1            rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+n-g3-continuation-2            rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+n-g3-continuation-3            rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+n-std-session                  rc=0   27s | -          | term=-                          |  | next=- | 
+n-std-inflight                 rc=0   28s | -          | term=-                          |  | next=- | 
+n-std-continuation             rc=0   27s | -          | term=-                          |  | next=- | 
+n-std-big-output               rc=0   28s | -          | term=-                          |  | next=- | 
+n-std-hr-session               rc=0   23s | -          | term=-                          |  | next=- | 
+n-std-hr-inflight              rc=0   26s | -          | term=-                          |  | next=- | 
+n-std-hr-continuation          rc=0   26s | -          | term=-                          |  | next=- | 
+n-std-frozen                   rc=0   34s | -          | term=-                          |  | next=- | 
+n-mix-headts-basejar           rc=1  141s | -          | term=no-public-terminal         |  | next=- | store-v2-unsupported
+c-g3-allow-1                   rc=0   29s | -          | term=G3:turn.completed          |  | next=- | 
+c-g3-allow-2                   rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+c-g3-allow-3                   rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+c-g3-deny-1                    rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+c-g3-deny-2                    rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+c-g3-deny-3                    rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+c-g3-cancel-1                  rc=0   27s | -          | term=G3:turn.cancelled          |  | next=- | 
+c-g3-cancel-2                  rc=0   27s | -          | term=G3:turn.cancelled          |  | next=- | 
+c-g3-cancel-3                  rc=0   28s | -          | term=G3:turn.cancelled          |  | next=- | 
+c-g3-expiry-1                  rc=0   48s | -          | term=G3:turn.cancelled          |  | next=- | 
+c-g3-expiry-2                  rc=0   49s | -          | term=G3:turn.cancelled          |  | next=- | 
+c-g3-expiry-3                  rc=0   49s | -          | term=G3:turn.cancelled          |  | next=- | 
+c-g3-continuation-1            rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+c-g3-continuation-2            rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+c-g3-continuation-3            rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+c-std-session                  rc=0   25s | -          | term=-                          |  | next=- | 
+c-std-inflight                 rc=0   27s | -          | term=-                          |  | next=- | 
+c-std-continuation             rc=0   27s | -          | term=-                          |  | next=- | 
+c-std-big-output               rc=0   29s | -          | term=-                          |  | next=- | 
+c-std-hr-session               rc=0   21s | -          | term=-                          |  | next=- | 
+c-std-hr-inflight              rc=0   26s | -          | term=-                          |  | next=- | 
+c-std-hr-continuation          rc=0   27s | -          | term=-                          |  | next=- | 
+c-std-frozen                   rc=0   34s | -          | term=-                          |  | next=- | 
+c-mix-headts-basejar           rc=1   13s | -          | term=-                          |  | next=- | 
+c-auto-allow                   rc=1  262s | v3         | term=no-public-terminal         | [relax-end] file=absent second=absent exec=0 actions=decided turns=COMPLETED,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed | next=["turn.failed"] ["turn.failed"] ["turn.failed"] | wake:needs-recovery await_action-not-model-start repl-action=requested model-requests=2
+c-mixed-live                   rc=1   48s | #1 v3 #2 v3 | term=turn.completed             | [live-mixed-after-terminal] file=31B exact=true second=absent exec=1 actions=expired,decided turns=COMPLETED | next=- | model-requests=2 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to", "[{'type': 'text', 'text': 'Nobody answered the approval requ"]
+c-mixed-rec                    rc=1   49s | #1 v3 #2 v3 | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=expired,decided turns=CANCELLED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original approval expired.'}]", "[{'type': 'text', 'text': 'Original approval expired.'}]"]
+c-ckill-30                     rc=1  186s | -          | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=cancelled turns=CANCELLED,COMPLETED | next=["turn.completed"] | journal-top=requestCancel requestCancel-committed repl-action=cancelled model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original Turn was cancelled.'}]"]
+c-prep-62840                   rc=1  200s | v2         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+c-tc-61440-prep                rc=1  202s | v3         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided,decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+c-prep-62000                   rc=1   88s | v3         | term=-                          | [relax-end] file=62031B exact=true second=absent exec=1 actions=decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+c-tc-61000-park2               rc=1   30s | #1 v3 #2 v3 | term=turn.completed             | [relax-end] file=61031B exact=true second=exact=true exec=2 actions=decided,decided turns=COMPLETED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to", "[{'type': 'text', 'text': 'Successfully created and wrote to"]
+c-kill-62820                   rc=0   28s | -          | term=G3:turn.completed          |  | next=- | repl-action=requested model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
+c-mix-headts-basejar-r1d       rc=1  141s | -          | term=no-public-terminal         |  | next=- | store-v2-unsupported
+m-g3-allow-1                   rc=0   29s | -          | term=G3:turn.completed          |  | next=- | 
+m-g3-allow-2                   rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+m-g3-allow-3                   rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+m-g3-deny-1                    rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+m-g3-deny-2                    rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+m-g3-deny-3                    rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+m-g3-cancel-1                  rc=0   28s | -          | term=G3:turn.cancelled          |  | next=- | 
+m-g3-cancel-2                  rc=0   26s | -          | term=G3:turn.cancelled          |  | next=- | 
+m-g3-cancel-3                  rc=0   26s | -          | term=G3:turn.cancelled          |  | next=- | 
+m-g3-expiry-1                  rc=0   48s | -          | term=G3:turn.cancelled          |  | next=- | 
+m-g3-expiry-2                  rc=0   49s | -          | term=G3:turn.cancelled          |  | next=- | 
+m-g3-expiry-3                  rc=0   48s | -          | term=G3:turn.cancelled          |  | next=- | 
+m-g3-continuation-1            rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+m-g3-continuation-2            rc=0   27s | -          | term=G3:turn.completed          |  | next=- | 
+m-g3-continuation-3            rc=0   28s | -          | term=G3:turn.completed          |  | next=- | 
+m-std-session                  rc=0   25s | -          | term=-                          |  | next=- | 
+m-std-inflight                 rc=0   27s | -          | term=-                          |  | next=- | 
+m-std-continuation             rc=0   28s | -          | term=-                          |  | next=- | 
+m-std-big-output               rc=0   28s | -          | term=-                          |  | next=- | 
+m-std-hr-session               rc=0   20s | -          | term=-                          |  | next=- | 
+m-std-hr-inflight              rc=0   27s | -          | term=-                          |  | next=- | 
+m-std-hr-continuation          rc=0   26s | -          | term=-                          |  | next=- | 
+m-std-frozen                   rc=0   35s | -          | term=-                          |  | next=- | 
+m-auto-allow                   rc=1  262s | v3         | term=no-public-terminal         | [relax-end] file=absent second=absent exec=0 actions=decided turns=COMPLETED,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed,FAILED/hosted_turn_failed | next=["turn.failed"] ["turn.failed"] ["turn.failed"] | wake:needs-recovery await_action-not-model-start repl-action=requested model-requests=2
+m-mixed-rec                    rc=1   48s | #1 v3 #2 v3 | term=turn.cancelled             | [relax-end] file=absent second=absent exec=0 actions=decided,expired turns=CANCELLED,COMPLETED | next=["turn.completed"] | repl-action=decided model-requests=2 last-tools=["[{'type': 'text', 'text': 'Original approval expired.'}]", "[{'type': 'text', 'text': 'Original approval expired.'}]"]
+m-prep-62840                   rc=1  199s | v2         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+m-tc-61440-prep                rc=1  202s | v3         | term=-                          | [inflight-before-kill] file=absent second=absent exec=0 actions=decided,decided turns=RUNNING | next=- | recovery_blocked model-requests=1
+m-kill-62820                   rc=0   27s | -          | term=G3:turn.completed          |  | next=- | repl-action=requested model-requests=3 last-tools=["[{'type': 'text', 'text': 'Successfully created and wrote to"]
