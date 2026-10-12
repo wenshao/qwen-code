@@ -1,0 +1,23 @@
+diff --git a/packages/cli/src/serve/hosted-harness-session.ts b/packages/cli/src/serve/hosted-harness-session.ts
+index c8b11e4631..88319663b1 100644
+--- a/packages/cli/src/serve/hosted-harness-session.ts
++++ b/packages/cli/src/serve/hosted-harness-session.ts
+@@ -26,6 +26,7 @@ import {
+   parseHarnessCheckpointV1,
+   type HarnessRunAuthorization,
+   harnessCheckpointIsAgentWait,
++  harnessCheckpointIsCommandWait,
+ } from '@qwen-code/qwen-code-core/managed-runtime/managed-harness-checkpoint.js';
+ import { createManagedHarnessHandle } from '@qwen-code/qwen-code-core/managed-runtime/managed-harness-factory.js';
+ import { MANAGED_MCP_MAX_CONNECTIONS } from '@qwen-code/qwen-code-core/managed-runtime/managed-mcp-protocol.js';
+@@ -6645,6 +6646,10 @@ export function registerHostedHarnessSessionRoutes(
+       // wait's group. Both re-enter through the same resume arm below.
+       !harnessCheckpointIsAgentWait(
+         continueAuthorization.authorization.checkpoint,
++      ) &&
++      // H4e-b3: the command wait resumes through the same arm below.
++      !harnessCheckpointIsCommandWait(
++        continueAuthorization.authorization.checkpoint,
+       )
+     ) {
+       releaseRecoveredRuntime(session);
