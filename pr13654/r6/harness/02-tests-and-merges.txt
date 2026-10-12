@@ -1,0 +1,31 @@
+PR #13654 round 6: how well the PR's tests pin the fix, and the three main merges up to head 876b00ef
+Mutants: one production edit each, then the PR's 63 async + 130 store tests and the round-6 probes on H2. Suite: CI's managed-agent-server command on MySQL 8.4.7
+## Mutants of the fix
+==    mutant (one production edit)                              PR tests failing  probe lines that change
+++    M1 quarantine on any IllegalArgumentException again       1                 1 (healthy row QUARANTINED)
+++    M2 authority failures not mapped to 409 fenced            11                13 (409 -> 400, still not quarantined)
+++    M3 recovery block defers again (426248142d policy)        7                 7 (PENDING; SUCCEEDED after a SQL reset)
+++    M4 digest mismatch in verify() treated as transient       2 + 1 store       2 (corrupt row stays PENDING)
+++    M7 verified corruption no longer permanent                3                 6 (PENDING instead of FAILED)
+--    M5 IOException mid-read of a terminal object = corruption 0                 1 (finish FAILED 400 on a network blip)
+--    M6 IOException mid-read of a segment object = corruption  0                 1 (healthy row QUARANTINED, FAILED 400)
+!!    M5/M6 also pass all 342 publication unit tests (305 ToolPublication* + 37 Issue13181): every PR read fault is thrown at open()
+## The first two main merges
+++    70a2ba2f (main 01d3e6d8): only ToolPublicationControllerTest hand-edited; all test methods of both parents kept
+++    296b1be5 (main e17ad4ca, #13894 lock order): only ToolPublicationStore hand-edited; keeps main's storedBinding
+==    (same digest check the PR did inline) plus the PR's expected-binding-digest guard; every other path = automatic merge
+++    migrations byte-identical to round 5 (V68 7f5b45b9, main tops at V67); fresh schema 64 versions; fe0ae13e schema up to date
+## CI's managed-agent-server command (MySQL 8.4.7 instead of CI's MariaDB), first on 296b1be5
+++    2482 tests incl. 261 MySQL ITs; 447/447 publication tests incl. main's new ToolPublicationLockOrderMySqlIT 5/5
+++    async suite 63/63 on H2 and on MySQL; Checkstyle 0, SpotBugs 0; InnoDB lock_deadlocks 0 across suites, probes and stacks
+!!    3 non-passing, none in the PR's code: ChildWorktreeGitTest (macOS file name); Hook admission IT (alone 3/3);
+!!    WorkspaceMigrationMySqlIT creationWaiting... timed out at load ~178 (main's 30 s test; paired head/main 3/3 each)
+++    876b00ef: 2501 tests, 261/261 ITs, publication 447/447; only the macOS file-name test fails; Checkstyle 0, SpotBugs 0
+## Packaged stack, R1-R13 against round 5 with the same scripts
+++    11 scenarios identical; R10 / R11 (recovery blocked during a 12 s / 4 s hold) moved from 400 to 409 fenced, row CANDIDATE
+++    876b00ef from a fresh schema (64 migrations to V68): all 13 outcome lines equal 296b1be5's
+## 876b00ef: main b1b2b2c6 (#13335) conflicted in ManagedAgentProperties.java
+==    PR adds asyncVerificationEnabled / verificationConcurrency where main adds @DurationUnit to deletionGrace
+++    876b00ef keeps both; its Java tree equals the trial merge I made before the push (module verify 2240 tests,
+++    only the macOS test fails; main's new ManagedAgentPropertiesTest 21/21)
+!!    876b00ef also edits main's hosted-never-started-reconcile.test.ts, which is red on main's own CI since da224e61

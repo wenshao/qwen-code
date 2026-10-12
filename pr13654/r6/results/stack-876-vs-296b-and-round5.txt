@@ -1,0 +1,42 @@
+# Stack on 876b00ef (fresh schema p654r10) vs 296b1be5 and vs round 5. Same scripts; outcome lines compared.
+## vs 296b1be5 (stack-r1-r13.log)
+SAME    normal 5 MiB + 1 MiB
+SAME    readback held 8 s
+SAME    first object PUT delayed 5 s
+SAME    first six object GETs answer 500
+SAME    flip one byte while readback is held
+SAME    replay a SUCCEEDED op, then flip its object
+SAME    64 MiB + 8 MiB
+SAME    R4-2/R6-1: one AccessDenied on the first object GET after POST /finish
+SAME    R8-1 control: readback held 12 s (past the 10 s heartbeat), nothing changed
+SAME    R8-1 A: readback held 12 s, Session recovery blocked during the hold
+SAME    R8-1 A': readback held 4 s (before the heartbeat is due), Session recovery blocked during the hold
+SAME    R8-1 positive control: flip one byte of the object while readback is held 12 s
+SAME    R8-1 sync arm (async admission off): readback held ~17 s, Session recovery blocked during the hold
+13 same, 0 different
+
+## vs round 5
+SAME    normal 5 MiB + 1 MiB
+SAME    readback held 8 s
+SAME    first object PUT delayed 5 s
+SAME    first six object GETs answer 500
+SAME    flip one byte while readback is held
+SAME    replay a SUCCEEDED op, then flip its object
+SAME    64 MiB + 8 MiB
+SAME    R4-2/R6-1: one AccessDenied on the first object GET after POST /finish
+8 same, 0 different
+SAME    R8-1 control: readback held 12 s (past the 10 s heartbeat), nothing changed
+DIFF    R8-1 A: readback held 12 s, Session recovery blocked during the hold
+    r5: [objects] {"segment/QUARANTINED":1}
+    r6: [objects] {"segment/CANDIDATE":1}
+    r5: [ops] ASYNC/FAILED 400 invalid_request x1
+    r6: [ops] ASYNC/FAILED 409 managed_tool_publication_fenced x1
+DIFF    R8-1 A': readback held 4 s (before the heartbeat is due), Session recovery blocked during the hold
+    r5: [ops] ASYNC/FAILED 400 invalid_request x1
+    r6: [ops] ASYNC/FAILED 409 managed_tool_publication_fenced x1
+SAME    R8-1 sync arm (async admission off): readback held ~17 s, Session recovery blocked during the hold
+2 same, 2 different
+
+## Flyway on the fresh schema
+Successfully applied 64 migrations to schema `p654r10`, now at version v68 (execution time 00:02.753s)
+Schema `p654r10` is up to date. No migration necessary.

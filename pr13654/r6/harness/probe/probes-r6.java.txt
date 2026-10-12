@@ -1,0 +1,171 @@
+    // ---- rig probes (PR #13654 report round 6): fix 426248142d (corruption vs authority) and 9fbe335487 (recovery block) ----
+    interface RigIoHook {
+        void run() throws java.io.IOException;
+    }
+
+    private static void rigSleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(error);
+        }
+    }
+
+    private String onlyObjectKey(String slot) {
+        return fixture.jdbc.queryForObject("SELECT object_key FROM qwen_tool_publication_object WHERE slot_key = ?",
+                String.class, slot);
+    }
+
+    private String publicationFlags() {
+        var pub = fixture.jdbc.queryForMap("SELECT producer_used_bytes, CASE WHEN quarantined THEN 1 ELSE 0 END AS q"
+                + " FROM qwen_tool_publication");
+        return " publication_quarantined=" + pub.get("q") + " producer_used_bytes=" + pub.get("producer_used_bytes");
+    }
+
+    private String rescanAfterDue(String operation) {
+        due(operation);
+        return scan() + " -> " + describe(operation);
+    }
+
+    // OT: the R8-1 entrance-A arms on the terminal slot (verifyOperation reads a terminal object through
+    // retention.open with the heartbeat, a different read path from segment verify()).
+    @ParameterizedTest
+    @ValueSource(strings = {"none:stall", "recovery:stall", "lease:stall", "takeover:stall", "grant:stall"})
+    void probeOT_fenceDuringTerminalObjectRead(String arm) {
+        String kind = arm.split(":")[0];
+        byte[] body = terminal(70_000);
+        String accepted = acceptObjectFinish(body);
+        String objectKey = objectKey();
+        bucket.readHook = () -> {
+            pause(900);
+            fence(kind);
+        };
+        String scanned = scan();
+        record("OT " + arm + " (accepted=" + accepted + "): fence '" + kind
+                + "' applied on the first terminal-object read after a 900 ms stall -> scan",
+                scanned + " " + describe("finish") + terminalState(objectKey, body) + " recovery_status=" + headStatus()
+                        + " " + finishedResult());
+    }
+
+    // C: real corruption must still quarantine after the classification change.
+    @ParameterizedTest
+    @ValueSource(strings = {"segment-flip", "segment-short", "segment-long", "terminal-flip", "inline-resource",
+            "inline-terminal"})
+    void probeC_realCorruptionStillQuarantines(String arm) {
+        String op;
+        String slot;
+        String accepted;
+        if (arm.startsWith("terminal")) {
+            accepted = acceptObjectFinish(terminal(70_000));
+            op = "finish";
+            slot = "terminal";
+        } else if (arm.equals("inline-terminal")) {
+            accepted = acceptObjectFinish(terminal(1_000));
+            op = "finish";
+            slot = "terminal";
+        } else if (arm.equals("inline-resource")) {
+            fixture.jdbc.update("UPDATE qwen_tool_publication SET capture_bytes = 10000000");
+            accepted = data.publishResource(key, "pub-1", PUBLICATION_TOKEN, "inl", "content:test",
+                    "managed-tool-result-content", "small inline resource".getBytes(StandardCharsets.UTF_8), true)
+                    .path("state").asText();
+            op = "inl";
+            slot = fixture.jdbc.queryForObject("SELECT slot_key FROM qwen_tool_publication_object WHERE operation_id = 'inl'",
+                    String.class);
+        } else {
+            accepted = publishObject("obj", 0);
+            op = "obj";
+            slot = "segment:stdout:0";
+        }
+        String objectKey = arm.startsWith("inline") ? null : onlyObjectKey(slot);
+        switch (arm) {
+            case "segment-flip", "terminal-flip" -> {
+                byte[] b = bucket.objects.get(objectKey).clone();
+                b[b.length / 2] ^= 1;
+                bucket.objects.put(objectKey, b);
+            }
+            case "segment-short" -> {
+                byte[] b = bucket.objects.get(objectKey);
+                bucket.objects.put(objectKey, java.util.Arrays.copyOf(b, b.length - 1));
+            }
+            case "segment-long" -> {
+                byte[] b = bucket.objects.get(objectKey);
+                bucket.objects.put(objectKey, java.util.Arrays.copyOf(b, b.length + 1));
+            }
+            case "inline-resource", "inline-terminal" -> {
+                byte[] b = fixture.jdbc.queryForObject("SELECT inline_bytes FROM qwen_tool_publication_object"
+                        + " WHERE slot_key = ?", byte[].class, slot).clone();
+                b[b.length / 2] ^= 1;
+                fixture.jdbc.update("UPDATE qwen_tool_publication_object SET inline_bytes = ? WHERE slot_key = ?", b, slot);
+            }
+            default -> throw new IllegalArgumentException(arm);
+        }
+        String scanned = scan();
+        record("C " + arm + " (accepted=" + accepted + "): stored bytes changed after acceptance -> scan",
+                scanned + " " + describe(op) + objectIntegrity(slot) + publicationFlags()
+                        + (objectKey == null ? "" : " bucket_object=" + (bucket.objects.containsKey(objectKey) ? "present" : "absent")));
+    }
+
+    // U: read failures that are neither corruption nor authority must retry, then succeed once storage recovers.
+    @ParameterizedTest
+    @ValueSource(strings = {"open-IllegalState", "open-OSS-InternalError", "open-ClientException",
+            "open-IllegalArgument", "midstream-IOException", "terminal-midstream-IOException", "open-AccessDenied"})
+    void probeU_unclassifiedReadFailuresRetry(String arm) {
+        String op;
+        String slot;
+        String accepted;
+        if (arm.startsWith("terminal")) {
+            accepted = acceptObjectFinish(terminal(70_000));
+            op = "finish";
+            slot = "terminal";
+        } else {
+            accepted = publishObject("obj", 0);
+            op = "obj";
+            slot = "segment:stdout:0";
+        }
+        switch (arm) {
+            case "open-IllegalState" -> bucket.readFailure = new IllegalStateException("rig: storage unavailable");
+            case "open-OSS-InternalError" -> bucket.readFailure = new com.aliyun.oss.OSSException("rig internal",
+                    "InternalError", "rig-request", "rig-host", "rig-bucket", "rig-key", "rig-resource");
+            case "open-ClientException" -> bucket.readFailure = new com.aliyun.oss.ClientException("rig: connection reset");
+            case "open-IllegalArgument" -> bucket.readFailure = new IllegalArgumentException("rig: unclassified");
+            case "midstream-IOException", "terminal-midstream-IOException" -> bucket.readHook = () -> {
+                throw new java.io.IOException("rig: connection reset mid-stream");
+            };
+            case "open-AccessDenied" -> bucket.readFailure = denied();
+            default -> throw new IllegalArgumentException(arm);
+        }
+        String first = scan() + " -> " + describe(op) + objectIntegrity(slot);
+        String second = rescanAfterDue(op);
+        record("U " + arm + " (accepted=" + accepted + "): first read fails, storage healthy afterwards",
+                "first: " + first + " | after due: " + second + objectIntegrity(slot) + publicationFlags());
+    }
+
+    // U7: an unclassified failure that never clears: what does the client finally see?
+    @Test
+    void probeU7_unclassifiedFailureUntilDeadline() {
+        data = replacement(Duration.ofSeconds(4), Duration.ofSeconds(2));
+        String accepted = publishObject("obj", 0);
+        StringBuilder states = new StringBuilder();
+        long until = System.currentTimeMillis() + 6000;
+        int scans = 0;
+        while (System.currentTimeMillis() < until) {
+            bucket.readFailure = new IllegalStateException("rig: storage unavailable");
+            due("obj");
+            data.verifyNextOperation();
+            scans++;
+            String s;
+            try {
+                s = status("obj").path("state").asText();
+            } catch (RuntimeException error) {
+                s = "<" + refusal(error) + ">";
+            }
+            if (states.length() == 0 || !states.toString().endsWith(s)) {
+                states.append(states.length() == 0 ? "" : " -> ").append(s);
+            }
+            rigSleep(500);
+        }
+        record("U7 (accepted=" + accepted + ", operation timeout 4 s): every read throws IllegalStateException for 6 s",
+                "scans=" + scans + " states: " + states + " | final " + describe("obj") + objectIntegrity("segment:stdout:0"));
+    }
+

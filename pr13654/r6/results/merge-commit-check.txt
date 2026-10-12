@@ -1,0 +1,126 @@
+# Round 6 merge-commit check (PR #13654). Generated 2026-10-12T07:48:20Z
+# commits since round 5 (fe0ae13e):
+#   296b1be5da 9fbe335487 e17ad4caef  fix(managed-agent): preserve verification guards while syncing main
+#   e17ad4caef 049c56d82a  fix(managed-agent): order publication placement before retention (#13894)
+#   049c56d82a a9ad92b8df  feat(mods): Add middleware dispatch and recovery (PR2b) (#13915)
+#   a9ad92b8df 23add5ef9d  feat(managed-agent): Stop Hosted team members with request_shutdown (H4e-b3a) (#13923)
+#   9fbe335487 70a2ba2f38  fix(managed-agent): fail verification on recovery blocks
+#   23add5ef9d 4cd30565b2  docs(managed-agent): Resolve the EventTransport §11 routing and wake-carrier questions (#13933)
+#   4cd30565b2 e977bdac71  docs(managed-agent): Resolve the EventTransport §5.1 LiteTopic verification ledger (#13927)
+#   e977bdac71 fc51102555  fix(cli): bound managed function-hook module evaluation and keep hold-fenced owners recoverable (#13243)
+#   fc51102555 74b2f22d9a  fix(serve): name Hosted recovery-refusal branches in cold-load 409s (#13276)
+#   74b2f22d9a 01d3e6d81a  test(integration): sync the updatedInput ask approval on the dialog, not the tool row (#13849) (#13855)
+#   70a2ba2f38 426248142d 01d3e6d81a  chore(managed-agent): sync main publication read and event changes
+#   01d3e6d81a c81e0b4a9b  fix(managed-agent): return 404 for unknown tool publications (#13602)
+#   426248142d fe0ae13ea8  fix(managed-agent): distinguish verification corruption from authority failures
+#   c81e0b4a9b 8679b7ca75  feat(managed-agent): Introduce the EventTransport seam behind the after-commit publisher (#13909)
+#   8679b7ca75 a8990042e6  fix(managed-agent): e2e runner and image robustness from the #12692 R2 review (#13344)
+
+=== merge 70a2ba2f386855f908d24b7a89533862b239430f
+first parent  426248142d4b02e430108c4732bb2391fa5ad871 (fix(managed-agent): distinguish verification corruption from authority)
+second parent 01d3e6d81a6a6ae14e218f0d7f7b35e2d8f3cf58 on main: yes
+conflicted paths in a plain merge of the same parents:
+   packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/api/ToolPublicationControllerTest.java
+paths where the merge differs from the automatic merge (conflict markers included):
+   packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/api/ToolPublicationControllerTest.java
+files changed vs first parent: 19; vs second parent: 22
+=== merge 296b1be5da597a62a3527782a59687a8568d23bc
+first parent  9fbe33548706c8a74723033f167c7e8335b99923 (fix(managed-agent): fail verification on recovery blocks)
+second parent e17ad4caef7b7bc69f27c8b751a75ce099a011b8 on main: yes
+conflicted paths in a plain merge of the same parents:
+   packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java
+paths where the merge differs from the automatic merge (conflict markers included):
+   packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java
+files changed vs first parent: 58; vs second parent: 22
+
+=== 296b1be5: the hand resolution of ToolPublicationStore.java versus the automatic merge with conflict markers
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java
+index fb419598bc..d100ea7b06 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ToolPublicationStore.java
+@@ -196,16 +196,9 @@ public final class ToolPublicationStore {
+             String suppliedHash, String expectedBindingDigest, Access access,
+             boolean deferActivationLapse) {
+         Row row = publicationRow(scope, publicationId);
+-<<<<<<< 9fbe335487
+-        JsonNode binding = ToolPublicationContract.parseBytes("binding",
+-                row.binding().getBytes(StandardCharsets.UTF_8));
+-        require(ToolPublicationContract.bindingDigest(binding).equals(row.digest())
+-                && (expectedBindingDigest == null || expectedBindingDigest.equals(row.digest()))
+-                && equalHash(suppliedHash, row.tokenHash()) && "OPEN".equals(row.state()),
+-=======
+         JsonNode binding = storedBinding(row.binding(), row.digest(), "Publication grant conflicts");
+-        require(equalHash(suppliedHash, row.tokenHash()) && "OPEN".equals(row.state()),
+->>>>>>> e17ad4caef
++        require((expectedBindingDigest == null || expectedBindingDigest.equals(row.digest()))
++                && equalHash(suppliedHash, row.tokenHash()) && "OPEN".equals(row.state()),
+                 "Publication grant conflicts");
+         Original original;
+         try {
+
+=== main's storedBinding helper (kept by the resolution) does the digest check the PR side did inline:
+    private static JsonNode storedBinding(String value, String digest, String message) {
+        JsonNode binding = ToolPublicationContract.parseBytes("binding", value.getBytes(StandardCharsets.UTF_8));
+        require(ToolPublicationContract.bindingDigest(binding).equals(digest), message);
+        return binding;
+    }
+
+=== 70a2ba2f: ToolPublicationControllerTest test methods (union of both parents must be in the merge)
+PR side: 3 methods; main side: 4; merge: 6
+missing from the merge: []
+
+=== migrations
+diff fe0ae13e..296b1be5 under db/migration: []
+diff e17ad4caef..296b1be5 under db/migration: [packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V68__tool_publication_async_verification.sql]
+100644 blob 7f5b45b98f3b3c8506a00dc21cf11d1e51ec39cc	packages/sdk-java/managed-agent-server/src/main/resources/db/migration/V68__tool_publication_async_verification.sql
+
+=== current main b1b2b2c6df: 6 commits past the merged main; publication files touched by them: []
+git merge-tree 296b1be5 origin/main: CONFLICT
+
+=================== added after 876b00ef was pushed (08:21 UTC)
+=== merge 876b00efba7ea6313993ce1b3646750a2fe6a0da
+first parent  296b1be5da597a62a3527782a59687a8568d23bc (fix(managed-agent): preserve verification guards while syncing main)
+second parent b1b2b2c6dfb51b4607faf22282318456e4263195 on main: yes
+conflicted paths in a plain merge of the same parents:
+   packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
+paths where the merge differs from the automatic merge (conflict markers included):
+   packages/cli/src/serve/hosted-never-started-reconcile.test.ts
+   packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
+files changed vs first parent: 108; vs second parent: 23
+
+=== 876b00ef vs my local trial merge b8203960 (same parents, made before the push):
+Java/other paths that differ: [packages/cli/src/serve/hosted-never-started-reconcile.test.ts ]
+diff --git a/packages/cli/src/serve/hosted-never-started-reconcile.test.ts b/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
+index 963aa98e61..8f22af6ca4 100644
+--- a/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
++++ b/packages/cli/src/serve/hosted-never-started-reconcile.test.ts
+@@ -578,7 +578,7 @@ describe('reconcileNeverStartedChildRuns', () => {
+     expect(broker.backgroundProcessStatus).not.toHaveBeenCalled();
+   });
+ 
+-  it('refuses a shell admit when the production kind gate is restored', async () => {
++  it('admits a shell when the production kind gate is restored', async () => {
+     await open();
+     await createManagedHarnessHandle(session!).ensureRunnable();
+     enablement.childRun = false;
+@@ -590,7 +590,11 @@ describe('reconcileNeverStartedChildRuns', () => {
+         executionCallId: 'shell-1',
+         args: { command: 'printf hi', is_background: true },
+       }),
+-    ).rejects.toThrow('registered but not enabled');
++    ).resolves.toMatchObject({ kind: 'managed-tool-args' });
++    expect(committed('shell-1')).toMatchObject({
++      kind: 'shell',
++      run: { state: 'admitted', execution: 'intent' },
++    });
+   });
+ 
+   it('never scans a child_agent record, the one kind production can commit today', async () => {
+
+=== publication code 296b1be5 -> 876b00ef (store, service, migrations, PR tests, TS client):
+[] (empty = byte-identical)
+
+=== main's own CI on the test that 876b00ef edits (run 38216882909, main b1b2b2c6, job 'Test (ubuntu-latest, Node 22.x)'):
+ FAIL src/serve/hosted-never-started-reconcile.test.ts > reconcileNeverStartedChildRuns > refuses a shell admit when the production kind gate is restored
+ AssertionError: promise resolved "{ …(5) }" instead of rejecting  (line 593: .rejects.toThrow('registered but not enabled'))
+ main push runs of 'Qwen Code CI': 1bbaf93e success, c528b37e cancelled, da224e61 failure, b1b2b2c6 failure, e9b87acd failure

@@ -1,0 +1,180 @@
+    // ---- rig probes (PR #13654 report round 5, re-run in round 6): bot round-8 R8-1 entrances, recovery block, R6-1 follow-ups ----
+    private void rigBlockRecovery(String status) {
+        fixture.sessions.blockRecovery("tenant-1", "session-1", WRITER_TOKEN,
+                new ManagedSessionStoreModels.BlockRecoveryRequest("workspace-1", "writer-1", 1, status, "rig"));
+    }
+
+    private String tryBlockRecovery(String status) {
+        try {
+            rigBlockRecovery(status);
+            return "accepted";
+        } catch (RuntimeException error) {
+            return "<" + refusal(error) + ">";
+        }
+    }
+
+    private String headStatus() {
+        return fixture.jdbc.queryForObject("SELECT recovery_status FROM qwen_managed_session_journal_head", String.class);
+    }
+
+    private String publishObject(String operation, int ordinal) {
+        // The fixture reserves 1024 capture bytes; an object-backed segment needs more than 64 KiB.
+        fixture.jdbc.update("UPDATE qwen_tool_publication SET capture_bytes = 10000000");
+        byte[] bytes = new byte[100_000];
+        java.util.Arrays.fill(bytes, (byte) ('a' + ordinal));
+        return data.publishSegment(key, "pub-1", PUBLICATION_TOKEN, operation, "stdout", ordinal,
+                bytes, ToolPublicationContract.sha256(bytes), true).path("state").asText();
+    }
+
+    private String objectIntegrity(String slot) {
+        var rows = fixture.jdbc.queryForList("SELECT state, object_key, byte_length, sha256"
+                + " FROM qwen_tool_publication_object WHERE slot_key = ?", slot);
+        if (rows.isEmpty()) {
+            return " | " + slot + " row=absent";
+        }
+        var row = rows.getFirst();
+        byte[] stored = row.get("object_key") == null ? null : bucket.objects.get((String) row.get("object_key"));
+        String bytes = row.get("object_key") == null ? "inline" : stored == null ? "object_absent"
+                : stored.length == ((Number) row.get("byte_length")).longValue()
+                && ToolPublicationContract.sha256(stored).equals(row.get("sha256"))
+                ? "stored_bytes_match_row_digest" : "stored_bytes_differ";
+        return " | " + slot + " row=" + row.get("state") + " " + bytes;
+    }
+
+    private void fence(String kind) {
+        switch (kind) {
+            case "none" -> { }
+            case "recovery" -> rigBlockRecovery("BLOCKED_EXECUTION");
+            case "lease" -> fixture.jdbc.update("UPDATE qwen_managed_session_journal_head SET writer_lease_until = ?",
+                    Timestamp.valueOf("2000-01-01 00:00:00"));
+            case "takeover" -> fixture.jdbc.update("UPDATE qwen_managed_session_journal_head SET writer_id = 'other',"
+                    + " writer_generation = writer_generation + 1, writer_lease_until = ?",
+                    new Timestamp(System.currentTimeMillis() + 60000));
+            case "grant" -> fixture.jdbc.update("UPDATE qwen_tool_publication SET expires_at = 1");
+            default -> throw new IllegalArgumentException(kind);
+        }
+    }
+
+    private static void pause(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(error);
+        }
+    }
+
+    // R8-1 entrance A: a fence lands while the verifier is reading an object-backed segment. With the read stalled
+    // past claimTimeout/3 (2 s / 3 here) the read loop's heartbeat re-authorizes; without the stall it does not.
+    @ParameterizedTest
+    @ValueSource(strings = {"none:stall", "recovery:stall", "lease:stall", "takeover:stall", "grant:stall",
+            "recovery:fast", "lease:fast", "takeover:fast", "grant:fast"})
+    void probeO_fenceDuringObjectRead(String arm) {
+        String kind = arm.split(":")[0];
+        boolean stall = arm.endsWith(":stall");
+        String accepted = publishObject("obj", 0);
+        bucket.readHook = () -> {
+            if (stall) {
+                pause(900);
+            }
+            fence(kind);
+        };
+        String scanned = scan();
+        record("O " + arm + " (accepted=" + accepted + "): fence '" + kind + "' applied on the first object read"
+                + (stall ? " after a 900 ms stall" : " without a stall") + " -> scan",
+                scanned + " " + describe("obj") + objectIntegrity("segment:stdout:0") + " recovery_status=" + headStatus());
+    }
+
+    // R8-1 entrance B: recovery is blocked through the product path before the verifier claims the operation.
+    @ParameterizedTest
+    @ValueSource(strings = {"segment", "terminal"})
+    void probeB_recoveryBlockedBeforeClaim(String kind) {
+        String accepted;
+        String op;
+        String objectKey = null;
+        byte[] body = null;
+        if ("segment".equals(kind)) {
+            accepted = publishObject("blk", 0);
+            op = "blk";
+        } else {
+            body = terminal(70_000);
+            accepted = acceptObjectFinish(body);
+            op = "finish";
+            objectKey = objectKey();
+        }
+        long used = fixture.jdbc.queryForObject("SELECT producer_used_bytes FROM qwen_tool_publication", Long.class);
+        rigBlockRecovery("BLOCKED_EXECUTION");
+        String scanned = scan();
+        record("B1 " + kind + " (accepted=" + accepted + ", producer_used_bytes before=" + used
+                        + ") then ManagedSessionStore.blockRecovery(BLOCKED_EXECUTION) -> scan",
+                scanned + " " + describe(op) + (objectKey != null ? terminalState(objectKey, body)
+                        : objectIntegrity("segment:stdout:0")));
+        record("B2 " + kind + " product transitions out of the block",
+                "blockRecovery(READY)=" + tryBlockRecovery("READY") + " blockRecovery(BLOCKED_RESOURCE)="
+                        + tryBlockRecovery("BLOCKED_RESOURCE") + " recovery_status=" + headStatus());
+        fixture.jdbc.update("UPDATE qwen_managed_session_journal_head SET recovery_status = 'READY'");
+        due(op);
+        String rescan = scan();
+        String replay;
+        try {
+            replay = "terminal".equals(kind) ? submitFinish(op, body) : publishObject(op, 0);
+        } catch (RuntimeException error) {
+            replay = "<" + refusal(error) + ">";
+        }
+        record("B3 " + kind + " READY restored by direct SQL only, due, scan, then the same request again",
+                rescan + " " + describe(op) + " replay=" + replay);
+    }
+
+    // The synchronous arm of the same situation: async admission off, recovery blocked before the request.
+    @Test
+    void probeS_syncPublishWhileRecoveryBlocked() {
+        fixture.jdbc.update("UPDATE qwen_tool_publication SET capture_bytes = 10000000");
+        rigBlockRecovery("BLOCKED_EXECUTION");
+        byte[] bytes = new byte[100_000];
+        java.util.Arrays.fill(bytes, (byte) 'a');
+        String result;
+        try {
+            result = data.publishSegment(key, "pub-1", PUBLICATION_TOKEN, "sync", "stdout", 0,
+                    bytes, ToolPublicationContract.sha256(bytes), false).path("state").asText();
+        } catch (RuntimeException error) {
+            result = "<" + refusal(error) + ">";
+        }
+        long rows = fixture.jdbc.queryForObject("SELECT COUNT(*) FROM qwen_tool_publication_object", Long.class);
+        record("S sync publish (async=false) after blockRecovery(BLOCKED_EXECUTION)",
+                "result=" + result + " object_rows=" + rows + " bucket_puts=" + bucket.puts.get());
+    }
+
+    // R6-1 follow-ups: after the orphan (K1) and the different-bytes failure (K2), can a third finish with
+    // different bytes install, and does recoverOperation help on the way?
+    @Test
+    void probeK3_thirdFinishAfterOrphanAndRecoverOperation() {
+        byte[] body = terminal(70_000);
+        String accepted = acceptObjectFinish(body);
+        String objectKey = objectKey();
+        bucket.readFailure = denied();
+        bucket.deleteFailure = denied();
+        String first = scan();
+        record("K3a object finish (accepted=" + accepted + "), read-back and DELETE both AccessDenied -> scan",
+                first + " " + describe("finish") + terminalState(objectKey, body));
+        String recover1 = recover("finish");
+        byte[] second = terminal(70_001);
+        String accepted2 = submitFinish("finish-2", second);
+        String scan2 = scan();
+        record("K3b recoverOperation(finish)=" + recover1 + "; finish-2 with different bytes (accepted=" + accepted2
+                + ") -> scan", scan2 + " " + describe("finish-2") + terminalState(objectKey, second)
+                + " recoverOperation(finish-2)=" + recover("finish-2"));
+        byte[] third = terminal(70_002);
+        String accepted3 = submitFinish("finish-3", third);
+        String scan3 = scan();
+        record("K3c finish-3 with different bytes again (accepted=" + accepted3 + ") -> scan",
+                scan3 + " " + describe("finish-3") + terminalState(objectKey, third) + " " + finishedResult());
+    }
+
+    private String recover(String operation) {
+        try {
+            return data.recoverOperation(key, "pub-1", PUBLICATION_TOKEN, operation).path("state").asText("ok");
+        } catch (RuntimeException error) {
+            return "<" + refusal(error) + ">";
+        }
+    }
+

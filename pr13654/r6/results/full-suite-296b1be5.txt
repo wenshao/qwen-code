@@ -1,0 +1,46 @@
+# CI's managed-agent-server command at PR head 296b1be5 (tree fe866926), against MySQL 8.4.7 (CI uses MariaDB 10.11.18):
+#   mvn -Pmysql-integration -Dmysql.url=... -Dmaven.test.failure.ignore=true clean verify checkstyle:check
+# failure.ignore is set, so read the totals below, not the Maven exit code.
+
+verify-head finished
+at 296b1be5da 15:14:50
+mvn exit=0 16:34:04
+classes=160 tests=2482 failures=1 errors=2 skipped=3 | ITs: 261 run, 2 failed | PR-touched classes: 428 run, 1 failed
+   ERROR ManagedAgentMySqlIT#admitsHookExecutionsWithoutReadingTheirHistoryOnMySql: The Managed Session writer grant is stale or unavailable.
+   FAILURE ChildWorktreeGitTest#namesBeyondAsciiMergeAndANameThatIsNotUtf8IsAConflict: 
+
+   1 [INFO] BugInstance size is 0
+   1 [INFO] Error size is 0
+   2 [INFO] You have 0 Checkstyle violations.
+
+## publication and migration classes
+AliyunToolPublicationObjectStoreTest: tests=7 failures=0 errors=0 skipped=0 time=1.181
+ToolPublicationConfigurationTest: tests=6 failures=0 errors=0 skipped=0 time=0.771
+ToolPublicationContractTest: tests=5 failures=0 errors=0 skipped=0 time=0.02
+ToolPublicationLifecycleMySqlIT: tests=2 failures=0 errors=0 skipped=0 time=39.576
+ToolPublicationLockOrderMySqlIT: tests=5 failures=0 errors=0 skipped=0 time=91.883
+ToolPublicationRecoveryMySqlIT: tests=9 failures=0 errors=0 skipped=0 time=241.459
+ToolPublicationStoreTest: tests=130 failures=0 errors=0 skipped=0 time=59.136
+ToolPublicationControllerTest: tests=15 failures=0 errors=0 skipped=0 time=1.203
+ManagedAgentPropertiesTest: tests=9 failures=0 errors=0 skipped=0 time=0.307
+Issue13181QueryBudgetTest: tests=37 failures=0 errors=0 skipped=0 time=30.395
+AliyunToolPublicationObjectStoreTest: tests=4 failures=0 errors=0 skipped=0 time=0.012
+AliyunToolPublicationReadRetryTest: tests=15 failures=0 errors=0 skipped=0 time=3.47
+ToolPublicationAcknowledgementTest: tests=25 failures=0 errors=0 skipped=0 time=9.555
+ToolPublicationAsyncVerificationMySqlIT: tests=63 failures=0 errors=0 skipped=0 time=706.729
+ToolPublicationAsyncVerificationTest: tests=63 failures=0 errors=0 skipped=0 time=18.25
+ToolPublicationCollectorTest: tests=43 failures=0 errors=0 skipped=0 time=15.077
+ToolPublicationRetentionStoreTest: tests=18 failures=0 errors=0 skipped=0 time=3.461
+WorkspaceMigrationMySqlIT: tests=7 failures=0 errors=1 skipped=0 time=207.252
+WorkspaceMigrationStoreTest: tests=24 failures=0 errors=0 skipped=0 time=9.694
+
+## InnoDB counters after the suite, probes and stack runs (innodb_print_all_deadlocks=ON from the start; 0 DEADLOCK sections in the error log)
+lock_deadlocks	0
+lock_timeouts	0
+lock_row_lock_waits	1094
+DEADLOCK sections in mysqld.err: 0
+
+## the three non-passing tests
+- ChildWorktreeGitTest: APFS refuses a non-UTF-8 file name (round-5 results/macos-non-utf8-filename.txt); main's test, host limitation.
+- ManagedAgentMySqlIT Hook admission: writer grant went stale under load; PR does not touch the class; alone 3/3 (hook-it-reruns.txt).
+- WorkspaceMigrationMySqlIT creationWaiting...: main's @Timeout(30) test timed out at load ~178; paired head/main 3/3 each (workspace-migration-it.txt).

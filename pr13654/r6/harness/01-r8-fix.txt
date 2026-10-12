@@ -1,0 +1,22 @@
+PR #13654 round 6: the R8-1 fix and the recovery-block policy (296b1be5; 876b00ef has the same publication code)
+426248142d splits verified corruption from authority failures; 9fbe335487 makes a blocked Session recovery fail accepted work for good. Rig: H2 + MySQL 8.4.7 probes, packaged Spring jar + bundled CLI worker + TLS OSS double
+## R8-1 entrance A: a fence lands while the verifier reads an object (900 ms stall past the heartbeat; H2 = MySQL)
+==    fence on the read            round 5 at fe0ae13e                  round 6 at 296b1be5
+++    recovery blocked             FAILED 400 + QUARANTINED             FAILED 409 fenced, row CANDIDATE, bytes match digest
+++    writer lease lapsed          FAILED 400 + QUARANTINED             FAILED 409 fenced, row CANDIDATE, bytes match digest
+++    writer taken over            FAILED 400 + QUARANTINED             FAILED 409 fenced, row CANDIDATE, bytes match digest
+++    same three, terminal object  (not probed)                         FAILED 409 fenced; finish released, object deleted, 0 bytes held
+==    grant expiry / no fence      PENDING / SUCCEEDED                  PENDING / SUCCEEDED (unchanged)
+++    stack: 12 s hold, recovery blocked    FAILED 400 + QUARANTINED  ->  FAILED 409 fenced, CANDIDATE, OSS bytes = catalog sha256
+++    stack: 4 s hold, recovery blocked     FAILED 400 CANDIDATE      ->  FAILED 409 fenced, CANDIDATE
+## Recovery blocked before the claim (the author's policy in 9fbe335487)
+++    segment and terminal: FAILED 409 fenced without reading the object; terminal row + object deleted, producer_used_bytes 70194 -> 0
+++    blockRecovery(READY) 400, (BLOCKED_RESOURCE) 409; even a direct SQL reset to READY leaves the operation FAILED
+## Real corruption must still quarantine
+++    segment byte flipped / 1 byte short / 1 byte long, inline resource changed: FAILED 400 invalid_request + QUARANTINED
+++    terminal object or inline terminal changed: FAILED 400, the failed finish releases its slot (row and object removed)
+++    stack: byte flipped while the readback is held 12 s: FAILED 400 + QUARANTINED, OSS bytes differ from the catalog
+## Read failures that are neither corruption nor authority
+++    IllegalState / OSS InternalError / ClientException / IllegalArgument on open: PENDING, then SUCCEEDED after due
+++    IOException in the middle of the stream, segment and terminal: PENDING, then SUCCEEDED; row stays CANDIDATE
+==    AccessDenied: FAILED 403 (unchanged)      failing until the 4 s deadline: PENDING -> EXPIRED, row kept CANDIDATE

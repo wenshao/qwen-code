@@ -1,0 +1,27 @@
+# WorkspaceMigrationMySqlIT.creationWaitingForMigrationSeesCommittedFenceAndPreservesReplay: @Timeout(30) covers a full Flyway migrate (64 versions) plus the lock schedule.
+# The PR changes this IT only by adding "68" to two expected version lists and a new upgradesMain56 test; the timed-out test is main's.
+
+## in the full-suite run (load ~178 at 15:54): TimeoutException after 39.4 s
+
+## alone at head, while the trial-merge build was running:
+# WorkspaceMigrationMySqlIT at 296b1be5da, 3 reps
+rep 1 exit=1 load=29.72 :: Tests run: 7, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 146.9 s <<< FAILURE! -- in com.alibaba.qwen.code.managed
+rep 2 exit=0 load=51.89 :: Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 63.26 s -- in com.alibaba.qwen.code.managedagent.store.W
+rep 3 exit=0 load=66.49 :: Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 73.23 s -- in com.alibaba.qwen.code.managedagent.store.W
+
+## paired, head 296b1be5 and main e17ad4ca at the same time (load ~30):
+== head 296b1be5
+# WorkspaceMigrationMySqlIT at 296b1be5da, 3 reps
+rep 1 exit=0 load=30.13 :: Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 100.3 s -- in com.alibaba.qwen.code.managedagent.store.W
+rep 2 exit=0 load=30.32 :: Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 95.51 s -- in com.alibaba.qwen.code.managedagent.store.W
+rep 3 exit=0 load=33.22 :: Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 82.61 s -- in com.alibaba.qwen.code.managedagent.store.W
+== main e17ad4ca
+# WorkspaceMigrationMySqlIT at e17ad4caef, 3 reps
+rep 1 exit=0 load=31.08 :: Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 83.04 s -- in com.alibaba.qwen.code.managedagent.store.W
+rep 2 exit=0 load=34.90 :: Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 80.70 s -- in com.alibaba.qwen.code.managedagent.store.W
+rep 3 exit=0 load=32.14 :: Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 72.69 s -- in com.alibaba.qwen.code.managedagent.store.W
+
+
+## per-test seconds in the last paired rep
+296b1be5da: upgradesCurrentMainWithoutChangingAppliedMigrations=15.9s upgradedSchemaAppliesStreamCaptureCollectionAfterPublishedHead=11.5s creationWaitingForMigrationSeesCommittedFenceAndPreservesReplay=9.5s cwdWaitingForMigrationSeesCommittedFenceAndPreservesReplay=13.7s upgradesBinaryScopeWithoutRewritingOperationEvidence=12.3s upgradesMain56WithoutChangingAppliedMigrations=9.7s headlessRetirementDoesNotBlockAnotherTenantsWriter=10.1s
+e17ad4caef: upgradesCurrentMainWithoutChangingAppliedMigrations=12.9s upgradedSchemaAppliesStreamCaptureCollectionAfterPublishedHead=11.9s creationWaitingForMigrationSeesCommittedFenceAndPreservesReplay=13.6s cwdWaitingForMigrationSeesCommittedFenceAndPreservesReplay=8.6s upgradesBinaryScopeWithoutRewritingOperationEvidence=12.3s headlessRetirementDoesNotBlockAnotherTenantsWriter=13.3s
