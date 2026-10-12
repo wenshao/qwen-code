@@ -1,0 +1,17 @@
+## [mysql] 8.4.7
+1. main's initializer creates a standalone schema:      initialize() returned in 1193 ms
+   lease indexes: idx_execution_lease_maintenance (maintenance_id) PRIMARY (storage_key) 
+   lease row written by the old schema's table
+2. PR initializer over the existing tables:             initialize() returned in 2337 ms
+   lease indexes: idx_execution_lease_maintenance (maintenance_id) idx_workspace_execution_binding (binding_id,runtime_generation) PRIMARY (storage_key) 
+   lease rows kept: 1 (binding_id=b-upgrade, runtime_generation=3)
+3. PR initializer again (idempotent):                   initialize() returned in 947 ms
+4. Flyway via main-r8-da224e61.jar: now at version v67
+4. Flyway via merge-r8-8b72c287.jar: now at version v68
+5. standalone tables compared: 9; lines per shape: 172
+   upgraded vs fresh PR standalone:        identical
+   PR standalone vs PR Flyway (V68):       identical
+   main standalone vs main Flyway (V67):   identical
+   PR-only differences (merge diff minus main diff):
+      3 idx managed_workspace_execution_lease idx_workspace_execution_binding unique=0 (binding_id,runtime_generation)
+## [mysql] done

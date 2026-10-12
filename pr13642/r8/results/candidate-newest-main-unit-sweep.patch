@@ -1,0 +1,83 @@
+diff --git a/packages/sdk-java/managed-agent-server/README.md b/packages/sdk-java/managed-agent-server/README.md
+index 12d21aa7e2..eebd8910f7 100644
+--- a/packages/sdk-java/managed-agent-server/README.md
++++ b/packages/sdk-java/managed-agent-server/README.md
+@@ -757,13 +757,14 @@ export QWEN_MANAGED_AGENT_RUNTIME_BROKER_V3_RESULT_WINDOW='30m'
+ 
+ The same unit rule applies to every `qwen.managed-agent.*` duration setting: a
+ suffix-less number binds as seconds unless the setting's `@DurationUnit`
+-declares milliseconds. Millisecond-bound settings — `auth.allowed-drift` (so
++declares milliseconds (`runtime-broker.retention.max-age` declares days).
++Millisecond-bound settings — `auth.allowed-drift` (so
+ a stale `300000` keeps meaning five minutes instead of widening the
+ signature-replay window to ~83 hours), the sub-second `events.batch-interval`
+ and `events.materialize-interval`,
+ `runtime-broker.child-workspace-git-timeout`, `automation.scan-delay`,
+-`automation.lease`, `automation.late-tolerance` and `automation.lookback`
+-— bind a suffix-less number as milliseconds. Always write the suffix (`90s`,
++`automation.lease`, `automation.late-tolerance`, `automation.lookback` and
++`runtime-broker.retention.scan-delay` — bind a suffix-less number as milliseconds. Always write the suffix (`90s`,
+ `500ms`). At startup the server reads each seconds-convention setting's
+ written value and warns on a bare integer — the shape of a stale
+ milliseconds-style override — naming what the number binds as now (seconds)
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
+index 61158b3076..80cb02fd8e 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentProperties.java
+@@ -907,6 +907,8 @@ public class ManagedAgentProperties implements EnvironmentAware {
+             @DurationUnit(ChronoUnit.DAYS)
+             private Duration maxAge = Duration.ofDays(30);
+             private int batchSize = 100;
++            // RuntimeRetentionJob's @Scheduled placeholder reads a bare number as milliseconds; declare the same unit.
++            @DurationUnit(ChronoUnit.MILLIS)
+             private Duration scanDelay = Duration.ofMinutes(1);
+ 
+             public boolean isEnabled() { return enabled; }
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+index 84be323a72..04108697ae 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/config/ManagedAgentPropertiesTest.java
+@@ -103,7 +103,12 @@ class ManagedAgentPropertiesTest {
+                     "Automation.scanDelay",
+                     "Automation.lease",
+                     "Automation.lateTolerance",
+-                    "Automation.lookback");
++                    "Automation.lookback",
++                    "Retention.scanDelay");
++
++    // Retention max-age keeps whole days for a bare number (a stale 30 must not mean 30 seconds).
++    private static final java.util.Set<String> DAYS_BINDINGS =
++            java.util.Set.of("Retention.maxAge");
+ 
+     @Test
+     void everyDurationFieldDeclaresABindingUnit() {
+@@ -140,7 +145,9 @@ class ManagedAgentPropertiesTest {
+                     assertThat(unit.value()).as(name).isEqualTo(
+                             MILLIS_BINDINGS.contains(name)
+                                     ? java.time.temporal.ChronoUnit.MILLIS
+-                                    : java.time.temporal.ChronoUnit.SECONDS);
++                                    : DAYS_BINDINGS.contains(name)
++                                            ? java.time.temporal.ChronoUnit.DAYS
++                                            : java.time.temporal.ChronoUnit.SECONDS);
+                 }
+             }
+             pending.addAll(java.util.List.of(current.getDeclaredClasses()));
+@@ -150,7 +157,7 @@ class ManagedAgentPropertiesTest {
+         // exceptions would go unchecked. 31 is the current field
+         // inventory — update it in the same change that adds or
+         // removes a Duration field.
+-        assertThat(visited).containsAll(MILLIS_BINDINGS).hasSize(31);
++        assertThat(visited).containsAll(MILLIS_BINDINGS).containsAll(DAYS_BINDINGS).hasSize(33);
+     }
+ 
+     @Test
+@@ -474,7 +481,8 @@ class ManagedAgentPropertiesTest {
+                 "child-workspace.scan-delay",
+                 "dispatch.scan-delay",
+                 "events.replay-floor-interval",
+-                "message-relay.scan-delay");
++                "message-relay.scan-delay",
++                "runtime-broker.retention.scan-delay");
+         var placeholderOnly = new java.util.TreeSet<String>();
+         for (String key : swept) {
+             if (!hasTypedField(key)) {

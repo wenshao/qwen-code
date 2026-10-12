@@ -1,0 +1,43 @@
+## A. startup matrix, merge-r8-8b72c287.jar (retention + Broker enabled unless stated)
+[RETENTION_MAX_AGE=1ns                                                      ] DIED Caused by: java.lang.IllegalStateException: Runtime B
+[RETENTION_MAX_AGE=999999ns                                                 ] DIED Caused by: java.lang.IllegalStateException: Runtime B
+[RETENTION_MAX_AGE=999us                                                    ] DIED Caused by: java.lang.IllegalStateException: Runtime B
+[RETENTION_MAX_AGE=PT0.0009S                                                ] DIED Caused by: java.lang.IllegalStateException: Runtime B
+[RETENTION_MAX_AGE=1000us                                                   ] STARTED 
+[RETENTION_MAX_AGE=1ms                                                      ] STARTED 
+[RETENTION_MAX_AGE=PT0.001S                                                 ] STARTED 
+[RETENTION_MAX_AGE=1ns RETENTION_ENABLED=false                              ] DIED Caused by: java.lang.IllegalStateException: Runtime B
+[RETENTION_MAX_AGE=1ns RETENTION_ENABLED=false BROKER_ENABLED=false         ] DIED Caused by: java.lang.IllegalStateException: Runtime B
+## B. what the floor changes: fresh DB per case, rows m-40d / m-13h / m-5min RELEASED (no children), 15 s with scan-delay 2s
+[OLD jar, max-age=1ns ] STARTED  before: m-13h m-40d m-5min | count=3
+                                       after: | count=0
+                                       ticks: 6 bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0;1 bindings_scanned=3 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=3;
+[NEW jar, max-age=1ns ] DIED     before: m-13h m-40d m-5min | count=3
+                                       after: m-13h m-40d m-5min | count=3
+                                       ticks: Caused by: java.lang.IllegalStateException: Runtime B
+[NEW jar, max-age=1ms ] STARTED  before: m-13h m-40d m-5min | count=3
+                                       after: | count=0
+                                       ticks: 7 bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0;1 bindings_scanned=3 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=3;
+[NEW jar, max-age=12h ] STARTED  before: m-13h m-40d m-5min | count=3
+                                       after: m-5min | count=1
+                                       ticks: 6 bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0;1 bindings_scanned=2 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=2;
+## C. no upper bound: one DB, same three rows, 15 s per value
+before: m-13h m-40d m-5min | count=3
+[max-age=36500           ] STARTED  ticks: 8 bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0;
+                             failed ticks: 0 
+                             after: m-13h m-40d m-5min | count=3
+[max-age=1480000         ] STARTED  ticks: 8 bindings_scanned=3 children_scanned=0 skipped=3 executions_deleted=0 sessions_deleted=0 bindings_deleted=0;
+                             failed ticks: 0 
+                             after: m-13h m-40d m-5min | count=3
+[max-age=400000000000    ] STARTED  ticks: 
+                             failed ticks: 8 java.time.DateTimeException: Instant exceeds minimum o
+                             after: m-13h m-40d m-5min | count=3
+[max-age=200000000000000 ] DIED     ticks: 
+                             failed ticks: 0 java.lang.ArithmeticException: long ove
+                             after: m-13h m-40d m-5min | count=3
+## done
+
+# Note: "Runtime B" above is my grep cutting the message at the first "r" (a [^\r] class). The full startup error is:
+#   IllegalStateException: Runtime Broker retention requires positive max-age and scan-delay (at least 1ms), and batch-size between 1 and 1000
+# and the C-case errors are "DateTimeException: Instant exceeds minimum or maximum instant" and "ArithmeticException: long overflow"
+# (Failed to bind properties under qwen.managed-agent.runtime-broker.retention.max-age).

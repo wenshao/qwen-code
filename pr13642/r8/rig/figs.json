@@ -1,0 +1,93 @@
+[
+ {
+  "name": "r8-01-stranded-shell-false-proof",
+  "title": "Round 8: with retention on, the sweep deletes the <call>:process row that main #13917 reads as proof a Shell never started",
+  "subtitle": "real jar · trial merges 6f5f7f6a + main da224e61 and new head 18c8a418 + main aaf97b86 (same answers) · MySQL 8.4.7 and MariaDB 10.11.18 · retention 30d / scan 3s · 2026-10-12",
+  "blocks": [
+   {
+    "label": "The chain (main da224e61 + this PR)",
+    "lines": [
+     ">> #13917  hosted-never-started-reconcile.ts  at every Hosted Session open: shell child_run still 'dispatch_started' ->",
+     "==         GET /executions/<call>%3Aprocess   404 runtime_execution_not_found (only that) => settleFailed(start_failed, started:false)",
+     "==         design premise: 'row absent => execute-admission never happened';  R3: ambiguity is never reported as never-started",
+     ">> Broker  findByExecutionCallId runs before any Session check, so the 404 is answered even after the runtime was RELEASED",
+     "-- PR      <call>:process is an ordinary qwen_tool_execution row; terminal once the binding is drained -> deleted after max-age",
+     "-- guard   executionReferenced: publication / CSI ACK keys only;  childRunUnsettled: false for a top-level Session",
+     "!! exposure  background Shell on by default since main #13889; isolation default 'session'; retention itself default off"
+    ]
+   },
+   {
+    "label": "Merge jar: same seed on both engines (binding drained + RELEASED 40 days ago; <call> and <call>:process SETTLED)",
+    "lines": [
+     "==                           child_run record                        retention off                retention on, 15 s later",
+     "-- s-strand (stranded)       background_shell running  settled=NULL  HTTP=200 state=settled       family deleted -> HTTP=404 runtime_execution_not_found",
+     "                                                                     reconcile: skip (ambiguous)  reconcile: settle start_failed / not_started_proven",
+     "++ s-done   (control)        background_shell failed   settled=2     HTTP=200 state=settled       family deleted -> HTTP=404 (correct: already settled)",
+     "==   each engine: tick bindings_scanned=2 children_scanned=6 executions_deleted=4 sessions_deleted=2 bindings_deleted=2"
+    ]
+   },
+   {
+    "label": "Candidate guard clause (+33 lines): keep a binding while a Session owning one of its :process rows has an unsettled child_run",
+    "lines": [
+     "++ s-strand  kept: binding RELEASED, sessions=1, executions=s-strand-call,s-strand-call:process  -> HTTP=200 state=settled   (both engines)",
+     "++ s-done    deleted as before                                                              -> HTTP=404               (both engines)",
+     "++ existing guard / race / retention / parity tests 37/37, Checkstyle 0;  Session ids come from harness_session_id, so workspace isolation is covered too"
+    ]
+   }
+  ],
+  "note": "Merging does not trigger this (retention ships disabled). Enabling retention before the guard knows about stranded Shell records can turn an ambiguous Shell into a recorded start failure for a command that may have run."
+ },
+ {
+  "name": "r8-02-r7-fix-and-max-age-floor",
+  "title": "Round 8: the round-7 blocker is fixed; 18c8a418 absorbs main #13335; the 1 ms floor works",
+  "subtitle": "heads 6f5f7f6a and 18c8a418 · trial merges with main da224e61, e9b87acd and aaf97b86 · real jar and standalone initializer · MySQL 8.4.7 and MariaDB 10.11.18 · 2026-10-12",
+  "blocks": [
+   {
+    "label": "Standalone initializer (e204088e): main's schema first, then the PR initializer twice; compared with Flyway via information_schema",
+    "lines": [
+     "== lease-table indexes                         MySQL 8.4.7 and MariaDB 10.11.18 (identical)",
+     "   main initializer                            PRIMARY (storage_key), idx_execution_lease_maintenance (maintenance_id)",
+     "++ PR initializer over the old tables          + idx_workspace_execution_binding (binding_id, runtime_generation); old row kept; 2nd run no-op",
+     "++ 9 tables x 172 shape lines                  upgraded == fresh PR standalone == PR Flyway V68;  main standalone == main Flyway V67",
+     "++ trial merge                                 RuntimeBrokerFlywaySchemaTest 5/5;  server targeted 255/255;  Broker targeted 249/249;  Checkstyle 0",
+     "++ CI run 38207418264 (6f5f7f6a into e17ad4ca) MariaDB lane green;  Hosted fault gates ran all steps: ITs, fault gates, 8 E2E, O4",
+     "++ ITs on the merge, each engine               server 33/33 (incl. #13894's ToolPublicationLockOrderMySqlIT 5/5), Broker 9/9;  E2E 287, 19/6/5"
+    ]
+   },
+   {
+    "label": "Main #13335 (07:16 UTC): conflicted with 6f5f7f6a and broke two new unit checks; 18c8a418 (08:10 UTC) fixes both",
+    "lines": [
+     "-- 6f5f7f6a + e9b87acd: git merge              CONFLICT in ManagedAgentProperties.java (imports + validateWorkspaceFiles)",
+     "-- everyDurationFieldDeclaresABindingUnit      [Retention.maxAge] expected Seconds but was Days; scanDelay has no unit; 31 -> 33",
+     "-- theReadmeNamesEveryPlaceholderOnlyCadence   new @Scheduled placeholder runtime-broker.retention.scan-delay",
+     "++ 18c8a418 (= my prepared candidate)          scanDelay @DurationUnit(MILLIS) (no behavior change), DAYS case for maxAge, 33, README rule",
+     "++ 18c8a418 + main aaf97b86                    server unit 2209 (only macOS NotUtf8), Broker 815, ITs 33/33 x2 engines, E2E 287",
+     "++ CI run 38222108208 (into e9b87acd)          all green; Hosted ran every step (46 min); first CI with #13889, #13917, #13335"
+    ]
+   },
+   {
+    "label": "max-age floor (6f5f7f6a), real merge jar, both engines identical",
+    "lines": [
+     "== QWEN_MANAGED_AGENT_RUNTIME_RETENTION_MAX_AGE   startup",
+     "++ 1ns, 999999ns, 999us, PT0.0009S                refused: '... positive max-age and scan-delay (at least 1ms) ...'",
+     "++ 1000us, 1ms, PT0.001S                          starts",
+     "!! 1ns with RETENTION_ENABLED=false (+/- Broker)  also refused: validate() runs in @PostConstruct whatever the flags",
+     "== rows RELEASED 40 d / 13 h / 5 min ago, fresh DB per case, 15 s:",
+     "-- round-7 jar, 1ns                               deletes 3",
+     "++ this jar,    1ns                               refuses to start, deletes 0",
+     "!! this jar,    1ms                               deletes 3 (the same rows: consistency with scan-delay, not a safety margin)",
+     "++ this jar,    12h                               deletes 2, keeps the 5-minute row"
+    ]
+   },
+   {
+    "label": "No upper bound: very large values never delete, but behave unevenly",
+    "lines": [
+     "   36500 (100 years)        normal ticks, 0 deleted",
+     "!! 1480000 days             cutoff before year 1: SQL candidate selects all 3 rows; Java eligible() recheck skips 3 per tick",
+     "!! 400000000000             every tick fails: DateTimeException: Instant exceeds minimum or maximum instant",
+     "!! 200000000000000          startup fails: long overflow binding max-age"
+    ]
+   }
+  ]
+ }
+]
