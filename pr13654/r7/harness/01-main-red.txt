@@ -1,0 +1,19 @@
+PR #13654 round 7: landed as 9f14e7d9 at 13:02Z; main now fails one test the PR edited
+vitest from packages/cli. Trial merge 74bab6a5 = 876b00ef + main e9789d09 (local only); landed tree = merge-tree(b675c974, 876b00ef)
+## Both sides edited hosted-never-started-reconcile.test.ts after merge-base b1b2b2c6
+==    876b00ef (PR)        flips the guard test to "admits a shell when the production kind gate is restored"
+==    e397445a (#13959)    keeps "refuses a shell admit ..." and makes the mock throw for shell while the gate is closed
+==    the hunks do not touch each other, so git (and the squash) applies both silently
+## The file on its own
+++    A  PR head 876b00ef                          17/17  17/17  17/17
+++    B  main e9789d09                             17/17  17/17  17/17
+--    C  trial merge 74bab6a5                      16/17  16/17  16/17   "admits a shell ..." rejects: "kind shell is
+--                                                                      registered but not enabled for submission"
+++    D  C with main's copy of that one file       17/17  17/17  17/17
+--    E  main 96076f3a, after 9f14e7d9 landed      16/17  16/17          same failure; the file equals C's byte for byte
+!!    the PR's green CI checked out 876b00ef at 08:20Z; #13959 reached main at 09:56Z; main requires no status checks
+## Two ways to make main green, on main 96076f3a; mutant G = admission no longer calls the kind gate
+==    copy of the test file                                   main     with G
+++    #13983: drop "enablement.childRun = false;"             17/17    17/17   does not catch G
+++    #13959's copy: the "refuses" case                       17/17    16/17   catches G
+==    core: 2 authority tests also catch G; cli hosted-child-run / child-agent / workspace-tool-turn: 238/238 under G

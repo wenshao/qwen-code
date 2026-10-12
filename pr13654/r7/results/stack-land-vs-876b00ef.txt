@@ -1,0 +1,103 @@
+# Stack on the landed squash 9f14e7d9 (jar r7land, worker dist built at 9f14e7d9, fresh schema p654r11) vs round 6's run on 876b00ef (fresh schema p654r10).
+# Same scripts (r11.sh = r10.sh with the log, DB, jar and arm names changed); outcome lines ([turn] [ops] [objects] [bytes]) compared by ../r6/harness/stackcmp.py.
+SAME    normal 5 MiB + 1 MiB
+SAME    readback held 8 s
+SAME    first object PUT delayed 5 s
+SAME    first six object GETs answer 500
+SAME    flip one byte while readback is held
+SAME    replay a SUCCEEDED op, then flip its object
+SAME    64 MiB + 8 MiB
+SAME    R4-2/R6-1: one AccessDenied on the first object GET after POST /finish
+SAME    R8-1 control: readback held 12 s (past the 10 s heartbeat), nothing changed
+SAME    R8-1 A: readback held 12 s, Session recovery blocked during the hold
+SAME    R8-1 A': readback held 4 s (before the heartbeat is due), Session recovery blocked during the hold
+SAME    R8-1 positive control: flip one byte of the object while readback is held 12 s
+SAME    R8-1 sync arm (async admission off): readback held ~17 s, Session recovery blocked during the hold
+13 same, 0 different
+
+## outcome lines per scenario on 9f14e7d9 (each scenario has 5; none empty)
+=== R1 [9f14e7d9] normal 5 MiB + 1 MiB (22:22:12)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 9198ms
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[ops] ASYNC/SUCCEEDED x14
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+=== R2 [9f14e7d9] readback held 8 s (22:22:23)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 14532ms
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[ops] ASYNC/SUCCEEDED x14
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+=== R3 [9f14e7d9] first object PUT delayed 5 s (22:22:39)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 10312ms
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[ops] ASYNC/SUCCEEDED x14
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+=== R4 [9f14e7d9] first six object GETs answer 500 (22:22:51)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 8397ms
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[ops] ASYNC/SUCCEEDED x14
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+=== R5 [9f14e7d9] flip one byte while readback is held (22:23:01)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 6037ms
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"segment/VERIFIED":1,"segment/QUARANTINED":1,"terminal/VERIFIED":1}
+[ops] ASYNC/SUCCEEDED x3; ASYNC/FAILED 400 invalid_request x1
+[bytes stdout] Error: object managed-tool-results/ef0cf14bac6fe469059f1eb7cd6aa8db24561af236f5c446a4dd87715b583232/ebccc95e-7ff8-4bb9-97d9-a57bf8a7549a/127f06bd6633bf7ef3b280d1e38ce098c1ad7aa3feb382a96b295dbaf606042f differs from catalog
+[bytes stderr] 1 seg 1048576 B differs from oracle (partial?)
+=== R6 [9f14e7d9] replay a SUCCEEDED op, then flip its object (22:23:09)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 7981ms
+[objects] {"segment/VERIFIED":8,"segment/QUARANTINED":1}
+[ops] ASYNC/FAILED 400 invalid_request x1; ASYNC/SUCCEEDED x9
+[bytes stdout] Error: object managed-tool-results/561e518c53365ddb35b1ae45ced49f9e158c92751be529750fbd65d69db00e7d/8921871a-c077-4c47-a202-841c1a420c49/127f06bd6633bf7ef3b280d1e38ce098c1ad7aa3feb382a96b295dbaf606042f differs from catalog
+[bytes stderr] 1 seg 1048576 B differs from oracle (partial?)
+=== R7 [9f14e7d9] 64 MiB + 8 MiB (22:23:18)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 30338ms
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":72,"terminal/VERIFIED":1}
+[ops] ASYNC/SUCCEEDED x78
+[bytes stdout] 64 seg 67108864 B EXACT
+[bytes stderr] 8 seg 8388608 B EXACT
+=== R8 [9f14e7d9] R4-2/R6-1: one AccessDenied on the first object GET after POST /finish (22:23:52)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 6330ms
+[objects] {"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8}
+[ops] ASYNC/FAILED 403 managed_tool_publication_storage_denied x1; ASYNC/SUCCEEDED x13
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+=== R9 [9f14e7d9] R8-1 control: readback held 12 s (past the 10 s heartbeat), nothing changed (22:24:02)
+[turn] admit=202 terminal=turn_complete(end_turn) recoveryBlocked=false 18595ms
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"page/VERIFIED":2,"segment/VERIFIED":8,"terminal/VERIFIED":1}
+[ops] ASYNC/SUCCEEDED x14
+[bytes stdout] 6 seg 5243213 B EXACT
+[bytes stderr] 2 seg 1048653 B EXACT
+=== R10 [9f14e7d9] R8-1 A: readback held 12 s, Session recovery blocked during the hold (22:24:22)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 14064ms
+[objects] {"segment/CANDIDATE":1}
+[ops] ASYNC/FAILED 409 managed_tool_publication_fenced x1
+[bytes stdout] 1 seg 1048576 B differs from oracle (partial?)
+[bytes stderr] 0 seg 0 B differs from oracle (partial?)
+=== R11 [9f14e7d9] R8-1 A': readback held 4 s (before the heartbeat is due), Session recovery blocked during the hold (22:24:38)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 6051ms
+[objects] {"segment/CANDIDATE":1}
+[ops] ASYNC/FAILED 409 managed_tool_publication_fenced x1
+[bytes stdout] 1 seg 1048576 B differs from oracle (partial?)
+[bytes stderr] 0 seg 0 B differs from oracle (partial?)
+=== R12 [9f14e7d9] R8-1 positive control: flip one byte of the object while readback is held 12 s (22:24:46)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 14619ms
+[objects] {"admission/VERIFIED":1,"manifest/VERIFIED":1,"segment/VERIFIED":1,"segment/QUARANTINED":1,"terminal/VERIFIED":1}
+[ops] ASYNC/SUCCEEDED x3; ASYNC/FAILED 400 invalid_request x1
+[bytes stdout] Error: object managed-tool-results/f72e4e7226b77c90c9a4cd8c0d0be86cc609c599538a733eb7378e5e16cbfbe6/7f179a71-d898-4da8-8e0f-3ba0d296a0c4/127f06bd6633bf7ef3b280d1e38ce098c1ad7aa3feb382a96b295dbaf606042f differs from catalog
+[bytes stderr] 1 seg 1048576 B differs from oracle (partial?)
+=== R13 [9f14e7d9] R8-1 sync arm (async admission off): readback held ~17 s, Session recovery blocked during the hold (22:25:09)
+[turn] admit=202 terminal=<none> recoveryBlocked=true 18396ms
+[objects] {"segment/CANDIDATE":1}
+[ops] SYNC/PENDING x1
+[bytes stdout] 1 seg 1048576 B differs from oracle (partial?)
+[bytes stderr] 0 seg 0 B differs from oracle (partial?)
+
+## objcheck (catalog state + stored bytes vs catalog sha256): identical to ../r6/results/stack-876-objcheck.txt after normalising publication ids and scenario order
+
+## InnoDB after the run (innodb_print_all_deadlocks=ON since mysqld start)
+lock_deadlocks	0
+lock_timeouts	0
+DEADLOCK sections in the error log: 0

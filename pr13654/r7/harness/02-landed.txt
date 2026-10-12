@@ -1,0 +1,16 @@
+PR #13654 round 7: the landed code against what rounds 1-6 verified
+Landed squash 9f14e7d9 (tree 630f809c). MySQL 8.4.7, fake OSS, fault proxy; same scripts as round 6
+## Java
+++    landed sdk-java == trial merge 74bab6a5 sdk-java == round 6's verified tree + main aaf97b86's 4 added files
+++    module verify: 2250 tests, publication 342/342, aaf97b86's new tests 10/10, Checkstyle 0, SpotBugs 0
+==    aaf97b86 adds a record and a final utility class; nothing references them and neither is a Spring bean
+==    2 failures, both in main's ChildWorktreeGitTest (untouched by the PR): the macOS file-name test, and a
+==    linked-worktree case that then passed 8/8 alone (a known race with git 2.55 background maintenance)
+## TypeScript
+++    PR files vs main: remote-shell-result-publication.{ts,test.ts} + the test above; remote-shell test passes
+++    tsc --noEmit: core clean; cli prints the same 25 lines as on main (this machine's stale core dist), none in PR files
+## Packaged stack on 9f14e7d9 (fresh schema), R1-R13 against round 6's 876b00ef run
+++    13 of 13 scenarios identical to round 6's 876b00ef run: outcome lines, and each object's catalog state + stored bytes
+++    R8-1 A / A' (recovery blocked during the hold): still 409 fenced, row CANDIDATE, bytes match the catalog sha256
+++    byte flipped during the hold: still 400 + QUARANTINED; async off: still PENDING
+++    InnoDB lock_deadlocks 0, lock_timeouts 0 (innodb_print_all_deadlocks ON)
