@@ -1,0 +1,24 @@
+## [mysql] N=300 background Shells in one Session (2N execution rows on the binding, N settled records); noise=20000 records in 1000 other Sessions
+rows: executions=600 records=20300
+--- EXPLAIN (head 5832d882 query)
+  +---+---------+------------+------+------+---------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------+------+----------------------------------+------+--------+------------------------------------+
+  | 1 | PRIMARY | <derived2> | NULL |  ALL | NULL                                                                                                                            |                                         NULL | NULL |                             NULL |  600 | 100.00 |                               NULL |
+  | 1 | PRIMARY |          r | NULL |  ref | idx_managed_session_extension_delivery,idx_session_extension_record_domain_created,idx_managed_session_extension_session_domain | idx_managed_session_extension_session_domain | 2822 | const,s.harness_session_id,const |   16 |  10.00 | Using index condition; Using where |
+  | 2 | DERIVED |          e | NULL |  ALL | idx_tool_execution_binding                                                                                                      |                                         NULL | NULL |                             NULL |  600 | 100.00 |       Using where; Using temporary |
+  +---+---------+------------+------+------+---------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------+------+----------------------------------+------+--------+------------------------------------+
+54bdbb50 query (JOIN per execution row): 220 ms (best of 3), result=[empty]
+head 5832d882 query (distinct raw+binary owner first): 26 ms (best of 3), result=[empty]
+round-9 candidate (distinct raw owner first): 25 ms (best of 3), result=[empty]
+baseline round trip (SELECT 1): 24 ms (best of 3), result=[1]
+--- EXPLAIN ANALYZE (head 5832d882 query)
+  -> Limit: 1 row(s)  (cost=3743 rows=1) (actual time=1.88..1.88 rows=0 loops=1)
+      -> Nested loop inner join  (cost=3743 rows=1011) (actual time=1.88..1.88 rows=0 loops=1)
+          -> Table scan on s  (cost=195..205 rows=600) (actual time=1.2..1.2 rows=1 loops=1)
+              -> Materialize  (cost=195..195 rows=600) (actual time=1.2..1.2 rows=1 loops=1)
+                  -> Table scan on <temporary>  (cost=125..135 rows=600) (actual time=1.2..1.2 rows=1 loops=1)
+                      -> Temporary table with deduplication  (cost=125..125 rows=600) (actual time=1.2..1.2 rows=1 loops=1)
+                          -> Filter: ((e.runtime_generation = 1) and (e.binding_id = 'b1') and (cast(e.binding_id as char(2048) charset binary) = 'b1\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0
+                              -> Table scan on e  (cost=64.8 rows=600) (actual time=0.019..0.167 rows=600 loops=1)
+          -> Filter: ((cast(r.workspace_id as char(2048) charset binary) = 'w\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0
+              -> Index lookup on r using idx_managed_session_extension_session_domain (tenant_id='t', session_id=s.harness_session_id, domain='child_run'), with index condition: ((cast(r.tenant_id as char(2048) charset binary) = 't\\0\\0\\0\\
+## done

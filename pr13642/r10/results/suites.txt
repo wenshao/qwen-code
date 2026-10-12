@@ -1,0 +1,47 @@
+# Round 10 suites (macOS 26, JDK 21 / Zulu 21.0.12, Node 22; MySQL 8.4.7, MariaDB 10.11.18)
+
+## Trial merge 9a04ef15 = PR 5832d882 + main 18f80f56 (tree 79e5d6f1)
+runtime-broker unit:        Tests run: 829, Failures: 0, Errors: 0, Skipped: 3
+   skipped: KubernetesRuntimeWorkerTest 1, LocalProcessRuntimeProvisionerTest 1, HttpRuntimeTransportTest 1 (exchangesToolV3WithTheRealTypeScriptHandler assumes packages/cli/dist, not built in this worktree; it ran and passed on a6e3ea24)
+managed-agent-server unit:  Tests run: 2313, Failures: 1, Errors: 0, Skipped: 3; checkstyle: You have 0 Checkstyle violations
+   failure: ChildWorktreeGitTest.namesBeyondAsciiMergeAndANameThatIsNotUtf8IsAConflict (macOS file-name encoding; fails on main locally, every round since R4)
+server ITs mysql (6 classes):   Tests run: 102, Failures: 0, Errors: 0, Skipped: 0
+JdbcRuntimeRetentionMySqlIT mysql: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+server ITs maria (6 classes):   Tests run: 102, Failures: 0, Errors: 0, Skipped: 0
+JdbcRuntimeRetentionMySqlIT maria: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+   classes: ToolPublicationLockOrderMySqlIT ManagedRuntimeRetentionRaceMySqlIT ManagedRuntimeRetentionGuardMySqlIT ToolPublicationRecoveryMySqlIT WorkspaceMigrationMySqlIT ToolPublicationAsyncVerificationMySqlIT
+
+## Trial merge a6e3ea24 = PR 54bdbb50 + main 18f80f56 (tree 45e5f5de); TS tree identical to 9a04ef15
+runtime-broker unit:        Tests run: 829, Failures: 0, Errors: 0, Skipped: 2 (includes #13990's HttpRuntimeTransportTest)
+managed-agent-server unit:  Tests run: 2311, Failures: 1, Errors: 1, Skipped: 3
+   NotUtf8 (as above) + ToolPublicationStoreTest.streamsLargeOutputAndReadsItsTailAfterStoreReplacement 'claim expired' (ran beside the jar probes; isolated below)
+server ITs mysql:              Tests run: 100, Failures: 0, Errors: 0, Skipped: 0
+server ITs maria:              Tests run: 100, Failures: 1, Errors: 0, Skipped: 0
+   MariaDB failure: ToolPublicationAsyncVerificationMySqlIT.expiredAttemptDefersInsteadOfImmediatelyReclaiming[2] (#13654's own timing assertion; isolated below)
+
+## Isolated alternating reruns (main 18f80f56 vs trial merge a6e3ea24)
+ToolPublicationStoreTest#streamsLargeOutputAndReadsItsTailAfterStoreReplacement (H2):
+main-18f80f56 run 1: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0  load=118.90 73.87 55.57
+merge-a6e3ea24 run 1: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0  load=103.84 72.74 55.48
+main-18f80f56 run 2: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0  load=93.83 72.08 55.55
+merge-a6e3ea24 run 2: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0  load=78.73 70.14 55.24
+main-18f80f56 run 3: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0  load=72.19 69.08 55.12
+merge-a6e3ea24 run 3: Tests run: 1, Failures: 0, Errors: 0, Skipped: 0  load=68.91 68.46 55.14
+ToolPublicationAsyncVerificationMySqlIT#expiredAttemptDefersInsteadOfImmediatelyReclaiming on MariaDB (2 parameterized cases per run):
+async-IT MariaDB main-18f80f56 run 1: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0  load=68.31 68.35 55.34
+async-IT MariaDB merge-a6e3ea24 run 1: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0  load=80.11 70.89 56.54
+async-IT MariaDB main-18f80f56 run 2: Tests run: 2, Failures: 1, Errors: 0, Skipped: 0  load=84.93 72.24 57.19
+async-IT MariaDB merge-a6e3ea24 run 2: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0  load=90.03 74.26 58.26
+async-IT MariaDB main-18f80f56 run 3: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0  load=96.75 76.97 59.69
+async-IT MariaDB merge-a6e3ea24 run 3: Tests run: 2, Failures: 0, Errors: 0, Skipped: 0  load=91.01 76.78 59.93
+
+## Node (trial merge a6e3ea24 tree, rebuilt packages/web-shell dist)
+web-shell build-artifact.test.ts:  Tests 28 passed (28)
+transcript remainder UTF-16 units = 1327531 ; PR cap 1329000 margin = 1469 ; main cap 1329500 margin = 1969
+cli hosted-never-started-reconcile.test.ts:  Tests 17 passed (17)
+cli hosted-hook-session.test.ts (red in 5832d882's CI), 5 local runs:
+  run 1:  Tests 107 passed (107)
+  run 2:  Tests 107 passed (107)
+  run 3:  Tests 107 passed (107)
+  run 4:  Tests 107 passed (107)
+  run 5:  Tests 107 passed (107)

@@ -1,0 +1,27 @@
+## [r10a-maria] jar=merge-r10-a6e3ea24.jar db=p9a_r10a_maria
+STRANDED s-strand session=harness-s-strand shell=shell-s-strand record_settled=false binding=RELEASED isolation=session
+STRANDED s-done session=harness-s-done shell=shell-s-done record_settled=true binding=RELEASED isolation=session
+1. seeded families (binding drained + RELEASED 40 days ago, Session isolation, top-level managed Session):
+    s-done    RELEASED sessions=1 executions=s-done-call,s-done-call:process
+    s-strand  RELEASED sessions=1 executions=s-strand-call,s-strand-call:process
+    child_run harness-s-done/shell-s-done kind=background_shell state=failed runtime=- settled_at=2
+    child_run harness-s-strand/shell-s-strand kind=background_shell state=running runtime=provisioning settled_at=NULL
+2. retention off — the reconcile's probe:
+    s-strand: HTTP=200 executionCallId=s-strand-call:process status.state=settled
+    s-done:   HTTP=200 executionCallId=s-done-call:process status.state=settled
+3. retention on (30d, scan 3s), after 15 s:
+    5 bindings_scanned=1 children_scanned=0 skipped=1 executions_deleted=0 sessions_deleted=0 bindings_deleted=0
+    1 bindings_scanned=2 children_scanned=3 skipped=1 executions_deleted=2 sessions_deleted=1 bindings_deleted=1
+    s-strand  RELEASED sessions=1 executions=s-strand-call,s-strand-call:process
+    s-strand probe: HTTP=200 executionCallId=s-strand-call:process status.state=settled
+    s-done probe:   HTTP=404 code=runtime_execution_not_found
+4. settled shell-s-strand's record (settled_at=2) while the jar runs; after 15 s more:
+    child_run harness-s-done/shell-s-done kind=background_shell state=failed runtime=- settled_at=2
+    child_run harness-s-strand/shell-s-strand kind=background_shell state=failed runtime=- settled_at=2
+    4 bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0
+    5 bindings_scanned=1 children_scanned=0 skipped=1 executions_deleted=0 sessions_deleted=0 bindings_deleted=0
+    1 bindings_scanned=1 children_scanned=3 skipped=0 executions_deleted=2 sessions_deleted=1 bindings_deleted=1
+    1 bindings_scanned=2 children_scanned=3 skipped=1 executions_deleted=2 sessions_deleted=1 bindings_deleted=1
+    (no s-* bindings left)
+    s-strand probe: HTTP=404 code=runtime_execution_not_found
+## [r10a-maria] done
