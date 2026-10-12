@@ -1,0 +1,57 @@
+diff --git a/packages/web-shell/client/components/managed/use-managed-tasks.test.tsx b/packages/web-shell/client/components/managed/use-managed-tasks.test.tsx
+index 98c0726af6..faf64e96ce 100644
+--- a/packages/web-shell/client/components/managed/use-managed-tasks.test.tsx
++++ b/packages/web-shell/client/components/managed/use-managed-tasks.test.tsx
+@@ -118,6 +118,25 @@ describe('useManagedTasks', () => {
+     expect(current.loading).toBe(true);
+   });
+ 
++  it('keeps a read error mounted across background polls until a read succeeds', async () => {
++    const outage = new JavaManagedAgentHttpError(503, 'unavailable', 'down');
++    vi.mocked(provider.tasks!.list).mockRejectedValue(outage);
++    await render();
++    expect(current.error).toBe(outage);
++    vi.mocked(provider.tasks!.list).mockImplementation(
++      () => new Promise(() => {}),
++    );
++    await advance();
++    expect(current.error).toBe(outage);
++    vi.mocked(provider.tasks!.list).mockResolvedValue({
++      data: [task],
++      hasMore: false,
++    });
++    await act(async () => current.refresh());
++    expect(current.error).toBeUndefined();
++    expect(current.page.data).toEqual([task]);
++  });
++
+   it('publishes a cancellation snapshot and rejects late regressions and old-owner writes', async () => {
+     let release!: (page: ManagedTaskPage) => void;
+     await render();
+diff --git a/packages/web-shell/client/components/managed/use-managed-tasks.ts b/packages/web-shell/client/components/managed/use-managed-tasks.ts
+index 90ba0baed7..7780e046f0 100644
+--- a/packages/web-shell/client/components/managed/use-managed-tasks.ts
++++ b/packages/web-shell/client/components/managed/use-managed-tasks.ts
+@@ -90,11 +90,9 @@ export function useManagedTasks(
+         );
+     };
+     async function poll(showLoading = false) {
+-      update(
+-        showLoading
+-          ? { loading: true, error: undefined }
+-          : { error: undefined },
+-      );
++      // Background polls keep a read error mounted until a read succeeds, so
++      // an outage is announced once instead of on every poll.
++      if (showLoading) update({ loading: true, error: undefined });
+       const request = { clientId, signal: abort.signal };
+       try {
+         const page = await api!.list(sessionId!, {
+@@ -206,6 +204,7 @@ export function useManagedTasks(
+             }
+           }
+         }
++        update({ error: undefined });
+       } catch (error) {
+         update({ error });
+       } finally {
