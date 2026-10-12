@@ -1,0 +1,12 @@
+## [a1-maria] jar=merge-r9m-a1-c22cffef.jar db=p9r_a1_maria
+STRANDED r-debt-done session=harness-r-debt-done shell=shell-r-debt-done record_settled=true binding=RELEASED isolation=session
+1. seeded family:
+    r-debt-done    RELEASED sessions=1 executions=2
+2. retention off — cleanup reconcile's release(cleanupBindingId=r-debt-done, generation=1): HTTP=200 released=true; repeated: HTTP=200 released=true
+3. retention on (30d, scan 3s), after 15 s:
+    5 bindings_scanned=0 children_scanned=0 skipped=0 executions_deleted=0 sessions_deleted=0 bindings_deleted=0
+    1 bindings_scanned=1 children_scanned=3 skipped=0 executions_deleted=2 sessions_deleted=1 bindings_deleted=1
+    (no r-* bindings left)
+    same release after the sweep:           HTTP=409 code=runtime_session_conflict
+    control, a binding id that never existed: HTTP=409 code=runtime_session_conflict
+## [a1-maria] done

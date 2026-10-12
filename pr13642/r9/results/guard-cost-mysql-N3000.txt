@@ -1,0 +1,18 @@
+## [mysql] N=3000 background Shells in one Session (2N execution rows on the binding, N settled records); noise=20000 records in 1000 other Sessions
+rows: executions=6000 records=23000
+--- EXPLAIN (PR query)
+  +---+--------+------+------+------+---------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------+------+-------------------------------------------------+------+--------+------------------------------------+
+  | 1 | SIMPLE |    e | NULL |  ref |                                                                                                      idx_tool_execution_binding |                   idx_tool_execution_binding | 2058 |                                     const,const | 3011 | 100.00 | Using index condition; Using where |
+  | 1 | SIMPLE |    r | NULL |  ref | idx_managed_session_extension_delivery,idx_session_extension_record_domain_created,idx_managed_session_extension_session_domain | idx_managed_session_extension_session_domain | 2822 | const,p9p_mysql_3000.e.harness_session_id,const |   22 |  10.00 | Using index condition; Using where |
+  +---+--------+------+------+------+---------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------+------+-------------------------------------------------+------+--------+------------------------------------+
+PR query (JOIN per execution row): 20706 ms (best of 3), result=[empty]
+same predicates, distinct Session first: 42 ms (best of 3), result=[empty]
+baseline round trip (SELECT 1): 26 ms (best of 3), result=[1]
+--- EXPLAIN ANALYZE (PR query)
+  -> Limit: 1 row(s)  (cost=27321 rows=1) (actual time=21252..21252 rows=0 loops=1)
+      -> Nested loop inner join  (cost=27321 rows=7677) (actual time=21252..21252 rows=0 loops=1)
+          -> Filter: (cast(right(e.execution_call_id,8) as char(8) charset binary) = ':process')  (cost=452 rows=3011) (actual time=0.113..18.3 rows=3000 loops=1)
+              -> Index lookup on e using idx_tool_execution_binding (binding_id='b1', runtime_generation=1), with index condition: (cast(e.binding_id as char(2048) charset binary) = 'b1\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0
+          -> Filter: ((cast(r.workspace_id as char(2048) charset binary) = 'w\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0
+              -> Index lookup on r using idx_managed_session_extension_session_domain (tenant_id='t', session_id=e.harness_session_id, domain='child_run'), with index condition: ((cast(r.tenant_id as char(2048) charset binary) = 't\\0\\0\\0\\
+## done
