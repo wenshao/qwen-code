@@ -1,0 +1,860 @@
+{
+  "test" : "p8BoardWriteReceiptRefused",
+  "tenant" : "pr13955-8d563688-b47a-40c6-a56e-2beadcb0cd25",
+  "lead" : "d5197334-de94-456a-9cc4-b55d715af14f",
+  "timeline" : [ "+   3.3s stack up (P8)", "+   4.3s lead created d5197334-de94-456a-9cc4-b55d715af14f", "+   4.9s model saw lead-create: [{\"type\":\"text\",\"text\":\"Team \"review\" created.\"}]", "+   4.9s lead launches alice", "+   4.9s lead launches bob", "+   5.1s model saw lead-launch-alice: [{\"type\":\"text\",\"text\":\"Child agent started in the background as task_1cae4df6d66fe9a0c61240563c45f4157996acd33e7b01f06383341fd00f01b7; the task surface stays current with it. A completed child delivers its result as a d", "+   5.1s model saw lead-launch-bob: [{\"type\":\"text\",\"text\":\"Child agent started in the background as task_79fc84e2d6228cf21464f8289ee7288dfd5ddab18be6b8d2ec59f14c442424aa; the task surface stays current with it. A completed child delivers its result as a d", "+   6.8s hold: hold for trigger-armed", "+   8.9s alice attached as bc1f5ba1-cadb-42ea-b0ff-031c2affd130", "+   8.9s receipt trigger armed for lead d5197334-de94-456a-9cc4-b55d715af14f", "+   9.1s hold released: hold for trigger-armed", "+  11.4s receipt trigger disarmed after 1 failed execute(s)", "+ 129.5s model saw h1: [{\"type\":\"text\",\"text\":\"The command reached the leader, but its reply did not arrive in time; a write may have taken effect. End your turn and say so in your result; read the board again before repeating the write.\"}]", "+ 129.5s hold: hold for release", "+ 130.2s hold released: hold for release" ],
+  "toolAnswers" : {
+    "lead-create" : {
+      "text" : "[{\"type\":\"text\",\"text\":\"Team \"review\" created.\"}]",
+      "seenAtSec" : 4.932
+    },
+    "lead-launch-alice" : {
+      "text" : "[{\"type\":\"text\",\"text\":\"Child agent started in the background as task_1cae4df6d66fe9a0c61240563c45f4157996acd33e7b01f06383341fd00f01b7; the task surface stays current with it. A completed child delivers its result as a durable notification input; a failed or cancelled child produces no notification — read the task surface instead of waiting. It joined team \"review\" as \"alice\", and its result arrives labeled with that name.\"}]",
+      "seenAtSec" : 5.142
+    },
+    "lead-launch-bob" : {
+      "text" : "[{\"type\":\"text\",\"text\":\"Child agent started in the background as task_79fc84e2d6228cf21464f8289ee7288dfd5ddab18be6b8d2ec59f14c442424aa; the task surface stays current with it. A completed child delivers its result as a durable notification input; a failed or cancelled child produces no notification — read the task surface instead of waiting. It joined team \"review\" as \"bob\", and its result arrives labeled with that name.\"}]",
+      "seenAtSec" : 5.142
+    },
+    "h1" : {
+      "text" : "[{\"type\":\"text\",\"text\":\"The command reached the leader, but its reply did not arrive in time; a write may have taken effect. End your turn and say so in your result; read the board again before repeating the write.\"}]",
+      "seenAtSec" : 129.48
+    }
+  },
+  "finals" : {
+    "bob" : [ "BOB_REPORT" ],
+    "alice" : [ "ALICE_REPORT board" ]
+  },
+  "flags" : [ "trigger-armed", "release" ],
+  "facts" : {
+    "atDisarm.leadReceipts" : [ ],
+    "afterAnswer.leadReceipts" : [ ],
+    "atDisarm.leadOutbound" : [ ],
+    "atDisarm.fault" : [ {
+      "armed" : 0,
+      "fired" : 3,
+      "fired_at" : 1791870949973
+    } ]
+  },
+  "declaredTools" : {
+    "bob" : [ {
+      "type" : "function",
+      "function" : {
+        "name" : "read_file",
+        "description" : "Read a file in the remote Workspace. Read before editing an existing file.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "offset" : {
+              "type" : "integer",
+              "minimum" : 0
+            },
+            "limit" : {
+              "type" : "integer",
+              "minimum" : 1
+            }
+          },
+          "required" : [ "file_path" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "write_file",
+        "description" : "Write a file in the remote Workspace. Read before overwriting an existing file. Write/Edit preimages are backed up. External or Shell changes to tracked content or permissions block further Write/Edit in the same prompt and block undo. A new Write/Edit prompt must validate a fresh backup before accepting those changes.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "content" : {
+              "type" : "string"
+            }
+          },
+          "required" : [ "file_path", "content" ],
+          "additionalProperties" : false
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "edit",
+        "description" : "Replace exact text in a remote Workspace file that you have read. Write/Edit preimages are backed up. External or Shell changes to tracked content or permissions block further Write/Edit in the same prompt and block undo. A new Write/Edit prompt must validate a fresh backup before accepting those changes.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "old_string" : {
+              "type" : "string"
+            },
+            "new_string" : {
+              "type" : "string"
+            },
+            "replace_all" : {
+              "type" : "boolean"
+            }
+          },
+          "required" : [ "file_path", "old_string", "new_string" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "run_shell_command",
+        "description" : "Run a command in the saved Workspace working directory. Complete stdout and stderr are retained; the model receives a bounded preview. With is_background the command runs detached: the call returns a durable handle at once, the process outlives the turn and holds its Runtime until it exits, and its output lands as a task Artifact. Shell file mutations are not backed up. Changing tracked file content or permissions can cause subsequent Write/Edit and undo conflicts.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "command" : {
+              "type" : "string"
+            },
+            "timeout" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 600000
+            },
+            "description" : {
+              "type" : "string"
+            },
+            "is_background" : {
+              "type" : "boolean"
+            }
+          },
+          "required" : [ "command" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "monitor",
+        "description" : "Watch a shell command in the saved Workspace working directory and receive its stdout lines as observations while it runs. Observations aggregate by one-second-or-longer debounce windows, so `max_events` counts windows, not lines; `idle_timeout_ms` bounds the silent stretch between windows ending the watch. The watch is admitted only on Sessions whose Monitor path is enabled.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "command" : {
+              "type" : "string"
+            },
+            "idle_timeout_ms" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 600000
+            },
+            "max_events" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 10000
+            },
+            "description" : {
+              "type" : "string"
+            }
+          },
+          "required" : [ "command" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "send_message",
+        "description" : "Send a message to another member of your team by name, to every other member at once (to: \"*\"), or to the team leader (to: \"parent\"). Member messages travel through the leader, which answers with each recipient's outcome; a running member receives the message as its next input once its current turn ends, and a member that has finished, ended or is being stopped is not reached. There is no inline reply: the recipient answers you with send_message naming you, and the leader's reply arrives as your next instruction. A message is not a board change: record work with the task tools.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "to" : {
+              "type" : "string",
+              "description" : "A member name, \"*\" for every other member, or \"parent\" for the team leader."
+            },
+            "message" : {
+              "type" : "string",
+              "description" : "The message text.",
+              "minLength" : 1
+            }
+          },
+          "required" : [ "to", "message" ],
+          "additionalProperties" : false
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_list",
+        "description" : "List your team board, optionally filtered, followed by each member with the state of its current run — the board and the roster as your leader holds them. Board changes are not pushed to you: read the board again when you need the current state.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "status" : {
+              "type" : "string",
+              "enum" : [ "pending", "in_progress", "completed" ],
+              "description" : "Filter by task status."
+            },
+            "owner" : {
+              "type" : "string",
+              "description" : "Filter by owner name."
+            },
+            "blockedBy" : {
+              "type" : "string",
+              "description" : "Filter for tasks still blocked by this task number."
+            }
+          }
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_create",
+        "description" : "Create a pending task on your team board. The leader records it and answers with the new task number. Members are not told about board changes: put new work for another member in your final answer, or ask the leader to hand it out.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "subject" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Short title for the task."
+            },
+            "description" : {
+              "type" : "string",
+              "description" : "Detailed description of the task."
+            },
+            "activeForm" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Present tense label for UI (e.g., \"Running tests\")."
+            },
+            "metadata" : {
+              "type" : "object",
+              "description" : "Optional arbitrary metadata."
+            }
+          },
+          "required" : [ "subject", "description" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_update",
+        "description" : "Update a board task: status, owner, subject, description, active form, metadata or dependencies; set status to \"deleted\" to remove it. Status, owner, subject and description change only on a task you own or that has no owner, and edges only reach such tasks; activeForm and metadata change on any task; owner may be only your own name or \"\" to unassign, and moving an unowned task to in_progress makes you its owner. A task in progress needs an owner. The answer is the revised task, or the refusal.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "taskId" : {
+              "type" : "string",
+              "description" : "Number of the task to update, as \"3\" or \"#3\"."
+            },
+            "status" : {
+              "type" : "string",
+              "enum" : [ "pending", "in_progress", "completed", "deleted" ],
+              "description" : "New task status."
+            },
+            "owner" : {
+              "type" : "string",
+              "description" : "New owner: your own name, or an empty string to unassign."
+            },
+            "subject" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Updated task title."
+            },
+            "description" : {
+              "type" : "string",
+              "description" : "Updated task description."
+            },
+            "activeForm" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Present tense label for UI."
+            },
+            "metadata" : {
+              "type" : "object",
+              "description" : "Metadata to merge. Set a key to null to delete it."
+            },
+            "addBlocks" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              },
+              "description" : "Numbers of the tasks this task blocks."
+            },
+            "addBlockedBy" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              },
+              "description" : "Numbers of the tasks that block this task."
+            }
+          },
+          "required" : [ "taskId" ]
+        }
+      }
+    } ],
+    "alice" : [ {
+      "type" : "function",
+      "function" : {
+        "name" : "read_file",
+        "description" : "Read a file in the remote Workspace. Read before editing an existing file.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "offset" : {
+              "type" : "integer",
+              "minimum" : 0
+            },
+            "limit" : {
+              "type" : "integer",
+              "minimum" : 1
+            }
+          },
+          "required" : [ "file_path" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "write_file",
+        "description" : "Write a file in the remote Workspace. Read before overwriting an existing file. Write/Edit preimages are backed up. External or Shell changes to tracked content or permissions block further Write/Edit in the same prompt and block undo. A new Write/Edit prompt must validate a fresh backup before accepting those changes.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "content" : {
+              "type" : "string"
+            }
+          },
+          "required" : [ "file_path", "content" ],
+          "additionalProperties" : false
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "edit",
+        "description" : "Replace exact text in a remote Workspace file that you have read. Write/Edit preimages are backed up. External or Shell changes to tracked content or permissions block further Write/Edit in the same prompt and block undo. A new Write/Edit prompt must validate a fresh backup before accepting those changes.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "old_string" : {
+              "type" : "string"
+            },
+            "new_string" : {
+              "type" : "string"
+            },
+            "replace_all" : {
+              "type" : "boolean"
+            }
+          },
+          "required" : [ "file_path", "old_string", "new_string" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "run_shell_command",
+        "description" : "Run a command in the saved Workspace working directory. Complete stdout and stderr are retained; the model receives a bounded preview. With is_background the command runs detached: the call returns a durable handle at once, the process outlives the turn and holds its Runtime until it exits, and its output lands as a task Artifact. Shell file mutations are not backed up. Changing tracked file content or permissions can cause subsequent Write/Edit and undo conflicts.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "command" : {
+              "type" : "string"
+            },
+            "timeout" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 600000
+            },
+            "description" : {
+              "type" : "string"
+            },
+            "is_background" : {
+              "type" : "boolean"
+            }
+          },
+          "required" : [ "command" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "monitor",
+        "description" : "Watch a shell command in the saved Workspace working directory and receive its stdout lines as observations while it runs. Observations aggregate by one-second-or-longer debounce windows, so `max_events` counts windows, not lines; `idle_timeout_ms` bounds the silent stretch between windows ending the watch. The watch is admitted only on Sessions whose Monitor path is enabled.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "command" : {
+              "type" : "string"
+            },
+            "idle_timeout_ms" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 600000
+            },
+            "max_events" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 10000
+            },
+            "description" : {
+              "type" : "string"
+            }
+          },
+          "required" : [ "command" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "send_message",
+        "description" : "Send a message to another member of your team by name, to every other member at once (to: \"*\"), or to the team leader (to: \"parent\"). Member messages travel through the leader, which answers with each recipient's outcome; a running member receives the message as its next input once its current turn ends, and a member that has finished, ended or is being stopped is not reached. There is no inline reply: the recipient answers you with send_message naming you, and the leader's reply arrives as your next instruction. A message is not a board change: record work with the task tools.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "to" : {
+              "type" : "string",
+              "description" : "A member name, \"*\" for every other member, or \"parent\" for the team leader."
+            },
+            "message" : {
+              "type" : "string",
+              "description" : "The message text.",
+              "minLength" : 1
+            }
+          },
+          "required" : [ "to", "message" ],
+          "additionalProperties" : false
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_list",
+        "description" : "List your team board, optionally filtered, followed by each member with the state of its current run — the board and the roster as your leader holds them. Board changes are not pushed to you: read the board again when you need the current state.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "status" : {
+              "type" : "string",
+              "enum" : [ "pending", "in_progress", "completed" ],
+              "description" : "Filter by task status."
+            },
+            "owner" : {
+              "type" : "string",
+              "description" : "Filter by owner name."
+            },
+            "blockedBy" : {
+              "type" : "string",
+              "description" : "Filter for tasks still blocked by this task number."
+            }
+          }
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_create",
+        "description" : "Create a pending task on your team board. The leader records it and answers with the new task number. Members are not told about board changes: put new work for another member in your final answer, or ask the leader to hand it out.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "subject" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Short title for the task."
+            },
+            "description" : {
+              "type" : "string",
+              "description" : "Detailed description of the task."
+            },
+            "activeForm" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Present tense label for UI (e.g., \"Running tests\")."
+            },
+            "metadata" : {
+              "type" : "object",
+              "description" : "Optional arbitrary metadata."
+            }
+          },
+          "required" : [ "subject", "description" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_update",
+        "description" : "Update a board task: status, owner, subject, description, active form, metadata or dependencies; set status to \"deleted\" to remove it. Status, owner, subject and description change only on a task you own or that has no owner, and edges only reach such tasks; activeForm and metadata change on any task; owner may be only your own name or \"\" to unassign, and moving an unowned task to in_progress makes you its owner. A task in progress needs an owner. The answer is the revised task, or the refusal.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "taskId" : {
+              "type" : "string",
+              "description" : "Number of the task to update, as \"3\" or \"#3\"."
+            },
+            "status" : {
+              "type" : "string",
+              "enum" : [ "pending", "in_progress", "completed", "deleted" ],
+              "description" : "New task status."
+            },
+            "owner" : {
+              "type" : "string",
+              "description" : "New owner: your own name, or an empty string to unassign."
+            },
+            "subject" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Updated task title."
+            },
+            "description" : {
+              "type" : "string",
+              "description" : "Updated task description."
+            },
+            "activeForm" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Present tense label for UI."
+            },
+            "metadata" : {
+              "type" : "object",
+              "description" : "Metadata to merge. Set a key to null to delete it."
+            },
+            "addBlocks" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              },
+              "description" : "Numbers of the tasks this task blocks."
+            },
+            "addBlockedBy" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              },
+              "description" : "Numbers of the tasks that block this task."
+            }
+          },
+          "required" : [ "taskId" ]
+        }
+      }
+    } ]
+  },
+  "firstInputs" : {
+    "bob" : "<system-reminder>\nThe current date is: Tuesday, October 13, 2026. Note: This is the authoritative current date — it may differ from the \"Today's date\" mentioned earlier in the conversation startup context.\n</system-reminder>[bob probe]\n\n<team-member name=\"bob\" team=\"review\">\nYou are a member of this team. Your parent, the agent that launched you, is the team leader. Your result is your answer to the last instruction you receive: if another message from the leader arrives after you have answered, your answer to it becomes your whole result, so answer it in full and repeat anything from your earlier answers the leader still needs. To ask the leader something, use send_message with to \"parent\"; its reply reaches you after you have answered, as your next instruction.\n</team-member>\n\nPRB_MEMBER_bob_GO",
+    "alice" : "<system-reminder>\nThe current date is: Tuesday, October 13, 2026. Note: This is the authoritative current date — it may differ from the \"Today's date\" mentioned earlier in the conversation startup context.\n</system-reminder>[alice probe]\n\n<team-member name=\"alice\" team=\"review\">\nYou are a member of this team. Your parent, the agent that launched you, is the team leader. Your result is your answer to the last instruction you receive: if another message from the leader arrives after you have answered, your answer to it becomes your whole result, so answer it in full and repeat anything from your earlier answers the leader still needs. To ask the leader something, use send_message with to \"parent\"; its reply reaches you after you have answered, as your next instruction.\n</team-member>\n\nPRB_MEMBER_alice_GO"
+  },
+  "memberInputs" : {
+    "bob" : [ ],
+    "alice" : [ ]
+  },
+  "leadRequests" : [ {
+    "atSec" : 4.793,
+    "lastRole" : "user",
+    "lastUser" : "PRB_LEAD_P8"
+  }, {
+    "atSec" : 4.932,
+    "lastRole" : "tool",
+    "lastUser" : "PRB_LEAD_P8"
+  }, {
+    "atSec" : 5.142,
+    "lastRole" : "tool",
+    "lastUser" : "PRB_LEAD_P8"
+  } ],
+  "team" : [ {
+    "teamId" : "158633b5-0f6d-4037-b821-e92b7843c7e0:lead-create",
+    "name" : "review",
+    "leadSessionId" : "d5197334-de94-456a-9cc4-b55d715af14f",
+    "lifecycle" : "active",
+    "membershipRevision" : 3,
+    "members" : [ {
+      "name" : "alice",
+      "childRunId" : "158633b5-0f6d-4037-b821-e92b7843c7e0:lead-launch-alice",
+      "planModeRequired" : false
+    }, {
+      "name" : "bob",
+      "childRunId" : "158633b5-0f6d-4037-b821-e92b7843c7e0:lead-launch-bob",
+      "planModeRequired" : false
+    } ],
+    "run" : {
+      "state" : "admitted",
+      "reason" : null,
+      "definition" : null,
+      "executionCallId" : null,
+      "effectId" : null,
+      "dispatchId" : null,
+      "deliveryId" : null,
+      "execution" : null,
+      "runtime" : null,
+      "delivery" : null
+    }
+  } ],
+  "childRuns" : {
+    "158633b5-0f6d-4037-b821-e92b7843c7e0:lead-launch-alice#3" : {
+      "kind" : "child_agent",
+      "childRunId" : "158633b5-0f6d-4037-b821-e92b7843c7e0:lead-launch-alice",
+      "ownerScopeId" : "d5197334-de94-456a-9cc4-b55d715af14f",
+      "rootSessionId" : "d5197334-de94-456a-9cc4-b55d715af14f",
+      "depth" : 1,
+      "completion" : "sent",
+      "inputRef" : {
+        "resourceId" : "607fad11-a24c-411e-a090-001293844f27",
+        "kind" : "managed-input",
+        "schemaVersion" : 1,
+        "byteLength" : 808,
+        "digest" : "a3778b1223ecf61bb442e7ea8195c64fc842c3c5752789b06f99d185a9372b36"
+      },
+      "workspaceMode" : "shared",
+      "workingDirectory" : ".",
+      "childSessionId" : "bc1f5ba1-cadb-42ea-b0ff-031c2affd130",
+      "predecessorChildRunId" : null,
+      "resultVersion" : 1,
+      "resultRef" : null,
+      "terminalReceiptRef" : null,
+      "stopReason" : null,
+      "stopRequested" : false,
+      "run" : {
+        "state" : "running",
+        "reason" : null,
+        "definition" : {
+          "definitionId" : "hosted-agent/hosted-workspace-team-lead/1",
+          "definitionRevision" : 1,
+          "definitionDigest" : "5a7f74ddc1c0fc27b913678c01fa328f1ca529a4d51d6336549f5943b5ca3b87"
+        },
+        "executionCallId" : "158633b5-0f6d-4037-b821-e92b7843c7e0:lead-launch-alice",
+        "effectId" : null,
+        "dispatchId" : "1cae4df6d66fe9a0c61240563c45f4157996acd33e7b01f06383341fd00f01b7",
+        "deliveryId" : null,
+        "execution" : "running_attached",
+        "runtime" : {
+          "runtimeBindingId" : "767cfa55-8682-4283-abcb-eb91907e36ca",
+          "generation" : "1"
+        },
+        "delivery" : {
+          "target" : "session",
+          "state" : "planned"
+        }
+      }
+    },
+    "158633b5-0f6d-4037-b821-e92b7843c7e0:lead-launch-bob#3" : {
+      "kind" : "child_agent",
+      "childRunId" : "158633b5-0f6d-4037-b821-e92b7843c7e0:lead-launch-bob",
+      "ownerScopeId" : "d5197334-de94-456a-9cc4-b55d715af14f",
+      "rootSessionId" : "d5197334-de94-456a-9cc4-b55d715af14f",
+      "depth" : 1,
+      "completion" : "sent",
+      "inputRef" : {
+        "resourceId" : "60d84190-b5fc-4ef5-b067-0e56c3acaaec",
+        "kind" : "managed-input",
+        "schemaVersion" : 1,
+        "byteLength" : 802,
+        "digest" : "6f40ad457c29cc08e70cdd1342a3954cd18a87f3cc4fda127563917f995d902e"
+      },
+      "workspaceMode" : "shared",
+      "workingDirectory" : ".",
+      "childSessionId" : "3745e223-c9b3-427d-850c-764259ccd481",
+      "predecessorChildRunId" : null,
+      "resultVersion" : 1,
+      "resultRef" : null,
+      "terminalReceiptRef" : null,
+      "stopReason" : null,
+      "stopRequested" : false,
+      "run" : {
+        "state" : "running",
+        "reason" : null,
+        "definition" : {
+          "definitionId" : "hosted-agent/hosted-workspace-team-lead/1",
+          "definitionRevision" : 1,
+          "definitionDigest" : "5a7f74ddc1c0fc27b913678c01fa328f1ca529a4d51d6336549f5943b5ca3b87"
+        },
+        "executionCallId" : "158633b5-0f6d-4037-b821-e92b7843c7e0:lead-launch-bob",
+        "effectId" : null,
+        "dispatchId" : "79fc84e2d6228cf21464f8289ee7288dfd5ddab18be6b8d2ec59f14c442424aa",
+        "deliveryId" : null,
+        "execution" : "running_attached",
+        "runtime" : {
+          "runtimeBindingId" : "c3882e09-986b-42be-8b50-7bfa0fbcc72f",
+          "generation" : "1"
+        },
+        "delivery" : {
+          "target" : "session",
+          "state" : "planned"
+        }
+      }
+    }
+  },
+  "runStates" : {
+    "alice" : "running",
+    "bob" : "running"
+  },
+  "leadMessages" : [ ],
+  "leadReceipts" : [ ],
+  "members" : {
+    "alice" : {
+      "sessionId" : "bc1f5ba1-cadb-42ea-b0ff-031c2affd130",
+      "messages" : [ ],
+      "commands" : [ {
+        "commandId" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+        "revision" : 3,
+        "kind" : "board_write",
+        "direction" : "outbound",
+        "delivery" : "unknown",
+        "argsHead" : "{\"description\":\"a board write\",\"subject\":\"PRB_BOARD audit\"}",
+        "argsBytes" : 59,
+        "reply" : null
+      } ],
+      "turns" : [ {
+        "turn_id" : "turn_bc2362193dbb4599bb0de88c9bc488bd",
+        "status" : "COMPLETED",
+        "error_code" : null
+      } ]
+    },
+    "bob" : {
+      "sessionId" : "3745e223-c9b3-427d-850c-764259ccd481",
+      "messages" : [ ],
+      "commands" : [ ],
+      "turns" : [ {
+        "turn_id" : "turn_46d804013caf4ee5859a7f0b9597705f",
+        "status" : "COMPLETED",
+        "error_code" : null
+      } ]
+    }
+  },
+  "idCheck" : [ ],
+  "relayRows" : [ {
+    "sender_session_id" : "bc1f5ba1-cadb-42ea-b0ff-031c2affd130",
+    "message_id" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+    "target_session_id" : "d5197334-de94-456a-9cc4-b55d715af14f",
+    "state" : "unknown",
+    "attempts" : 7,
+    "last_error" : "command is already unknown"
+  } ],
+  "leadTurns" : [ {
+    "turn_id" : "turn_f21cbce4607b4312a131fc5eaf9ec2b8",
+    "status" : "COMPLETED",
+    "error_code" : null
+  } ],
+  "leadJournalOps" : [ {
+    "operation" : "assistantDelta",
+    "n" : 1
+  }, {
+    "operation" : "commitCheckpoint",
+    "n" : 1
+  }, {
+    "operation" : "commitChildRunRecord",
+    "n" : 4
+  }, {
+    "operation" : "commitMessage",
+    "n" : 7
+  }, {
+    "operation" : "createTeam",
+    "n" : 1
+  }, {
+    "operation" : "createTeamTask",
+    "n" : 1
+  }, {
+    "operation" : "hostedModelAttempt",
+    "n" : 6
+  }, {
+    "operation" : "installActivation",
+    "n" : 1
+  }, {
+    "operation" : "joinTeam",
+    "n" : 2
+  }, {
+    "operation" : "session.create",
+    "n" : 1
+  }, {
+    "operation" : "settleTurn",
+    "n" : 1
+  }, {
+    "operation" : "startChildRun",
+    "n" : 2
+  }, {
+    "operation" : "submitInput",
+    "n" : 1
+  } ],
+  "fault" : [ {
+    "armed" : 0,
+    "fired" : 3,
+    "fired_at" : 1791870949973
+  } ],
+  "proxyMessageOperations" : [ {
+    "t" : "2026-10-13T05:55:49.408Z",
+    "session" : "bc1f5ba1-cadb-42ea-b0ff-031c2affd130",
+    "kind" : "handover",
+    "commandId" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"9dfcf319-d5f6-4aa6-a9ff-ddbf3f22c715\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:55:49.977Z",
+    "session" : "d5197334-de94-456a-9cc4-b55d715af14f",
+    "kind" : "execute",
+    "commandId" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+    "action" : "forwarded",
+    "status" : 503,
+    "answer" : "{\"error\":\"session_command_failed\",\"code\":\"session_command_failed\",\"message\":\"Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.\"}"
+  }, {
+    "t" : "2026-10-13T05:55:51.998Z",
+    "session" : "d5197334-de94-456a-9cc4-b55d715af14f",
+    "kind" : "execute",
+    "commandId" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+    "action" : "forwarded",
+    "status" : 503,
+    "answer" : "{\"error\":\"session_command_failed\",\"code\":\"session_command_failed\",\"message\":\"session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.\"}"
+  }, {
+    "t" : "2026-10-13T05:55:54.032Z",
+    "session" : "d5197334-de94-456a-9cc4-b55d715af14f",
+    "kind" : "execute",
+    "commandId" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+    "action" : "forwarded",
+    "status" : 503,
+    "answer" : "{\"error\":\"session_command_failed\",\"code\":\"session_command_failed\",\"message\":\"session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.\"}"
+  }, {
+    "t" : "2026-10-13T05:55:58.075Z",
+    "session" : "d5197334-de94-456a-9cc4-b55d715af14f",
+    "kind" : "execute",
+    "commandId" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+    "action" : "forwarded",
+    "status" : 503,
+    "answer" : "{\"error\":\"session_command_failed\",\"code\":\"session_command_failed\",\"message\":\"session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.\"}"
+  }, {
+    "t" : "2026-10-13T05:56:06.150Z",
+    "session" : "d5197334-de94-456a-9cc4-b55d715af14f",
+    "kind" : "execute",
+    "commandId" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+    "action" : "forwarded",
+    "status" : 503,
+    "answer" : "{\"error\":\"session_command_failed\",\"code\":\"session_command_failed\",\"message\":\"session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.\"}"
+  }, {
+    "t" : "2026-10-13T05:56:22.274Z",
+    "session" : "d5197334-de94-456a-9cc4-b55d715af14f",
+    "kind" : "execute",
+    "commandId" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+    "action" : "forwarded",
+    "status" : 503,
+    "answer" : "{\"error\":\"session_command_failed\",\"code\":\"session_command_failed\",\"message\":\"session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.\"}"
+  }, {
+    "t" : "2026-10-13T05:56:54.462Z",
+    "session" : "d5197334-de94-456a-9cc4-b55d715af14f",
+    "kind" : "execute",
+    "commandId" : "cmd_3ca690c7810b5b73dd71586fef20426a",
+    "action" : "forwarded",
+    "status" : 503,
+    "answer" : "{\"error\":\"session_command_failed\",\"code\":\"session_command_failed\",\"message\":\"session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.\"}"
+  } ],
+  "harnessLogLines" : [ "qwen serve: daemon log → /private/var/folders/cn/nhdg71c51tq27p1876r8r9rr0000gn/T/junit-13802308628619226949/runtime/debug/daemon/daemon.log", "qwen serve listening on http://127.0.0.1:60422 (mode=http-bridge, workspace=/private/var/folders/cn/nhdg71c51tq27p1876r8r9rr0000gn/T/junit-13802308628619226949/harness-decoy)", "qwen serve: bound to workspace \"/private/var/folders/cn/nhdg71c51tq27p1876r8r9rr0000gn/T/junit-13802308628619226949/harness-decoy\"", "qwen serve: startup timing: processToListenMs=514 runQwenServeToListenMs=23", "qwen serve: --require-auth enabled (bearer token mandatory on every route, including loopback /health).", "qwen serve: session reaper started (interval 60000ms, idle threshold 1800000ms)", "qwen serve: Hosted command operation execute of session d5197334-de94-456a-9cc4-b55d715af14f failed in its store: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.", "qwen serve: Hosted command operation execute of session d5197334-de94-456a-9cc4-b55d715af14f failed in its store: session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.", "qwen serve: Hosted command operation execute of session d5197334-de94-456a-9cc4-b55d715af14f failed in its store: session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.", "qwen serve: Hosted command operation execute of session d5197334-de94-456a-9cc4-b55d715af14f failed in its store: session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.", "qwen serve: Hosted command operation execute of session d5197334-de94-456a-9cc4-b55d715af14f failed in its store: session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.", "qwen serve: Hosted command operation execute of session d5197334-de94-456a-9cc4-b55d715af14f failed in its store: session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed.", "qwen serve: Hosted command operation execute of session d5197334-de94-456a-9cc4-b55d715af14f failed in its store: session log writes stopped after an earlier failure: Managed Session Store POST /transactions:commit failed: The Managed Agent request failed." ]
+}

@@ -1,0 +1,1146 @@
+{
+  "test" : "p4SizesAndEscapes",
+  "tenant" : "pr13955-c10d36d4-df95-40a9-8702-83cdd3955e8d",
+  "lead" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+  "timeline" : [ "+   5.4s stack up (P4)", "+   6.5s lead created 73a8ffcd-e17e-47bd-a191-52e17eb14f71", "+   7.1s model saw lead-create: [{\"type\":\"text\",\"text\":\"Team \"review\" created.\"}]", "+   7.1s lead launches alice", "+   7.1s lead launches bob", "+   7.3s model saw lead-launch-alice: [{\"type\":\"text\",\"text\":\"Child agent started in the background as task_a96f0a201dd25329083260aa91de3d6883fd1783e92fe0286732819474d32872; the task surface stays current with it. A completed child delivers its result as a d", "+   7.3s model saw lead-launch-bob: [{\"type\":\"text\",\"text\":\"Child agent started in the background as task_29db70ce13e313e5a0746438d93ec61d281ad1e44a7f0fad6f62e6f4ecc765c8; the task surface stays current with it. A completed child delivers its result as a d", "+   9.0s hold: bob holds the first answer until released", "+  17.4s model saw e1: [{\"type\":\"text\",\"text\":\"Message sent to bob. | - bob: sent.\"", "+  17.5s model saw e3: [{\"type\":\"text\",\"text\":\"Hosted send_message message is too long for a member message (byte_limit): with its wrapper it must fit 32768 bytes.\"}]", "+  19.7s model saw e4: [{\"type\":\"text\",\"text\":\"Message sent to bob. | - bob: sent.\"", "+  19.7s hold: alice waits for bob's release before e2", "+  20.5s bob released; alice now sends the escape-dense e2", "+  20.6s hold released: bob holds the first answer until released", "+  20.7s hold released: alice waits for bob's release before e2", "+  21.1s bob model saw input: <session-message> | <message-id>msgc_bbfa2f4165b0c009c5f497c861f37959</message-id> | <from>member alice</from> | <reply>To answer alice, use send_message with to \"alice\"; then answer the leader's last instruction in full.</reply> | <content>PRB_RICH 审计&quot;引号", "+  22.1s bob model saw input: <session-message> | <message-id>msgc_d3a2c30b30f30db67d31f8b3539afdd5</message-id> | <from>member alice</from> | <reply>To answer alice, use send_message with to \"alice\"; then answer the leader's last instruction in full.</reply> | <content>PRB_AFTER still abl", "+  38.6s P4 settled", "+  38.6s close: [POST /v1/agents/sessions/73a8ffcd-e17e-47bd-a191-52e17eb14f71/close: {\"error\":{\"code\":\"workspace_unavailable\",\"message\":\"Hosted Workspace execution is not available.\",\"request_id\":\"aecc79ea-f91c-4015", "+  39.1s all turns terminal" ],
+  "toolAnswers" : {
+    "lead-create" : {
+      "seenAtSec" : 7.116,
+      "text" : "[{\"type\":\"text\",\"text\":\"Team \"review\" created.\"}]"
+    },
+    "lead-launch-alice" : {
+      "seenAtSec" : 7.279,
+      "text" : "[{\"type\":\"text\",\"text\":\"Child agent started in the background as task_a96f0a201dd25329083260aa91de3d6883fd1783e92fe0286732819474d32872; the task surface stays current with it. A completed child delivers its result as a durable notification input; a failed or cancelled child produces no notification — read the task surface instead of waiting. It joined team \"review\" as \"alice\", and its result arrives labeled with that name.\"}]"
+    },
+    "lead-launch-bob" : {
+      "seenAtSec" : 7.28,
+      "text" : "[{\"type\":\"text\",\"text\":\"Child agent started in the background as task_29db70ce13e313e5a0746438d93ec61d281ad1e44a7f0fad6f62e6f4ecc765c8; the task surface stays current with it. A completed child delivers its result as a durable notification input; a failed or cancelled child produces no notification — read the task surface instead of waiting. It joined team \"review\" as \"bob\", and its result arrives labeled with that name.\"}]"
+    },
+    "e1" : {
+      "seenAtSec" : 17.404,
+      "text" : "[{\"type\":\"text\",\"text\":\"Message sent to bob.\n- bob: sent.\"}]"
+    },
+    "e3" : {
+      "seenAtSec" : 17.545,
+      "text" : "[{\"type\":\"text\",\"text\":\"Hosted send_message message is too long for a member message (byte_limit): with its wrapper it must fit 32768 bytes.\"}]"
+    },
+    "e4" : {
+      "seenAtSec" : 19.683,
+      "text" : "[{\"type\":\"text\",\"text\":\"Message sent to bob.\n- bob: sent.\"}]"
+    }
+  },
+  "finals" : {
+    "bob" : [ "BOB_FIRST_ANSWER", "BOB_SAW", "BOB_SAW" ]
+  },
+  "flags" : [ "release" ],
+  "facts" : {
+    "e2.encodedToolInputBytes" : 71710,
+    "e2.rawEnvelopeBytes" : 32549
+  },
+  "declaredTools" : {
+    "bob" : [ {
+      "type" : "function",
+      "function" : {
+        "name" : "read_file",
+        "description" : "Read a file in the remote Workspace. Read before editing an existing file.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "offset" : {
+              "type" : "integer",
+              "minimum" : 0
+            },
+            "limit" : {
+              "type" : "integer",
+              "minimum" : 1
+            }
+          },
+          "required" : [ "file_path" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "write_file",
+        "description" : "Write a file in the remote Workspace. Read before overwriting an existing file. Write/Edit preimages are backed up. External or Shell changes to tracked content or permissions block further Write/Edit in the same prompt and block undo. A new Write/Edit prompt must validate a fresh backup before accepting those changes.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "content" : {
+              "type" : "string"
+            }
+          },
+          "required" : [ "file_path", "content" ],
+          "additionalProperties" : false
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "edit",
+        "description" : "Replace exact text in a remote Workspace file that you have read. Write/Edit preimages are backed up. External or Shell changes to tracked content or permissions block further Write/Edit in the same prompt and block undo. A new Write/Edit prompt must validate a fresh backup before accepting those changes.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "old_string" : {
+              "type" : "string"
+            },
+            "new_string" : {
+              "type" : "string"
+            },
+            "replace_all" : {
+              "type" : "boolean"
+            }
+          },
+          "required" : [ "file_path", "old_string", "new_string" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "run_shell_command",
+        "description" : "Run a command in the saved Workspace working directory. Complete stdout and stderr are retained; the model receives a bounded preview. With is_background the command runs detached: the call returns a durable handle at once, the process outlives the turn and holds its Runtime until it exits, and its output lands as a task Artifact. Shell file mutations are not backed up. Changing tracked file content or permissions can cause subsequent Write/Edit and undo conflicts.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "command" : {
+              "type" : "string"
+            },
+            "timeout" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 600000
+            },
+            "description" : {
+              "type" : "string"
+            },
+            "is_background" : {
+              "type" : "boolean"
+            }
+          },
+          "required" : [ "command" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "monitor",
+        "description" : "Watch a shell command in the saved Workspace working directory and receive its stdout lines as observations while it runs. Observations aggregate by one-second-or-longer debounce windows, so `max_events` counts windows, not lines; `idle_timeout_ms` bounds the silent stretch between windows ending the watch. The watch is admitted only on Sessions whose Monitor path is enabled.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "command" : {
+              "type" : "string"
+            },
+            "idle_timeout_ms" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 600000
+            },
+            "max_events" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 10000
+            },
+            "description" : {
+              "type" : "string"
+            }
+          },
+          "required" : [ "command" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "send_message",
+        "description" : "Send a message to another member of your team by name, to every other member at once (to: \"*\"), or to the team leader (to: \"parent\"). Member messages travel through the leader, which answers with each recipient's outcome; a running member receives the message as its next input once its current turn ends, and a member that has finished, ended or is being stopped is not reached. There is no inline reply: the recipient answers you with send_message naming you, and the leader's reply arrives as your next instruction. A message is not a board change: record work with the task tools.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "to" : {
+              "type" : "string",
+              "description" : "A member name, \"*\" for every other member, or \"parent\" for the team leader."
+            },
+            "message" : {
+              "type" : "string",
+              "description" : "The message text.",
+              "minLength" : 1
+            }
+          },
+          "required" : [ "to", "message" ],
+          "additionalProperties" : false
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_list",
+        "description" : "List your team board, optionally filtered, followed by each member with the state of its current run — the board and the roster as your leader holds them. Board changes are not pushed to you: read the board again when you need the current state.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "status" : {
+              "type" : "string",
+              "enum" : [ "pending", "in_progress", "completed" ],
+              "description" : "Filter by task status."
+            },
+            "owner" : {
+              "type" : "string",
+              "description" : "Filter by owner name."
+            },
+            "blockedBy" : {
+              "type" : "string",
+              "description" : "Filter for tasks still blocked by this task number."
+            }
+          }
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_create",
+        "description" : "Create a pending task on your team board. The leader records it and answers with the new task number. Members are not told about board changes: put new work for another member in your final answer, or ask the leader to hand it out.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "subject" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Short title for the task."
+            },
+            "description" : {
+              "type" : "string",
+              "description" : "Detailed description of the task."
+            },
+            "activeForm" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Present tense label for UI (e.g., \"Running tests\")."
+            },
+            "metadata" : {
+              "type" : "object",
+              "description" : "Optional arbitrary metadata."
+            }
+          },
+          "required" : [ "subject", "description" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_update",
+        "description" : "Update a board task: status, owner, subject, description, active form, metadata or dependencies; set status to \"deleted\" to remove it. Status, owner, subject and description change only on a task you own or that has no owner, and edges only reach such tasks; activeForm and metadata change on any task; owner may be only your own name or \"\" to unassign, and moving an unowned task to in_progress makes you its owner. A task in progress needs an owner. The answer is the revised task, or the refusal.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "taskId" : {
+              "type" : "string",
+              "description" : "Number of the task to update, as \"3\" or \"#3\"."
+            },
+            "status" : {
+              "type" : "string",
+              "enum" : [ "pending", "in_progress", "completed", "deleted" ],
+              "description" : "New task status."
+            },
+            "owner" : {
+              "type" : "string",
+              "description" : "New owner: your own name, or an empty string to unassign."
+            },
+            "subject" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Updated task title."
+            },
+            "description" : {
+              "type" : "string",
+              "description" : "Updated task description."
+            },
+            "activeForm" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Present tense label for UI."
+            },
+            "metadata" : {
+              "type" : "object",
+              "description" : "Metadata to merge. Set a key to null to delete it."
+            },
+            "addBlocks" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              },
+              "description" : "Numbers of the tasks this task blocks."
+            },
+            "addBlockedBy" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              },
+              "description" : "Numbers of the tasks that block this task."
+            }
+          },
+          "required" : [ "taskId" ]
+        }
+      }
+    } ],
+    "alice" : [ {
+      "type" : "function",
+      "function" : {
+        "name" : "read_file",
+        "description" : "Read a file in the remote Workspace. Read before editing an existing file.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "offset" : {
+              "type" : "integer",
+              "minimum" : 0
+            },
+            "limit" : {
+              "type" : "integer",
+              "minimum" : 1
+            }
+          },
+          "required" : [ "file_path" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "write_file",
+        "description" : "Write a file in the remote Workspace. Read before overwriting an existing file. Write/Edit preimages are backed up. External or Shell changes to tracked content or permissions block further Write/Edit in the same prompt and block undo. A new Write/Edit prompt must validate a fresh backup before accepting those changes.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "content" : {
+              "type" : "string"
+            }
+          },
+          "required" : [ "file_path", "content" ],
+          "additionalProperties" : false
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "edit",
+        "description" : "Replace exact text in a remote Workspace file that you have read. Write/Edit preimages are backed up. External or Shell changes to tracked content or permissions block further Write/Edit in the same prompt and block undo. A new Write/Edit prompt must validate a fresh backup before accepting those changes.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "file_path" : {
+              "type" : "string",
+              "description" : "Path relative to the saved Session working directory in its remote Workspace. Never use the Harness host path."
+            },
+            "old_string" : {
+              "type" : "string"
+            },
+            "new_string" : {
+              "type" : "string"
+            },
+            "replace_all" : {
+              "type" : "boolean"
+            }
+          },
+          "required" : [ "file_path", "old_string", "new_string" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "run_shell_command",
+        "description" : "Run a command in the saved Workspace working directory. Complete stdout and stderr are retained; the model receives a bounded preview. With is_background the command runs detached: the call returns a durable handle at once, the process outlives the turn and holds its Runtime until it exits, and its output lands as a task Artifact. Shell file mutations are not backed up. Changing tracked file content or permissions can cause subsequent Write/Edit and undo conflicts.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "command" : {
+              "type" : "string"
+            },
+            "timeout" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 600000
+            },
+            "description" : {
+              "type" : "string"
+            },
+            "is_background" : {
+              "type" : "boolean"
+            }
+          },
+          "required" : [ "command" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "monitor",
+        "description" : "Watch a shell command in the saved Workspace working directory and receive its stdout lines as observations while it runs. Observations aggregate by one-second-or-longer debounce windows, so `max_events` counts windows, not lines; `idle_timeout_ms` bounds the silent stretch between windows ending the watch. The watch is admitted only on Sessions whose Monitor path is enabled.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "command" : {
+              "type" : "string"
+            },
+            "idle_timeout_ms" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 600000
+            },
+            "max_events" : {
+              "type" : "integer",
+              "minimum" : 1,
+              "maximum" : 10000
+            },
+            "description" : {
+              "type" : "string"
+            }
+          },
+          "required" : [ "command" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "send_message",
+        "description" : "Send a message to another member of your team by name, to every other member at once (to: \"*\"), or to the team leader (to: \"parent\"). Member messages travel through the leader, which answers with each recipient's outcome; a running member receives the message as its next input once its current turn ends, and a member that has finished, ended or is being stopped is not reached. There is no inline reply: the recipient answers you with send_message naming you, and the leader's reply arrives as your next instruction. A message is not a board change: record work with the task tools.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "to" : {
+              "type" : "string",
+              "description" : "A member name, \"*\" for every other member, or \"parent\" for the team leader."
+            },
+            "message" : {
+              "type" : "string",
+              "description" : "The message text.",
+              "minLength" : 1
+            }
+          },
+          "required" : [ "to", "message" ],
+          "additionalProperties" : false
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_list",
+        "description" : "List your team board, optionally filtered, followed by each member with the state of its current run — the board and the roster as your leader holds them. Board changes are not pushed to you: read the board again when you need the current state.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "status" : {
+              "type" : "string",
+              "enum" : [ "pending", "in_progress", "completed" ],
+              "description" : "Filter by task status."
+            },
+            "owner" : {
+              "type" : "string",
+              "description" : "Filter by owner name."
+            },
+            "blockedBy" : {
+              "type" : "string",
+              "description" : "Filter for tasks still blocked by this task number."
+            }
+          }
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_create",
+        "description" : "Create a pending task on your team board. The leader records it and answers with the new task number. Members are not told about board changes: put new work for another member in your final answer, or ask the leader to hand it out.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "subject" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Short title for the task."
+            },
+            "description" : {
+              "type" : "string",
+              "description" : "Detailed description of the task."
+            },
+            "activeForm" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Present tense label for UI (e.g., \"Running tests\")."
+            },
+            "metadata" : {
+              "type" : "object",
+              "description" : "Optional arbitrary metadata."
+            }
+          },
+          "required" : [ "subject", "description" ]
+        }
+      }
+    }, {
+      "type" : "function",
+      "function" : {
+        "name" : "task_update",
+        "description" : "Update a board task: status, owner, subject, description, active form, metadata or dependencies; set status to \"deleted\" to remove it. Status, owner, subject and description change only on a task you own or that has no owner, and edges only reach such tasks; activeForm and metadata change on any task; owner may be only your own name or \"\" to unassign, and moving an unowned task to in_progress makes you its owner. A task in progress needs an owner. The answer is the revised task, or the refusal.",
+        "parameters" : {
+          "type" : "object",
+          "properties" : {
+            "taskId" : {
+              "type" : "string",
+              "description" : "Number of the task to update, as \"3\" or \"#3\"."
+            },
+            "status" : {
+              "type" : "string",
+              "enum" : [ "pending", "in_progress", "completed", "deleted" ],
+              "description" : "New task status."
+            },
+            "owner" : {
+              "type" : "string",
+              "description" : "New owner: your own name, or an empty string to unassign."
+            },
+            "subject" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Updated task title."
+            },
+            "description" : {
+              "type" : "string",
+              "description" : "Updated task description."
+            },
+            "activeForm" : {
+              "type" : "string",
+              "maxLength" : 200,
+              "description" : "Present tense label for UI."
+            },
+            "metadata" : {
+              "type" : "object",
+              "description" : "Metadata to merge. Set a key to null to delete it."
+            },
+            "addBlocks" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              },
+              "description" : "Numbers of the tasks this task blocks."
+            },
+            "addBlockedBy" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string"
+              },
+              "description" : "Numbers of the tasks that block this task."
+            }
+          },
+          "required" : [ "taskId" ]
+        }
+      }
+    } ]
+  },
+  "firstInputs" : {
+    "bob" : "<system-reminder>\nThe current date is: Tuesday, October 13, 2026. Note: This is the authoritative current date — it may differ from the \"Today's date\" mentioned earlier in the conversation startup context.\n</system-reminder>[bob probe]\n\n<team-member name=\"bob\" team=\"review\">\nYou are a member of this team. Your parent, the agent that launched you, is the team leader. Your result is your answer to the last instruction you receive: if another message from the leader arrives after you have answered, your answer to it becomes your whole result, so answer it in full and repeat anything from your earlier answers the leader still needs. To ask the leader something, use send_message with to \"parent\"; its reply reaches you after you have answered, as your next instruction.\n</team-member>\n\nPRB_MEMBER_bob_GO",
+    "alice" : "<system-reminder>\nThe current date is: Tuesday, October 13, 2026. Note: This is the authoritative current date — it may differ from the \"Today's date\" mentioned earlier in the conversation startup context.\n</system-reminder>[alice probe]\n\n<team-member name=\"alice\" team=\"review\">\nYou are a member of this team. Your parent, the agent that launched you, is the team leader. Your result is your answer to the last instruction you receive: if another message from the leader arrives after you have answered, your answer to it becomes your whole result, so answer it in full and repeat anything from your earlier answers the leader still needs. To ask the leader something, use send_message with to \"parent\"; its reply reaches you after you have answered, as your next instruction.\n</team-member>\n\nPRB_MEMBER_alice_GO"
+  },
+  "memberInputs" : {
+    "bob" : [ "<session-message>\n<message-id>msgc_bbfa2f4165b0c009c5f497c861f37959</message-id>\n<from>member alice</from>\n<reply>To answer alice, use send_message with to \"alice\"; then answer the leader's last instruction in full.</reply>\n<content>PRB_RICH 审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n审计&quot;引号\\反斜杠\n</content>\n</session-message>", "<session-message>\n<message-id>msgc_d3a2c30b30f30db67d31f8b3539afdd5</message-id>\n<from>member alice</from>\n<reply>To answer alice, use send_message with to \"alice\"; then answer the leader's last instruction in full.</reply>\n<content>PRB_AFTER still able to send</content>\n</session-message>" ],
+    "alice" : [ ]
+  },
+  "leadRequests" : [ {
+    "atSec" : 7.018,
+    "lastRole" : "user",
+    "lastUser" : "PRB_LEAD_P4"
+  }, {
+    "atSec" : 7.116,
+    "lastRole" : "tool",
+    "lastUser" : "PRB_LEAD_P4"
+  }, {
+    "atSec" : 7.28,
+    "lastRole" : "tool",
+    "lastUser" : "PRB_LEAD_P4"
+  }, {
+    "atSec" : 26.047,
+    "lastRole" : "user",
+    "lastUser" : "<task-notification>\n<task-id>task_29db70ce13e313e5a0746438d93ec61d281ad1e44a7f0fad6f62e6f4ecc765c8</task-id>\n<kind>child_agent</kind>\n<teammate>bob</teammate>\n<status>completed</status>\n<summary>Child agent \"bob probe\" finished.</summary>\n<result>BOB_SAW</result>\n</task-notification>"
+  } ],
+  "team" : [ {
+    "teamId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-create",
+    "name" : "review",
+    "leadSessionId" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "lifecycle" : "active",
+    "membershipRevision" : 3,
+    "members" : [ {
+      "name" : "alice",
+      "childRunId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-alice",
+      "planModeRequired" : false
+    }, {
+      "name" : "bob",
+      "childRunId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-bob",
+      "planModeRequired" : false
+    } ],
+    "run" : {
+      "state" : "admitted",
+      "reason" : null,
+      "definition" : null,
+      "executionCallId" : null,
+      "effectId" : null,
+      "dispatchId" : null,
+      "deliveryId" : null,
+      "execution" : null,
+      "runtime" : null,
+      "delivery" : null
+    }
+  } ],
+  "childRuns" : {
+    "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-alice#4" : {
+      "kind" : "child_agent",
+      "childRunId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-alice",
+      "ownerScopeId" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+      "rootSessionId" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+      "depth" : 1,
+      "completion" : "sent",
+      "inputRef" : {
+        "resourceId" : "ba2ac247-2b42-4994-a826-ad575be08e2a",
+        "kind" : "managed-input",
+        "schemaVersion" : 1,
+        "byteLength" : 808,
+        "digest" : "9f3a5bf64e516ff0882bf85bcec1784e05a79bdf2bb3897b526ecf205a3cb20e"
+      },
+      "workspaceMode" : "shared",
+      "workingDirectory" : ".",
+      "childSessionId" : "f897a9b2-385e-4a77-8dc6-34f9548e008b",
+      "predecessorChildRunId" : null,
+      "resultVersion" : 1,
+      "resultRef" : null,
+      "terminalReceiptRef" : null,
+      "stopReason" : "child_failed",
+      "stopRequested" : false,
+      "run" : {
+        "state" : "failed",
+        "reason" : null,
+        "definition" : {
+          "definitionId" : "hosted-agent/hosted-workspace-team-lead/1",
+          "definitionRevision" : 1,
+          "definitionDigest" : "1222fb6520cdd44e7934ec721ea86ca7e4b501460f29f98125310bbc09b1b5c3"
+        },
+        "executionCallId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-alice",
+        "effectId" : null,
+        "dispatchId" : "a96f0a201dd25329083260aa91de3d6883fd1783e92fe0286732819474d32872",
+        "deliveryId" : null,
+        "execution" : "settled",
+        "runtime" : {
+          "runtimeBindingId" : "4acb3112-30d4-46e3-bec3-cca033c3d2c5",
+          "generation" : "1"
+        },
+        "delivery" : {
+          "target" : "session",
+          "state" : "cancelled"
+        }
+      }
+    },
+    "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-bob#6" : {
+      "kind" : "child_agent",
+      "childRunId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-bob",
+      "ownerScopeId" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+      "rootSessionId" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+      "depth" : 1,
+      "completion" : "sent",
+      "inputRef" : {
+        "resourceId" : "eb0575ee-fc61-4d3d-b973-2deb0888c6e0",
+        "kind" : "managed-input",
+        "schemaVersion" : 1,
+        "byteLength" : 802,
+        "digest" : "a34f0f86331c37483322026cf86c3c65a4806285f950dcb20ab2443d97809545"
+      },
+      "workspaceMode" : "shared",
+      "workingDirectory" : ".",
+      "childSessionId" : "63bbf364-5654-4553-852e-4ade602e5daf",
+      "predecessorChildRunId" : null,
+      "resultVersion" : 1,
+      "resultRef" : {
+        "resourceId" : "3bd46ce1-dca3-4b78-b3eb-ff687721c6bc",
+        "kind" : "managed-child-result",
+        "schemaVersion" : 1,
+        "byteLength" : 7,
+        "digest" : "308dec176d19ff785ae6ea847f9b475ae3a24aa8c2b4d4663b3fc386e064d2be"
+      },
+      "terminalReceiptRef" : {
+        "resourceId" : "b75e190a-30d2-4dc3-806c-5cead06023dd",
+        "kind" : "managed-runtime-receipt",
+        "schemaVersion" : 1,
+        "byteLength" : 163,
+        "digest" : "71ad19b3edcb7bffa1b5a22b6b7fa515cfbfa3d5b8755c12ab5f744a55b9c4d6"
+      },
+      "stopReason" : "completed",
+      "stopRequested" : false,
+      "run" : {
+        "state" : "settled",
+        "reason" : null,
+        "definition" : {
+          "definitionId" : "hosted-agent/hosted-workspace-team-lead/1",
+          "definitionRevision" : 1,
+          "definitionDigest" : "1222fb6520cdd44e7934ec721ea86ca7e4b501460f29f98125310bbc09b1b5c3"
+        },
+        "executionCallId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-bob",
+        "effectId" : null,
+        "dispatchId" : "29db70ce13e313e5a0746438d93ec61d281ad1e44a7f0fad6f62e6f4ecc765c8",
+        "deliveryId" : null,
+        "execution" : "settled",
+        "runtime" : {
+          "runtimeBindingId" : "06a7d0d8-a7cc-433c-8eed-27eb4a059a26",
+          "generation" : "1"
+        },
+        "delivery" : {
+          "target" : "session",
+          "state" : "consumed"
+        }
+      }
+    }
+  },
+  "runStates" : {
+    "alice" : "failed",
+    "bob" : "settled"
+  },
+  "leadMessages" : [ {
+    "messageId" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+    "revision" : 4,
+    "record" : {
+      "direction" : "outbound",
+      "messageId" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+      "route" : "to_child",
+      "childRunId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-bob",
+      "senderSessionId" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+      "targetSessionId" : "63bbf364-5654-4553-852e-4ade602e5daf",
+      "contentRef" : {
+        "resourceId" : "ce2144b9-54c9-410b-b3e7-072b6039d268",
+        "kind" : "managed-message-content",
+        "schemaVersion" : 1,
+        "byteLength" : 32697,
+        "digest" : "a82b327993941a50fbcf033d881129116783e83ef6686e607d3d76f586b2f77c"
+      },
+      "contentDigest" : "a82b327993941a50fbcf033d881129116783e83ef6686e607d3d76f586b2f77c",
+      "inputId" : "msgc_bbfa2f4165b0c009c5f497c861f37959:message",
+      "run" : {
+        "state" : "settled",
+        "reason" : null,
+        "definition" : null,
+        "executionCallId" : "cmd_63a3245f22477304c022589a9f864671",
+        "effectId" : null,
+        "dispatchId" : null,
+        "deliveryId" : null,
+        "execution" : null,
+        "runtime" : null,
+        "delivery" : {
+          "target" : "session",
+          "state" : "consumed"
+        }
+      }
+    },
+    "contentHead" : "<member-message from=\"alice\">\nPRB_RICH 审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审",
+    "contentBytes" : 32697
+  }, {
+    "messageId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+    "revision" : 4,
+    "record" : {
+      "direction" : "outbound",
+      "messageId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+      "route" : "to_child",
+      "childRunId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-bob",
+      "senderSessionId" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+      "targetSessionId" : "63bbf364-5654-4553-852e-4ade602e5daf",
+      "contentRef" : {
+        "resourceId" : "dc915702-8a3d-4abd-bb2c-4eff6ab24c1c",
+        "kind" : "managed-message-content",
+        "schemaVersion" : 1,
+        "byteLength" : 76,
+        "digest" : "75ba7d339c39204e5a279ca07b1584a539d10b85dad7e33f7ee455d3a48497e3"
+      },
+      "contentDigest" : "75ba7d339c39204e5a279ca07b1584a539d10b85dad7e33f7ee455d3a48497e3",
+      "inputId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5:message",
+      "run" : {
+        "state" : "settled",
+        "reason" : null,
+        "definition" : null,
+        "executionCallId" : "cmd_8de5a073737ac460200bfdfadac30585",
+        "effectId" : null,
+        "dispatchId" : null,
+        "deliveryId" : null,
+        "execution" : null,
+        "runtime" : null,
+        "delivery" : {
+          "target" : "session",
+          "state" : "consumed"
+        }
+      }
+    },
+    "contentHead" : "<member-message from=\"alice\">\nPRB_AFTER still able to send\n</member-message>",
+    "contentBytes" : 76
+  } ],
+  "leadReceipts" : [ {
+    "commandId" : "cmd_63a3245f22477304c022589a9f864671",
+    "revision" : 1,
+    "kind" : "member_message",
+    "direction" : "inbound",
+    "delivery" : "consumed",
+    "argsHead" : "{\"to\":\"bob\",\"message\":\"PRB_RICH 审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\",
+    "argsBytes" : 36754,
+    "reply" : "{\"outcome\":\"answered\",\"text\":\"Message sent to bob.\\n- bob: sent.\"}"
+  }, {
+    "commandId" : "cmd_8de5a073737ac460200bfdfadac30585",
+    "revision" : 1,
+    "kind" : "member_message",
+    "direction" : "inbound",
+    "delivery" : "consumed",
+    "argsHead" : "{\"to\":\"bob\",\"message\":\"PRB_AFTER still able to send\"}",
+    "argsBytes" : 53,
+    "reply" : "{\"outcome\":\"answered\",\"text\":\"Message sent to bob.\\n- bob: sent.\"}"
+  } ],
+  "members" : {
+    "alice" : {
+      "sessionId" : "f897a9b2-385e-4a77-8dc6-34f9548e008b",
+      "messages" : [ ],
+      "commands" : [ {
+        "commandId" : "cmd_63a3245f22477304c022589a9f864671",
+        "revision" : 4,
+        "kind" : "member_message",
+        "direction" : "outbound",
+        "delivery" : "consumed",
+        "argsHead" : "{\"to\":\"bob\",\"message\":\"PRB_RICH 审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\n审计\\\"引号\\\\反斜杠\\",
+        "argsBytes" : 36754,
+        "reply" : "{\"outcome\":\"answered\",\"text\":\"Message sent to bob.\\n- bob: sent.\"}"
+      }, {
+        "commandId" : "cmd_8de5a073737ac460200bfdfadac30585",
+        "revision" : 4,
+        "kind" : "member_message",
+        "direction" : "outbound",
+        "delivery" : "consumed",
+        "argsHead" : "{\"to\":\"bob\",\"message\":\"PRB_AFTER still able to send\"}",
+        "argsBytes" : 53,
+        "reply" : "{\"outcome\":\"answered\",\"text\":\"Message sent to bob.\\n- bob: sent.\"}"
+      } ],
+      "turns" : [ {
+        "turn_id" : "turn_6f731d2a43e64f27968b7fee5da5d53c",
+        "status" : "FAILED",
+        "error_code" : "hosted_turn_failed"
+      } ]
+    },
+    "bob" : {
+      "sessionId" : "63bbf364-5654-4553-852e-4ade602e5daf",
+      "messages" : [ {
+        "messageId" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+        "revision" : 2,
+        "record" : {
+          "direction" : "inbound",
+          "messageId" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+          "route" : "to_child",
+          "childRunId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-bob",
+          "senderSessionId" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+          "targetSessionId" : "63bbf364-5654-4553-852e-4ade602e5daf",
+          "contentRef" : {
+            "resourceId" : "70cc4bfc-b203-4c45-a2e0-f755d5fbce28",
+            "kind" : "managed-message-content",
+            "schemaVersion" : 1,
+            "byteLength" : 32697,
+            "digest" : "a82b327993941a50fbcf033d881129116783e83ef6686e607d3d76f586b2f77c"
+          },
+          "contentDigest" : "a82b327993941a50fbcf033d881129116783e83ef6686e607d3d76f586b2f77c",
+          "inputId" : "msgc_bbfa2f4165b0c009c5f497c861f37959:message",
+          "run" : {
+            "state" : "settled",
+            "reason" : null,
+            "definition" : null,
+            "executionCallId" : null,
+            "effectId" : null,
+            "dispatchId" : null,
+            "deliveryId" : null,
+            "execution" : null,
+            "runtime" : null,
+            "delivery" : {
+              "target" : "session",
+              "state" : "consumed"
+            }
+          }
+        },
+        "contentHead" : "<member-message from=\"alice\">\nPRB_RICH 审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审计\"引号\\反斜杠\n审",
+        "contentBytes" : 32697
+      }, {
+        "messageId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+        "revision" : 2,
+        "record" : {
+          "direction" : "inbound",
+          "messageId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+          "route" : "to_child",
+          "childRunId" : "6d8adc49-2f16-4307-a737-556e3a1da2e0:lead-launch-bob",
+          "senderSessionId" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+          "targetSessionId" : "63bbf364-5654-4553-852e-4ade602e5daf",
+          "contentRef" : {
+            "resourceId" : "44cc03a0-1208-4791-86a9-400d12e682cc",
+            "kind" : "managed-message-content",
+            "schemaVersion" : 1,
+            "byteLength" : 76,
+            "digest" : "75ba7d339c39204e5a279ca07b1584a539d10b85dad7e33f7ee455d3a48497e3"
+          },
+          "contentDigest" : "75ba7d339c39204e5a279ca07b1584a539d10b85dad7e33f7ee455d3a48497e3",
+          "inputId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5:message",
+          "run" : {
+            "state" : "settled",
+            "reason" : null,
+            "definition" : null,
+            "executionCallId" : null,
+            "effectId" : null,
+            "dispatchId" : null,
+            "deliveryId" : null,
+            "execution" : null,
+            "runtime" : null,
+            "delivery" : {
+              "target" : "session",
+              "state" : "consumed"
+            }
+          }
+        },
+        "contentHead" : "<member-message from=\"alice\">\nPRB_AFTER still able to send\n</member-message>",
+        "contentBytes" : 76
+      } ],
+      "commands" : [ ],
+      "turns" : [ {
+        "turn_id" : "turn_7a8ced3f170b4dc1bc583419ef47d86b",
+        "status" : "COMPLETED",
+        "error_code" : null
+      } ]
+    }
+  },
+  "idCheck" : [ {
+    "messageId" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+    "executionCallId" : "cmd_63a3245f22477304c022589a9f864671",
+    "recipientByRootRun" : "bob",
+    "idMatchesPositionOf" : "bob"
+  }, {
+    "messageId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+    "executionCallId" : "cmd_8de5a073737ac460200bfdfadac30585",
+    "recipientByRootRun" : "bob",
+    "idMatchesPositionOf" : "bob"
+  } ],
+  "relayRows" : [ {
+    "sender_session_id" : "f897a9b2-385e-4a77-8dc6-34f9548e008b",
+    "message_id" : "cmd_63a3245f22477304c022589a9f864671",
+    "target_session_id" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "state" : "done",
+    "attempts" : 0,
+    "last_error" : null
+  }, {
+    "sender_session_id" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "message_id" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+    "target_session_id" : "63bbf364-5654-4553-852e-4ade602e5daf",
+    "state" : "done",
+    "attempts" : 0,
+    "last_error" : null
+  }, {
+    "sender_session_id" : "f897a9b2-385e-4a77-8dc6-34f9548e008b",
+    "message_id" : "cmd_8de5a073737ac460200bfdfadac30585",
+    "target_session_id" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "state" : "done",
+    "attempts" : 0,
+    "last_error" : null
+  }, {
+    "sender_session_id" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "message_id" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+    "target_session_id" : "63bbf364-5654-4553-852e-4ade602e5daf",
+    "state" : "done",
+    "attempts" : 0,
+    "last_error" : null
+  } ],
+  "leadTurns" : [ {
+    "turn_id" : "turn_9b335af6b8004592862b2e69fd834e31",
+    "status" : "COMPLETED",
+    "error_code" : null
+  } ],
+  "leadJournalOps" : [ {
+    "operation" : "acceptChildResult",
+    "n" : 2
+  }, {
+    "operation" : "assistantDelta",
+    "n" : 2
+  }, {
+    "operation" : "commitCheckpoint",
+    "n" : 1
+  }, {
+    "operation" : "commitChildRunRecord",
+    "n" : 8
+  }, {
+    "operation" : "commitMessage",
+    "n" : 9
+  }, {
+    "operation" : "commitSessionCommandReceipt",
+    "n" : 2
+  }, {
+    "operation" : "commitSessionMessage",
+    "n" : 6
+  }, {
+    "operation" : "createTeam",
+    "n" : 1
+  }, {
+    "operation" : "hostedModelAttempt",
+    "n" : 8
+  }, {
+    "operation" : "installActivation",
+    "n" : 1
+  }, {
+    "operation" : "joinTeam",
+    "n" : 2
+  }, {
+    "operation" : "renewActivation",
+    "n" : 1
+  }, {
+    "operation" : "sendSessionMessage",
+    "n" : 2
+  }, {
+    "operation" : "session.create",
+    "n" : 1
+  }, {
+    "operation" : "settleTurn",
+    "n" : 2
+  }, {
+    "operation" : "startChildRun",
+    "n" : 2
+  }, {
+    "operation" : "submitInput",
+    "n" : 1
+  } ],
+  "proxyMessageOperations" : [ {
+    "t" : "2026-10-13T05:47:06.385Z",
+    "session" : "f897a9b2-385e-4a77-8dc6-34f9548e008b",
+    "kind" : "handover",
+    "commandId" : "cmd_63a3245f22477304c022589a9f864671",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"94e4af9b-2436-40d3-9284-8abc745de90d\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:47:06.421Z",
+    "session" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "kind" : "execute",
+    "commandId" : "cmd_63a3245f22477304c022589a9f864671",
+    "action" : "forwarded",
+    "status" : 409,
+    "answer" : "{\"error\":\"session_command_blocked\",\"code\":\"session_command_blocked\",\"message\":\"Session command cmd_63a3245f22477304c022589a9f864671 names a run that has not attached yet.\"}"
+  }, {
+    "t" : "2026-10-13T05:47:12.525Z",
+    "session" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "kind" : "execute",
+    "commandId" : "cmd_63a3245f22477304c022589a9f864671",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"c611232a-76c2-43a3-99cf-59212d728d87\",\"state\":\"settled\",\"reply\":{\"outcome\":\"answered\",\"text\":\"Message sent to bob.\\n- bob: sent.\"}}"
+  }, {
+    "t" : "2026-10-13T05:47:12.608Z",
+    "session" : "f897a9b2-385e-4a77-8dc6-34f9548e008b",
+    "kind" : "answered",
+    "commandId" : "cmd_63a3245f22477304c022589a9f864671",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"d955b575-8eac-429d-acaa-f84497f4b03c\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:47:14.689Z",
+    "session" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "kind" : "handover",
+    "messageId" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"d4a3ccb9-0451-4309-adca-89a0279555de\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:47:14.770Z",
+    "session" : "63bbf364-5654-4553-852e-4ade602e5daf",
+    "kind" : "receive",
+    "messageId" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"4ceaef80-89b9-46ef-8ee3-337db667111c\",\"state\":\"settled\",\"inputId\":\"msgc_bbfa2f4165b0c009c5f497c861f37959:message\"}"
+  }, {
+    "t" : "2026-10-13T05:47:14.839Z",
+    "session" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "kind" : "accepted",
+    "messageId" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"87ae65c5-1f4e-4801-86d7-e3b535297162\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:47:14.933Z",
+    "session" : "f897a9b2-385e-4a77-8dc6-34f9548e008b",
+    "kind" : "handover",
+    "commandId" : "cmd_8de5a073737ac460200bfdfadac30585",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"6ede5d71-a971-4e59-b9da-ea8b1af44b74\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:47:15.014Z",
+    "session" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "kind" : "execute",
+    "commandId" : "cmd_8de5a073737ac460200bfdfadac30585",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"8495036b-72ed-4f6f-bf13-6af3d336a919\",\"state\":\"settled\",\"reply\":{\"outcome\":\"answered\",\"text\":\"Message sent to bob.\\n- bob: sent.\"}}"
+  }, {
+    "t" : "2026-10-13T05:47:15.075Z",
+    "session" : "f897a9b2-385e-4a77-8dc6-34f9548e008b",
+    "kind" : "answered",
+    "commandId" : "cmd_8de5a073737ac460200bfdfadac30585",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"6aaaa656-b065-42bf-8970-9ecd94415cf9\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:47:17.150Z",
+    "session" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "kind" : "handover",
+    "messageId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"035c8c9d-f547-4ae9-a54a-2feba91656c6\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:47:17.226Z",
+    "session" : "63bbf364-5654-4553-852e-4ade602e5daf",
+    "kind" : "receive",
+    "messageId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"7ed7ba47-635b-4d4e-b3cc-d73d953a8598\",\"state\":\"settled\",\"inputId\":\"msgc_d3a2c30b30f30db67d31f8b3539afdd5:message\"}"
+  }, {
+    "t" : "2026-10-13T05:47:17.291Z",
+    "session" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "kind" : "accepted",
+    "messageId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"4f847ea9-4397-450a-9e55-66f9ed4c5b40\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:47:31.402Z",
+    "session" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "kind" : "consumed",
+    "messageId" : "msgc_bbfa2f4165b0c009c5f497c861f37959",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"b3739727-c55f-407b-9a63-984a43c56ba1\",\"state\":\"settled\"}"
+  }, {
+    "t" : "2026-10-13T05:47:33.474Z",
+    "session" : "73a8ffcd-e17e-47bd-a191-52e17eb14f71",
+    "kind" : "consumed",
+    "messageId" : "msgc_d3a2c30b30f30db67d31f8b3539afdd5",
+    "action" : "forwarded",
+    "status" : 202,
+    "answer" : "{\"operationId\":\"f59a42cb-a332-4662-836c-a7567b0da357\",\"state\":\"settled\"}"
+  } ],
+  "harnessLogLines" : [ "qwen serve: daemon log → /private/var/folders/cn/nhdg71c51tq27p1876r8r9rr0000gn/T/junit-5593906323322145982/runtime/debug/daemon/daemon.log", "qwen serve listening on http://127.0.0.1:59466 (mode=http-bridge, workspace=/private/var/folders/cn/nhdg71c51tq27p1876r8r9rr0000gn/T/junit-5593906323322145982/harness-decoy)", "qwen serve: bound to workspace \"/private/var/folders/cn/nhdg71c51tq27p1876r8r9rr0000gn/T/junit-5593906323322145982/harness-decoy\"", "qwen serve: startup timing: processToListenMs=542 runQwenServeToListenMs=26", "qwen serve: --require-auth enabled (bearer token mandatory on every route, including loopback /health).", "qwen serve: session reaper started (interval 60000ms, idle threshold 1800000ms)", "qwen serve: Hosted Harness turn 485d08bc-a96a-4f5e-86d4-b636a809e8e0 failed: Error: Hosted tool input exceeds the inline Session Store limit." ]
+}
