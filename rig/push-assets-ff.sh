@@ -18,7 +18,7 @@ add $BASE/logs/mutants.jsonl rig/mutants.jsonl
 while IFS= read -r f; do add "$f" "results/${f#$BASE/results/}"; done < <(find $BASE/results \( -name '*.json' -o -name '*.txt' \) | sort)
 T=$(git -C $REPO write-tree)
 [ "$T" != "$(git -C $REPO rev-parse "${PREV}^{tree}")" ] || { echo "tree unchanged"; exit 1; }
-C=$(printf 'PR 13974 verification evidence: P3D and refreshed figures\n' | git -C $REPO commit-tree "$T" -p "$PREV" | tr -d '[:space:]')
+C=$(printf 'PR 13974 verification evidence: corrected wake-turn finding\n' | git -C $REPO commit-tree "$T" -p "$PREV" | tr -d '[:space:]')
 [ ${#C} -eq 40 ] || { echo "bad commit"; exit 1; }
 git -C $REPO merge-base --is-ancestor "$PREV" "$C"
 echo "commit $C added/updated $n; changed: $(git -C $REPO diff --name-only "$PREV" "$C" | wc -l | tr -d ' ')"

@@ -81,7 +81,7 @@ cards.append({
             ['P5 team_delete while gate-off, then reenable',
              '++ delete works, plan stays waiting;\n++ decision refused "The team is not active."', '', ''],
             ['P3a decision committed, continuation commit held, Harness killed\n   (decision made in a notification wake turn)',
-             '++ wake turn settled within ~1 s, call answered with the exact split outcome;\n!! but the lead is not re-prompted: nothing acts on it until its next input', merged(P3AM, 'same') if P3AM else '== not run',
+             '++ wake turn settled within ~2 s, call answered with the exact split outcome;\n!! but the lead is not re-prompted: nothing acts on it until its next input', merged(P3AM, 'same') if P3AM else '== not run',
              '!! P3W: same — settled, lead not re-prompted (send_message);\n== answer is core\'s generic "not recorded" text'],
             ['P3c the same with the decision made in a user turn',
              '-- lead permanently recovery-blocked\n-- (takeover_unrecovered / unresolved_after_settle)',
@@ -188,7 +188,7 @@ cards.append({
     'subtitle': 'gen = the Session Store writer generation that committed the row (1 = before the kill, 2 = the restarted Harness).',
     'sections': [
         {'heading': 'P3a: decideTeamPlan committed, continueChildRun held -> kill -> restart (decision made in alice\'s notification wake turn)', 'lines': [
-            '++ restart: the crash aftermath answers the call and settles the wake turn (turn.settled error) within ~1 s:',
+            '++ restart: the crash aftermath answers the call and settles the wake turn (turn.settled error) within ~2 s:',
             *['++ ' + part for part in re.split(r'(?<=continued;) ', ans(P3A, 'l-approve', 400))],
             '!! but no model round follows: the lead sees the answer only on its next turn (a user input here, ~150 s later)',
             '++ approve again -> ' + ans(P3A, 'l-again', 80) + '   (no second continuation)',
