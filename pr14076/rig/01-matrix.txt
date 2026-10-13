@@ -1,0 +1,20 @@
+## PR #14076 @ e7c4c8c32a - workflow task cancel on a real stack (Spring jar + Hosted Harness dist/cli.js + MySQL 8.4.7)
+== base = main 6212189f1f (the merge's main parent); head = e7c4c8c32a. Same Harness bundle in both arms (no TS diff);
+== the jars differ only in ManagedExtensionProjection (4 classes) + the OpenAPI JSON. Scripted model holds the workflow's agent() call.
+
+>> A/B: a running background workflow task                     base (main)                        head (PR)
+==    task view action_capabilities                             []                                 ["cancel"]
+==    POST /tasks/{id}/cancel                                   409 task_action_unavailable        202 task_cancel -> completed in 1 s
+==    child workflow Turn                                       RUNNING until released (60 s+)     CANCELLED 2 s later
+==    replay same key: public / WebShell surface                409 / 409                          202 replayed:true, same op id on both
+==    task after settle                                         -                                  cancelled, actions []
+
+>> head, more shapes
+++ B  foreground workflow (parent waiting)   cancel -> parent model receives "Workflow child run cancelled (stop_requested)."; parent COMPLETED
+++ C  one Session, child_agent cancel held open at the proxy   workflow cancel -> 409 session_operation_active (public + WebShell)
+++    same key reused on the other task -> 409 idempotency_conflict; after release: agent op completes, workflow cancel 202 -> cancelled
+++ E  completed workflow task -> actions [] + 409 task_action_unavailable (both surfaces, both arms); Session CLOSING -> [] + 409 session_not_active
+++ F  does the script keep running after the cancel? count the model requests of its NEXT agent() call after releasing the hold:
+++       background 0, foreground 0, parallel([2 held agents]) 0   |   control without cancel: 1   |   base (cancel refused): 1
+
+== tests at head: Java 385/385 (7 classes incl. ChildResultRelayTest), TS pins 44/44 + 227/227, WebShell type parity 2/2

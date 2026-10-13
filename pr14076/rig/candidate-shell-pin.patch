@@ -1,0 +1,31 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedTaskCancelOperationTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedTaskCancelOperationTest.java
+index 85ba7400b4..8e378d26aa 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedTaskCancelOperationTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/ManagedTaskCancelOperationTest.java
+@@ -52,6 +52,7 @@ class ManagedTaskCancelOperationTest {
+     private static final String SETTLED_CHILD = "task_" + "b".repeat(64);
+     private static final String MONITOR = "task_" + "c".repeat(64);
+     private static final String WORKFLOW = "task_" + "e".repeat(64);
++    private static final String SHELL = "task_" + "f".repeat(64);
+     private final AtomicLong now = new AtomicLong(1_000_000);
+     private ManagedAgentStore store;
+     private JdbcTemplate jdbc;
+@@ -94,6 +95,7 @@ class ManagedTaskCancelOperationTest {
+         task(RUNNING_CHILD, "child_run", "child_agent", "running");
+         task(SETTLED_CHILD, "child_run", "child_agent", "completed");
+         task(MONITOR, "monitor_run", "monitor", "running");
++        task(SHELL, "child_run", "background_shell", "running");
+     }
+ 
+     @Test
+@@ -145,6 +147,10 @@ class ManagedTaskCancelOperationTest {
+     void aNewRequestNeedsTheTasksCancelAction() {
+         refused(() -> begin("key-1", "digest-1", MONITOR),
+                 HttpStatus.CONFLICT, "task_action_unavailable");
++        // A running background shell has no stop semantics yet (it settles
++        // exited after a stop request), so its cancel stays closed.
++        refused(() -> begin("key-shell", "digest-shell", SHELL),
++                HttpStatus.CONFLICT, "task_action_unavailable");
+         refused(() -> begin("key-2", "digest-2", SETTLED_CHILD),
+                 HttpStatus.CONFLICT, "task_action_unavailable");
+         refused(() -> begin("key-3", "digest-3", "task_" + "d".repeat(64)),

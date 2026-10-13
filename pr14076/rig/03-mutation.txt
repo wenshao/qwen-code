@@ -1,0 +1,13 @@
+## Mutants of the cancel gate - 7 test classes (the PR's 4 + PlannedTask, SurfaceAdmission, ChildResultRelay), 385 tests
+== mutated files and these test classes are byte-identical at 9f1cf33c4c and e7c4c8c32a (the new head only merged main)
+
+++ M1 revert the gate member (CANCELLABLE_TASK_KINDS = {child_agent})    6 fail: all four new workflow tests + contract schema route
+++ M3 add monitor + automation_run                                       2 fail
+++ M4 delivery verdict skips the kind check                              1 fail
+++ M5 view/admission skips the kind check                                1 fail
+++ M6 drop degraded / M7 drop pending / M8 add recovery_blocked          2 / 4 / 2 fail
+-- M2 add background_shell to the cancellable kinds                      0 fail of 385 - survives
+==    the PR's rewritten comment says Shell must not join yet (it settles exited, not stop_requested, after a stop),
+==    and #13856 already enables shell child runs, so admitting it would be a live regression that nothing pins
+++ candidate +6 lines in ManagedTaskCancelOperationTest (a running background_shell task -> 409 task_action_unavailable):
+++    passes at head (11/11), kills M2 (1 failure)
