@@ -1,0 +1,317 @@
+[
+  {
+    "file": "r3-01-delta-and-merge",
+    "title": "Round 3 at bb543e17: the delta since round 2, and the merge with current main",
+    "sub": "head = bb543e1708 · main = 6212189f1f (52 commits ahead of the branch's last main merge) · trial merge = head + main (<code>git merge-tree</code> clean, tree 94960383). JDK 21.0.12 / Node 24.18 / MySQL 8.4.7 on macOS. Round 2 was at 5e80e2db.",
+    "columns": [
+      "Item",
+      "Before / control",
+      "At bb543e17 / trial merge"
+    ],
+    "rows": [
+      [
+        "What changed since round 2",
+        "5e80e2db → ee75fa73 (B4 stub) → bb543e17 (merge of main 18f80f56)",
+        [
+          "neutral",
+          "11 production files: PR patch identical to round 2 (git patch-id)\n9 of 10 test files identical; only managed-tool-runtime.test.ts differs\n(+5 lines: the round-2 candidate stub and its import)"
+        ],
+        [
+          "good",
+          "bb543e17 tree 75dceccd == git merge-tree(ee75fa73, 18f80f56)\n→ an automatic merge, no hand edits inside it"
+        ]
+      ],
+      [
+        "B4 from round 2",
+        "head now contains #13899, so the stub is load-bearing",
+        [
+          "bad",
+          "stub removed on head:\n× binds media-capable builtins … rejects media on other tools\n  this.config.getFileSystemService is not a function"
+        ],
+        [
+          "good",
+          "stub present: passes · core suites 200/200 (head), 203/203 (merge)"
+        ]
+      ],
+      [
+        "Trial merge with current main",
+        "5 files touched by both sides: bridgeTypes.ts, Broker service + HTTP server (#13931, #13929), two tests",
+        [
+          "neutral",
+          "main 6212189f, same rig: every pre-fix behavior still present\n(see card 2)"
+        ],
+        [
+          "good",
+          "cli 602/602 · core 203/203 · acp-bridge (full) 2689/2689\ntsc ×3 clean · ESLint + Prettier clean on the 15 PR .ts files\nruntime-broker 830/830 (2 conditional skips) · Checkstyle 0\nfault gates, bundled CLI 44/44 · Broker MySQL 8.4.7 ITs 67/67\nhosted-harness-process (bundled) 9/9\nmanaged-agent-server 2434/2435; the failure is ChildWorktreeGitTest\n  (non-UTF-8 file name, macOS-only, fails on main too)"
+        ]
+      ],
+      [
+        "Head itself",
+        "",
+        [
+          "neutral",
+          "PR CI at bb543e17: 27 checks pass, 0 fail\n(Windows/macOS Node test lanes are skipped on PR CI)"
+        ],
+        [
+          "good",
+          "local: cli 587/587 · core 200/200 · acp-bridge 2683/2683\n(the round-2 hosted-harness-session flake did not recur)"
+        ]
+      ],
+      [
+        "Merge gate",
+        "reviewDecision",
+        [
+          "bad",
+          "CHANGES_REQUESTED from the review bot at 58cf91bc (10-11)\nlater bot reviews (5e80e2db, bb543e17): COMMENTED, 0 new findings\n17 open threads, all Suggestions"
+        ],
+        [
+          "neutral",
+          "a COMMENTED review cannot clear CHANGES_REQUESTED:\nneeds a maintainer approval or a dismissal"
+        ]
+      ],
+      [
+        "Test Plan block in the PR description",
+        "pasted verbatim into bash from the repo root, with stub npx/mvn",
+        [
+          "bad",
+          "runs the cli suites, then:\ncd: packages/core: No such file or directory\ncd: packages/acp-bridge: No such file or directory\ncd: packages/sdk-java/runtime-broker: No such file or directory"
+        ],
+        [
+          "good",
+          "( cd … && … ) per line reaches all four suites\n(the 'Results on this branch' counts 226/226 and 606/606 are also stale)"
+        ]
+      ]
+    ]
+  },
+  {
+    "file": "r3-02-real-stack-three-arms",
+    "title": "Real stack, three arms: main vs head vs trial merge",
+    "sub": "Activator probes drive real <code>node</code> workers (chmod 0500 → real EACCES on rm; a SIGTERM-ignoring worker with a <code>sleep</code> grandchild). Broker E2E: Java Broker HTTP face on JDBC → MySQL 8.4.7 behind a TCP fault proxy, real <code>managed-runtime-worker</code>, built TS provider. Each arm uses its own Java classes, TS dist and worker.",
+    "columns": [
+      "Probe",
+      "main 6212189f",
+      "head bb543e17",
+      "trial merge"
+    ],
+    "rows": [
+      [
+        "R2-2: close() with one cleanup failing",
+        "2 runs per arm; orphan check after the caller exits",
+        [
+          "bad",
+          "settles in 1 ms (2/2)\nworker b + its grandchild survive, ppid 1"
+        ],
+        [
+          "good",
+          "waits 5.10 s (2/2)\nnothing left"
+        ],
+        [
+          "good",
+          "waits 5.10 s (2/2)\nnothing left"
+        ]
+      ],
+      [
+        "R2-9: capacity slot after a failed cleanup",
+        "",
+        [
+          "bad",
+          "activate b → refused\nmanaged_runtime_capacity_exhausted\n(now and after 3 s)"
+        ],
+        [
+          "good",
+          "started (now and after 3 s)"
+        ],
+        [
+          "good",
+          "started (now and after 3 s)"
+        ]
+      ],
+      [
+        "R2-7: worker env allowlist",
+        "secrets + case-variant names in the parent env",
+        [
+          "bad",
+          "forwarded: no_proxy only\nsecrets leaked: none"
+        ],
+        [
+          "good",
+          "forwarded: Https_Proxy, no_proxy, Lang\nsecrets leaked: none"
+        ],
+        [
+          "good",
+          "forwarded: Https_Proxy, no_proxy, Lang\nsecrets leaked: none"
+        ]
+      ],
+      [
+        "R1-1: cold start answers 500 once",
+        "real HTTP server, built provider",
+        [
+          "bad",
+          "then: 'Session is permanently closed'\n1 prepare total"
+        ],
+        [
+          "good",
+          "release → fresh prepare → client\n2 prepares"
+        ],
+        [
+          "good",
+          "release → fresh prepare → client\n2 prepares"
+        ]
+      ],
+      [
+        "R2-3: observe() after kill -9 of a real worker",
+        "",
+        [
+          "bad",
+          "owned entry kept 1 → 1; lease token\nheld in owned and issued; reaped: absent"
+        ],
+        [
+          "good",
+          "reaped 1 → 0; issued holds a\n64-char digest, no token"
+        ],
+        [
+          "good",
+          "reaped 1 → 0; issued holds a\n64-char digest, no token"
+        ]
+      ],
+      [
+        "Session-store URL guard parity",
+        "acp-bridge vs core over 23 base URLs",
+        [
+          "bad",
+          "disagree on 8 of 23"
+        ],
+        [
+          "good",
+          "0 of 23"
+        ],
+        [
+          "good",
+          "0 of 23"
+        ]
+      ],
+      [
+        "E0: restore history with a climbing path",
+        "fileHistory.bind via the Broker",
+        [
+          "bad",
+          "\"..\\outside.txt\" accepted"
+        ],
+        [
+          "good",
+          "all 3 spellings refused\nclean binding accepted"
+        ],
+        [
+          "good",
+          "all 3 spellings refused\nclean binding accepted"
+        ]
+      ],
+      [
+        "E1–E3: JDBC outage on prepare / GET / cancel / start",
+        "2 passes per arm, identical",
+        [
+          "bad",
+          "500 internal_error retryable=false\nafter heal: cached, 0 requests,\nfiles never written"
+        ],
+        [
+          "good",
+          "503 store_unavailable retryable=true\nafter heal: re-prepare → start →\nfiles written"
+        ],
+        [
+          "good",
+          "503 store_unavailable retryable=true\nafter heal: re-prepare → start →\nfiles written"
+        ]
+      ],
+      [
+        "E4: :start payload carries 1e309",
+        "client-input error",
+        [
+          "neutral",
+          "400 invalid_request retryable=false"
+        ],
+        [
+          "good",
+          "400 invalid_request retryable=false"
+        ],
+        [
+          "good",
+          "400 invalid_request retryable=false"
+        ]
+      ]
+    ],
+    "note": "Head and trial merge produce identical results on every probe. A final release answers <code>409 runtime_session_busy</code> on all arms, because E4's reservation never starts. That is pre-existing behavior, as in round 2."
+  },
+  {
+    "file": "r3-03-r1-23-acknowledge-publisher",
+    "title": "Open Suggestion R1-23 on the real stack: :acknowledge and :publisher under a JDBC outage",
+    "sub": "Same rig, new step E5 after E1: the store goes down, then a raw <code>POST /executions/{id}:acknowledge</code> and <code>POST /tool-sessions/{id}:publisher</code> are sent. The same requests are repeated after the heal. The candidate wraps both service methods in the PR's own <code>mapStoreFailure(safeStage(…))</code> (+30/−19 lines incl. the test; +17/−6 ignoring re-indentation).",
+    "columns": [
+      "Request",
+      "main · head · trial merge",
+      "candidate on head"
+    ],
+    "rows": [
+      [
+        "POST :acknowledge during the outage",
+        "",
+        [
+          "bad",
+          "500 runtime_broker_internal_error retryable=false\n(all three arms)"
+        ],
+        [
+          "good",
+          "503 runtime_broker_store_unavailable retryable=true"
+        ]
+      ],
+      [
+        "POST :publisher during the outage",
+        "",
+        [
+          "bad",
+          "500 runtime_broker_internal_error retryable=false\n(all three arms)"
+        ],
+        [
+          "good",
+          "503 runtime_broker_store_unavailable retryable=true"
+        ]
+      ],
+      [
+        "The same two requests after the heal",
+        "shows the 500 was the outage, not the request",
+        [
+          "neutral",
+          "409 runtime_execution_conflict\n501 managed_tool_publisher_unavailable"
+        ],
+        [
+          "good",
+          "unchanged: 409 / 501\n(inner classifications untouched)"
+        ]
+      ],
+      [
+        "Sibling routes prepare / GET / start / cancel",
+        "",
+        [
+          "neutral",
+          "head, trial merge: 503 store_unavailable retryable=true"
+        ],
+        [
+          "good",
+          "unchanged; E0–E4 identical to head"
+        ]
+      ],
+      [
+        "Unit witness",
+        "answersAStoreFailureAsRetryableServiceUnavailable + an :acknowledge leg",
+        [
+          "bad",
+          "service wrap reverted, test kept:\nexpected: <503> but was: <500>"
+        ],
+        [
+          "good",
+          "passes · runtime-broker 819/819 on head,\n830/830 on the trial merge · Checkstyle 0"
+        ]
+      ]
+    ],
+    "note": "AutoFix accepted R1-23 and R1-24 as 'queued' on 10-10, then went Critical-only, and they never landed. The test comment at RuntimeBrokerHttpServerTest.java:881 ('Every route that reads the execution store maps the same outage class the same way') is therefore not true yet. Only the HTTP server calls these two service methods, and the TS client (hosted-workspace-broker.ts) branches on 404/409/400/501, never on 500 vs 503. So this changes the wire contract and makes the comment true, without changing client behavior. Non-blocking."
+  }
+]
