@@ -1,0 +1,16 @@
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedOperatorRecoveryProbe.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedOperatorRecoveryProbe.java
+@@ -234,6 +234,13 @@
+             return value.charAt(value.lastIndexOf(')') + 2) != 'Z';
+         } catch (NoSuchFileException exited) {
+             return false;
++        } catch (java.io.IOException error) {
++            // ESRCH: the zombie was reaped between open() and read(). Any
++            // other read failure on a live process is still reported.
++            if (process.isAlive()) {
++                throw error;
++            }
++            return false;
+         }
+     }
+ 

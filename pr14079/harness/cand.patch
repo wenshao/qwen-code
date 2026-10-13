@@ -1,0 +1,13 @@
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedOperatorRecoveryProbe.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedOperatorRecoveryProbe.java
+@@ -234,6 +234,10 @@
+             return value.charAt(value.lastIndexOf(')') + 2) != 'Z';
+         } catch (NoSuchFileException exited) {
+             return false;
++        } catch (java.io.IOException reaped) {
++            // A zombie reaped between open() and read() makes /proc/<pid>/stat
++            // fail with ESRCH ("No such process"), not NoSuchFileException.
++            return process.isAlive();
+         }
+     }
+ 
