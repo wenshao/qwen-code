@@ -115,7 +115,7 @@ def card_mechanism():
 <span class="mono">INSERT … ON DUPLICATE KEY UPDATE</span>; "timed out" = statements that ended with an error (the 5 s <span class="mono">setQueryTimeout</span> on new head).</p>
 <table><tr><th>hold</th><th>arm</th><th>guard row</th><th>executions</th><th>timed out</th><th>longest wait</th></tr>
 {''.join(trs)}</table>
-<div class="note green">Base simply waits the hold out (up to 28.9 s inside one statement). New head never waits longer than 5.01 s per statement; the statement times out (3–12 times
+<div class="note green">Base simply waits the hold out (up to 28.9 s inside one statement). New head never waits longer than 5.01 s per statement; the statement times out (6–12 times
 per run), the store answers 503 <span class="mono">tenant_guard_contended</span>, the client retries inside its 30 s budget, and the turns still complete at the hold's end.
 New head also issues about a third of base's publication-row statements (126–136 vs 369–375), since ordinary writes no longer take that row.</div>
 '''
