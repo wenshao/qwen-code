@@ -1,0 +1,171 @@
+diff --git a/scripts/run-managed-agent-server-e2e.ts b/scripts/run-managed-agent-server-e2e.rig.ts
+index dc2492a51c..af5a9c9310 100644
+--- a/scripts/run-managed-agent-server-e2e.ts
++++ b/scripts/run-managed-agent-server-e2e.rig.ts
+@@ -1,6 +1,7 @@
+ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+ import { createHash, randomBytes } from 'node:crypto';
+ import {
++  appendFileSync,
+   existsSync,
+   mkdirSync,
+   mkdtempSync,
+@@ -187,7 +188,7 @@ if (!pomVersion) {
+     'Could not read the project <version> from managed-agent-server/pom.xml',
+   );
+ }
+-const springJar = path.join(
++const springJar = process.env['RIG_SPRING_JAR'] ?? path.join(
+   springTarget,
+   `qwen-managed-agent-server-${pomVersion}.jar`,
+ );
+@@ -403,7 +404,10 @@ function start(
+     detached: process.platform !== 'win32',
+     stdio: ['ignore', 'pipe', 'pipe'],
+   });
++  const rigLog = path.join(temporary, 'rig-logs', name.replace(/[^A-Za-z0-9._-]+/g, '_') + '.log');
++  mkdirSync(path.dirname(rigLog), { recursive: true });
+   const append = (chunk: Buffer) => {
++    appendFileSync(rigLog, chunk);
+     output += chunk.toString();
+     if (output.length > 32_768) output = output.slice(-32_768);
+   };
+@@ -1088,6 +1092,48 @@ try {
+   const mysqlPort = await freePort();
+   dumpPort = mysqlPort;
+   const springPort = await freePort();
++  // rig: RIG_DUP_COMMITS=1 puts a proxy between the Harness and the Session
++  // Store that sends every successful transactions:commit a second time (a
++  // network retry) and records whether the store answered it as a replay.
++  let storeUrlPort = springPort;
++  if (process.env['RIG_DUP_COMMITS'] === '1') {
++    const http = await import('node:http');
++    const forward = (method: string, url: string, headers: any, body: Buffer) =>
++      new Promise<{ status: number; headers: any; body: Buffer }>((resolve, reject) => {
++        const r = http.request({ host: '127.0.0.1', port: springPort, method, path: url, headers }, (res) => {
++          const chunks: Buffer[] = [];
++          res.on('data', (c) => chunks.push(c));
++          res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks) }));
++        });
++        r.on('error', reject);
++        r.end(body);
++      });
++    const proxy = http.createServer((req, res) => {
++      const chunks: Buffer[] = [];
++      req.on('data', (c) => chunks.push(c));
++      req.on('end', async () => {
++        const body = Buffer.concat(chunks);
++        try {
++          const first = await forward(req.method ?? 'GET', req.url ?? '/', req.headers, body);
++          if (req.method === 'POST' && req.url?.endsWith('/transactions:commit') && first.status === 200) {
++            const second = await forward('POST', req.url, req.headers, body);
++            appendFileSync(path.join(temporary, 'rig-dup-commits.jsonl'), JSON.stringify({
++              url: req.url, first: JSON.parse(first.body.toString()), secondStatus: second.status,
++              second: second.body.length ? JSON.parse(second.body.toString()) : null,
++            }) + '\n');
++          }
++          res.writeHead(first.status, first.headers);
++          res.end(first.body);
++        } catch (error) {
++          res.writeHead(502);
++          res.end(String(error));
++        }
++      });
++    });
++    await new Promise<void>((resolve) => proxy.listen(0, '127.0.0.1', () => resolve()));
++    proxy.unref();
++    storeUrlPort = (proxy.address() as any).port;
++  }
+   const harnessPort = await freePort();
+   const brokerPort = await freePort();
+ 
+@@ -1141,7 +1187,7 @@ try {
+           timeout: 10_000,
+         },
+       ).status === 0,
+-    60_000,
++    180_000, // rig: loaded host, Flyway on a fresh DB
+     mysqlServer,
+   );
+   runMysql(
+@@ -1194,7 +1240,7 @@ try {
+               QWEN_MANAGED_AGENT_DISPATCH_LEASE_DURATION: '2s',
+               QWEN_MANAGED_AGENT_DISPATCH_LEASE_RENEW_INTERVAL: '500ms',
+               QWEN_MANAGED_AGENT_DISPATCH_SCAN_DELAY: '200ms',
+-              QWEN_MANAGED_AGENT_SESSION_STORE_BASE_URL: `http://127.0.0.1:${springPort}`,
++              QWEN_MANAGED_AGENT_SESSION_STORE_BASE_URL: `http://127.0.0.1:${storeUrlPort}`,
+               QWEN_MANAGED_AGENT_SESSION_STORE_ENABLED: 'true',
+               QWEN_MANAGED_AGENT_SESSION_STORE_WRITER_LEASE_DURATION: '1s',
+               QWEN_MANAGED_AGENT_WORKSPACE_ID: workspaceId,
+@@ -1216,7 +1262,7 @@ try {
+               QWEN_MANAGED_AGENT_RUNTIME_CREDENTIAL_KEY_ID: 'e2e-local-v1',
+               QWEN_MANAGED_AGENT_RUNTIME_STATE_DIRECTORY: runtimeState,
+               QWEN_MANAGED_AGENT_RUNTIME_WORKER_ENTRY: cliBundle,
+-              QWEN_MANAGED_AGENT_SESSION_STORE_BASE_URL: `http://127.0.0.1:${springPort}`,
++              QWEN_MANAGED_AGENT_SESSION_STORE_BASE_URL: `http://127.0.0.1:${storeUrlPort}`,
+               QWEN_MANAGED_AGENT_SESSION_STORE_ENABLED: 'true',
+               QWEN_MANAGED_AGENT_SESSION_STORE_WRITER_LEASE_DURATION: '60s',
+               QWEN_MANAGED_AGENT_WORKSPACE_ID: workspaceId,
+@@ -1235,7 +1281,7 @@ try {
+       const response = await fetch(`${springUrl}/actuator/health`);
+       return response.ok;
+     },
+-    60_000,
++    180_000, // rig: loaded host, Flyway on a fresh DB
+     spring,
+   );
+   runMysql(
+@@ -1309,7 +1355,7 @@ try {
+       );
+       return response.ok;
+     },
+-    60_000,
++    180_000, // rig: loaded host, Flyway on a fresh DB
+     harness,
+   );
+ 
+@@ -1818,7 +1864,7 @@ try {
+           );
+           return response.ok;
+         },
+-        60_000,
++        180_000, // rig: loaded host, Flyway on a fresh DB
+         replacementSpring,
+       );
+ 
+@@ -1885,7 +1931,7 @@ try {
+         );
+         return response.ok;
+       },
+-      60_000,
++      180_000, // rig: loaded host, Flyway on a fresh DB
+       replacementHarness,
+     );
+ 
+@@ -2694,7 +2740,7 @@ try {
+         session.id,
+         originalCursor,
+         replacementSpring,
+-        60_000,
++        180_000, // rig: loaded host, Flyway on a fresh DB
+       );
+       const reliefTerminals = reliefTurn.events.filter(
+         (event) => event.terminal,
+@@ -2762,7 +2808,7 @@ try {
+             );
+           return operation.status === 'completed';
+         },
+-        60_000,
++        180_000, // rig: loaded host, Flyway on a fresh DB
+         replacementSpring,
+       );
+       const closedSession = await fetchJson<Record<string, unknown>>(
+@@ -3020,7 +3066,7 @@ try {
+   // hold, or a stopped run deletes its own evidence before the post-finally
+   // throw reports it.
+   if (
+-    (failure || receivedSignal) &&
++    (failure || receivedSignal || process.env['RIG_KEEP_ALWAYS'] === '1') &&
+     process.env['QWEN_MANAGED_E2E_KEEP_TMP'] === '1'
+   ) {
+     console.error(`Keeping temporary directory: ${temporary}`);

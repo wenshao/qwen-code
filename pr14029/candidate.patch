@@ -1,0 +1,174 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/EventTransportConfiguration.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/EventTransportConfiguration.java
+index 7ecef63650..afb2099777 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/EventTransportConfiguration.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/config/EventTransportConfiguration.java
+@@ -1,6 +1,8 @@
+ package com.alibaba.qwen.code.managedagent.config;
+ 
+ import com.alibaba.qwen.code.managedagent.service.LiteTopicEventTransport;
++import java.io.IOException;
++import java.nio.charset.StandardCharsets;
+ import org.apache.rocketmq.client.apis.ClientConfiguration;
+ import org.apache.rocketmq.client.apis.ClientException;
+ import org.apache.rocketmq.client.apis.ClientServiceProvider;
+@@ -40,9 +42,35 @@ public class EventTransportConfiguration {
+                 .setClientConfiguration(clientConfig)
+                 .setTopics(config.getTopic())
+                 .build();
++        verifyLitePublish(provider, producer, config.getTopic());
+         return new LiteTopicEventTransport(producer, provider, config.getTopic());
+     }
+ 
++    // subscribeLite does not check the topic's message type: a NORMAL topic
++    // whose probe group is bound to it passes the probe above, and every
++    // send is then refused ("message type not match"). One probe message to
++    // the probe lite topic fails fast on that instead.
++    private static void verifyLitePublish(ClientServiceProvider provider,
++            Producer producer, String topic) {
++        try {
++            producer.send(provider.newMessageBuilder()
++                    .setTopic(topic)
++                    .setLiteTopic(CAPABILITY_PROBE_LITE)
++                    .setBody("capability-probe".getBytes(StandardCharsets.UTF_8))
++                    .build());
++        } catch (ClientException | RuntimeException failure) {
++            try {
++                producer.close();
++            } catch (IOException ignored) {
++                // the startup failure below is the one to report
++            }
++            throw new IllegalStateException("the event-transport topic "
++                    + topic + " does not accept LiteTopic messages; create it"
++                    + " as a LITE topic (mqadmin updateTopic -c <cluster> -t "
++                    + topic + " -a +message.type=LITE)", failure);
++        }
++    }
++
+     // #13200 hardening: fail fast at startup on a broker that cannot serve
+     // LiteTopics (needs RocketMQ 5.5.0+ with enableLmq), instead of silently
+     // degrading to a classic topic. The probe subscribes and unsubscribes; no
+@@ -52,7 +80,8 @@ public class EventTransportConfiguration {
+     // Deployment prerequisite: the probe group must be pre-created as a LITE
+     // group bound to the topic, because subscribeLite rejects an auto-created
+     // (regular) group with "regular group cannot use LITE mode":
+-    //   mqadmin updateSubGroup -g qwen-managed-journal-capability-probe \
++    //   mqadmin updateSubGroup -c <cluster> \
++    //     -g qwen-managed-journal-capability-probe \
+     //     -o true --attributes +lite.bind.topic=<topic>
+     private static void verifyLiteTopicCapability(ClientServiceProvider provider,
+             ClientConfiguration clientConfig, String topic) {
+@@ -70,7 +99,9 @@ public class EventTransportConfiguration {
+                     + " broker must serve LiteTopics (RocketMQ 5.5.0+ with"
+                     + " enableLmq) and the probe group " + CAPABILITY_PROBE_GROUP
+                     + " must be pre-created as a LITE group bound to the topic"
+-                    + " (mqadmin updateSubGroup --attributes +lite.bind.topic="
++                    + " (mqadmin updateSubGroup -c <cluster> -g "
++                    + CAPABILITY_PROBE_GROUP + " -o true"
++                    + " --attributes +lite.bind.topic="
+                     + topic + "); check"
+                     + " qwen.managed-agent.event-transport.endpoints", failure);
+         }
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/JournalEventPublicationPointTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/JournalEventPublicationPointTest.java
+index 8689c11f46..e532193d2b 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/JournalEventPublicationPointTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/JournalEventPublicationPointTest.java
+@@ -1,7 +1,9 @@
+ package com.alibaba.qwen.code.managedagent;
+ 
+ import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
+ import static org.mockito.ArgumentMatchers.any;
++import static org.mockito.Mockito.never;
+ import static org.mockito.Mockito.times;
+ import static org.mockito.Mockito.verify;
+ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+@@ -10,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
+ 
+ import com.alibaba.qwen.code.managedagent.api.TenantContextFilter;
+ import com.alibaba.qwen.code.managedagent.store.JournalEventTransport;
++import com.alibaba.qwen.code.managedagent.store.ManagedSessionStore;
+ import com.alibaba.qwen.code.managedagent.store.ManagedSessionStoreModels;
+ import com.alibaba.qwen.code.runtimebroker.WorkspaceExecutionProfile;
+ import com.fasterxml.jackson.databind.ObjectMapper;
+@@ -31,6 +34,10 @@ import org.springframework.http.MediaType;
+ import org.springframework.jdbc.core.JdbcTemplate;
+ import org.springframework.test.context.bean.override.mockito.MockitoBean;
+ import org.springframework.test.web.servlet.MockMvc;
++import org.springframework.transaction.PlatformTransactionManager;
++import org.springframework.transaction.support.TransactionSynchronization;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
++import org.springframework.transaction.support.TransactionTemplate;
+ 
+ @SpringBootTest(properties = {
+         "spring.datasource.url=jdbc:h2:mem:publication-point;MODE=MySQL;"
+@@ -61,6 +68,12 @@ class JournalEventPublicationPointTest {
+     @Autowired
+     private JdbcTemplate jdbc;
+ 
++    @Autowired
++    private ManagedSessionStore store;
++
++    @Autowired
++    private PlatformTransactionManager transactions;
++
+     // The store-side handoff is pinned here with a stand-in; the LiteTopic
+     // mapping of the published record is covered by LiteTopicEventTransportTest.
+     @MockitoBean
+@@ -120,6 +133,57 @@ class JournalEventPublicationPointTest {
+                 .publishCommitted(any(byte[].class));
+     }
+ 
++    // "Only once the transaction is durable": a commit that fails at COMMIT
++    // time must not reach the transport, so publishing inside the
++    // transaction, on beforeCommit or on afterCompletion all fail here.
++    @Test
++    void doesNotPublishWhenTheCommitFailsAtCommitTime() throws Exception {
++        String session = "pubpoint-" + UUID.randomUUID();
++        jdbc.update("INSERT INTO managed_agent_session (tenant_id, session_id,"
++                + " agent_id, status, created_at, updated_at,"
++                + " workspace_storage_id, workspace_id, workspace_generation,"
++                + " cwd_relative, context_config_ref, context_revision,"
++                + " workspace_config_ref, workspace_policy_ref) VALUES (?, ?,"
++                + " 'qwen-code', 'ACTIVE', 1, 1, ?, 'workspace', 1, '.', ?, 1,"
++                + " ?, ?)",
++                TENANT, session, "storage-" + UUID.randomUUID(),
++                WorkspaceExecutionProfile.CONTEXT_CONFIG_REF,
++                WorkspaceExecutionProfile.CONFIG_REF,
++                WorkspaceExecutionProfile.POLICY_REF);
++        mvc.perform(post("/internal/managed-session-store/v1/sessions/"
++                        + session + "/writers:acquire")
++                        .header(TenantContextFilter.HEADER, TENANT)
++                        .header(ManagedSessionStoreModels.WRITER_TOKEN_HEADER,
++                                TOKEN)
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content(writerRequest().toString()))
++                .andExpect(status().isOk());
++        var request = objectMapper.treeToValue(genesisRequest(),
++                ManagedSessionStoreModels.CommitTransactionRequest.class);
++
++        // Registered after the store's own synchronization, so it fails the
++        // COMMIT once the store has already handed off anything it would.
++        assertThatThrownBy(() -> new TransactionTemplate(transactions)
++                .executeWithoutResult(status -> {
++                    store.commit(TENANT, session, TOKEN, request);
++                    TransactionSynchronizationManager.registerSynchronization(
++                            new TransactionSynchronization() {
++                                @Override
++                                public void beforeCommit(boolean readOnly) {
++                                    throw new IllegalStateException(
++                                            "commit-time failure");
++                                }
++                            });
++                }))
++                .hasMessageContaining("commit-time failure");
++
++        verify(journalEventTransport, never())
++                .publishCommitted(any(byte[].class));
++        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM"
++                + " qwen_managed_session_journal_tx WHERE session_id = ?",
++                Integer.class, session)).isZero();
++    }
++
+     private ObjectNode writerRequest() {
+         return objectMapper.createObjectNode()
+                 .put("workspaceId", WORKSPACE)
