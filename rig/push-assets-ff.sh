@@ -15,7 +15,7 @@ add() { local b; b=$(git -C $REPO hash-object -w "$1"); git -C $REPO update-inde
 for f in $BASE/figs/0*.png; do add "$f" "pr13974/$(basename "$f")"; done
 for f in $BASE/rig/*; do [ -f "$f" ] && add "$f" "rig/$(basename "$f")"; done
 add $BASE/logs/mutants.jsonl rig/mutants.jsonl
-while IFS= read -r f; do add "$f" "results/${f#$BASE/results/}"; done < <(find $BASE/results -name '*.json' | sort)
+while IFS= read -r f; do add "$f" "results/${f#$BASE/results/}"; done < <(find $BASE/results \( -name '*.json' -o -name '*.txt' \) | sort)
 T=$(git -C $REPO write-tree)
 [ "$T" != "$(git -C $REPO rev-parse "${PREV}^{tree}")" ] || { echo "tree unchanged"; exit 1; }
 C=$(printf 'PR 13974 verification evidence: P3D and refreshed figures\n' | git -C $REPO commit-tree "$T" -p "$PREV" | tr -d '[:space:]')

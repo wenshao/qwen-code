@@ -1381,6 +1381,7 @@ class HostedPr13974ProbeMySqlIT {
         evidence.put("test", test);
         evidence.put("tenant", tenant);
         evidence.put("lead", leadSession);
+        evidence.put("tempDir", temporary.toString());
         evidence.put("timeline", timeline);
         Map<String, Object> answers = new LinkedHashMap<>();
         results.keySet().stream().sorted((a, b) -> Long.compare(
