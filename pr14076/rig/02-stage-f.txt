@@ -1,6 +1,6 @@
 ## Stage F fault round for the workflow kind (owed in the PR) - run on the real stack, child_agent twin in every case
 == fault proxy between Spring and the Harness (drop / hold / refuse); SIGKILL of the Harness; one stack with dispatch retry-max-delay=2s
-== F1/F2 ran at both 9f1cf33c4c and e7c4c8c32a; F3 = 3 runs at 9f1cf33c4c + 1 run and the control at e7c4c8c32a; F4 park at e7c4c8c32a, 220 s at 9f1cf33c4c
+== F1/F2 ran at both 9f1cf33c4c and e7c4c8c32a; F3 = 6 runs per kind (3 on each head) + a no-cancel control on each head; F4 park at e7c4c8c32a
 
 >> F1 lost cancel reply (Harness settles the stop, its 202 is dropped on the way back)
 ++    workflow + child_agent: op completed on claim 1 from the record, no second send, task cancelled          (proxy: 1 cancel, "settled")
@@ -9,12 +9,13 @@
 ++              1000 ms: 409 task_action_unavailable (record already terminal; which offsets land before the record settles depends on the relay scan)
 ++    child_agent -300 / 0 / 1000 ms: stop recorded, natural completion won; every run: one notification, no open op left behind
 >> F3 cancel after the owner is gone (Harness SIGKILLed, cancel posted while it is down, restart after 30 s)
-++    6 refused deliveries, then the next claim after restart lands; op completed +34/+35 s after restart for both kinds
-++    child_agent: resumed by takeover, then cancelled in 3/3 runs (+42 to +95 s after restart; the Turn coordinator's 32/60 s backoff)
-!!    workflow: cancelled +94/+95 s in 2 runs, but FAILED in 1 run: managed_runtime_recovery_blocked
-!!      "The prior Harness generation parked a Turn this Harness cannot take over (unresolved_after_settle)" landed 2 s before the stop
-==    control, same outage, NO cancel: workflow child always FAILED (same error); child_agent resumed and completed after release
+++    6 refused deliveries while down; the first claim that reaches the restarted Harness decides (+34 to +36 s after restart)
+++    child_agent: resumed by takeover, then cancelled in 6/6 runs (+40 to +95 s after restart; the Turn coordinator's 32/60 s backoff)
+!!    workflow: cancelled in 2/6 runs (+94/+95 s); FAILED managed_runtime_recovery_blocked in 4/6 - "The prior Harness generation
+!!      parked a Turn this Harness cannot take over (unresolved_after_settle)": op completed (stop recorded, failure won) in 3,
+!!      op failed task_already_settled (run ended before the stop landed) in 1. Same spread on both heads.
+==    control, same outage, NO cancel, both heads: workflow child FAILED (same error); child_agent resumed and completed after release
 >> F4 owner gone longer than the delivery budget (retry-max-delay=2s, 60 s outage)
 ++    16 claims -> recovery_blocked / task_cancel_unconfirmed (GET op: status recovery_blocked); a fresh key is still admitted (parked != open)
 ++    after restart the run ended on its own (failed) -> fresh op failed task_already_settled; parked op reconciled at +5:00 -> failed
-++      task_already_settled; a later cancel -> 409 task_action_unavailable.  220 s outage at default backoff: 9 claims, completed after restart
+++      task_already_settled; a later cancel -> 409 task_action_unavailable.  220 s outage at default backoff (9f1cf33c4c): 9 claims, completed
