@@ -376,6 +376,67 @@ class HostedPr13974ProbeMySqlIT {
     }
 
     /**
+     * P3D, the review's P3 window (finishSupersede after a team_delete):
+     * P3b's interruption (withdraw committed, submitTeamPlan held, Harness
+     * killed), then the relay's re-execute is held at the Spring proxy
+     * while the lead stops alice and deletes the team; the hold is then
+     * released. Does the replay reopen a waiting plan on a deleted team?
+     */
+    @Test
+    @Timeout(900)
+    void p3dSupersedeReplayAfterDelete() throws Exception {
+        probe = "P3D";
+        boot(true);
+        String lead = createLead("PRB_LEAD_P3D");
+        waitForHeld(300);
+        Files.writeString(temporary.resolve("ctl/hold-execute"), "1\n");
+        mark("relay execute held at the Spring proxy");
+        restartHarness("on");
+        facts.put("afterRestart.plans", planRows(lead));
+        input(lead, "PRB_LEAD_P3D_STOP");
+        waiting().atMost(Duration.ofSeconds(240))
+                .pollInterval(Duration.ofSeconds(1)).untilAsserted(() -> {
+                    assertNoModelFailure();
+                    assertThat(results).containsKey("l-stop");
+                    assertThat(runStates(lead).get("alice"))
+                            .isNotIn("running", "admitted");
+                    assertThat(leadIdle(lead)).isTrue();
+                });
+        facts.put("afterStop.runStates", runStates(lead));
+        facts.put("afterStop.memberCommands", memberCommandStates(lead));
+        input(lead, "PRB_LEAD_P3D_DELETE");
+        waiting().atMost(Duration.ofSeconds(180))
+                .pollInterval(Duration.ofSeconds(1)).untilAsserted(() -> {
+                    assertNoModelFailure();
+                    assertThat(results).containsKey("l-del");
+                    assertThat(leadIdle(lead)).isTrue();
+                });
+        facts.put("afterDelete.plans", planRows(lead));
+        Files.deleteIfExists(temporary.resolve("ctl/hold-execute"));
+        mark("relay execute released");
+        Thread.sleep(150_000);
+        facts.put("afterRelease.plans", planRows(lead));
+        facts.put("afterRelease.memberCommands", memberCommandStates(lead));
+        mark("P3D observed");
+        closeAndSettle(lead);
+    }
+
+    private List<Map<String, Object>> memberCommandStates(String lead) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> run : childRunSummary(lead)) {
+            if (run.get("childSessionId") == null) continue;
+            for (Map<String, Object> command : commandsWithReplies(
+                    run.get("childSessionId").toString())) {
+                Map<String, Object> view = new LinkedHashMap<>(command);
+                view.put("childRunId", run.get("childRunId"));
+                view.remove("argsHead");
+                out.add(view);
+            }
+        }
+        return out;
+    }
+
+    /**
      * P3c, the same interruption with the decision made in a user turn
      * (a Spring-tracked Managed Turn) instead of a notification wake turn.
      */
@@ -799,6 +860,7 @@ class HostedPr13974ProbeMySqlIT {
             case "P3W" -> p3wLead(issued, all);
             case "P3U" -> p3uLead(issued, all);
             case "P3B" -> p3bLead(issued, all);
+            case "P3D" -> p3dLead(issued, all);
             case "P4" -> p4Lead(issued, all, last, fresh);
             case "P5" -> p5Lead(issued, all, last, fresh);
             case "P6" -> launchThenIdle(issued, List.of(launch("alice",
@@ -967,6 +1029,21 @@ class HostedPr13974ProbeMySqlIT {
                 "message", "PRB_LEAD_NOTE_W one more thing"));
     }
 
+    private Step p3dLead(Set<String> issued, String all) {
+        if (!issued.contains("l-launch-alice"))
+            return new Step(List.of(launch("alice", true)), null);
+        if (planRequests.get(1) != null && !issued.contains("l-note")) {
+            arm("submitTeamPlan");
+            return one("l-note", "send_message", Map.of("to", "alice",
+                    "message", "PRB_LEAD_NOTE_P3D please revise the plan"));
+        }
+        if (all.contains("PRB_LEAD_P3D_STOP") && !issued.contains("l-stop"))
+            return one("l-stop", "request_shutdown", Map.of("to", "alice"));
+        if (all.contains("PRB_LEAD_P3D_DELETE") && !issued.contains("l-del"))
+            return one("l-del", "team_delete", Map.of());
+        return new Step(List.of(), "LEAD_IDLE");
+    }
+
     private Step p3wLead(Set<String> issued, String all) {
         if (!issued.contains("l-launch-alice"))
             return new Step(List.of(launch("alice", false)), null);
@@ -1085,6 +1162,12 @@ class HostedPr13974ProbeMySqlIT {
                         Map.of("file_path", "plan-output.md", "content",
                                 "PRB_IMPLEMENTED " + tag + "\n"))),
                         "ALICE_DONE");
+            };
+            case "P3D" -> switch (tag) {
+                case "first" -> seq(issued, List.of(submit("a1-submit",
+                        PLAN_V1)), "ALICE_V1_SUBMITTED");
+                default -> seq(issued, List.of(submit("a2-submit",
+                        PLAN_V2)), "ALICE_V2_SUBMITTED");
             };
             case "P3B" -> switch (tag) {
                 case "first" -> seq(issued, List.of(submit("a1-submit",

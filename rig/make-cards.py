@@ -72,6 +72,8 @@ cards.append({
              '++ 7,077 refused (byte_limit), 7,076 accepted;\n++ rejection continues (32,529 B instruction)', '', ''],
             ['P3b supersede: withdraw committed, new plan commit held, Harness killed',
              '++ re-run opens revision 2 exactly once', merged(P3BM, 'same'), ''],
+            ['P3D review P3 window: P3b\'s interruption, relay re-execute held while\n   the lead stops alice and deletes the team, then released',
+             '++ stopped sender -> plan_submit "unknown", never re-executed;\n++ no waiting plan written for the deleted team', '', ''],
             ['P6 receipt commit held after submitTeamPlan, restart on the gate-off build',
              '++ original answer replayed, no second plan', merged(P6M, 'same'), ''],
             ['P4 rollback to gate-off build with a waiting plan, then reenable',
