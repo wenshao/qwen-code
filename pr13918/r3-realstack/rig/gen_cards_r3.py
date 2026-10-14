@@ -8,7 +8,7 @@ import sys
 
 from gen_cards import FIG, RIG, load, page, turn_cell, after_cell  # noqa: F401 (reuses the round-1 styling)
 
-NEW = '695fcf592e'
+NEW = '72a7897843'
 BASE = '4b6b4270d0'
 CASES = [('both', 10), ('both', 20), ('both', 30), ('both', 40), ('both', 60),
          ('placement', 20), ('placement', 30), ('placement', 60),
@@ -38,10 +38,12 @@ def cell(r, d):
     return '<td class="cell">' + ''.join(rows) + '</td>'
 
 
-def card_matrix(tag, dig):
+def card_matrix(btag, ntag, dig):
     rows = []
     for kind, hold in CASES:
-        b, n = f'b_{tag}_{kind}_{hold}', f'r_{tag}_{kind}_{hold}'
+        b = f'b_{btag}_{kind}_{hold}'
+        # ntag may list several tags; the last one with a run for this case wins.
+        n = [f'r_{t}_{kind}_{hold}' for t in ntag.split(',') if load(f'r_{t}_{kind}_{hold}') is not None][-1]
         rb, rn = load(b), load(n)
         assert rb is not None and rn is not None, (b, n)
         rows.append(f'<tr><td class="k">{LABEL[kind]} · {hold} s</td>{cell(rb, dig.get("r18_" + b))}{cell(rn, dig.get("r18_" + n))}</tr>')
@@ -50,7 +52,7 @@ def card_matrix(tag, dig):
 <p class="sub">Same rig as rounds 1–2, ported to the consolidated schema (#14069): Spring jar + embedded Runtime Broker + packaged Hosted Harness (dist/cli.js) + MySQL 8.4.7 +
 scripted model. Each turn is parked inside the model call, an external transaction takes the <span class="mono">ma_tenant_guard</span> row(s) with the product's own
 <span class="mono">INSERT … ON DUPLICATE KEY UPDATE</span> + primary-key <span class="mono">FOR UPDATE</span>, and the model is released 1 s later. Writer lease 60 s, Druid max-active 20.
-A fresh stack per arm per case; both arms run side by side. Guard-statement figures come from performance_schema statement digests for each run's own schema.</p>
+A fresh stack per arm per case. Main was measured today side by side with the previous head (695fcf592e, identical outcomes in every case); head 72a7897843 was measured after it was pushed, on the same host and rig; another session's IT suite filled the shared server's digest table mid-run, so its both-rows 60 s, placement and publication cases were re-run on a dedicated MySQL 8.4.7 (same outcomes). Guard-statement figures come from performance_schema statement digests for each run's own schema.</p>
 <table><tr><th style="width:200px">Held rows · duration</th><th>main {BASE} (merge-base)</th><th>new head {NEW}</th></tr>
 {''.join(rows)}</table>
 '''
@@ -101,8 +103,11 @@ carry #14177's catalog fix (without it, main and this head both fail schema init
 if __name__ == '__main__':
     what = sys.argv[1]
     if what == 'matrix':
-        tag, tsv, note = sys.argv[2], sys.argv[3], sys.argv[4]
-        body = card_matrix(tag, digests(tsv)) + f'<div class="note green">{note}</div>'
+        btag, ntag, tsvs, note = sys.argv[2], sys.argv[3], sys.argv[4].split(','), sys.argv[5]
+        dig = {}
+        for t in tsvs:
+            dig.update(digests(t))
+        body = card_matrix(btag, ntag, dig) + f'<div class="note green">{note}</div>'
         open(f'{FIG}/07-r3-hold-matrix.html', 'w').write(page('Guard hold matrix r3', body))
     elif what == 'burst':
         spec = json.loads(sys.argv[2])

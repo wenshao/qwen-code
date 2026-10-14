@@ -1,4 +1,75 @@
-PR #13918 round 3 @ 695fcf592e — test summaries (macOS arm64, JDK 21)
+PR #13918 round 3 — test summaries (macOS arm64, JDK 21). Head 72a7897843 first, then the earlier 695fcf592e runs.
+
+### MySQL 8.4.7 guard ITs + ManagedAgentCsiMutationMySqlIT, head 72a7897843
+-- it-r4-guard.log: === 20:26:41 IT r4-guard src=r4 (72a7897843) its=ManagedSessionGuardConvoyIT,WorkspaceLifecycleMySqlIT,ToolPublicationLockOrderMySqlIT,ManagedRuntimeRetentionGu
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 11.22 s -- in com.alibaba.qwen.code.managedagent.ToolPublicationLockOrderMySqlIT
+Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 19.02 s -- in com.alibaba.qwen.code.managedagent.WorkspaceSessionRetentionMySqlIT
+Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 29.55 s -- in com.alibaba.qwen.code.managedagent.store.ManagedRuntimeRetentionGuardMySqlIT
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 39.00 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSessionGuardConvoyIT
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.755 s -- in com.alibaba.qwen.code.managedagent.store.ManagedAgentCsiMutationMySqlIT
+Tests run: 66, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 83.72 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceLifecycleMySqlIT
+Tests run: 114, Failures: 0, Errors: 0, Skipped: 0
+[r4-guard] EXIT=0
+
+### MySQL 8.4.7 witness: head's ManagedAgentCsiMutationMySqlIT on 695fcf592e
+-- it-r3w-csiwit.log: === 20:29:54 IT r3w-csiwit src=r3w (695fcf592e) its=ManagedAgentCsiMutationMySqlIT
+Tests run: 6, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 8.944 s <<< FAILURE! -- in com.alibaba.qwen.code.managedagent.store.ManagedAgentCsiMutationMySqlIT
+com.alibaba.qwen.code.managedagent.store.ManagedAgentCsiMutationMySqlIT.writerAfterAWarmedSnapshotStillRefusesAnOriginalCommittedLater(int)[2] -- Time elapsed: 1.492 s <<< FAILURE!
+Tests run: 6, Failures: 1, Errors: 0, Skipped: 0
+[r3w-csiwit] EXIT=1
+
+### H2 unit, mutant M1 on 72a7897843 (6 classes; surefire XML counts)
+harness.QwenHostedHarnessConnectorTest tests="95" errors="0" skipped="0" failures="0"
+ManagedOperationSchemaUpgradeTest tests="1" errors="0" skipped="0" failures="0"
+ManagedWorkspaceAdmissionTest tests="56" errors="0" skipped="0" failures="0"
+service.SessionLifecycleCoordinatorTest tests="22" errors="0" skipped="0" failures="0"
+store.WorkspaceLifecycleStoreTest tests="53" errors="0" skipped="0" failures="0"
+store.WorkspaceProfileLifecycleTest tests="47" errors="0" skipped="0" failures="0"
+
+### MariaDB 10.11.18: broker + full non-Hosted managed-agent IT run, 72a7897843 + 43f7d42817 + 688ccb347f
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 34.72 s -- in com.alibaba.qwen.code.runtimebroker.JdbcRuntimeBrokerMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.968 s -- in com.alibaba.qwen.code.runtimebroker.JdbcRuntimeRetentionMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.842 s -- in com.alibaba.qwen.code.runtimebroker.ManagedSchemaMySqlIT
+Tests run: 62, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 88.23 s -- in com.alibaba.qwen.code.runtimebroker.RuntimeHarnessDrainMySqlIT
+Tests run: 74, Failures: 0, Errors: 0, Skipped: 0
+BROKER-IT exit=0
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 15.83 s -- in com.alibaba.qwen.code.managedagent.ManagedRuntimeRetentionRaceMySqlIT
+Tests run: 23, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 115.6 s <<< FAILURE! -- in com.alibaba.qwen.code.managedagent.ManagedAgentMySqlIT
+com.alibaba.qwen.code.managedagent.ManagedAgentMySqlIT.admitsHookExecutionsWithoutReadingTheirHistoryOnMySql -- Time elapsed: 61.23 s <<< ERROR!
+Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 11.04 s -- in com.alibaba.qwen.code.managedagent.ManagedSchemaJournalMySqlIT
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 22.41 s -- in com.alibaba.qwen.code.managedagent.ToolPublicationRecoveryMySqlIT
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.603 s -- in com.alibaba.qwen.code.managedagent.ToolPublicationLockOrderMySqlIT
+Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 16.51 s -- in com.alibaba.qwen.code.managedagent.WorkspaceSessionRetentionMySqlIT
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.802 s -- in com.alibaba.qwen.code.managedagent.WorkspaceSessionCloseMySqlIT
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.243 s -- in com.alibaba.qwen.code.managedagent.service.EventTransportConsumerMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.715 s -- in com.alibaba.qwen.code.managedagent.ToolPublicationLifecycleMySqlIT
+Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 36.20 s -- in com.alibaba.qwen.code.managedagent.store.ManagedRuntimeRetentionGuardMySqlIT
+Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.184 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSessionPhysicalFenceMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 15.13 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaRelayLoadMySqlIT
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.999 s -- in com.alibaba.qwen.code.managedagent.store.ManagedWorkspaceRolesMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 126.3 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceQueryScaleMySqlIT
+Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 16.27 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceRecoveryMySqlIT
+Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 17.62 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaBusinessMySqlIT
+Tests run: 51, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 121.1 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceCsiCheckpointMySqlIT
+Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 28.04 s -- in com.alibaba.qwen.code.managedagent.store.LocalStorageAliasMySqlIT
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.985 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaPublicationMySqlIT
+Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 14.72 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceCsiReservationMySqlIT
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.118 s -- in com.alibaba.qwen.code.managedagent.store.ManagedExtensionRecordVerdictReconcileMySqlIT
+Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 30.86 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaSessionMySqlIT
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 40.08 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSessionGuardConvoyIT
+Tests run: 66, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 74.18 s -- in com.alibaba.qwen.code.managedagent.store.SessionResourceCollectionMySqlIT
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.685 s -- in com.alibaba.qwen.code.managedagent.store.ManagedAgentCsiMutationMySqlIT
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.061 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceMigrationMySqlIT
+Tests run: 49, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 67.16 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleMySqlIT
+Tests run: 66, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 110.2 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceLifecycleMySqlIT
+Tests run: 26, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 102.9 s -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAcknowledgementMySqlIT
+Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 50.23 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaLoadMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 114.0 s -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAsyncVerificationMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 32.49 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaPublicationLoadMySqlIT
+Tests run: 556, Failures: 0, Errors: 1, Skipped: 0
+MANAGED-IT exit=1
+
+================ 695fcf592e ================
 
 ### MySQL 8.4.7 guard ITs, head
 -- it-r3-guard.log: === 19:39:26 IT r3-guard src=r3 (695fcf592e) its=ManagedSessionGuardConvoyIT,WorkspaceLifecycleMySqlIT,ToolPublicationLockOrderMySqlIT,ManagedRuntimeRetentionGu
