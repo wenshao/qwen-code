@@ -1,0 +1,22 @@
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java	2026-10-14 07:23:30
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/harness/QwenHostedHarnessConnector.java	2026-10-14 07:24:06
+@@ -228,18 +228,7 @@
+             request.put("phase", phase);
+             request.put("toolProfile", session.toolProfile());
+         }
+-        try {
+-            return new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(client().settleLifecycle(ref, request));
+-        } catch (DaemonHttpException error) {
+-            // A lost detach ACK can leave this reference cached after the
+-            // Harness sealed and removed it. Retry through a current-claim
+-            // cleanup load; absence never proves resource completion.
+-            if (operation.lifecycleProtocolVersion() == 2 && !"effects".equals(phase)
+-                    && error.getStatusCode() == 404 && attachments.remove(key, ref)) {
+-                pendingRecovery.remove(key);
+-            }
+-            throw error;
+-        }
++        return new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(client().settleLifecycle(ref, request));
+     }
+ 
+     @Override
