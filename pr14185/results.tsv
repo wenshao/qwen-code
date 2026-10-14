@@ -1,0 +1,125 @@
+# PR #14185 verification raw data, head 0a1ed3608c59197cfc7c1edd02b21aefeffffada, main bab0e99d89
+## Linux E2E (container mysql:8.4 = MySQL 8.4.11, Temurin 21.0.9, Node 22.23.3, QWEN_E2E_REGISTER_STORAGE=1)
+arm	mode	round	exit	duration
+pr	session-failover	r1	0	45s
+pr	inflight-failover	r1	0	52s
+pr	continuation-failover	r1	0	50s
+pr	big-output	r1	0	53s
+pr	harness-restart-failover	r1	0	37s
+pr	harness-restart-inflight	r1	0	44s
+pr	harness-restart-continuation	r1	0	46s
+pr	frozen-owner	r1	0	56s
+main	session-failover	r1	0	45s
+main	inflight-failover	r1	0	48s
+main	continuation-failover	r1	0	49s
+main	big-output	r1	0	54s
+main	harness-restart-failover	r1	0	37s
+main	harness-restart-inflight	r1	0	45s
+main	harness-restart-continuation	r1	0	46s
+main	frozen-owner	r1	0	56s
+## macOS E2E (MySQL 8.4.7, JDK 21.0.12, Node 24.18.1)
+pr	session-failover	r1	0	30s
+pr	inflight-failover	r1	1	1s
+pr	continuation-failover	r1	1	1s
+pr	big-output	r1	0	34s
+pr	harness-restart-failover	r1	0	23s
+pr	harness-restart-inflight	r1	1	22s
+pr	harness-restart-continuation	r1	1	135s
+pr	frozen-owner	r1	1	1s
+main	session-failover	r1	0	26s
+main	inflight-failover	r1	1	1s
+main	continuation-failover	r1	1	0s
+main	big-output	r1	0	31s
+main	harness-restart-failover	r1	0	19s
+main	harness-restart-inflight	r1	1	17s
+main	harness-restart-continuation	r1	1	133s
+main	frozen-owner	r1	1	1s
+## GC claim handler reads per claim (MySQL 8.4.11, .75, interleaved)
+arm	completed_history	pending_backlog	key	extra	returned	handler_reads	query_ms
+main	10000	1	ix_ma_operation_gc_due	Using index condition; Using where	1	20	0.5
+pr	10000	1	ix_ma_operation_claim	Using index condition; Using where; Using filesort	1	5	0.7
+pr-maxsentinel	10000	1	ix_ma_operation_gc_due	Using index condition; Using where	1	4	0.7
+main	10000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	0.7
+pr	10000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	10067	35.1
+pr-maxsentinel	10000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	0.7
+main	100000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	0.9
+pr	100000	1000	ix_ma_operation_claim	Using index condition; Using where; Using filesort	32	1037	11.8
+pr-maxsentinel	100000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	0.8
+main	300000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	1.0
+pr	300000	1000	ix_ma_operation_claim	Using index condition; Using where; Using filesort	32	1037	16.9
+pr-maxsentinel	300000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	1.2
+## GC claim handler reads (MySQL 8.4.7 macOS, load avg 25-50, timing unreliable)
+arm	completed_history	pending_backlog	key	extra	returned	handler_reads	query_ms
+main	10000	1	ix_ma_operation_gc_due	Using index condition; Using where	1	4	0.8
+pr	10000	1	ix_ma_operation_claim	Using index condition; Using where; Using filesort	1	5	1.3
+main	10000	100	ix_ma_operation_claim	Using index condition; Using where; Using filesort	32	137	2.2
+pr	10000	100	ix_ma_operation_claim	Using index condition; Using where; Using filesort	32	137	7.4
+main	10000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	1.5
+pr	10000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	10067	159.8
+main	100000	1	ix_ma_operation_claim	Using index condition; Using where; Using filesort	1	7	0.7
+pr	100000	1	ix_ma_operation_claim	Using index condition; Using where; Using filesort	1	7	1.3
+main	100000	100	ix_ma_operation_gc_due	Using index condition; Using where	32	67	2.1
+pr	100000	100	ix_ma_operation_claim	Using index condition; Using where; Using filesort	32	137	1.0
+main	100000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	0.6
+pr	100000	1000	ix_ma_operation_claim	Using index condition; Using where; Using filesort	32	1037	48.8
+main	300000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	0.6
+pr	300000	1000	ix_ma_operation_claim	Using index condition; Using where; Using filesort	32	1037	39.1
+main	0	50000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	11.3
+pr	0	50000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	159.9
+pr-maxsentinel	10000	1	ix_ma_operation_gc_due	Using index condition; Using where	1	6	126.6
+pr-maxsentinel	10000	100	ix_ma_operation_gc_due	Using index condition; Using where	32	67	111.5
+pr-maxsentinel	10000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	156.0
+pr-maxsentinel	100000	100	ix_ma_operation_gc_due	Using index condition; Using where	32	67	224.2
+pr-maxsentinel	100000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	218.6
+pr-maxsentinel	300000	1000	ix_ma_operation_gc_due	Using index condition; Using where	32	67	243.8
+## Edge probes
+[main] E1 baseline       row=1791985021051 1791985021051 NULL | HTTP 200 created_at=1791985021 updated_at=1791985021
+[main] E2 2050           ok  row=2524608000123 1791985021051 NULL | HTTP 200 created_at=2524608000 updated_at=1791985021
+[main] E3 Long.MAX       ok  row=2524608000123 9223372036854775807 NULL | HTTP 200 created_at=2524608000 updated_at=9223372036854775 | list HTTP 200
+[main] E4 Long.MAX+1     ERROR 1264 (22003) at line 1: Out of range value for column 'updated_at' at row 1  row=2524608000123 9223372036854775807 NULL | HTTP 200 created_at=2524608000 updated_at=9223372036854775 | list HTTP 200
+[main] E5 UNSIGNED max   ERROR 1264 (22003) at line 1: Out of range value for column 'updated_at' at row 1  row=2524608000123 9223372036854775807 NULL | HTTP 200 created_at=2524608000 updated_at=9223372036854775 | list HTTP 200
+[main] E6 negative -1    ok  row=-1 9223372036854775807 NULL | HTTP 200 created_at=0 updated_at=9223372036854775
+[main] E7 zero           ok  row=0 0 NULL | HTTP 200 created_at=0 updated_at=0
+[main] E8 PATCH rename   before=1791984962190 1791984962190 NULL -> PATCH 503 after=1791984962190 1791984962190 NULL
+[main] E9 PATCH same     before=1791984962190 1791984962190 NULL -> PATCH 503 after=1791984962190 1791984962190 NULL
+[main] E10 DELETE        DELETE 202 row=1791984962190 1791985022486 NULL | HTTP 404 {"error": {"code": "session_not_found", "message": "The Session was not found.", "request_id": "ad2566b2-d679-439b-8c3a-fe5f52acebb8"}}
+[main] server log ERROR/Exception lines: 0
+[pr] E1 baseline       row=1791985010732 1791985010732 NULL | HTTP 200 created_at=1791985010 updated_at=1791985010
+[pr] E2 2050           ok  row=2524608000123 1791985010732 NULL | HTTP 200 created_at=2524608000 updated_at=1791985010
+[pr] E3 Long.MAX       ok  row=2524608000123 9223372036854775807 NULL | HTTP 200 created_at=2524608000 updated_at=9223372036854775 | list HTTP 200
+[pr] E4 Long.MAX+1     ok  row=2524608000123 9223372036854775808 NULL | HTTP 500 {"error": {"code": "internal_error", "message": "The Managed Agent request failed.", "request_id": "fb7ae36d-32e1-45e7-866d-0db171f363ca"}} | list HTTP 500
+[pr] E5 UNSIGNED max   ok  row=2524608000123 18446744073709551615 NULL | HTTP 500 {"error": {"code": "internal_error", "message": "The Managed Agent request failed.", "request_id": "bc49e059-1f12-4375-b564-2c05005e2c83"}} | list HTTP 500
+[pr] E6 negative -1    ERROR 1264 (22003) at line 1: Out of range value for column 'gmt_create' at row 1  row=2524608000123 18446744073709551615 NULL | HTTP 500 {"error": {"code": "internal_error", "message": "The Managed Agent request failed.", "request_id": "9b594feb-4b1e-498e-b796-7d0fa5cd0de3"}}
+[pr] E7 zero           ok  row=0 0 NULL | HTTP 200 created_at=0 updated_at=0
+[pr] E8 PATCH rename   before=1791984951913 1791984951913 NULL -> PATCH 503 after=1791984951913 1791984951913 NULL
+[pr] E9 PATCH same     before=1791984951913 1791984951913 NULL -> PATCH 503 after=1791984951913 1791984951913 NULL
+[pr] E10 DELETE        DELETE 202 row=1791984951913 1791985012217 NULL | HTTP 404 {"error": {"code": "session_not_found", "message": "The Session was not found.", "request_id": "4c892c92-e816-4367-97b5-d725aeaedf06"}}
+[pr] server log ERROR/Exception lines: 65
+## SQL_NOW probes (3000 samples each)
+| server |
+| u           | bigint        |
+| c           | decimal(20,0) |
+| sql_now     | decimal(25,0) |
+| session timestamp=1791985000.789 | 1791985000 | 2026-10-14 21:36:40.789000 | 1791985000789 | 1791985000789 |
+| session timestamp=1791985000.5 | 1791985000 | 1791985000500 | 1791985000500 |
+| server                   |
+| 10.11.18-MariaDB-ubu2204 |
+| u           | bigint(17)    |
+| c           | decimal(20,0) |
+| sql_now     | decimal(25,0) |
+| session timestamp=1791985000.789 | 1791985000 | 2026-10-14 13:36:40.789000 | 1791985000789 | 1791985000789 |
+| session timestamp=1791985000.5 | 1791985000 | 1791985000500 | 1791985000500 |
+| server |
+| 8.4.11 |
+| u           | bigint        |
+| c           | decimal(20,0) |
+| sql_now     | decimal(25,0) |
+| session timestamp=1791985000.789 | 1791985000 | 2026-10-14 13:36:40.789000 | 1791985000789 | 1791985000789 |
+| session timestamp=1791985000.5 | 1791985000 | 1791985000500 | 1791985000500 |
+| server |
+| 8.0.45 |
+| u           | bigint        |
+| c           | decimal(20,0) |
+| sql_now     | decimal(25,0) |
+| session timestamp=1791985000.789 | 1791985000 | 2026-10-14 21:36:40.789000 | 1791985000789 | 1791985000789 |
+| session timestamp=1791985000.5 | 1791985000 | 1791985000500 | 1791985000500 |
