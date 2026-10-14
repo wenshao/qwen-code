@@ -1,0 +1,55 @@
+diff -ru orig/.github/workflows/sdk-java.yml tree/.github/workflows/sdk-java.yml
+--- a/.github/workflows/sdk-java.yml	2026-10-14 08:33:33
++++ b/.github/workflows/sdk-java.yml	2026-10-14 08:33:33
+@@ -800,10 +800,13 @@
+       # whose supervision needs a delegated cgroup v2 root; ubuntu-latest's
+       # kernel has the interface, and the job delegates one subtree to
+       # itself (the supervisor uses the core cgroup v2 files only, so no
+-      # controller delegation is needed).
++      # controller delegation is needed). A non-root process may migrate only
++      # within a subtree whose common ancestor it can write, so the Verify
++      # step first moves its own shell into the fg8/job leaf: the units the
++      # supervisor creates under fg8 then share the chowned fg8 ancestor.
+       - name: 'Delegate a cgroup v2 root for the process gates'
+         run: |-
+-          sudo mkdir -p /sys/fs/cgroup/fg8
++          sudo mkdir -p /sys/fs/cgroup/fg8/job
+           sudo chown -R "$(id -u):$(id -g)" /sys/fs/cgroup/fg8
+           test -f /sys/fs/cgroup/fg8/cgroup.kill
+       - name: 'Verify Hosted Java, Spring and MySQL processes'
+@@ -820,6 +823,7 @@
+           MYSQL_PORT: "${{ job.services.mysql.ports['3306'] }}"
+           QWEN_MANAGED_HOOK_CGROUP_ROOT: '/sys/fs/cgroup/fg8'
+         run: >-
++          echo "$$" | sudo tee /sys/fs/cgroup/fg8/job/cgroup.procs > /dev/null &&
+           mvn --batch-mode --no-transfer-progress -f packages/sdk-java/managed-agent-server/pom.xml
+           -Phosted-harness-mysql
+           -Dnode.executable="$(command -v node)"
+diff -ru orig/integration-tests/helpers/hosted-relay-headers.test.ts tree/integration-tests/helpers/hosted-relay-headers.test.ts
+--- a/integration-tests/helpers/hosted-relay-headers.test.ts	2026-10-14 08:33:33
++++ b/integration-tests/helpers/hosted-relay-headers.test.ts	2026-10-14 08:33:33
+@@ -136,6 +136,7 @@
+     expect(callers).toEqual([
+       'hosted-channel-fault-driver.ts',
+       'hosted-latency-driver.ts',
++      'hosted-monitor-run-fault-driver.ts',
+       'hosted-process-crash-driver.ts',
+       'hosted-recovery-blocked-wedge-driver.ts',
+       'hosted-shell-output-driver.ts',
+diff -ru orig/scripts/tests/hosted-process-ci.test.js tree/scripts/tests/hosted-process-ci.test.js
+--- a/scripts/tests/hosted-process-ci.test.js	2026-10-14 08:33:33
++++ b/scripts/tests/hosted-process-ci.test.js	2026-10-14 08:33:33
+@@ -274,6 +274,13 @@
+     // driver budget before red — so the delegation must land first.
+     expect(job.steps.indexOf(delegate)).toBeLessThan(job.steps.indexOf(verify));
+     expect(verify.env.QWEN_MANAGED_HOOK_CGROUP_ROOT).toBe('/sys/fs/cgroup/fg8');
++    // The job user cannot write the root cgroup's cgroup.procs, so the step's
++    // own shell must sit inside the delegated subtree before Maven starts —
++    // otherwise every launcher's self-migration fails with EACCES.
++    expect(delegate.run).toContain('mkdir -p /sys/fs/cgroup/fg8/job');
++    expect(verify.run.trimStart()).toMatch(
++      /^echo "\$\$" \| sudo tee \/sys\/fs\/cgroup\/fg8\/job\/cgroup\.procs/,
++    );
+   });
+ 
+   it('keeps the Hosted MySQL job ceiling above its summed step ceilings', () => {

@@ -1,0 +1,11 @@
+# Ubuntu 24.04 VM (colima), kernel 6.8.0-117-generic, cgroup v2 — the CI step's exact delegation, then three writers
+$ id; cat /proc/self/cgroup; stat -c "%U %a %n" /sys/fs/cgroup/cgroup.procs
+uid=501(...) gid=1000(...)
+0::/user.slice/user-501.slice/session-4.scope
+root 644 /sys/fs/cgroup/cgroup.procs
+$ sudo mkdir -p /sys/fs/cgroup/fg8 && sudo chown -R "$(id -u):$(id -g)" /sys/fs/cgroup/fg8 && test -f /sys/fs/cgroup/fg8/cgroup.kill   # ok
+$ mkdir /sys/fs/cgroup/fg8/unit1                                            # ok (owner)
+$ python3: open("/sys/fs/cgroup/fg8/unit1/cgroup.procs","w").write(pid)     # FAILED 13 EACCES  (common ancestor = root cgroup)
+$ sudo sh -c 'echo $$ > /sys/fs/cgroup/fg8/unit1/cgroup.procs'               # ROOT_JOINED
+$ sudo mkdir /sys/fs/cgroup/fg8/shell && sudo chown ... ; move this shell into fg8/shell via sudo
+$ sh -c 'echo $$ > /sys/fs/cgroup/fg8/unit2/cgroup.procs'                     # NONROOT_INSIDE_JOINED -> 0::/fg8/unit2
