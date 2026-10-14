@@ -1,0 +1,2 @@
+#!/bin/bash
+exec /Users/wenshao/Install/mysql-8.4.7-macos15-arm64/bin/mysqld --no-defaults --basedir=/Users/wenshao/Install/mysql-8.4.7-macos15-arm64 --datadir=/Users/wenshao/pr13918-rig/mysql-it-data --port=23921 --bind-address=127.0.0.1 --mysqlx=OFF --socket=/Users/wenshao/pr13918-rig/mysql-it.sock --pid-file=/Users/wenshao/pr13918-rig/mysql-it.pid --log-error=/Users/wenshao/pr13918-rig/mysql-log/error-it.log --default-time-zone=+00:00 --general-log=0 --skip-log-bin --max-connections=600 --max-allowed-packet=67108864

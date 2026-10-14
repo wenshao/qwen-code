@@ -1,0 +1,147 @@
+PR #13918 round 3 @ 695fcf592e — test summaries (macOS arm64, JDK 21)
+
+### MySQL 8.4.7 guard ITs, head
+-- it-r3-guard.log: === 19:39:26 IT r3-guard src=r3 (695fcf592e) its=ManagedSessionGuardConvoyIT,WorkspaceLifecycleMySqlIT,ToolPublicationLockOrderMySqlIT,ManagedRuntimeRetentionGu
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.765 s -- in com.alibaba.qwen.code.managedagent.ToolPublicationLockOrderMySqlIT
+Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 21.05 s -- in com.alibaba.qwen.code.managedagent.WorkspaceSessionRetentionMySqlIT
+Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 32.90 s -- in com.alibaba.qwen.code.managedagent.store.ManagedRuntimeRetentionGuardMySqlIT
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 39.45 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSessionGuardConvoyIT
+Tests run: 66, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 82.12 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceLifecycleMySqlIT
+Tests run: 108, Failures: 0, Errors: 0, Skipped: 0
+[r3-guard] EXIT=0
+
+### MySQL 8.4.7 witness: ManagedSessionGuardConvoyIT at c7c2f7aab1 (before the CSI commits)
+-- it-c7-convoy.log: === 19:42:32 IT c7-convoy src=c7 (c7c2f7aab1) its=ManagedSessionGuardConvoyIT
+Tests run: 7, Failures: 1, Errors: 1, Skipped: 0, Time elapsed: 35.38 s <<< FAILURE! -- in com.alibaba.qwen.code.managedagent.store.ManagedSessionGuardConvoyIT
+com.alibaba.qwen.code.managedagent.store.ManagedSessionGuardConvoyIT.poolSaturationDoesNotDeadlockConcurrentAcquiresAcrossTenants -- Time elapsed: 1.246 s <<< FAILURE!
+com.alibaba.qwen.code.managedagent.store.ManagedSessionGuardConvoyIT.heldTenantGuardsDoNotWedgeUnrelatedSessions -- Time elapsed: 11.27 s <<< ERROR!
+Tests run: 7, Failures: 1, Errors: 1, Skipped: 0
+[c7-convoy] EXIT=1
+
+### MySQL 8.4.7 mutant M1 (requireNoLifecycleClaim removed from requireOrdinaryAdmission)
+-- it-r3mut-m1.log: === 19:43:13 IT r3mut-m1 src=r3mut (695fcf592e) its=ManagedSessionGuardConvoyIT,WorkspaceLifecycleMySqlIT
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 43.89 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSessionGuardConvoyIT
+Tests run: 66, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 90.39 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceLifecycleMySqlIT
+Tests run: 73, Failures: 0, Errors: 0, Skipped: 0
+[r3mut-m1] EXIT=0
+
+### H2 unit: baseline / M1 / M1 (6 classes) / M2
+-- mut-base0.log: === 19:29:26 base0 diff:
+Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 11.11 s -- in com.alibaba.qwen.code.managedagent.service.SessionLifecycleCoordinatorTest
+Tests run: 53, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.577 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceLifecycleStoreTest
+Tests run: 47, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.887 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleTest
+Tests run: 122, Failures: 0, Errors: 0, Skipped: 0
+[base0] EXIT=0
+-- mut-m1.log: === 19:30:04 m1 diff:
+Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.66 s -- in com.alibaba.qwen.code.managedagent.service.SessionLifecycleCoordinatorTest
+Tests run: 53, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.157 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceLifecycleStoreTest
+Tests run: 47, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.608 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleTest
+Tests run: 122, Failures: 0, Errors: 0, Skipped: 0
+[m1] EXIT=0
+-- mut-m1b.log: === 19:31:49 m1b diff:
+Tests run: 56, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.040 s -- in com.alibaba.qwen.code.managedagent.ManagedWorkspaceAdmissionTest
+Tests run: 95, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.052 s -- in com.alibaba.qwen.code.managedagent.harness.QwenHostedHarnessConnectorTest
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.129 s -- in com.alibaba.qwen.code.managedagent.ManagedOperationSchemaUpgradeTest
+Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.402 s -- in com.alibaba.qwen.code.managedagent.service.SessionLifecycleCoordinatorTest
+Tests run: 53, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.669 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceLifecycleStoreTest
+Tests run: 47, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.885 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleTest
+Tests run: 274, Failures: 0, Errors: 0, Skipped: 0
+[m1b] EXIT=0
+-- mut-m2.log: === 19:30:54 m2 diff:
+Tests run: 56, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.801 s -- in com.alibaba.qwen.code.managedagent.ManagedWorkspaceAdmissionTest
+Tests run: 95, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.077 s -- in com.alibaba.qwen.code.managedagent.harness.QwenHostedHarnessConnectorTest
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.132 s -- in com.alibaba.qwen.code.managedagent.ManagedOperationSchemaUpgradeTest
+Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.144 s -- in com.alibaba.qwen.code.managedagent.service.SessionLifecycleCoordinatorTest
+Tests run: 53, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.109 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceLifecycleStoreTest
+Tests run: 47, Failures: 5, Errors: 0, Skipped: 0, Time elapsed: 1.441 s <<< FAILURE! -- in com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleTest
+com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleTest.sealedCleanupWriterCanBeReacquiredOnlyWithTheCurrentResourceClaim(String)[1] -- Time elapsed: 0.032 s <<< FAILURE!
+com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleTest.sealedCleanupWriterCanBeReacquiredOnlyWithTheCurrentResourceClaim(String)[2] -- Time elapsed: 0.025 s <<< FAILURE!
+com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleTest.drainingTakeoverAllowsOnlyTheCurrentCleanupWriterAndBrokerClaim -- Time elapsed: 0.039 s <<< FAILURE!
+com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleTest.expiredResidentWriterRenewsOnlyUnderTheCurrentResourceClaim(String)[1] -- Time elapsed: 0.029 s <<< FAILURE!
+com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleTest.expiredResidentWriterRenewsOnlyUnderTheCurrentResourceClaim(String)[2] -- Time elapsed: 0.023 s <<< FAILURE!
+Tests run: 274, Failures: 5, Errors: 0, Skipped: 0
+[m2] EXIT=1
+
+### MariaDB 10.11.18: full non-Hosted managed-agent IT run (head + 43f7d42817)
+(the runtime-broker part of this log errored with Unknown database 'runtime_broker_test' because the local server had no pre-created database; it is filtered out here and rerun below as itm-r3m-broker.log)
+qwencode install exit=0
+broker install exit=0
+BROKER-IT exit=1
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 12.65 s -- in com.alibaba.qwen.code.managedagent.ManagedRuntimeRetentionRaceMySqlIT
+Tests run: 23, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 141.8 s <<< FAILURE! -- in com.alibaba.qwen.code.managedagent.ManagedAgentMySqlIT
+com.alibaba.qwen.code.managedagent.ManagedAgentMySqlIT.admitsHookExecutionsWithoutReadingTheirHistoryOnMySql -- Time elapsed: 60.99 s <<< ERROR!
+Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 35.15 s -- in com.alibaba.qwen.code.managedagent.ManagedSchemaJournalMySqlIT
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 46.78 s -- in com.alibaba.qwen.code.managedagent.ToolPublicationRecoveryMySqlIT
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.180 s -- in com.alibaba.qwen.code.managedagent.ToolPublicationLockOrderMySqlIT
+Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 28.57 s -- in com.alibaba.qwen.code.managedagent.WorkspaceSessionRetentionMySqlIT
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.737 s -- in com.alibaba.qwen.code.managedagent.WorkspaceSessionCloseMySqlIT
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.321 s -- in com.alibaba.qwen.code.managedagent.service.EventTransportConsumerMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.662 s -- in com.alibaba.qwen.code.managedagent.ToolPublicationLifecycleMySqlIT
+Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 46.60 s -- in com.alibaba.qwen.code.managedagent.store.ManagedRuntimeRetentionGuardMySqlIT
+Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.93 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSessionPhysicalFenceMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 18.88 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaRelayLoadMySqlIT
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.949 s -- in com.alibaba.qwen.code.managedagent.store.ManagedWorkspaceRolesMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 94.50 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceQueryScaleMySqlIT
+Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 11.90 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceRecoveryMySqlIT
+Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 14.27 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaBusinessMySqlIT
+Tests run: 51, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 90.06 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceCsiCheckpointMySqlIT
+Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 16.36 s -- in com.alibaba.qwen.code.managedagent.store.LocalStorageAliasMySqlIT
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.654 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaPublicationMySqlIT
+Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 16.15 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceCsiReservationMySqlIT
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.446 s -- in com.alibaba.qwen.code.managedagent.store.ManagedExtensionRecordVerdictReconcileMySqlIT
+Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 31.59 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaSessionMySqlIT
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 39.56 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSessionGuardConvoyIT
+Tests run: 66, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 54.80 s -- in com.alibaba.qwen.code.managedagent.store.SessionResourceCollectionMySqlIT
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.079 s -- in com.alibaba.qwen.code.managedagent.store.ManagedAgentCsiMutationMySqlIT
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.114 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceMigrationMySqlIT
+Tests run: 49, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 47.46 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceProfileLifecycleMySqlIT
+Tests run: 66, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 66.66 s -- in com.alibaba.qwen.code.managedagent.store.WorkspaceLifecycleMySqlIT
+Tests run: 26, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 188.1 s -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAcknowledgementMySqlIT
+Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 77.24 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaLoadMySqlIT
+Tests run: 63, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 116.9 s <<< FAILURE! -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAsyncVerificationMySqlIT
+com.alibaba.qwen.code.managedagent.store.ToolPublicationAsyncVerificationMySqlIT.expiredAttemptDefersInsteadOfImmediatelyReclaiming(String)[2] -- Time elapsed: 1.473 s <<< FAILURE!
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 28.08 s -- in com.alibaba.qwen.code.managedagent.store.ManagedSchemaPublicationLoadMySqlIT
+Tests run: 554, Failures: 1, Errors: 1, Skipped: 0
+MANAGED-IT exit=1
+
+### MariaDB 10.11.18: reruns and broker ITs
+-- itm-b3j-async1.log: === 19:58:41 ITM b3j-async1 src=b3j (4d3d5fcc79) its=ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 96.79 s -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0
+[b3j-async1] EXIT=0
+-- itm-b3j-async2.log: === 20:01:58 ITM b3j-async2 src=b3j (4d3d5fcc79) its=ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 96.47 s -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0
+[b3j-async2] EXIT=0
+-- itm-b3j-async3.log: === 20:05:14 ITM b3j-async3 src=b3j (4d3d5fcc79) its=ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 107.4 s -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0
+[b3j-async3] EXIT=0
+-- itm-b3j-hook.log: === 20:08:07 ITM b3j-hook src=b3j (4d3d5fcc79) its=ManagedAgentMySqlIT#admitsHookExecutionsWithoutReadingTheirHistoryOnMySql
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 61.61 s <<< FAILURE! -- in com.alibaba.qwen.code.managedagent.ManagedAgentMySqlIT
+com.alibaba.qwen.code.managedagent.ManagedAgentMySqlIT.admitsHookExecutionsWithoutReadingTheirHistoryOnMySql -- Time elapsed: 61.59 s <<< ERROR!
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0
+[b3j-hook] EXIT=1
+-- itm-r3m-async1.log: === 19:56:33 ITM r3m-async1 src=r3m (7020706c3e) its=ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 124.6 s -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0
+[r3m-async1] EXIT=0
+-- itm-r3m-async2.log: === 20:00:20 ITM r3m-async2 src=r3m (7020706c3e) its=ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 95.50 s -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0
+[r3m-async2] EXIT=0
+-- itm-r3m-async3.log: === 20:03:37 ITM r3m-async3 src=r3m (7020706c3e) its=ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 94.96 s -- in com.alibaba.qwen.code.managedagent.store.ToolPublicationAsyncVerificationMySqlIT
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0
+[r3m-async3] EXIT=0
+-- itm-r3m-broker.log: [INFO] Scanning for projects...
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 40.80 s -- in com.alibaba.qwen.code.runtimebroker.JdbcRuntimeBrokerMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.701 s -- in com.alibaba.qwen.code.runtimebroker.JdbcRuntimeRetentionMySqlIT
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.650 s -- in com.alibaba.qwen.code.runtimebroker.ManagedSchemaMySqlIT
+Tests run: 62, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 90.91 s -- in com.alibaba.qwen.code.runtimebroker.RuntimeHarnessDrainMySqlIT
+Tests run: 74, Failures: 0, Errors: 0, Skipped: 0
+-- itm-r3m-hook.log: === 20:07:04 ITM r3m-hook src=r3m (7020706c3e) its=ManagedAgentMySqlIT#admitsHookExecutionsWithoutReadingTheirHistoryOnMySql
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 61.32 s <<< FAILURE! -- in com.alibaba.qwen.code.managedagent.ManagedAgentMySqlIT
+com.alibaba.qwen.code.managedagent.ManagedAgentMySqlIT.admitsHookExecutionsWithoutReadingTheirHistoryOnMySql -- Time elapsed: 61.30 s <<< ERROR!
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0
+[r3m-hook] EXIT=1
