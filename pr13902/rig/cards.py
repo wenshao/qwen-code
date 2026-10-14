@@ -55,6 +55,8 @@ def s4txt(rows, k):
 s5 = {k: R(f'{k}/s5-acp-{m}-result.json')['v'] for k, m in (('s5acp-load-head', 'load'), ('s5acp-loadfix-head2', 'loadfix'), ('s5acp-control-head', 'control'))}
 s6, s6b = R('s6-head/s6-result.json')['v'], R('s6-head2/s6-result.json')['v']
 s7, s7nv = R('s7-head2/s7-result.json')['v'], R('s7nv-head2/s7-result.json')['v']
+s8 = R('s8-head2/s8-result.json')['v']
+S8TXT = '%s attached in %d ms while the turn ran on for %.1f s' % (s8['load']['status'], int(s8['load']['tookS']*1000), s8['turnEndedAtS']-s8['loadSentAtS'])
 def s5txt(v): return f"load blocked {v['load']['tookS']} s; peer frames {v['peerReportUpdates']}; leader model {v['leaderModelGotReport']}; mailbox read:{str(v['inboxRows'][0]['read']).lower()}; conversation records {sum(1 for t in v['transcriptReportRecords'] if 'ui_telemetry' not in t)}"
 mut = json.load(open(os.path.join(ROOT, 'gates/mutants-head2/mutants.json'))) if os.path.exists(os.path.join(ROOT, 'gates/mutants-head2/mutants.json')) else []
 m3 = next((m for m in mut if m['mutant'].startswith('M3')), None)
@@ -85,7 +87,7 @@ for f, probe, a, ca, b, cb in rows2:
 body += "</table>"
 open(os.path.join(OUT, '02-findings-real-stack.html'), 'w').write(page(
   'Review findings driven on the real stack, before and after the 309106ee fix commit',
-  'Daemon scenarios use the bundled <code>dist/cli.js</code> of each head; R1-2 uses a raw ACP host because the daemon short-circuits <code>load</code> of a live session (measured: 200 attached in 12 ms, no close gate).',
+  f'Daemon scenarios use the bundled <code>dist/cli.js</code> of each head; R1-2 uses a raw ACP host because the daemon short-circuits <code>load</code> of a live session (measured at 309106ee: {S8TXT}).',
   body, 'Sources: runs/s2-*, s4-*, s5acp-*, s6-*, s7-head2, s7nv-head2. Green = behaves as intended, red = defect reproduced, amber = residual or policy question.'))
 
 # ── Card 3: gates + mutants ──
