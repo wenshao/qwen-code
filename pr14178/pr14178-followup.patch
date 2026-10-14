@@ -1,0 +1,104 @@
+diff --git a/docs/design/2026-10-12-managed-agent-event-transport-mq2.md b/docs/design/2026-10-12-managed-agent-event-transport-mq2.md
+index b547a751d6..26d0757b17 100644
+--- a/docs/design/2026-10-12-managed-agent-event-transport-mq2.md
++++ b/docs/design/2026-10-12-managed-agent-event-transport-mq2.md
+@@ -227,10 +227,12 @@ with only the Harness stood in for. The rows:
+ - **Post-commit latency.** The deployed composite (hub, then the public
+   transport) and a flag-off composite (hub only) publish the same batches,
+   interleaved: the committing thread's publish time and the hub
+-  subscriber's delivery time may not grow by a millisecond at p95 locally.
+-  Shared CI runners use a 20 ms allowance for scheduler noise; the raw
+-  measurements are still recorded. The journal wire's after-commit hand-off
+-  stays under 20 ms at p95. In three
++  subscriber's delivery time may not grow by a millisecond at p95, and the
++  journal wire's after-commit hand-off stays under 20 ms at p95. Each round
++  alternates which path runs first and confirms both envelopes arrived at
++  the real broker before starting the next round. Broker delivery is outside
++  the timed regions, so queued work from earlier samples does not bias the
++  comparison. The same latency limits apply locally and in CI. In three
+   local runs (macOS, 300 rounds each) the transport added 13–186 µs at p95
+   and the journal hand-off measured 0.35–1.5 ms; CI writes its own figures
+   to `target/event-transport-latency.json`.
+diff --git a/docs/design/2026-10-12-managed-agent-event-transport-mq2.zh-CN.md b/docs/design/2026-10-12-managed-agent-event-transport-mq2.zh-CN.md
+index 071b22b793..40a7385c13 100644
+--- a/docs/design/2026-10-12-managed-agent-event-transport-mq2.zh-CN.md
++++ b/docs/design/2026-10-12-managed-agent-event-transport-mq2.zh-CN.md
+@@ -61,7 +61,7 @@ MQ2c 不包含:真实 broker 故障行(MQ2d)、接收侧对 journal 事实的 di
+ - **重复与乱序注入。** 发两次的唤醒,或先新后旧的唤醒,只激活一次;水位保持较高的序号。在 owner 通道上,重复或更旧的公开通知会到达消费者,但不会触发物化批次。
+ - **owner 通道。** 本节点持有 attachment 的两个 Session 中,只有 journal 由本节点 Harness 写入的那一个会被订阅。
+ - **owner 交接。** owner 组里的旧订阅者(其 writer 已失效、另一 writer 持有 journal)收到唤醒,不加载、不认领、直接 ACK。它退订之后,新 owner 订阅,永远收不到这条通知——那次 ACK 推进了组位点——而在它订阅之前发往同一 lite topic、无人 ACK 的通知会作为积压到达它,之后的通知也会到达它,所以收不到确是 ACK 所致。该唤醒在 SQL 中保持未认领,journal 空出后,后来的通知仍能激活它。在新 owner 持有的 Session 上,由其 Harness 从 journal 执行该唤醒输入——通知从来不是承载者。
+-- **提交后延迟。** 已部署的 composite(先 hub、后公开 transport)与关闭开关的 composite(只有 hub)交替发布同样的批次:提交线程的 publish 耗时与 hub 订阅者的投递耗时在本地 p95 上增加不得超过 1 毫秒。共享 CI runner 使用 20 毫秒容差以容纳调度噪声,仍记录原始测量结果;journal 线的 after-commit 交接 p95 须低于 20 毫秒。三次本地运行(macOS,各 300 轮)中,transport 在 p95 上增加 13–186 微秒,journal 交接为 0.35–1.5 毫秒;CI 会把自己的数据写到 `target/event-transport-latency.json`。
++- **提交后延迟。** 已部署的 composite(先 hub、后公开 transport)与关闭开关的 composite(只有 hub)交替发布同样的批次:提交线程的 publish 耗时与 hub 订阅者的投递耗时在 p95 上增加不得超过 1 毫秒,journal 线的 after-commit 交接 p95 须低于 20 毫秒。每轮交替两条路径的先后顺序,并在计时区域之外确认两条信封均已通过真实 broker 投递,再开始下一轮,避免前面样本遗留的异步工作干扰对比。本地与 CI 使用相同的延迟门槛。三次本地运行(macOS,各 300 轮)中,transport 在 p95 上增加 13–186 微秒,journal 交接为 0.35–1.5 毫秒;CI 会把自己的数据写到 `target/event-transport-latency.json`。
+ - **配错即启动失败。** NORMAL(非 LITE)topic 能骗过单纯的订阅探针,现在由新增的发送探针拒绝——向探针自己的 lite topic 同步发一条消息——赶在任何信封被丢弃之前;没人预建的探针组会让订阅探针失败。探针组现在是可配置属性(`capability-probe-group`),代码里打印的每条 `mqadmin` 命令都写明了集群;既不写集群也不写 broker 的话,mqadmin 什么也不建。
+ - **开关关闭。** 以结构方式而非经 broker 钉住:`EventTransportConfigurationTest` 证明开关关闭的上下文里不存在任何生产者、消费者、transport 或消费者 store,模块其余测试集也都在开关关闭下运行。
+ 
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedSessionStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedSessionStore.java
+index 07bad55100..2543d1a9d0 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedSessionStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/ManagedSessionStore.java
+@@ -399,6 +399,7 @@ public class ManagedSessionStore {
+         if (csiOriginal != null) {
+             csiOriginal.requireAdmission();
+         }
++        ensureSessionRoot(tenantId, sessionId);
+         bindControlSessionStorage(tenantId, request.workspaceId(), sessionId);
+         // Materialize the key before any locking read: missing-key RR locks can
+         // deadlock independent tenants when both first writers insert a head.
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/EventTransportBrokerGate.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/EventTransportBrokerGate.java
+index 359fe16530..3cb6f38e45 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/EventTransportBrokerGate.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/EventTransportBrokerGate.java
+@@ -418,6 +418,7 @@ class EventTransportBrokerGate {
+     @Test
+     void thePostCommitPathDoesNotRegress() throws Exception {
+         String session = session("ACTIVE");
++        List<String> brokerDeliveries = oracle(session);
+         SessionEventHub flagOffHub = new SessionEventHub();
+         CompositeCommittedEventPublisher flagOff =
+                 new CompositeCommittedEventPublisher(flagOffHub, List.of());
+@@ -433,13 +434,27 @@ class EventTransportBrokerGate {
+             for (int round = 1; round <= rounds; round++) {
+                 EventRecord event = publicEvent(session, round,
+                         "item.output_text.delta");
+-                measure(publisher, onHub, event, onPublish, onDelivery);
+-                measure(flagOff, offHub, event, offPublish, offDelivery);
+-                byte[] record = journalRecord(List.of(
+-                        journalEvent(session, round, "message.delta")));
++                if (round % 2 == 0) {
++                    measure(publisher, onHub, event, onPublish, onDelivery);
++                    measure(flagOff, offHub, event, offPublish, offDelivery);
++                } else {
++                    measure(flagOff, offHub, event, offPublish, offDelivery);
++                    measure(publisher, onHub, event, onPublish, onDelivery);
++                }
++                JsonNode journal = journalEvent(session, round, "message.delta");
++                byte[] record = journalRecord(List.of(journal));
+                 long started = System.nanoTime();
+                 journalTransport.publishCommitted(record);
+                 journalHandOff.add(System.nanoTime() - started);
++                // Drain both asynchronous wires outside the timed region so
++                // the next sample does not inherit this round's broker work.
++                String publicBody = ManagedEventEnvelopes.toJson(publicEnvelope(event));
++                String journalBody = ManagedEventEnvelopes.toJson(
++                        ManagedEventEnvelopes.from(journal));
++                await().pollDelay(Duration.ZERO).pollInterval(Duration.ofMillis(10))
++                        .atMost(DELIVERY).until(() ->
++                        brokerDeliveries.contains(publicBody)
++                                && brokerDeliveries.contains(journalBody));
+             }
+         }
+         // Discard the warm-up quarter.
+@@ -458,10 +473,9 @@ class EventTransportBrokerGate {
+         Files.createDirectories(Path.of("target"));
+         Files.writeString(Path.of("target/event-transport-latency.json"),
+                 JSON.writerWithDefaultPrettyPrinter().writeValueAsString(record));
+-        // Shared CI runners can deschedule this thread between nanoTime calls.
+-        // Keep the 1 ms local benchmark; CI uses the journal hand-off's 20 ms budget.
+-        long budget = Duration.ofMillis(
+-                Boolean.parseBoolean(System.getenv("CI")) ? 20 : 1).toNanos();
++        // The public transport only copies and enqueues on the committing
++        // thread: a regression is a whole millisecond at p95.
++        long budget = Duration.ofMillis(1).toNanos();
+         assertThat(onP95).as("publish p95, flag on vs off (ns)")
+                 .isLessThanOrEqualTo(offP95 + budget);
+         assertThat(onDeliveryP95).as("hub delivery p95, flag on vs off (ns)")
