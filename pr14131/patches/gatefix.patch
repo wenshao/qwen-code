@@ -1,0 +1,56 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedBackgroundPublicationGate.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedBackgroundPublicationGate.java
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedBackgroundPublicationGate.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedBackgroundPublicationGate.java
+@@ -215,6 +215,24 @@
+                     entry.put("shellCommand", specs.get(index).shellCommand());
+                 sessions.add(entry);
+             }
++            // The baseline admits tools only on registered storage (#14069). Register it the
++            // way HostedProcessCrashIT does, through a guard of its own, so this gate keeps its
++            // verified-workspace-recovery-enabled=false application configuration.
++            if ("Linux".equals(System.getProperty("os.name"))) {
++                var registration = new com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties();
++                registration.getRuntimeBroker().setVerifiedWorkspaceRecoveryEnabled(true);
++                var mounts = new ArrayList<com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties.RuntimeBroker.WorkspaceMount>();
++                for (int index = 0; index < specs.size(); index++) {
++                    mounts.add(new com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties.RuntimeBroker.WorkspaceMount(
++                            tenant, "storage-" + index, workspaces.get(index).toString()));
++                }
++                registration.getRuntimeBroker().setWorkspaceMounts(mounts);
++                var guard = new com.alibaba.qwen.code.managedagent.store.WorkspaceStorageGuard(jdbc,
++                        new org.springframework.jdbc.datasource.DataSourceTransactionManager(jdbc.getDataSource()), registration);
++                for (int index = 0; index < specs.size(); index++) {
++                    guard.register(tenant, "storage-" + index, UUID.randomUUID().toString());
++                }
++            }
+             EmbeddedRuntimeBroker broker = spring.getBean(EmbeddedRuntimeBroker.class);
+             Path phaseFile = temporary.resolve("phase");
+             Path config = temporary.resolve("driver.json");
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedRecoveryWedgeGate.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedRecoveryWedgeGate.java
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedRecoveryWedgeGate.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedRecoveryWedgeGate.java
+@@ -196,6 +196,24 @@
+                         // leftover execution is cheap to leave unresolved.
+                         "shellCommand", index == 0 ? "sleep 2" : "printf PROBE_OK\\n"));
+             }
++            // The baseline admits tools only on registered storage (#14069). Register it the
++            // way HostedProcessCrashIT does, through a guard of its own, so this gate keeps its
++            // verified-workspace-recovery-enabled=false application configuration.
++            if ("Linux".equals(System.getProperty("os.name"))) {
++                var registration = new com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties();
++                registration.getRuntimeBroker().setVerifiedWorkspaceRecoveryEnabled(true);
++                var mounts = new ArrayList<com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties.RuntimeBroker.WorkspaceMount>();
++                for (int index = 0; index < 3; index++) {
++                    mounts.add(new com.alibaba.qwen.code.managedagent.config.ManagedAgentProperties.RuntimeBroker.WorkspaceMount(
++                            tenant, "storage-" + index, workspaces.get(index).toString()));
++                }
++                registration.getRuntimeBroker().setWorkspaceMounts(mounts);
++                var guard = new com.alibaba.qwen.code.managedagent.store.WorkspaceStorageGuard(jdbc,
++                        new org.springframework.jdbc.datasource.DataSourceTransactionManager(jdbc.getDataSource()), registration);
++                for (int index = 0; index < 3; index++) {
++                    guard.register(tenant, "storage-" + index, UUID.randomUUID().toString());
++                }
++            }
+             EmbeddedRuntimeBroker broker = spring.getBean(EmbeddedRuntimeBroker.class);
+             Path phaseFile = temporary.resolve("phase");
+             Path clearedFile = temporary.resolve("cleared");

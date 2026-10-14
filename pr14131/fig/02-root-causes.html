@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#e6edf3}
+.card{width:1400px;padding:28px 32px 26px;box-sizing:border-box;background:#0d1117}
+h1{font-size:25px;margin:0 0 4px;font-weight:650}
+.sub{color:#8b949e;font-size:14.5px;margin-bottom:16px;line-height:1.45}
+table{border-collapse:collapse;width:100%;font-size:14.5px;margin:6px 0 14px}
+th{color:#8b949e;font-weight:600;text-align:left;border-bottom:1px solid #30363d;padding:6px 9px;vertical-align:bottom}
+td{border-bottom:1px solid #21262d;padding:6px 9px;vertical-align:top}
+.mono,code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+.ok{color:#3fb950;font-weight:600}.bad{color:#f85149;font-weight:600}.warn{color:#d29922;font-weight:600}.dim{color:#8b949e}
+.note{border-left:4px solid #d29922;padding:8px 14px;background:#161b22;font-size:14.5px;margin-top:6px;line-height:1.5}
+.note.red{border-color:#f85149}.note.green{border-color:#3fb950}
+.h2{font-size:17px;font-weight:650;margin:16px 0 4px}
+pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:#161b22;border:1px solid #30363d;padding:10px 14px;margin:6px 0 12px;white-space:pre;overflow:hidden;line-height:1.5}
+pre .r{color:#f85149}pre .g{color:#3fb950}pre .y{color:#d29922}pre .d{color:#8b949e}
+</style></head><body><div class="card" id="card"><h1>Why the leg was red — both breakages reproduced on the real stack</h1><div class="sub">Linux 6.12 aarch64 (Debian 13 host, ext4 /tmp) · Ubuntu 24.04 container · Temurin 21.0.9 · Node 22.23.3 · Maven 3.9.11 · MySQL 8.4.11 (CI: 8.4.6) · 4 pinned cores per run</div><div class="h2">A. Birth-time check — production <code>WorkspaceStorageGuard.verifiedBirthTime</code> on the real ext4 /tmp</div>
+<table><tr><th>fixture shape</th><th>mtime pin</th><th>refused</th><th>first sample</th></tr><tr><td class="mono">mkdir root; mkdir root/child</td><td class="">none (as on base)</td><td class="bad">495/500</td><td class="mono">btime 04:37:44.27634446Z  mtime 04:37:44.27634446Z  → refused</td></tr><tr><td class="mono">mkdir root; mkdir root/child</td><td class="">setLastModifiedTime(checked dir, 1 ms)</td><td class="ok">0/500</td><td class="mono">btime 04:37:44.388345328Z  mtime 1970-01-01T00:00:00.001Z  → accepted</td></tr><tr><td class="mono">mkdirs root/workspace/child</td><td class="">none (as on base)</td><td class="bad">497/500</td><td class="mono">btime 04:37:44.444345762Z  mtime 04:37:44.444345762Z  → refused</td></tr><tr><td class="mono">mkdirs root/workspace/child</td><td class="">setLastModifiedTime(checked dir, 1 ms)</td><td class="ok">0/500</td><td class="mono">btime 04:37:44.512346289Z  mtime 1970-01-01T00:00:00.001Z  → accepted</td></tr></table>
+<div class="h2">B. Owner lookup — every storage the base run's HostedWorkspaceToolTurnIT registered in MySQL</div>
+<table><tr><th>lookup</th><th>formula</th><th>rows matched</th></tr>
+<tr><td class="mono">old probe helpers (base)</td><td class="mono">sha256(tenant + "\0storage-N")  — no domain tag, no length prefixes</td><td class="bad">0 of 38 storages found</td></tr>
+<tr><td class="mono">PR probe helpers</td><td class="mono">ma_storage_owner JOIN ma_storage ON physical_key WHERE alias_key = storageAliasKey(tenant, storage)</td><td class="ok">38 of 38 storages: exactly 1 row</td></tr></table>
+<div class="h2">C. Operator CLI <code>WorkspaceStorageRegistrationMain register</code> on an ambiguous root (birth == mtime)</div>
+<pre><span class="d">[base] root birth=2026-10-14 04:39:11.165017788 mtime=2026-10-14 04:39:11.165017788</span>
+<span class="d">[base] Exception in thread "main" com.alibaba.qwen.code.runtimebroker.RuntimeBrokerException: Workspace execution authority is unavailable.</span>
+<span class="d">[base] exit=1</span>
+<span class="">[head] root birth=2026-10-14 04:39:12.017024390 mtime=2026-10-14 04:39:12.017024390</span>
+<span class="">[head] Exception in thread "main" com.alibaba.qwen.code.runtimebroker.RuntimeBrokerException: Workspace execution authority is unavailable.</span>
+<span class="g">[head] Caused by: java.io.IOException: Workspace birth time is unavailable or ambiguous</span>
+<span class="">[head] exit=1</span></pre>
+<div class="note">A: two directory creations in the same coarse clock tick leave mtime == birth time to the nanosecond, so the production check refuses about 99% of fixture roots; pinning mtime to 1 ms makes it 0/500. B: the probes' local digest never equals the domain-tagged, length-prefixed <code>storageAliasKey</code>, so their owner lookup found nothing (CI: "Incorrect result size: expected 1, actual 0"). C: the operator CLI refusal is otherwise identical (same message, exit 1); only the cause line is new.</div></div></body></html>

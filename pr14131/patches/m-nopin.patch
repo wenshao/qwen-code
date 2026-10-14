@@ -1,0 +1,132 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceExecutionStore.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceExecutionStore.java
+index 43cf84d9cd..d27f4c45b6 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceExecutionStore.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceExecutionStore.java
+@@ -574,6 +574,13 @@ public class WorkspaceExecutionStore {
+                 "Workspace execution authority is unavailable.", false);
+     }
+ 
++    // Same structural refusal, with the discarded cause kept for the log:
++    // without it a failed mount verification reports nothing but the verdict.
++    public static RuntimeBrokerException unavailable(Throwable cause) {
++        return new RuntimeBrokerException(409, "workspace_unavailable",
++                "Workspace execution authority is unavailable.", false, cause);
++    }
++
+     // A probe's momentary I/O failure is not the structural verdict the
+     // terminal refusal promises: it retries through the delivery machine,
+     // keeping the cause for the log. Structural refusals keep
+diff --git a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceStorageGuard.java b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceStorageGuard.java
+index f5467cffa8..98ed24495c 100644
+--- a/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceStorageGuard.java
++++ b/packages/sdk-java/managed-agent-server/src/main/java/com/alibaba/qwen/code/managedagent/store/WorkspaceStorageGuard.java
+@@ -726,7 +726,7 @@ public class WorkspaceStorageGuard {
+         try {
+             return identities.read(root);
+         } catch (IOException | RuntimeException error) {
+-            throw WorkspaceExecutionStore.unavailable();
++            throw WorkspaceExecutionStore.unavailable(error);
+         }
+     }
+ 
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedCancellationProbe.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedCancellationProbe.java
+index 0a8aa5b057..30e03466fe 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedCancellationProbe.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedCancellationProbe.java
+@@ -96,8 +96,12 @@ final class HostedCancellationProbe implements AutoCloseable {
+     }
+ 
+     private Map<String, Object> owner(Map<String, Object> session) throws Exception {
+-        String storageKey = sha256((tenant + "\u0000storage-" + sessions.indexOf(session)).getBytes(StandardCharsets.UTF_8));
+-        return jdbc.queryForMap("SELECT * FROM ma_storage_owner WHERE storage_key = ?", storageKey);
++        String storage = "storage-" + sessions.indexOf(session);
++        return jdbc.queryForMap("SELECT o.* FROM ma_storage_owner o JOIN ma_storage s"
++                + " ON s.physical_key = o.storage_key WHERE s.alias_key = ? AND s.tenant_id = ?"
++                + " AND s.storage_id = ?",
++                com.alibaba.qwen.code.runtimebroker.JdbcRuntimeBindingRepository.storageAliasKey(tenant, storage),
++                tenant, storage);
+     }
+ 
+     private Map<String, Object> check(Map<String, Object> session, String phase) throws Exception {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedProviderControlProbe.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedProviderControlProbe.java
+index e1afa24427..64547d002b 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedProviderControlProbe.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedProviderControlProbe.java
+@@ -16,11 +16,9 @@ import java.net.http.HttpResponse;
+ import java.nio.charset.StandardCharsets;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
+-import java.security.MessageDigest;
+ import java.time.Duration;
+ import java.util.ArrayList;
+ import java.util.HashMap;
+-import java.util.HexFormat;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+ import java.util.Map;
+@@ -166,9 +164,12 @@ final class HostedProviderControlProbe implements AutoCloseable {
+     }
+ 
+     private Map<String, Object> owner(Map<String, Object> session) throws Exception {
+-        String key = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+-                .digest((tenant + "\u0000storage-" + sessions.indexOf(session)).getBytes(StandardCharsets.UTF_8)));
+-        return jdbc.queryForMap("SELECT * FROM ma_storage_owner WHERE storage_key = ?", key);
++        String storage = "storage-" + sessions.indexOf(session);
++        return jdbc.queryForMap("SELECT o.* FROM ma_storage_owner o JOIN ma_storage s"
++                + " ON s.physical_key = o.storage_key WHERE s.alias_key = ? AND s.tenant_id = ?"
++                + " AND s.storage_id = ?",
++                com.alibaba.qwen.code.runtimebroker.JdbcRuntimeBindingRepository.storageAliasKey(tenant, storage),
++                tenant, storage);
+     }
+ 
+     private String sessionState(Map<String, Object> session, String runtimeId) {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedShellOutputProbe.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedShellOutputProbe.java
+index 2091f6aae4..f14afb5052 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedShellOutputProbe.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedShellOutputProbe.java
+@@ -75,8 +75,12 @@ final class HostedShellOutputProbe implements AutoCloseable {
+     }
+ 
+     private Map<String, Object> owner(Map<String, Object> session) throws Exception {
+-        String key = sha256((tenant + "\u0000storage-" + sessions.indexOf(session)).getBytes(StandardCharsets.UTF_8));
+-        return jdbc.queryForMap("SELECT * FROM ma_storage_owner WHERE storage_key = ?", key);
++        String storage = "storage-" + sessions.indexOf(session);
++        return jdbc.queryForMap("SELECT o.* FROM ma_storage_owner o JOIN ma_storage s"
++                + " ON s.physical_key = o.storage_key WHERE s.alias_key = ? AND s.tenant_id = ?"
++                + " AND s.storage_id = ?",
++                com.alibaba.qwen.code.runtimebroker.JdbcRuntimeBindingRepository.storageAliasKey(tenant, storage),
++                tenant, storage);
+     }
+ 
+     private List<?> owned() {
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedSseGapProbe.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedSseGapProbe.java
+index 0b7a9bd506..5ca6a2f363 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedSseGapProbe.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/HostedSseGapProbe.java
+@@ -22,10 +22,8 @@ import java.nio.charset.StandardCharsets;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
+ import java.security.Principal;
+-import java.security.MessageDigest;
+ import java.util.ArrayList;
+ import java.util.List;
+-import java.util.HexFormat;
+ import java.util.Map;
+ import java.util.concurrent.CompletableFuture;
+ import java.util.concurrent.CountDownLatch;
+@@ -164,9 +162,12 @@ final class HostedSseGapProbe implements AutoCloseable {
+         var execution = rows.getFirst();
+         if (!finished) executionId = execution.get("execution_call_id").toString();
+         assertThat(execution.get("execution_call_id")).isEqualTo(executionId);
+-        String storageKey = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+-                .digest((tenant + "\u0000storage-0").getBytes(StandardCharsets.UTF_8)));
+-        var owner = jdbc.queryForMap("SELECT * FROM ma_storage_owner WHERE storage_key = ?", storageKey);
++        String storage = "storage-0";
++        var owner = jdbc.queryForMap("SELECT o.* FROM ma_storage_owner o JOIN ma_storage s"
++                + " ON s.physical_key = o.storage_key WHERE s.alias_key = ? AND s.tenant_id = ?"
++                + " AND s.storage_id = ?",
++                com.alibaba.qwen.code.runtimebroker.JdbcRuntimeBindingRepository.storageAliasKey(tenant, storage),
++                tenant, storage);
+         if (finished) assertThat(owner.get("holder_key")).isNull();
+         else {
+             assertThat(owner.get("holder_key")).isNotNull();

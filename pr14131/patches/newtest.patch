@@ -1,0 +1,28 @@
+diff --git a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationStoreTest.java b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationStoreTest.java
+index 7c0f029d39..9bb8c6461f 100644
+--- a/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationStoreTest.java
++++ b/packages/sdk-java/managed-agent-server/src/test/java/com/alibaba/qwen/code/managedagent/store/WorkspaceMigrationStoreTest.java
+@@ -419,6 +419,23 @@ class WorkspaceMigrationStoreTest {
+         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ma_operation WHERE operation_kind = 'STORAGE_MIGRATION'", Long.class)).isEqualTo(1);
+     }
+ 
++
++    @Test
++    void preservesTheServiceRefusalCodeWhenMountIdentityBecomesUnreadable() throws Exception {
++        var operation = store(true);
++        operation.retire(mock(RuntimeBrokerService.class));
++        guard.fence("tenant", "storage", 1, request.path("fenceOperationId").asText());
++        unreadableIdentity = target;
++        assertThatThrownBy(() -> operation.verify(false)).isInstanceOfSatisfying(RuntimeBrokerException.class,
++                error -> {
++                    assertThat(error.getCode()).isEqualTo("workspace_unavailable");
++                    assertThat(WorkspaceRecoveryStore.errorCode(error)).isEqualTo("workspace_unavailable");
++                    operation.failed(WorkspaceRecoveryStore.errorCode(error));
++                });
++        assertThat(operation.inspect().path("state").asText()).isEqualTo("RETIRED");
++        assertThat(operation.inspect().path("lastErrorCode").asText()).isEqualTo("workspace_unavailable");
++    }
++
+     @Test
+     void publishesOnlyThePinnedTargetMarkerAndPromotesOneHigherRevision() throws Exception {
+         var operation = store(true);
