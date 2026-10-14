@@ -1,0 +1,29 @@
+--- ../head/packages/cli/src/acp-integration/session/Session.ts	2026-10-14 14:09:33
++++ packages/cli/src/acp-integration/session/Session.ts	2026-10-14 14:32:36
+@@ -11240,7 +11240,7 @@
+       reportTeammateActivity: (activity) =>
+         this.#emitTeammateActivity(activity),
+       requestPermission: (params, signal) =>
+-        this.#requestPermissionQueued(params, signal),
++        requestPermissionWithAbort(this.client, params, signal),
+     });
+   }
+ 
+@@ -11249,7 +11249,7 @@
+     displayText: string,
+     senders?: readonly string[],
+   ): void {
+-    if (this.disposed || this.closing) return;
++    if (this.disposed) return;
+     // A single-sender batch is attributable; a mixed batch is not, so it stays
+     // unattributed rather than naming one teammate for several reports.
+     const sender = senders?.length === 1 ? senders[0] : undefined;
+@@ -11289,7 +11289,7 @@
+     name: string;
+     status?: string;
+   }): void {
+-    if (this.disposed || this.closing) return;
++    if (this.disposed) return;
+     const joined = change.type === 'joined';
+     const tail = joined
+       ? 'joined the team'
