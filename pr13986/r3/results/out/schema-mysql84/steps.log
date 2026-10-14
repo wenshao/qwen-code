@@ -1,0 +1,25 @@
+17:10:32 engine: 8.4.11 utf8mb4_0900_ai_ci
+17:10:42 boot pr3 on sp_pr: Started ManagedAgentServerApplication in 7.395 seconds | Successfully applied 1 migration to schema `sp_pr`, now at version v1;
+17:10:42 sp_pr indexes: idx_tool_execution_binding(binding_id,runtime_generation,execution_state) idx_tool_execution_harness(harness_session_id,execution_call_id_hash) idx_tool_execution_session(runtime_session_key,execution_state) PRIMARY(execution_call_id_hash) uq_tool_execution_idempotency(idempotency_key_hash) 
+17:10:42 sp_pr V1 checksum: 1 -1129878481;
+17:10:51 boot base3 on sp_main: Started ManagedAgentServerApplication in 7.234 seconds | Successfully applied 1 migration to schema `sp_main`, now at version v1;
+17:10:51 sp_main indexes: idx_tool_execution_binding(binding_id,runtime_generation,execution_state) idx_tool_execution_session(runtime_session_key,execution_state) PRIMARY(execution_call_id_hash) uq_tool_execution_idempotency(idempotency_key_hash) 
+17:10:51 sp_main V1 checksum: 1 795235619;
+17:12:35 sp_pr: 200000 rows in 104s
+17:14:15 sp_main: 200000 rows in 100s
+17:14:15 EXPLAIN sp_main: 1 SIMPLE ma_tool_execution NULL range PRIMARY PRIMARY 256 NULL 89087 10.00 Using where
+17:14:19 ANALYZE sp_main: -> Limit: 100 row(s)  (cost=18101 rows=100) (actual time=3.47..3220 rows=50 loops=1)\n    -> Filter: ((ma_tool_execution.harness_session_id = _binary'hs-00001234') and (ma_tool_execution.execution_call_id_hash > ''))  (cost=18101 rows=8909) (actual time=3.46..3220 rows=50 loops=1)\n        -> Index range scan on ma_tool_execution using PRIMARY over ('' < execution_call_id_hash)  (cost=18101 rows=8
+17:14:22 matched sp_main: 50
+17:14:22 EXPLAIN sp_pr: 1 SIMPLE ma_tool_execution NULL range PRIMARY,idx_tool_execution_harness idx_tool_execution_harness 2306 NULL 50 100.00 Using index condition
+17:14:22 ANALYZE sp_pr: -> Limit: 100 row(s)  (cost=60.9 rows=50) (actual time=3.4..41.2 rows=50 loops=1)\n    -> Index range scan on ma_tool_execution using idx_tool_execution_harness over (harness_session_id = 0x0b0068732d30303030313233340000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+17:14:22 matched sp_pr: 50
+17:14:28 boot pr3 on sp_main: NOT STARTED | Managed schema index differs: idx_tool_execution_harness;
+17:14:30 sp_main + manual index: idx_tool_execution_binding(binding_id,runtime_generation,execution_state) idx_tool_execution_harness(harness_session_id,execution_call_id_hash) idx_tool_execution_session(runtime_session_key,execution_state) PRIMARY(execution_call_id_hash) uq_tool_execution_idempotency(idempotency_key_hash) 
+17:14:36 boot pr3 on sp_main: NOT STARTED | -> Applied to database : 795235619;Migration checksum mismatch for migration version 1;-> Resolved locally    : -1129878481;
+17:14:42 boot base3 on sp_pr: NOT STARTED | -> Applied to database : -1129878481;Migration checksum mismatch for migration version 1;-> Resolved locally    : 795235619;
+17:14:46 standalone pr3 init fresh:       initialize OK; index idx_tool_execution_harness(harness_session_id,execution_call_id_hash) 
+17:14:48 standalone pr3 init again:       initialize OK; index idx_tool_execution_harness(harness_session_id,execution_call_id_hash) 
+17:14:52 standalone base3 init fresh:     initialize OK; no idx_tool_execution_harness 
+17:14:53 standalone pr3 init on main DB:  initialize REFUSED: Fresh Managed schema initialization failed <- Managed schema index differs: idx_tool_execution_harness; no idx_tool_execution_harness 
+17:14:54 alias: SQL '=' on the column matches 1 row(s); findHoldRowsByHarnessSession("hs-alias-abc") -> 1 row(s): [hs-alias-abc]/rs-lower 
+17:14:55 DONE
