@@ -1,0 +1,72 @@
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+index 382feadb36..e9b671621c 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.test.ts
+@@ -6233,6 +6233,30 @@ it.each(['present', 'unavailable'] as const)(
+   },
+ );
+ 
++it('never reads process absence as proof once the start was requested', async () => {
++  // A start that this turn gave up on may still reach the Broker after the
++  // ledger read; only a dispatch that never sent a start may use the fallback.
++  const { call, parts } = backgroundCall();
++  const rig = backgroundTurnRig(
++    { executionStatus: 'success', responseParts: [], capture: null },
++    { publicationMissing: true },
++  );
++  turn = rig.turn;
++  broker.executeV3.mockRejectedValueOnce(
++    new Error('Tool v3 start was not confirmed.'),
++  );
++  broker.backgroundProcessStatus.mockResolvedValue(undefined);
++  await expect(
++    turn.execute([call], parts, 'model', new AbortController().signal),
++  ).rejects.toBeInstanceOf(HostedToolRecoveryRequiredError);
++
++  expect(broker.backgroundProcessStatus).not.toHaveBeenCalled();
++  expect(rig.orchestrator.calls.map(([name]) => name)).toEqual([
++    'admit',
++    'dispatchStarted',
++  ]);
++});
++
+ it('settles the admitted child run when executeV3 fails without the proven 409', async () => {
+   // R3-24: dispatch_started is durable and the v3 start then fails with
+   // anything but the execution-unknown 409 — the turn refuses recovery,
+diff --git a/packages/cli/src/serve/hosted-workspace-tool-turn.ts b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+index 4bc204284e..7e1b274e29 100644
+--- a/packages/cli/src/serve/hosted-workspace-tool-turn.ts
++++ b/packages/cli/src/serve/hosted-workspace-tool-turn.ts
+@@ -3491,6 +3491,7 @@ export class HostedWorkspaceToolTurn {
+         modelCallId: string;
+         captureId: string;
+         originalBinding?: ToolPublicationBinding;
++        startRequested?: boolean;
+       }
+     >();
+     let renewTimer: NodeJS.Timeout | undefined;
+@@ -4241,6 +4242,10 @@ export class HostedWorkspaceToolTurn {
+           if (!saved) throw new Error('Original Shell publication is missing.');
+           await renewGrants!();
+           let result: ToolResultEnvelope;
++          // From here on a start may still be in flight at the Broker after
++          // this turn gives up, so the process ledger's absence stops being
++          // a never-started proof for this execution.
++          saved.startRequested = true;
+           try {
+             result = await this.broker.executeV3(
+               executionCallId,
+@@ -4491,7 +4496,12 @@ export class HostedWorkspaceToolTurn {
+               String(closeCause),
+           );
+         }
+-        if (!proven && grantOwnerState === undefined && request?.background) {
++        if (
++          !proven &&
++          grantOwnerState === undefined &&
++          request?.background &&
++          !saved.startRequested
++        ) {
+           try {
+             proven =
+               (await this.broker.backgroundProcessStatus(executionCallId)) ===
