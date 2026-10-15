@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Stateful stand-in for the four GitHub endpoints the publish step uses.
+# STATE (dir), DIGEST_MODE=present|absent, TAMPER=<asset name>, SIZE_LIE=<asset name>, EXTRA_ASSET=1
+set -euo pipefail
+log() { printf '%s\n' "$*" >> "$STATE/calls.log"; }
+log "gh $*"
+release_view() {
+  local assets='[]' id=5001
+  for f in $(ls "$STATE/assets" 2>/dev/null | sort); do
+    local p="$STATE/assets/$f" size digest
+    size=$(stat --format=%s "$p"); [[ "${SIZE_LIE:-}" == "$f" ]] && size=$((size + 1))
+    digest="sha256:$(sha256sum "$p" | awk '{print $1}')"
+    if [[ "${DIGEST_MODE:-present}" == present ]]; then
+      assets=$(jq -c --arg n "$f" --argjson s "$size" --arg d "$digest" --argjson i $id '. + [{id:$i,name:$n,size:$s,digest:$d}]' <<< "$assets")
+    else
+      assets=$(jq -c --arg n "$f" --argjson s "$size" --argjson i $id '. + [{id:$i,name:$n,size:$s,digest:null}]' <<< "$assets")
+    fi
+    echo "$f" > "$STATE/asset-$id"; id=$((id + 1))
+  done
+  jq -c --argjson a "$assets" '. + {assets:$a}' "$STATE/release.json"
+}
+if [[ "$1" == release && "$2" == upload ]]; then
+  tag="$3"; shift 3
+  [[ "$(jq -r .tag_name "$STATE/release.json")" == "$tag" && "$(jq -r .draft "$STATE/release.json")" == true ]] || { echo "release not found" >&2; exit 1; }
+  mkdir -p "$STATE/assets"
+  for f in "$@"; do
+    n=$(basename "$f"); cp "$f" "$STATE/assets/$n"
+    if [[ "${TAMPER:-}" == "$n" ]]; then   # flip one byte in the middle: same name, same size, different bytes
+      off=$(( $(stat --format=%s "$f") / 2 )); b=$(dd if="$f" bs=1 skip=$off count=1 2>/dev/null | od -An -tu1 | tr -d ' ')
+      printf "$(printf '\\%03o' $(( (b + 1) % 256 )))" | dd of="$STATE/assets/$n" bs=1 seek=$off conv=notrunc 2>/dev/null
+    fi
+  done
+  [[ -n "${EXTRA_ASSET:-}" ]] && echo extra > "$STATE/assets/unexpected.txt"
+  exit 0
+fi
+[[ "$1" == api ]] || { echo "unexpected gh $*" >&2; exit 2; }
+shift
+method=GET accept=""; args=()
+while (($#)); do case "$1" in
+  --method) method="$2"; shift 2;; -H) accept="$2"; shift 2;; --input) shift 2;;
+  -f|-F) args+=("$2"); shift 2;; *) path="$1"; shift;; esac; done
+case "$method $path" in
+  "POST repos/"*"/releases")
+    jq -c '. + {id: 4242, draft: .draft}' > "$STATE/release.json"; cat "$STATE/release.json";;
+  "GET repos/"*"/releases/4242") release_view;;
+  "GET repos/"*"/releases/assets/"*)
+    id="${path##*/}"; cat "$STATE/assets/$(cat "$STATE/asset-$id")";;
+  "POST repos/"*"/git/refs")
+    sha=""; ref=""; for a in "${args[@]}"; do case "$a" in sha=*) sha="${a#sha=}";; ref=*) ref="${a#ref=}";; esac; done
+    echo "$ref $sha" > "$STATE/tag-created"; jq -nc --arg r "$ref" --arg s "$sha" '{ref:$r, object:{sha:$s}}';;
+  "PATCH repos/"*"/releases/4242")
+    jq '.draft = false | .prerelease = true' "$STATE/release.json" > "$STATE/r.tmp" && mv "$STATE/r.tmp" "$STATE/release.json"
+    touch "$STATE/published"; jq -c . "$STATE/release.json";;
+  *) echo "unhandled $method $path" >&2; exit 2;;
+esac
