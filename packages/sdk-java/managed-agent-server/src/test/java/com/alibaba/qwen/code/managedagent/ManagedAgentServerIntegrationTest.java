@@ -1382,25 +1382,36 @@ class ManagedAgentServerIntegrationTest {
         String firstOwner = "retry-owner-1";
         assertThat(store.claimTurn(tenant, session.sessionId(), turn.turnId(),
                 firstOwner, Duration.ofMinutes(1))).isPresent();
-        long retryAfter = System.currentTimeMillis() + 60_000;
+        long retryDelay = 60_000;
+        long before = databaseTime();
 
         store.scheduleTurnRetry(tenant, session.sessionId(), turn.turnId(),
-                firstOwner, retryAfter);
+                firstOwner, Duration.ofMillis(retryDelay));
 
+        long after = databaseTime();
         assertThat(store.findTurn(tenant, session.sessionId(), turn.turnId()))
                 .get().satisfies(record -> {
                     assertThat(record.retryCount()).isEqualTo(1);
-                    assertThat(record.retryAfter()).isEqualTo(retryAfter);
+                    assertThat(record.retryAfter()).isBetween(
+                            before + retryDelay, after + retryDelay);
                     assertThat(record.dispatchOwner()).isNull();
                 });
         DispatchTarget target = new DispatchTarget(tenant,
                 session.sessionId(), turn.turnId());
-        assertThat(store.findDispatchable(retryAfter - 1, 100))
-                .doesNotContain(target);
+        assertThat(store.findDispatchable(100)).doesNotContain(target);
         assertThat(store.claimTurn(tenant, session.sessionId(), turn.turnId(),
                 "retry-owner-2", Duration.ofMinutes(1))).isEmpty();
-        assertThat(store.findDispatchable(retryAfter, 100))
-                .contains(target);
+        jdbc.update("UPDATE ma_turn SET retry_after = ? WHERE tenant_id = ?"
+                        + " AND session_id = ? AND turn_id = ?",
+                databaseTime(), tenant, session.sessionId(), turn.turnId());
+        assertThat(store.findDispatchable(100)).contains(target);
+    }
+
+    private long databaseTime() {
+        return jdbc.queryForObject("SELECT UNIX_TIMESTAMP(),"
+                        + " EXTRACT(MICROSECOND FROM CURRENT_TIMESTAMP(6))",
+                (row, index) -> row.getLong(1) * 1000
+                        + row.getLong(2) / 1000);
     }
 
     @Test

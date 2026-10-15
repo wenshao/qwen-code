@@ -482,7 +482,8 @@ travels with a wake for the stale-wake row to bump). That design also records
 where the as-built rows differ from the required behavior above: a crash
 with a wake in flight holds the shared bootstrap lane for about two minutes; there is no producer retry buffer, so an envelope sent while the
 broker stays away is dropped; a node restarted during an outage needs the flag
-off to start; the Turn dispatch lease is on the JVM clock.
+off to start; the relay ledgers' leases are stamped with the JVM clock, as the
+Turn dispatch lease was until #14248.
 
 ## 9. Constraints and risks
 

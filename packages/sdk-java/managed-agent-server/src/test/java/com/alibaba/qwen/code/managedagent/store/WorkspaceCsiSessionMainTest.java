@@ -507,7 +507,7 @@ class WorkspaceCsiSessionMainTest {
                         + String.join(",", privateTurn.keySet()) + ") VALUES ("
                 + String.join(",", java.util.Collections.nCopies(privateTurn.size(), "?")) + ")",
                 privateTurn.values().toArray());
-        assertThat(store().findDispatchable(System.currentTimeMillis(), 1))
+        assertThat(store().findDispatchable(1))
                 .extracting(StoreModels.DispatchTarget::sessionId).containsExactly(ordinary.sessionId());
         assertThat(store().findDeliverableOperations(0, 1)).extracting(StoreModels.OperationTarget::sessionId)
                 .containsExactly(idle.sessionId());
@@ -521,7 +521,7 @@ class WorkspaceCsiSessionMainTest {
                 "owner", Duration.ofMinutes(1)));
         assertThat(renewedTurn).isTrue();
         tx.executeWithoutResult(status -> store().scheduleTurnRetry("tenant", ordinary.sessionId(),
-                ordinary.turnId(), "owner", 0));
+                ordinary.turnId(), "owner", Duration.ZERO));
         assertThat(store().findTurn("tenant", ordinary.sessionId(), ordinary.turnId()).orElseThrow().dispatchOwner())
                 .isNull();
         var reclaimedTurn = tx.execute(status -> store().claimTurn("tenant", ordinary.sessionId(), ordinary.turnId(),

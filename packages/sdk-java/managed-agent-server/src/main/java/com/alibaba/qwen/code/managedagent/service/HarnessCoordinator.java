@@ -173,8 +173,7 @@ public class HarnessCoordinator {
         if (!harness.isAvailable()) {
             return;
         }
-        for (DispatchTarget target : store.findDispatchable(clock.millis(),
-                50)) {
+        for (DispatchTarget target : store.findDispatchable(50)) {
             dispatch(target.tenantId(), target.sessionId(), target.turnId());
         }
     }
@@ -1062,9 +1061,8 @@ public class HarnessCoordinator {
         }
         long delay = retryDelay(retryInitialDelay, retryMaxDelay,
                 turn.retryCount());
-        long retryAfter = Math.addExact(clock.millis(), delay);
         store.scheduleTurnRetry(turn.tenantId(), turn.sessionId(),
-                turn.turnId(), owner, retryAfter);
+                turn.turnId(), owner, Duration.ofMillis(delay));
         LOG.warn("Managed Turn coordination will retry tenant={} session={}"
                         + " turn={} retry={} delayMs={} failure={}",
                 turn.tenantId(), turn.sessionId(), turn.turnId(),

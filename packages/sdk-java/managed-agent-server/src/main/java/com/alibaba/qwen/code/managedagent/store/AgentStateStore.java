@@ -434,7 +434,8 @@ public interface AgentStateStore {
      */
     void deferMaterializationTarget(String tenantId, String sessionId);
 
-    List<DispatchTarget> findDispatchable(long now, int limit);
+    /** Turns whose dispatch claim and retry wait have lapsed by database time. */
+    List<DispatchTarget> findDispatchable(int limit);
 
     Optional<TurnRecord> claimTurn(String tenantId, String sessionId,
             String turnId, String owner, Duration leaseDuration);
@@ -445,8 +446,9 @@ public interface AgentStateStore {
     void releaseTurnLease(String tenantId, String sessionId, String turnId,
             String owner);
 
+    /** Releases the claim and holds the Turn back for a delay counted from database time. */
     void scheduleTurnRetry(String tenantId, String sessionId, String turnId,
-            String owner, long retryAfter);
+            String owner, Duration retryDelay);
 
     boolean bindHarness(String tenantId, String sessionId, String turnId,
             String owner, String harnessBootId);

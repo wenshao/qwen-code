@@ -154,7 +154,7 @@ describe('EventTransport multi-node gates CI', () => {
     );
   });
 
-  it('installs the libfaketime the clock-skew row preloads', () => {
+  it('installs the libfaketime the clock-skew rows preload', () => {
     const library = /-Dqwen\.gate\.faketime\.library=(\S+)/.exec(
       verify().run,
     )[1];

@@ -203,13 +203,14 @@ above. Only when that lease lapses too can another server's Harness complete it
 the [contract][contract] keeps close and delete behind the existing Hooks and
 resource settlement, and only the Harness can report that its Session settled.
 
-Both steps are idempotent, so a repeated attempt is safe. Leases use each
-server's clock, as Turn leases do, rather than the database time that section 1
-of the [contract closure][closure] asks for, and they are not renewed. With the
-default lease (60 s) and Harness request timeout (30 s), attempts on one server
-overlap only after a worker is lost, but clock skew, a shorter lease or a slow
-first connection can also let them overlap. The claim generation keeps a stale
-attempt from completing, and a repeated close is harmless.
+Both steps are idempotent, so a repeated attempt is safe. D4 first ran its
+leases on each server's clock, as Turn leases did, without renewal. Since #13135
+they use the database time that section 1 of the [contract closure][closure]
+asks for, and the worker renews its claim while an attempt runs; the Turn
+dispatch lease followed in #14248. Clock skew between servers therefore no
+longer lets attempts overlap, but a worker whose renewal stalls past the lease
+can still lose its claim mid-attempt. The claim generation keeps a stale attempt
+from completing, and a repeated close is harmless.
 
 A delete leaves the shared Workspace alone: the worker only closes the
 Session and drains its own Runtime binding.
@@ -412,7 +413,7 @@ a stale failure is cleared (#13742).
 - Letting a Harness whose journal writes stopped after a failure still seal its
   writer and release the Session, so that a close can settle it (4.5).
 - Leases on database time with renewal, as section 1 of the contract closure
-  asks for durable delivery.
+  asks for durable delivery. Done in #13135 (4.5).
 - The WebShell `sessionLifecycle` capability once the WebShell capability
   object is implemented.
 

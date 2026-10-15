@@ -117,7 +117,7 @@ class HarnessCoordinatorTest {
                 anyString(), eq("workspace_unavailable"),
                 eq(refusal.getMessage()));
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // A claim that already recorded a submission attempt may have been
@@ -129,7 +129,7 @@ class HarnessCoordinatorTest {
         AgentStateStore store = dispatchWithCreateOrLoadFailure(
                 WorkspaceExecutionStore.unavailable(), true, 5);
         verify(store).scheduleTurnRetry(eq("tenant"), eq("session"),
-                eq("turn"), anyString(), anyLong());
+                eq("turn"), anyString(), any(Duration.class));
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
     }
@@ -145,7 +145,7 @@ class HarnessCoordinatorTest {
                         "Retryable refusal with no current producer.", true),
                 false, 0);
         verify(store).scheduleTurnRetry(eq("tenant"), eq("session"),
-                eq("turn"), anyString(), anyLong());
+                eq("turn"), anyString(), any(Duration.class));
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
     }
@@ -154,7 +154,9 @@ class HarnessCoordinatorTest {
     // itself reports (hosted_turn_active, hosted_prompt_conflict,
     // hosted_event_epoch_mismatch, ...) is transient, so it is retried rather
     // than failed. A create-time 409 never reaches here: the connector answers
-    // it by loading the existing authority.
+    // it by loading the existing authority. The backoff goes to the store as
+    // a delay, which it counts from database time, never from this node's
+    // clock (#14248).
     @Test
     void retriesAConflictReportedByTheHarness() {
         DaemonHttpException conflict = mock(DaemonHttpException.class);
@@ -162,7 +164,7 @@ class HarnessCoordinatorTest {
         AgentStateStore store = dispatchWithCreateOrLoadFailure(conflict,
                 false, 0);
         verify(store).scheduleTurnRetry(eq("tenant"), eq("session"),
-                eq("turn"), anyString(), anyLong());
+                eq("turn"), anyString(), eq(Duration.ofMillis(1_000)));
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
     }
@@ -179,7 +181,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq("tenant"), eq("session"), eq("turn"),
                 anyString(), eq("hosted_harness_rejected"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // A 5xx from the Harness or a proxy is transient, so a Turn whose
@@ -191,7 +193,7 @@ class HarnessCoordinatorTest {
         AgentStateStore store = dispatchWithCreateOrLoadFailure(unavailable,
                 true, 5);
         verify(store).scheduleTurnRetry(eq("tenant"), eq("session"),
-                eq("turn"), anyString(), anyLong());
+                eq("turn"), anyString(), eq(Duration.ofMillis(32_000)));
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
     }
@@ -228,7 +230,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq("tenant"), eq("session"), eq("turn"),
                 anyString(), eq("hosted_harness_unavailable"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // A lease-shaped 409 exempts only on a bound Session; on an unbound
@@ -244,7 +246,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq("tenant"), eq("session"), eq("turn"),
                 anyString(), eq("hosted_harness_unavailable"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // Issue #13320: a load refused with a machine-readable code (e.g. a
@@ -260,7 +262,7 @@ class HarnessCoordinatorTest {
         AgentStateStore store = dispatchWithCreateOrLoadFailure(refusal,
                 false, 0);
         verify(store).scheduleTurnRetry(eq("tenant"), eq("session"),
-                eq("turn"), anyString(), anyLong());
+                eq("turn"), anyString(), any(Duration.class));
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
     }
@@ -275,7 +277,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq("tenant"), eq("session"), eq("turn"),
                 anyString(), eq("managed_session_open_failed"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // A configuration-shaped 409 (its code is durable, no lease semantics)
@@ -312,7 +314,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq("tenant"), eq("session"), eq("turn"),
                 anyString(), eq("hosted_harness_unavailable"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // `hosted_session_already_attached` reads like a transient conflict but
@@ -351,7 +353,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq("tenant"), eq("session"), eq("turn"),
                 anyString(), eq("hosted_harness_unavailable"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // `managed_session_writer_conflict` is the only wait that ends on its
@@ -387,7 +389,7 @@ class HarnessCoordinatorTest {
             coordinator.close();
         }
         verify(store).scheduleTurnRetry(eq("tenant"), eq("session"),
-                eq("turn"), anyString(), anyLong());
+                eq("turn"), anyString(), any(Duration.class));
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
     }
@@ -428,7 +430,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq("tenant"), eq("session"), eq("turn"),
                 anyString(), eq("hosted_harness_unavailable"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // The transient-window code clears under the daemon's own wake pump:
@@ -472,7 +474,7 @@ class HarnessCoordinatorTest {
             coordinator.close();
         }
         verify(store).scheduleTurnRetry(eq("tenant"), eq("session"),
-                eq("turn"), anyString(), anyLong());
+                eq("turn"), anyString(), any(Duration.class));
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
     }
@@ -511,7 +513,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq("tenant"), eq("session"), eq("turn"),
                 anyString(), eq("hosted_harness_unavailable"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // An approval wait is bounded by the approval timeout, never by a
@@ -546,7 +548,7 @@ class HarnessCoordinatorTest {
             coordinator.close();
         }
         verify(store).scheduleTurnRetry(eq("tenant"), eq("session"),
-                eq("turn"), anyString(), anyLong());
+                eq("turn"), anyString(), any(Duration.class));
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
     }
@@ -806,7 +808,7 @@ class HarnessCoordinatorTest {
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // The admitted-coordination sibling of the arm above: the Turn sits on
@@ -1074,7 +1076,7 @@ class HarnessCoordinatorTest {
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // The same coded 409 without a prior mark names a different Turn's
@@ -1128,7 +1130,7 @@ class HarnessCoordinatorTest {
                 anyString(), eq("hosted_prompt_recovery_required"),
                 anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // The session-level wedge code names SOMEONE ELSE's parked Turn, not
@@ -1182,7 +1184,7 @@ class HarnessCoordinatorTest {
                 anyString(), eq("hosted_turn_recovery_required"),
                 anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // The withdrawal is a CAS: losing it (the mark is gone, or the lease
@@ -1265,7 +1267,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq("tenant"), eq("session"), eq("turn"),
                 anyString(), eq("hosted_harness_unavailable"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // The decline reason is remote-supplied, so the terminal message stays
@@ -1301,7 +1303,7 @@ class HarnessCoordinatorTest {
                 anyString(), eq("managed_runtime_recovery_blocked"),
                 argThat(message -> message.length() <= 2048));
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // A cancelled Turn whose never-admitted mark was withdrawn is exactly
@@ -1390,7 +1392,7 @@ class HarnessCoordinatorTest {
             coordinator.close();
         }
         verify(store).scheduleTurnRetry(eq("tenant"), eq("session"),
-                eq("turn"), anyString(), anyLong());
+                eq("turn"), anyString(), any(Duration.class));
         verify(store, never()).failTurn(anyString(), anyString(),
                 anyString(), anyString(), anyString(), anyString());
     }
@@ -1427,7 +1429,7 @@ class HarnessCoordinatorTest {
                 anyString(), eq("managed_runtime_recovery_blocked"),
                 argThat(message -> message.contains("shell_in_flight")));
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     // G3: a Turn marked by a generation that never admitted it withdraws the
@@ -2085,8 +2087,10 @@ class HarnessCoordinatorTest {
             coordinator.close();
         }
 
+        // The third attempt's backoff, as a delay: the store counts it from
+        // database time, so this node's clock does not enter it (#14248).
         verify(store).scheduleTurnRetry(eq(tenantId), eq(sessionId),
-                eq(turnId), anyString(), eq(18_000L));
+                eq(turnId), anyString(), eq(Duration.ofMillis(8_000)));
         verify(store, never()).releaseTurnLease(eq(tenantId), eq(sessionId),
                 eq(turnId), anyString());
         verify(store, never()).failTurn(anyString(), anyString(), anyString(),
@@ -2145,7 +2149,7 @@ class HarnessCoordinatorTest {
         verify(store).markSubmissionAttempted(eq(tenantId), eq(sessionId),
                 eq(turnId), anyString());
         verify(store).scheduleTurnRetry(eq(tenantId), eq(sessionId),
-                eq(turnId), anyString(), anyLong());
+                eq(turnId), anyString(), any(Duration.class));
         verify(store, never()).failTurn(anyString(), anyString(), anyString(),
                 anyString(), anyString(), anyString());
     }
@@ -2181,7 +2185,7 @@ class HarnessCoordinatorTest {
         verify(store).failTurn(eq(tenantId), eq(sessionId), eq(turnId),
                 anyString(), eq("hosted_harness_unavailable"), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
         verify(store, never()).releaseTurnLease(eq(tenantId), eq(sessionId),
                 eq(turnId), anyString());
     }
@@ -2279,7 +2283,7 @@ class HarnessCoordinatorTest {
         verify(harness, never()).submit(anyString(), anyString(), anyString(),
                 any(), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     @Test
@@ -2333,7 +2337,7 @@ class HarnessCoordinatorTest {
         verify(harness, never()).cancelManagedRuntime(anyString(),
                 anyString(), anyString(), anyString(), anyString());
         verify(store, never()).scheduleTurnRetry(anyString(), anyString(),
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), any(Duration.class));
     }
 
     @Test
@@ -2385,7 +2389,7 @@ class HarnessCoordinatorTest {
             coordinator.close();
         }
         verify(store).scheduleTurnRetry(eq(tenantId), eq(sessionId),
-                eq(turnId), anyString(), anyLong());
+                eq(turnId), anyString(), any(Duration.class));
         verify(store, never()).recordRecoveryAdmission(anyString(),
                 anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), anyLong());
@@ -2448,7 +2452,7 @@ class HarnessCoordinatorTest {
             coordinator.close();
         }
         verify(store).scheduleTurnRetry(eq(tenantId), eq(sessionId),
-                eq(turnId), anyString(), anyLong());
+                eq(turnId), anyString(), any(Duration.class));
         verify(store, never()).recordRecoveryAdmission(anyString(),
                 anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), anyLong());
@@ -2645,7 +2649,7 @@ class HarnessCoordinatorTest {
                         event -> event.projection() != null
                                 && event.projection().terminal())));
         verify(store).scheduleTurnRetry(eq(tenantId), eq(sessionId),
-                eq(turnId), anyString(), anyLong());
+                eq(turnId), anyString(), any(Duration.class));
         verify(store, never()).failTurn(anyString(), anyString(), anyString(),
                 anyString(), anyString(), anyString());
     }

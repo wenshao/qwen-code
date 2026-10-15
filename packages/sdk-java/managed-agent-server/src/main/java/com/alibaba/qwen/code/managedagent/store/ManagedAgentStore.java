@@ -3481,7 +3481,15 @@ public class ManagedAgentStore implements AgentStateStore {
                 clock.millis(), tenantId, sessionId);
     }
 
-    public List<DispatchTarget> findDispatchable(long now, int limit) {
+    // The Turn dispatch lease and retry_after are epoch millis of database
+    // time, like the lifecycle claims: every node stamps and reads them on
+    // the one clock they share, so a node whose own clock runs ahead never
+    // reads a live claim as lapsed (#14248). Record timestamps such as
+    // updated_at stay on the store's Clock, so the scan's order still follows
+    // each node's clock: that decides only which lapsed Turns a full scan
+    // reaches first.
+    public List<DispatchTarget> findDispatchable(int limit) {
+        long leaseNow = lifecycleDatabaseTime();
         return jdbc.query(
                 "SELECT tenant_id, session_id, turn_id FROM ma_turn WHERE status IN ('ACCEPTED',"
                     + " 'RUNNING', 'CANCELLING') AND (dispatch_lease_until IS NULL OR"
@@ -3493,14 +3501,15 @@ public class ManagedAgentStore implements AgentStateStore {
                 (result, row) -> new DispatchTarget(
                         result.getString("tenant_id"),
                         result.getString("session_id"),
-                        result.getString("turn_id")), now, now, limit);
+                        result.getString("turn_id")), leaseNow, leaseNow,
+                limit);
     }
 
     @Transactional
     public Optional<TurnRecord> claimTurn(String tenantId, String sessionId,
             String turnId, String owner, Duration leaseDuration) {
         requireLegacyMutation(tenantId, sessionId);
-        long now = clock.millis();
+        long leaseNow = lifecycleDatabaseTime();
         int updated = jdbc.update("UPDATE ma_turn SET"
                         + " dispatch_owner = ?, dispatch_lease_until = ?,"
                         + " updated_at = ?, version = version + 1 WHERE"
@@ -3509,8 +3518,8 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " 'CANCELLING') AND (dispatch_lease_until IS NULL"
                         + " OR dispatch_lease_until < ?) AND (retry_after IS"
                         + " NULL OR retry_after <= ?)",
-                owner, now + leaseDuration.toMillis(), now, tenantId,
-                sessionId, turnId, now, now);
+                owner, leaseNow + leaseDuration.toMillis(), clock.millis(),
+                tenantId, sessionId, turnId, leaseNow, leaseNow);
         return updated == 0 ? Optional.empty()
                 : findTurn(tenantId, sessionId, turnId);
     }
@@ -3519,15 +3528,15 @@ public class ManagedAgentStore implements AgentStateStore {
     public boolean renewTurn(String tenantId, String sessionId,
             String turnId, String owner, Duration leaseDuration) {
         requireLegacyMutation(tenantId, sessionId);
-        long now = clock.millis();
+        long leaseNow = lifecycleDatabaseTime();
         return jdbc.update("UPDATE ma_turn SET"
                         + " dispatch_lease_until = ?, version = version + 1"
                         + " WHERE tenant_id = ? AND session_id = ? AND"
                         + " turn_id = ? AND dispatch_owner = ? AND status IN"
                         + " ('ACCEPTED', 'RUNNING', 'CANCELLING') AND"
                         + " dispatch_lease_until >= ?",
-                now + leaseDuration.toMillis(), tenantId, sessionId, turnId,
-                owner, now) == 1;
+                leaseNow + leaseDuration.toMillis(), tenantId, sessionId,
+                turnId, owner, leaseNow) == 1;
     }
 
     @Transactional
@@ -3544,7 +3553,7 @@ public class ManagedAgentStore implements AgentStateStore {
 
     @Transactional
     public void scheduleTurnRetry(String tenantId, String sessionId,
-            String turnId, String owner, long retryAfter) {
+            String turnId, String owner, Duration retryDelay) {
         requireLegacyMutation(tenantId, sessionId);
         jdbc.update("UPDATE ma_turn SET retry_count = retry_count"
                         + " + 1, retry_after = ?, dispatch_owner = NULL,"
@@ -3553,8 +3562,8 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " session_id = ? AND turn_id = ? AND dispatch_owner"
                         + " = ? AND status IN ('ACCEPTED', 'RUNNING',"
                         + " 'CANCELLING')",
-                retryAfter, clock.millis(), tenantId, sessionId, turnId,
-                owner);
+                Math.addExact(lifecycleDatabaseTime(), retryDelay.toMillis()),
+                clock.millis(), tenantId, sessionId, turnId, owner);
     }
 
     @Transactional
@@ -3563,9 +3572,10 @@ public class ManagedAgentStore implements AgentStateStore {
         SessionRecord session = requireLegacySessionForUpdate(tenantId, sessionId);
         TurnRecord turn = requireTurnForUpdate(tenantId, sessionId, turnId);
         long now = clock.millis();
+        long leaseNow = lifecycleDatabaseTime();
         if (!owner.equals(turn.dispatchOwner())
                 || turn.dispatchLeaseUntil() == null
-                || turn.dispatchLeaseUntil() < now
+                || turn.dispatchLeaseUntil() < leaseNow
                 || !ACTIVE_TURN_STATES.contains(turn.status())) {
             return false;
         }
@@ -3591,9 +3601,10 @@ public class ManagedAgentStore implements AgentStateStore {
         SessionRecord session = requireLegacySessionForUpdate(tenantId, sessionId);
         TurnRecord turn = requireTurnForUpdate(tenantId, sessionId, turnId);
         long now = clock.millis();
+        long leaseNow = lifecycleDatabaseTime();
         if (!owner.equals(turn.dispatchOwner())
                 || turn.dispatchLeaseUntil() == null
-                || turn.dispatchLeaseUntil() < now
+                || turn.dispatchLeaseUntil() < leaseNow
                 || !ACTIVE_TURN_STATES.contains(turn.status())
                 || !turn.submissionAttempted()
                 || turn.harnessEventEpoch() == null) {
@@ -3626,7 +3637,8 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " session_id = ? AND turn_id = ? AND"
                         + " dispatch_owner = ? AND dispatch_lease_until"
                         + " >= ? AND harness_event_epoch IS NULL",
-                now, tenantId, sessionId, turnId, owner, now);
+                now, tenantId, sessionId, turnId, owner,
+                lifecycleDatabaseTime());
         if (updated != 1) {
             throw new IllegalStateException("Turn dispatch lease was lost");
         }
@@ -3653,7 +3665,8 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " >= ? AND submission_attempted = TRUE AND"
                         + " harness_event_epoch IS NULL AND status IN"
                         + " ('ACCEPTED','RUNNING','CANCELLING')",
-                now, tenantId, sessionId, turnId, owner, now);
+                now, tenantId, sessionId, turnId, owner,
+                lifecycleDatabaseTime());
         return updated == 1;
     }
 
@@ -3672,7 +3685,7 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " dispatch_owner = ? AND dispatch_lease_until"
                         + " >= ?",
                 eventEpoch, lastEventId, now, tenantId, sessionId, turnId,
-                owner, now);
+                owner, lifecycleDatabaseTime());
         if (updated != 1) {
             throw new IllegalStateException("Turn dispatch lease was lost");
         }
@@ -3698,9 +3711,10 @@ public class ManagedAgentStore implements AgentStateStore {
         SessionRecord session = requireLegacySessionForUpdate(tenantId, sessionId);
         TurnRecord turn = requireTurnForUpdate(tenantId, sessionId, turnId);
         long now = clock.millis();
+        long leaseNow = lifecycleDatabaseTime();
         if (!owner.equals(turn.dispatchOwner())
                 || turn.dispatchLeaseUntil() == null
-                || turn.dispatchLeaseUntil() < now
+                || turn.dispatchLeaseUntil() < leaseNow
                 || !ACTIVE_TURN_STATES.contains(turn.status())) {
             throw new IllegalStateException("Turn dispatch lease was lost");
         }
@@ -3727,7 +3741,8 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " >= ? AND (harness_event_epoch = ? OR"
                         + " (harness_event_epoch IS NULL AND ? IS NULL))",
                 eventEpoch, lastEventId, now, tenantId, sessionId, turnId,
-                owner, now, expectedTurnEventEpoch, expectedTurnEventEpoch);
+                owner, leaseNow, expectedTurnEventEpoch,
+                expectedTurnEventEpoch);
         if (updated != 1) {
             throw new IllegalStateException("Turn dispatch lease was lost");
         }
@@ -3751,9 +3766,10 @@ public class ManagedAgentStore implements AgentStateStore {
         requireLegacySessionForUpdate(tenantId, sessionId);
         TurnRecord turn = requireTurnForUpdate(tenantId, sessionId, turnId);
         long now = clock.millis();
+        long leaseNow = lifecycleDatabaseTime();
         if (!owner.equals(turn.dispatchOwner())
                 || turn.dispatchLeaseUntil() == null
-                || turn.dispatchLeaseUntil() < now
+                || turn.dispatchLeaseUntil() < leaseNow
                 || !ACTIVE_TURN_STATES.contains(turn.status())) {
             throw new IllegalStateException("Turn dispatch lease was lost");
         }
@@ -3836,9 +3852,10 @@ public class ManagedAgentStore implements AgentStateStore {
         SessionRecord session = requireSessionForUpdate(tenantId, sessionId);
         TurnRecord turn = requireTurnForUpdate(tenantId, sessionId, turnId);
         long now = clock.millis();
+        long leaseNow = lifecycleDatabaseTime();
         if (!owner.equals(turn.dispatchOwner())
                 || turn.dispatchLeaseUntil() == null
-                || turn.dispatchLeaseUntil() < now) {
+                || turn.dispatchLeaseUntil() < leaseNow) {
             throw new IllegalStateException("Turn dispatch lease was lost");
         }
         if (!eventEpoch.equals(turn.harnessEventEpoch())) {
@@ -3902,7 +3919,7 @@ public class ManagedAgentStore implements AgentStateStore {
                     now);
         }
         int updated = updateHarnessCursor(tenantId, sessionId, turnId, owner,
-                eventEpoch, retractionSourceId, now);
+                eventEpoch, retractionSourceId, now, leaseNow);
         if (updated != 1) {
             throw new IllegalStateException("Turn dispatch lease was lost");
         }
@@ -4053,9 +4070,10 @@ public class ManagedAgentStore implements AgentStateStore {
         }
         SessionRecord session = requireSessionForUpdate(tenantId, sessionId);
         TurnRecord turn = requireTurnForUpdate(tenantId, sessionId, turnId);
+        long leaseNow = lifecycleDatabaseTime();
         if (!owner.equals(turn.dispatchOwner())
                 || turn.dispatchLeaseUntil() == null
-                || turn.dispatchLeaseUntil() < clock.millis()) {
+                || turn.dispatchLeaseUntil() < leaseNow) {
             throw new IllegalStateException("Turn dispatch lease was lost");
         }
         if (!eventEpoch.equals(turn.harnessEventEpoch())) {
@@ -4089,9 +4107,10 @@ public class ManagedAgentStore implements AgentStateStore {
         }
         int updated = terminal == null
                 ? updateHarnessCursor(tenantId, sessionId, turnId, owner,
-                        eventEpoch, lastSourceId, now)
+                        eventEpoch, lastSourceId, now, leaseNow)
                 : completeHarnessTurn(tenantId, sessionId, turnId, owner,
-                        eventEpoch, lastSourceId, terminal.projection(), now);
+                        eventEpoch, lastSourceId, terminal.projection(), now,
+                        leaseNow);
         if (updated != 1) {
             throw new IllegalStateException("Turn dispatch lease was lost");
         }
@@ -4105,7 +4124,7 @@ public class ManagedAgentStore implements AgentStateStore {
 
     private int updateHarnessCursor(String tenantId, String sessionId,
             String turnId, String owner, String eventEpoch,
-            long lastSourceId, long now) {
+            long lastSourceId, long now, long leaseNow) {
         return jdbc.update("UPDATE ma_turn SET"
                         + " harness_event_epoch = ?,"
                         + " harness_last_event_id = ?, updated_at = ?,"
@@ -4114,12 +4133,13 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " dispatch_owner = ? AND dispatch_lease_until"
                         + " >= ?",
                 eventEpoch, lastSourceId, now, tenantId, sessionId, turnId,
-                owner, now);
+                owner, leaseNow);
     }
 
     private int completeHarnessTurn(String tenantId, String sessionId,
             String turnId, String owner, String eventEpoch,
-            long lastSourceId, ProjectedEvent terminal, long now) {
+            long lastSourceId, ProjectedEvent terminal, long now,
+            long leaseNow) {
         return jdbc.update("UPDATE ma_turn SET"
                         + " harness_event_epoch = ?,"
                         + " harness_last_event_id = ?, status = ?,"
@@ -4133,7 +4153,7 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " >= ?",
                 eventEpoch, lastSourceId, terminal.terminalStatus(),
                 terminal.errorCode(), terminal.errorMessage(), now, now,
-                tenantId, sessionId, turnId, owner, now);
+                tenantId, sessionId, turnId, owner, leaseNow);
     }
 
     private List<EventRecord> appendEvents(String tenantId,
@@ -4210,7 +4230,8 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " session_id = ? AND turn_id = ? AND"
                         + " dispatch_owner = ? AND dispatch_lease_until >= ?"
                         + " AND submission_attempted = FALSE",
-                now, now, tenantId, sessionId, turnId, owner, now);
+                now, now, tenantId, sessionId, turnId, owner,
+                lifecycleDatabaseTime());
         if (updated != 1) {
             return;
         }
@@ -4238,7 +4259,7 @@ public class ManagedAgentStore implements AgentStateStore {
                         + " ('ACCEPTED', 'RUNNING', 'CANCELLING') AND"
                         + " dispatch_lease_until >= ?",
                 code, message, now, now, tenantId, sessionId, turnId, owner,
-                now);
+                lifecycleDatabaseTime());
         if (updated != 1) {
             return;
         }

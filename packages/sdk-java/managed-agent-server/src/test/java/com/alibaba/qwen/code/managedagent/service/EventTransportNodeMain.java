@@ -44,7 +44,8 @@ import java.util.Map;
  * <p>The single argument is a JSON file: {@code node}, {@code root},
  * {@code shared}, {@code ready} and the Spring {@code properties}. A clock
  * skew is applied to the whole JVM from outside (libfaketime), never here:
- * the wake path reads the database clock and no Clock bean.
+ * the wake path reads the database clock and no Clock bean, and the Turn
+ * dispatch row must move every clock the JVM reads, not only the bean.
  */
 public final class EventTransportNodeMain {
     /** The exit status of a fault-injected crash, distinct from a kill. */

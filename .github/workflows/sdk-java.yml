@@ -943,9 +943,9 @@ jobs:
     # Hosted: the gate boots its own broker on fixed ports and its own
     # control-plane nodes.
     runs-on: 'ubuntu-latest'
-    # 10 + 60 capped minutes plus ~15 for the uncapped setup (the CLI
+    # 10 + 65 capped minutes plus ~15 for the uncapped setup (the CLI
     # bundle, the module installs, libfaketime).
-    timeout-minutes: 90
+    timeout-minutes: 95
     services:
       mysql:
         image: 'mysql:8.4.6'
@@ -990,7 +990,7 @@ jobs:
           mvn --batch-mode --no-transfer-progress -f packages/sdk-java/qwencode/pom.xml -DskipTests -Dgpg.skip=true -Dmaven.javadoc.skip=true install
           mvn --batch-mode --no-transfer-progress -f packages/sdk-java/runtime-broker/pom.xml -DskipTests -Dspotbugs.skip=true install
       - name: 'Install libfaketime'
-        # The clock-skew row moves one node's whole wall clock.
+        # The clock-skew rows move one node's whole wall clock.
         run: |-
           sudo apt-get update -q
           sudo apt-get install -y -q faketime
@@ -1011,9 +1011,9 @@ jobs:
           RMQ_EXTRA_GROUPS: 'qwen-transport-gate-oracle'
         run: 'scripts/rocketmq-lite-broker.sh start'
       - name: 'Verify the EventTransport multi-node gates'
-        # Outlives the 3000 s failsafe fork plus the compile and SpotBugs
+        # Outlives the 3300 s failsafe fork plus the compile and SpotBugs
         # around it (#13503).
-        timeout-minutes: 60
+        timeout-minutes: 65
         env:
           MAVEN_ARGS: '--settings ${{ runner.temp }}/setup-java-m2/settings.xml --toolchains ${{ runner.temp }}/setup-java-m2/toolchains.xml'
           MYSQL_PORT: "${{ job.services.mysql.ports['3306'] }}"

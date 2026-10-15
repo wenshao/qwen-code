@@ -96,7 +96,7 @@ archive 只需要 Java 这一个权威，因此在同一个事务里完成：Ses
 
 停止写入该 Session journal 的 Harness 同样无法关闭它。任何一次 journal 提交失败之后（例如在 Java 或其数据库不可用时发生的提交），Harness 会拒绝该 Session 之后的所有提交；而它的关闭要先记录其 activation 已结束，因此它对每次尝试都返回 `503`。它的 writer 租约可能仍然有效，因为 writer 自己的续约还在继续，所以其他服务器也无法完成这个 close；operation 一直保持 `running`，直到该 Harness 重启，并且如上所述 Java 也要随之重启。只有该租约也过期后，另一台服务器的 Harness 才能完成它（第 2 步）。D4 不会在没有 Harness 的情况下完成这样的 close：[契约][contract]第 10 节让 close 与 delete 仍经过既有的 Hooks 与资源结算，而只有 Harness 能报告它的 Session 已结算。
 
-两个步骤都是幂等的，因此重复的尝试是安全的。租约与 Turn 租约一样使用各服务器自己的时钟，而不是[契约收敛][closure]第 1 节要求的数据库时间，并且不续约。在默认租约（60 秒）与 Harness 请求超时（30 秒）下，同一服务器上的尝试只有在 worker 丢失后才会重叠；但时钟偏差、更短的租约或较慢的首次连接也可能让尝试重叠。认领代次让过期的尝试无法完成，重复的关闭也不会造成影响。
+两个步骤都是幂等的，因此重复的尝试是安全的。D4 最初与当时的 Turn 租约一样，租约使用各服务器自己的时钟，并且不续约。自 #13135 起，租约改用[契约收敛][closure]第 1 节要求的数据库时间，worker 在尝试进行期间续约其认领；Turn 调度租约随后在 #14248 中跟进。因此服务器之间的时钟偏差不再会让尝试重叠，但续约停滞超过租约时长的 worker 仍可能在尝试中途失去认领。认领代次让过期的尝试无法完成，重复的关闭也不会造成影响。
 
 delete 不动共享 Workspace：worker 只关闭该 Session 并排空它自己的 Runtime 绑定。
 
@@ -175,7 +175,7 @@ W0e（#12839）先占用了 V16，因此本迁移为 V17，即 `main` 上下一�
 - D7 把其输入与取消 operation 加入同一张表与路由。
 - 不重启 Java 也能重新连接重启后的 Hosted Harness，Turn 分发同样需要这一点。
 - 让 journal 写入因失败而停止的 Harness 仍能封存其 writer 并释放该 Session，使 close 能够完成结算（4.5）。
-- 使用数据库时间并续约的租约，即契约收敛第 1 节对持久投递的要求。
+- 使用数据库时间并续约的租约，即契约收敛第 1 节对持久投递的要求。已在 #13135 中完成（4.5）。
 - WebShell 的 capability 对象实现后提供 `sessionLifecycle`。
 
 [contract]: https://github.com/doudouOUC/code_agent/blob/689121646cc25ca08a34508a5f5555ae15308833/qwen-code/feature/managed-agents/managed-agent-api-contract.md
