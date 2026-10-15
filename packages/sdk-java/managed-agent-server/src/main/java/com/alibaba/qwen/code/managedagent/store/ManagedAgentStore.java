@@ -3572,7 +3572,7 @@ public class ManagedAgentStore implements AgentStateStore {
         SessionRecord session = requireLegacySessionForUpdate(tenantId, sessionId);
         TurnRecord turn = requireTurnForUpdate(tenantId, sessionId, turnId);
         long now = clock.millis();
-        long leaseNow = lifecycleDatabaseTime();
+        long leaseNow = clock.millis();
         if (!owner.equals(turn.dispatchOwner())
                 || turn.dispatchLeaseUntil() == null
                 || turn.dispatchLeaseUntil() < leaseNow
