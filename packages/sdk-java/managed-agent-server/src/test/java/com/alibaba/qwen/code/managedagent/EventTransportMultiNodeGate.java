@@ -46,8 +46,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -72,8 +75,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * <p>Run by the {@code event-transport-multi-node-gates} profile against
  * {@code scripts/rocketmq-lite-broker.sh start}, a MySQL 8.4 server and the
  * bundled CLI; every coordinate arrives as a system property and a missing
- * one fails the gate rather than skipping it — only the clock-skew row is
- * skipped without libfaketime, and CI's report check fails on that skip.
+ * one fails the gate rather than skipping it — only the two clock-skew rows
+ * are skipped without libfaketime, and CI's report check fails on that skip.
  * The rows' timeouts add up to less than the profile's fork timeout. The
  * broker must be this run's
  * alone: the nodes join the server's default groups and the oracle reads
@@ -104,6 +107,12 @@ class EventTransportMultiNodeGate {
     private static HttpServer model;
     private static ExecutorService modelThreads;
     private static final AtomicInteger MODEL_CALLS = new AtomicInteger();
+    // A prompt carrying a hold marker is answered only once its row releases
+    // the marker; HELD records every marker a model call carried.
+    private static final String HOLD = "MQ3_HOLD_";
+    private static final Pattern HOLD_MARKER = Pattern.compile("MQ3_HOLD_[0-9a-f]{32}");
+    private static final Map<String, CountDownLatch> HOLDS = new ConcurrentHashMap<>();
+    private static final Set<String> HELD = ConcurrentHashMap.newKeySet();
     private static ClientServiceProvider provider;
     private static Producer injector;
     private static LitePushConsumer oracle;
@@ -207,6 +216,7 @@ class EventTransportMultiNodeGate {
 
     @AfterEach
     void stopNodes() throws InterruptedException {
+        HOLDS.keySet().forEach(EventTransportMultiNodeGate::releaseHold);
         if (!nodes.isEmpty()) {
             // Let acknowledgements leave first: a node killed holding an
             // unacknowledged message holds its lite topic for the broker's
@@ -217,6 +227,11 @@ class EventTransportMultiNodeGate {
             node.crash();
         }
         nodes.clear();
+        // The dispatch scan spans tenants: a Turn this row left active, its
+        // node gone, must not be taken over by the next row's nodes.
+        jdbc.update("UPDATE ma_turn SET status = 'FAILED', dispatch_owner = NULL,"
+                + " dispatch_lease_until = NULL WHERE tenant_id = ? AND status IN"
+                + " ('ACCEPTED', 'RUNNING', 'CANCELLING')", tenant);
     }
 
     // --- rows ---
@@ -652,8 +667,7 @@ class EventTransportMultiNodeGate {
      * path reads no Clock bean — and is skipped. The node that holds the
      * Session runs with the flag off, so the skewed node is the only member
      * of the bootstrap lane, and no Turn runs while a skewed node is up: the
-     * Turn dispatch lease is stamped with the JVM clock, which the MQ3 design
-     * records as outside this row.
+     * next row covers Turn dispatch beside a skewed node.
      */
     @Test
     @Timeout(300)
@@ -663,8 +677,6 @@ class EventTransportMultiNodeGate {
         Node a = node("a").start(false);
         String session = createSession(a);
         turn(a, session, "MQ3_HELD_BY_A");
-        // Started after the Turn: a node this far ahead reads every Turn
-        // dispatch lease, which the JVM clock stamps, as lapsed.
         Node ahead = node("ahead").skewed(Duration.ofMinutes(10)).start(true);
         ManagedEventEnvelope wake = journalEnvelopes(session).getFirst();
         long generation = writerGeneration(session);
@@ -695,6 +707,52 @@ class EventTransportMultiNodeGate {
         assertThat(leaseLive(session)).isTrue();
         Thread.sleep(4_000);
         assertThat(leaseLive(session)).isTrue();
+    }
+
+    /**
+     * #14248: the Turn dispatch lease reads the database clock as well. Each
+     * Turn below runs on the node named, which holds the claim while its
+     * Harness waits on a model reply the row holds back, so the other node's
+     * 200 ms scan meets the live claim many times: a normal node's Turn beside
+     * a node whose JVM wall clock is ten minutes ahead; that node's own Turn,
+     * whose every guarded step then reads a claim stamped by database time
+     * against a clock ten minutes on; and a Turn on a node ten minutes behind,
+     * beside the normal one. Each keeps its one owner, is never retried and
+     * completes where it was claimed. Then the normal node dies holding a
+     * Turn, and the node behind takes it over within about one dispatch lease,
+     * not one lease plus the skew. As in the wake row the skew is
+     * libfaketime's, so it moves every clock read in the node's JVM, and the
+     * row is skipped without it.
+     */
+    @Test
+    @Timeout(300)
+    void turnDispatchFollowsTheDatabaseClockNotTheNode() throws Exception {
+        assumeTrue(!System.getProperty("qwen.gate.faketime.library", "").isBlank(),
+                "the clock-skew row needs libfaketime (qwen.gate.faketime.library)");
+        Node a = node("a").start(false);
+        Node ahead = node("ahead").skewed(Duration.ofMinutes(10)).start(false);
+        completesWhereClaimed(a, ahead);
+        completesWhereClaimed(ahead, a);
+        ahead.crash();
+        Node behind = node("behind").skewed(Duration.ofMinutes(-10)).start(false);
+        completesWhereClaimed(behind, a);
+
+        HeldTurn orphan = holdTurnOn(a);
+        TurnDispatch held = dispatch(orphan.session());
+        a.crash();
+        long died = System.nanoTime();
+        // Only the node behind is left: a new claim, a retry or a settlement
+        // is its takeover.
+        await().atMost(Duration.ofSeconds(60)).pollInterval(Duration.ofMillis(100))
+                .until(() -> {
+                    TurnDispatch now = dispatch(orphan.session());
+                    return now.retries() > held.retries()
+                            || !ACTIVE_TURN.contains(now.status())
+                            || now.owner() != null && !now.owner().equals(held.owner());
+                });
+        assertThat(Duration.ofNanos(System.nanoTime() - died))
+                .as("takeover after the holder died, against its 6 s lease")
+                .isLessThan(Duration.ofSeconds(20));
     }
 
     /**
@@ -1110,11 +1168,105 @@ class EventTransportMultiNodeGate {
                 String.class, tenant, session);
     }
 
+    // --- Turn dispatch ---
+
+    private static final List<String> ACTIVE_TURN = List.of("ACCEPTED", "RUNNING",
+            "CANCELLING");
+    // How long the other node's scan meets a held claim: about 15 scans.
+    private static final Duration WATCHED = Duration.ofSeconds(3);
+
+    private record TurnDispatch(String owner, int retries, String status) {
+    }
+
+    private record HeldTurn(String session, String marker, String owner) {
+    }
+
+    /** The dispatch claim of the Session's one Turn. */
+    private TurnDispatch dispatch(String session) {
+        return jdbc.queryForObject("SELECT dispatch_owner, retry_count, status FROM ma_turn"
+                + " WHERE tenant_id = ? AND session_id = ?", (row, index) -> new TurnDispatch(
+                        row.getString("dispatch_owner"), row.getInt("retry_count"),
+                        row.getString("status")), tenant, session);
+    }
+
+    /**
+     * Starts a Turn whose model reply is held, on the node's own Harness at
+     * its first claim. An input commits its Turn unclaimed, and in the moment
+     * before the node's own dispatch claims it another node's scan may
+     * legitimately win it; such a Session, or one a transient failure sent
+     * round a retry, is left held and another is tried.
+     */
+    private HeldTurn holdTurnOn(Node node) {
+        for (int attempt = 1;; attempt++) {
+            String session = createSession(node);
+            String marker = HOLD + UUID.randomUUID().toString().replace("-", "");
+            HOLDS.put(marker, new CountDownLatch(1));
+            input(node, session, marker);
+            await().alias(node.name + " reached the held model call").atMost(SETTLE)
+                    .until(() -> HELD.contains(marker));
+            TurnDispatch claim = dispatch(session);
+            String writer = writerId(session);
+            if (node.bootId.equals(writer) && claim.retries() == 0) {
+                assertThat(claim.owner()).as("%s's claim while its model call runs",
+                        node.name).isNotNull();
+                return new HeldTurn(session, marker, claim.owner());
+            }
+            assertThat(attempt).as("no Turn input reached %s's model call on its first"
+                    + " claim: another node won it, or it was retried (last writer %s,"
+                    + " claim %s)", node.name, writer, claim).isLessThan(3);
+        }
+    }
+
+    /**
+     * Runs a Turn on the node while the watcher's scan meets its live claim,
+     * then lets it finish: one owner throughout, no retry, completed there.
+     */
+    private void completesWhereClaimed(Node node, Node watcher)
+            throws InterruptedException {
+        HeldTurn turn = holdTurnOn(node);
+        for (long until = System.nanoTime() + WATCHED.toNanos();
+                System.nanoTime() < until;) {
+            TurnDispatch now = dispatch(turn.session());
+            assertThat(now).as("%s's claim while %s scans", node.name, watcher.name)
+                    .isEqualTo(new TurnDispatch(turn.owner(), 0, now.status()));
+            Thread.sleep(50);
+        }
+        releaseHold(turn.marker());
+        await().atMost(SETTLE).pollInterval(Duration.ofMillis(200))
+                .until(() -> !ACTIVE_TURN.contains(dispatch(turn.session()).status()));
+        TurnDispatch settled = dispatch(turn.session());
+        assertThat(settled.status()).isEqualTo("COMPLETED");
+        assertThat(settled.retries()).isZero();
+        assertThat(terminalTurns(node, turn.session())).containsExactly("turn.completed");
+        assertThat(writerId(turn.session())).isEqualTo(node.bootId);
+    }
+
     // --- the model ---
+
+    private static void releaseHold(String marker) {
+        CountDownLatch hold = HOLDS.remove(marker);
+        if (hold != null) {
+            hold.countDown();
+        }
+    }
 
     private static void reply(HttpExchange exchange) throws IOException {
         try (exchange) {
-            exchange.getRequestBody().readAllBytes();
+            String request = new String(exchange.getRequestBody().readAllBytes(),
+                    StandardCharsets.UTF_8);
+            Matcher marker = HOLD_MARKER.matcher(request);
+            if (marker.find()) {
+                HELD.add(marker.group());
+                CountDownLatch hold = HOLDS.get(marker.group());
+                try {
+                    if (hold != null && !hold.await(2, TimeUnit.MINUTES)) {
+                        return;
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
             ObjectNode chunk = JSON.createObjectNode();
             chunk.put("id", "mq3-fixture").put("object", "chat.completion.chunk")
                     .put("created", 0).put("model", MODEL);
