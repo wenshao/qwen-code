@@ -1,0 +1,23 @@
+# r1-register-boundary  db=s1  2026-10-16T11:40:06.463Z
+PASS  nodes/query alice: supported + loopmac visible  -> {"supported":true,"data":[{"nodeId":"loopmac","displayName":"Loopback Mac"}]}
+PASS  nodes/query mallory: no nodes  -> {"supported":true,"data":[]}
+PASS  check-directory allowed path -> 200 canonical  -> {"nodeId":"loopmac","canonicalPath":"/Users/wenshao/pr14318-rig/ws-ssh/proj2","platform":"darwin"}
+PASS  check-directory outside allowed-roots refused  -> status=409 {"error":{"code":"ssh_runtime_identity_conflict","message":"Remote Runtime operation could not be completed.","request_id":"cd0e9655-8711-4c8a-974d-37d73d87d42e
+PASS  check-directory mallory -> 403 runtime_node_forbidden  -> status=403
+PASS  register -> 202 with operation  -> status=202 {"operationId":"wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166","type":"workspace_create","status":"pending","workspaceId":null,"failureCode":null,"replayed":false}
+PASS  registration operation completes  -> status=200 body={"operationId":"wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166","type":"workspace_create","status":"completed","workspaceId":"ws_b91450a3-0389-4407-a8de-ec755d26993a","failureCode":null,"replayed":true}
+PASS  operation carries workspaceId  -> {"operationId":"wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166","type":"workspace_create","status":"completed","workspaceId":"ws_b91450a3-0389-4407-a8de-ec755d26993a","failureCode":null,"replayed":true}
+PASS  ma_workspace ACTIVE row for registered workspace  -> ["ws_b91450a3-0389-4407-a8de-ec755d26993a","ssh_31b52499-a217-4e1a-a85c-0c9af6f90c43","ACTIVE","ROOT","Rig SSH proj1"]
+PASS  creator OWNER grant present  -> role=OWNER
+NOTE  storage state  -> [["ssh_31b52499-a217-4e1a-a85c-0c9af6f90c43","REGISTERED"]]
+PASS  same idempotency key replays original operation  -> op1=wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166 op2=wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166 status=202
+PASS  exactly one workspace for the storage  -> count=1
+PASS  overlapping physical ownership durably refused  -> op=wop_12f428d2fbe93e2d2c3ff87a879d9c3d0e4e7276300e31d4de70473de9122942 state=recovery_blocked code=ssh_runtime_identity_mismatch
+PASS  register mallory -> 403  -> status=403
+PASS  local /workspaces/create correctly unavailable on macOS rig  -> status=409 {"error":{"code":"workspace_creation_unavailable","message":"Workspace creation is not enabled.","request_id":"a718c9b2-37e0-4569-a744-36ed69567dbd"}}
+NOTE  remote-shaped create  -> status=400 body={"displayName":"x","idempotencyKey":"b1-1792150808927","nodeId":"loopmac","path":"/Users/wenshao/pr14318-rig/ws-ssh/proj
+NOTE  remote-shaped create  -> status=400 body={"displayName":"x","idempotencyKey":"b2-1792150808927","nodeId":null,"path":null}
+NOTE  remote-shaped create  -> status=400 body={"displayName":"x","idempotencyKey":"b3-1792150808927","path":"/Users/wenshao/pr14318-rig/ws-ssh/proj2"}
+PASS  remote-shaped payloads to /workspaces/create -> 400
+NOTE  workspace count after boundary tests  -> total=2
+== r1-register-boundary: 16 passed, 0 failed

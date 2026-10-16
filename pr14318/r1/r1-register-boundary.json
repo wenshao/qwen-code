@@ -1,0 +1,113 @@
+{
+  "name": "r1-register-boundary",
+  "pass": 16,
+  "fail": 0,
+  "rows": [
+    {
+      "label": "nodes/query alice: supported + loopmac visible",
+      "ok": true,
+      "detail": "{\"supported\":true,\"data\":[{\"nodeId\":\"loopmac\",\"displayName\":\"Loopback Mac\"}]}"
+    },
+    {
+      "label": "nodes/query mallory: no nodes",
+      "ok": true,
+      "detail": "{\"supported\":true,\"data\":[]}"
+    },
+    {
+      "label": "check-directory allowed path -> 200 canonical",
+      "ok": true,
+      "detail": "{\"nodeId\":\"loopmac\",\"canonicalPath\":\"/Users/wenshao/pr14318-rig/ws-ssh/proj2\",\"platform\":\"darwin\"}"
+    },
+    {
+      "label": "check-directory outside allowed-roots refused",
+      "ok": true,
+      "detail": "status=409 {\"error\":{\"code\":\"ssh_runtime_identity_conflict\",\"message\":\"Remote Runtime operation could not be completed.\",\"request_id\":\"cd0e9655-8711-4c8a-974d-37d73d87d42e"
+    },
+    {
+      "label": "check-directory mallory -> 403 runtime_node_forbidden",
+      "ok": true,
+      "detail": "status=403"
+    },
+    {
+      "label": "register -> 202 with operation",
+      "ok": true,
+      "detail": "status=202 {\"operationId\":\"wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166\",\"type\":\"workspace_create\",\"status\":\"pending\",\"workspaceId\":null,\"failureCode\":null,\"replayed\":false}"
+    },
+    {
+      "label": "registration operation completes",
+      "ok": true,
+      "detail": "status=200 body={\"operationId\":\"wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166\",\"type\":\"workspace_create\",\"status\":\"completed\",\"workspaceId\":\"ws_b91450a3-0389-4407-a8de-ec755d26993a\",\"failureCode\":null,\"replayed\":true}"
+    },
+    {
+      "label": "operation carries workspaceId",
+      "ok": true,
+      "detail": "{\"operationId\":\"wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166\",\"type\":\"workspace_create\",\"status\":\"completed\",\"workspaceId\":\"ws_b91450a3-0389-4407-a8de-ec755d26993a\",\"failureCode\":null,\"replayed\":true}"
+    },
+    {
+      "label": "ma_workspace ACTIVE row for registered workspace",
+      "ok": true,
+      "detail": "[\"ws_b91450a3-0389-4407-a8de-ec755d26993a\",\"ssh_31b52499-a217-4e1a-a85c-0c9af6f90c43\",\"ACTIVE\",\"ROOT\",\"Rig SSH proj1\"]"
+    },
+    {
+      "label": "creator OWNER grant present",
+      "ok": true,
+      "detail": "role=OWNER"
+    },
+    {
+      "label": "storage state",
+      "note": true,
+      "detail": "[[\"ssh_31b52499-a217-4e1a-a85c-0c9af6f90c43\",\"REGISTERED\"]]"
+    },
+    {
+      "label": "same idempotency key replays original operation",
+      "ok": true,
+      "detail": "op1=wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166 op2=wop_4b1191b8e05e9046e90c50902fb8c7d7fc2da571e41ebcdb13a6a3d21e627166 status=202"
+    },
+    {
+      "label": "exactly one workspace for the storage",
+      "ok": true,
+      "detail": "count=1"
+    },
+    {
+      "label": "overlapping physical ownership durably refused",
+      "ok": true,
+      "detail": "op=wop_12f428d2fbe93e2d2c3ff87a879d9c3d0e4e7276300e31d4de70473de9122942 state=recovery_blocked code=ssh_runtime_identity_mismatch"
+    },
+    {
+      "label": "register mallory -> 403",
+      "ok": true,
+      "detail": "status=403"
+    },
+    {
+      "label": "local /workspaces/create correctly unavailable on macOS rig",
+      "ok": true,
+      "detail": "status=409 {\"error\":{\"code\":\"workspace_creation_unavailable\",\"message\":\"Workspace creation is not enabled.\",\"request_id\":\"a718c9b2-37e0-4569-a744-36ed69567dbd\"}}"
+    },
+    {
+      "label": "remote-shaped create",
+      "note": true,
+      "detail": "status=400 body={\"displayName\":\"x\",\"idempotencyKey\":\"b1-1792150808927\",\"nodeId\":\"loopmac\",\"path\":\"/Users/wenshao/pr14318-rig/ws-ssh/proj"
+    },
+    {
+      "label": "remote-shaped create",
+      "note": true,
+      "detail": "status=400 body={\"displayName\":\"x\",\"idempotencyKey\":\"b2-1792150808927\",\"nodeId\":null,\"path\":null}"
+    },
+    {
+      "label": "remote-shaped create",
+      "note": true,
+      "detail": "status=400 body={\"displayName\":\"x\",\"idempotencyKey\":\"b3-1792150808927\",\"path\":\"/Users/wenshao/pr14318-rig/ws-ssh/proj2\"}"
+    },
+    {
+      "label": "remote-shaped payloads to /workspaces/create -> 400",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "label": "workspace count after boundary tests",
+      "note": true,
+      "detail": "total=2"
+    }
+  ],
+  "wsId": "ws_b91450a3-0389-4407-a8de-ec755d26993a"
+}
