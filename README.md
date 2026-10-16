@@ -1,0 +1,1 @@
+Assets for PR #13476 verification report.
