@@ -1,0 +1,1245 @@
+name: 'probe-16135 r1 base s9-unmerged'
+on:
+  push:
+    branches: ['probe/pr16135-r1-base-s9-unmerged']
+jobs:
+  verify:
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 15
+    permissions:
+      contents: 'read'
+      issues: 'write'
+      pull-requests: 'write'
+    outputs:
+      pr_number: '${{ steps.pr.outputs.pr_number }}'
+      verdict: '${{ steps.run.outputs.verdict || steps.prepare.outputs.verdict || steps.pr.outputs.verdict }}'
+      failure_phase: '${{ steps.prepare.outputs.failure_phase }}'
+      model: '${{ steps.run.outputs.model }}'
+      cli_version: '${{ steps.run.outputs.cli_version }}'
+      skill_hash: '${{ steps.run.outputs.skill_hash }}'
+      flake_verdict: '${{ steps.flake.outputs.flake_verdict }}'
+      flake_summary: '${{ steps.flake.outputs.flake_summary }}'
+      skip_reason: '${{ steps.pr.outputs.skip_reason }}'
+    steps:
+      - name: 'Resolve PR'
+        id: 'pr'
+        run: |-
+          echo "pr_number=27" >> "$GITHUB_OUTPUT"
+          echo "decision=run" >> "$GITHUB_OUTPUT"
+      - name: 'Prepare'
+        id: 'prepare'
+        run: 'true'
+      - name: 'Flakiness gate: re-run changed test files'
+        id: 'flake'
+        run: |-
+          /usr/bin/printf 'flake_verdict=%s\n' 'flaky' >> "$GITHUB_OUTPUT"
+          /usr/bin/printf 'flake_summary=%s\n' 'probe: 1 of 2 changed test files diverged across 5 rounds' >> "$GITHUB_OUTPUT"
+      - name: 'Run verification agent'
+        id: 'run'
+        run: |-
+          echo "probe: waiting to be cancelled"; sleep 900
+      - name: 'Stage results'
+        if: 'always()'
+        run: |-
+          mkdir -p "$RUNNER_TEMP/upload/prA-verify-1"
+          printf '%s\n' '{"pass":3,"fail":0,"total":3}' > "$RUNNER_TEMP/upload/prA-verify-1/assertions.json"
+          printf '%s\n' 'findings' > "$RUNNER_TEMP/upload/prA-verify-1/verdict.txt"
+          printf '%s\n' 'PR 27 round 1 verification — **Verdict: findings** — 3/3 scripted assertions passed, 0 failed. (probe s9-unmerged)' > "$RUNNER_TEMP/upload/prA-verify-1/report.md"
+      - name: 'Upload verify results'
+        if: 'always()'
+        uses: 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' # v4.6.2
+        with:
+          name: 'verify-results-${{ steps.pr.outputs.pr_number }}-${{ github.run_id }}-${{ github.run_attempt }}'
+          path: '${{ runner.temp }}/upload/'
+          retention-days: 1
+
+  observe:
+    needs: ['verify']
+    if: 'always()'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Record what the publisher receives'
+        run: |-
+          echo "PROBE VERIFY_RESULT=${{ needs.verify.result }}"
+          echo "PROBE FLAKE_VERDICT=${{ needs.verify.outputs.flake_verdict }}"
+          echo "PROBE VERDICT=${{ needs.verify.outputs.verdict }}"
+          echo "PROBE PR_NUMBER=${{ needs.verify.outputs.pr_number }}"
+
+  publish-verify:
+    needs: ['verify']
+    if: "always() && needs.verify.result != 'skipped'"
+    # Per-RUN group, deliberately not per-PR. A GitHub concurrency group
+    # holds at most one running plus one pending job, and a newer pending job
+    # REPLACES the older one even with cancel-in-progress: false — so a
+    # per-PR group here would let a second /verify cancel a completed run's
+    # pending publisher and drop its report entirely. Overlap between
+    # publishers is instead made safe by the marker discipline below
+    # (bot-owned + prefix match, each run writes only into its own
+    # comment, post-fresh fallback), which is a correctness property rather
+    # than a scheduling one.
+    concurrency:
+      group: "${{ format('{0}-publish-verify-{1}', github.workflow, github.run_id) }}"
+      cancel-in-progress: false
+    # Downloads one artifact and posts one comment; without this it would
+    # inherit the 360-minute default and a hung gh call could hold a hosted
+    # runner for six hours.
+    timeout-minutes: 10
+    # This job carries OSS credentials, so it must stay isolated from the
+    # persistent runner pool that executes untrusted PR code.
+    runs-on: 'ubuntu-latest'
+    permissions:
+      contents: 'read'
+      pull-requests: 'write'
+    steps:
+      # Sparse — the uploader, the artifact checker, their helpers, and the
+      # root package.json that marks the uploader's `.js` as ESM (without it
+      # the uploader only parses on the Node versions that infer module
+      # syntax, and this job pins no Node).
+      - name: 'Checkout the OSS publisher scripts'
+        uses: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10' # v6.0.3
+        with:
+          # Pin the trusted ref explicitly: publish-verify only runs under
+          # issue_comment events (needs: verify), where github.sha is the
+          # default-branch head — never a PR merge ref. The pin makes
+          # "never PR code" a property of this step instead of an inference
+          # from the event's default resolution.
+          ref: '${{ github.sha }}'
+          sparse-checkout: |-
+            /package.json
+            scripts/upload-aliyun-oss-assets.js
+            scripts/release-script-utils.js
+            scripts/verify-pr-check.mjs
+            scripts/lib/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: 'Install ossutil'
+        id: 'install-ossutil'
+        # Evidence hosting is best-effort; the report still posts as text if
+        # the client cannot be installed.
+        continue-on-error: true
+        env:
+          OSSUTIL_URL: "${{ vars.OSSUTIL_URL || 'https://gosspublic.alicdn.com/ossutil/1.7.19/ossutil-v1.7.19-linux-amd64.zip' }}"
+          OSSUTIL_SHA256: "${{ vars.OSSUTIL_SHA256 || 'dcc512e4a893e16bbee63bc769339d8e56b21744fd83c8212a9d8baf28767343' }}"
+        run: |-
+          set -euo pipefail
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir"' EXIT
+          # Retry, unlike the release syncs: a red run there is simply rerun,
+          # but a CDN blip here costs this PR its evidence images. The
+          # worst-case budget stays inside the 10-minute job cap: 3 attempts
+          # x 120s max-time + 2 x 2s delays ≈ 6.1 minutes (an unreachable
+          # mirror fails the connect-timeout long before that).
+          curl -fsSL --retry 2 --retry-delay 2 --retry-all-errors \
+            --connect-timeout 10 --max-time 120 "$OSSUTIL_URL" -o "$tmp_dir/ossutil.zip"
+          echo "$OSSUTIL_SHA256  $tmp_dir/ossutil.zip" | sha256sum -c -
+          unzip -q "$tmp_dir/ossutil.zip" -d "$tmp_dir"
+          ossutil_path="$(find "$tmp_dir" -type f \( -name 'ossutil' -o -name 'ossutil64' \) -print -quit)"
+          [ -n "$ossutil_path" ] || { echo '::error::ossutil binary not found'; exit 1; }
+          chmod +x "$ossutil_path"
+          install -m 0755 "$ossutil_path" "$RUNNER_TEMP/ossutil"
+          "$RUNNER_TEMP/ossutil" >/dev/null
+
+      - name: 'Configure Aliyun OSS credentials'
+        if: "${{ steps.install-ossutil.outcome == 'success' }}"
+        continue-on-error: true
+        env:
+          ALIYUN_OSS_ACCESS_KEY_ID: '${{ secrets.ALIYUN_OSS_ACCESS_KEY_ID }}'
+          ALIYUN_OSS_ACCESS_KEY_SECRET: '${{ secrets.ALIYUN_OSS_ACCESS_KEY_SECRET }}'
+          ALIYUN_OSS_ENDPOINT: "${{ vars.ALIYUN_OSS_ENDPOINT || 'https://oss-cn-hangzhou.aliyuncs.com' }}"
+        run: |-
+          set -euo pipefail
+          if [ -z "$ALIYUN_OSS_ACCESS_KEY_ID" ] || [ -z "$ALIYUN_OSS_ACCESS_KEY_SECRET" ]; then
+            echo '::error::Missing Aliyun OSS credentials.'
+            exit 1
+          fi
+          "$RUNNER_TEMP/ossutil" config -e "$ALIYUN_OSS_ENDPOINT" -i "$ALIYUN_OSS_ACCESS_KEY_ID" -k "$ALIYUN_OSS_ACCESS_KEY_SECRET" -L EN -c "$RUNNER_TEMP/.ossutilconfig"
+
+      # Belt-and-braces against a stale download directory. The job moved to
+      # an ephemeral hosted runner (and checkout cleans the workspace first),
+      # so nothing should survive between runs — but the publisher treats the
+      # presence of a file like flake-gate.log as proof THIS run staged it,
+      # and that inference must not silently start embedding another PR's
+      # evidence if this job is ever moved back onto the persistent pool.
+      # The verify side applies the same rm-first rule to its $RUNNER_TEMP.
+      - name: 'Clear stale downloaded results'
+        run: 'rm -rf verify-results'
+
+      - name: 'Download verify results'
+        id: 'download'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v5.0.0
+        with:
+          name: 'verify-results-${{ needs.verify.outputs.pr_number }}-${{ github.run_id }}-${{ github.run_attempt }}'
+          path: 'verify-results'
+        continue-on-error: true
+
+      - name: 'Post verification report comment'
+        env:
+          GH_TOKEN: '${{ github.token }}'
+          # The fallback must live where the value is READ. A verify job
+          # cancelled while still pending never reaches a runner, so its
+          # `outputs:` block is never evaluated and needs.verify.outputs
+          # comes through empty — which used to hit the no-PR-number guard
+          # below and exit 0 silently, in exactly the scenario that produces
+          # cancellations. Verified by executing this step with both values.
+          PR_NUMBER: '${{ needs.verify.outputs.pr_number || github.event.issue.number }}'
+          VERDICT: '${{ needs.verify.outputs.verdict }}'
+          VERIFY_MODEL: '${{ needs.verify.outputs.model }}'
+          VERIFY_CLI_VERSION: '${{ needs.verify.outputs.cli_version }}'
+          VERIFY_SKILL_HASH: '${{ needs.verify.outputs.skill_hash }}'
+          FLAKE_VERDICT: '${{ needs.verify.outputs.flake_verdict }}'
+          FLAKE_SUMMARY: '${{ needs.verify.outputs.flake_summary }}'
+          SKIP_REASON: '${{ needs.verify.outputs.skip_reason }}'
+          PREPARE_FAILURE_PHASE: '${{ needs.verify.outputs.failure_phase }}'
+          VERIFY_RESULT: '${{ needs.verify.result }}'
+          DOWNLOAD_OUTCOME: '${{ steps.download.outcome }}'
+          RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          OSSUTIL_INSTALL_OUTCOME: '${{ steps.install-ossutil.outcome }}'
+          # PR evidence is untrusted, PR-derived content, so it gets its own
+          # bucket knob: set ALIYUN_OSS_PR_ASSETS_BUCKET to move it off the
+          # bucket that also serves release, desktop, and live-host downloads.
+          # Unset, it falls back to the shared bucket — today's behaviour.
+          # The default public URL is derived from the resolved bucket so that
+          # overriding only one of the two vars cannot post comment links
+          # that 404 against (or show stale objects from) the other bucket.
+          # A cross-region ALIYUN_OSS_ENDPOINT override must also override
+          # ALIYUN_OSS_PUBLIC_BASE_URL because the default host pins Hangzhou.
+          ALIYUN_OSS_BUCKET: "${{ vars.ALIYUN_OSS_PR_ASSETS_BUCKET || vars.ALIYUN_OSS_BUCKET || 'qwen-code-assets' }}"
+          ALIYUN_OSS_PUBLIC_BASE_URL: "${{ vars.ALIYUN_OSS_PR_ASSETS_PUBLIC_BASE_URL || (vars.ALIYUN_OSS_PR_ASSETS_BUCKET == '' && vars.ALIYUN_OSS_PUBLIC_BASE_URL) || format('https://{0}.oss-cn-hangzhou.aliyuncs.com', vars.ALIYUN_OSS_PR_ASSETS_BUCKET || vars.ALIYUN_OSS_BUCKET || 'qwen-code-assets') }}"
+          # A stalled upload must not burn this job's 10-minute cap and take
+          # the whole report with it: bound every ossutil attempt so the
+          # uploader exhausts its retries and degrades to a text-only report
+          # instead of hanging one black-hole socket until the job dies.
+          # Worst case is one image's 3 attempts x 120s + backoffs ≈ 6.1 min
+          # (the uploader stops at the first image that fails all attempts).
+          OSS_UPLOAD_ATTEMPT_TIMEOUT_MS: '120000'
+        # shellcheck disable=SC2016
+        run: |-
+          set -euo pipefail
+          if [ -z "${PR_NUMBER:-}" ]; then
+            echo "::warning::No PR number resolved; cannot post a verification comment."
+            exit 0
+          fi
+          BODY_FILE="${RUNNER_TEMP:-/tmp}/verify-comment.md"
+          # Every body keeps the run marker the status step wrote, so this
+          # job, re-run after it published, finds its own comment again
+          # instead of posting the report twice.
+          RUN_MARKER="<!-- qwen-triage:verify-run=${GITHUB_RUN_ID} -->"
+          SUBSTANTIVE_MARKER='<!-- qwen-triage:verify-substantive -->'
+          # Set only from the published report's own verdict.txt below.
+          AGENT_VERDICT=''
+
+          # Same embedding discipline as publish-tmux: the report is untrusted
+          # PR-run output, so it goes inside <details><pre><code> with &, <, >
+          # HTML-escaped — it renders as literal text and cannot open a tag,
+          # close the details, fire @mentions, or be parsed as markdown.
+          html_escape() {
+            sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
+          }
+
+          emit_block() {
+            local summary="$1" file="$2" max="$3" esc truncated='' summary_html
+            [ -n "$file" ] && [ -f "$file" ] || return 0
+            summary_html="$(printf '%s' "$summary" | html_escape)"
+            # Escape FIRST, then cap: the cap must bound what actually lands
+            # in the comment, and escaping inflates every & < > by 4-5 bytes —
+            # a raw-side cap can push the assembled body past GitHub's 65,536
+            # char comment limit, 422 the post, and strand the "running"
+            # status comment with no report at all. head -c 400000 bounds the
+            # escaping work itself; iconv -c drops a UTF-8 sequence the byte
+            # cut split (the mandated 中文 summary makes that likely) instead
+            # of shipping a broken character.
+            # Materialize the escaped text and let `head` read the FILE, so
+            # no producer can take SIGPIPE at the cut. (Measured: the old
+            # `printf | head` chain self-healed even at ~2 MB of escaped
+            # content — the first capture already held the truncated value,
+            # so the `||` fallback re-truncated something short. Correct by
+            # accident is not a property to keep.)
+            local esc_file="${TMPDIR:-/tmp}/verify-emit-$$"
+            if ! (
+              set -o pipefail
+              head -c 400000 "$file" | tr -d '\000' | html_escape > "$esc_file"
+            ); then
+              echo "::warning::emit_block failed while rendering $summary; see run artifacts." >&2
+              rm -f "$esc_file"
+              esc='<em>Content could not be rendered; see run artifacts.</em>'
+            else
+              if [ "$(wc -c < "$esc_file")" -gt "$max" ] ||
+                 [ "$(wc -c < "$file")" -gt 400000 ]; then
+                truncated=$'\n\n...truncated -- full content in the run artifacts.'
+              fi
+              # Cut on a CHARACTER boundary. `iconv -c` is not portable here:
+              # on BSD/macOS it warns and passes the incomplete trailing
+              # sequence through unchanged (measured), so the comment body
+              # would ship a broken character — likely, given the mandated
+              # 中文 summary. Node is present on every runner that runs this
+              # job; decode the truncated bytes and drop a replacement
+              # character the cut itself produced at the end.
+              esc="$(node -e '
+                const fs = require("node:fs");
+                const [file, max] = process.argv.slice(1);
+                const buf = fs.readFileSync(file).subarray(0, Number(max));
+                const text = new TextDecoder("utf-8").decode(buf);
+                process.stdout.write(text.replace(/�+$/, ""));
+              ' "$esc_file" "$max")" ||
+                esc="$(head -c "$max" "$esc_file")"
+              rm -f "$esc_file"
+            fi
+            printf '<details>\n<summary>%s</summary>\n\n<pre><code>\n' "$summary_html"
+            printf '%s%s\n' "$esc" "$truncated"
+            printf '</code></pre>\n\n</details>\n\n'
+          }
+          # Render report.md as MARKDOWN instead of an escaped <pre> dump.
+          # The report is a curated bilingual document (tables, nested
+          # <details>, headings); the pre/code embedding displayed it as a
+          # wall of raw source (#8140's comment was the exhibit). The section
+          # is wrapped in a collapsed <details> so it still costs one line in
+          # the conversation but renders as real markdown when opened.
+          #
+          # A node sanitizer (not sed) does the escaping so it can tell code
+          # regions apart from prose. CommonMark does NOT decode entities in
+          # code spans or fenced blocks — they render literally there — so
+          # escaping & < > @ unconditionally showed the reader &amp;&amp;,
+          # &lt;T&gt;, &#64;pkg inside the very commands, generic types, and
+          # scoped-package paths a verification report is read to copy (the
+          # #8140 symptom, relocated into code). The security floor now rests
+          # on four line-independent guarantees:
+          #   1. in PROSE every < is escaped, then only the structural tags
+          #      the report uses as raw HTML (details/summary) are un-escaped
+          #      back to live tags — no other tag can form in ordinary
+          #      prose, so <img>/<script>/onerror never render there. A
+          #      line-level inHtml flag tracks raw-HTML blocks opened by
+          #      details/summary (at any indent, so list-nested folds
+          #      enter the state too): inside one, neither fence lines
+          #      NOR code spans are code — CommonMark/GitHub reads both
+          #      as literal text in a raw-HTML block — so the sanitizer
+          #      prose-escapes the whole line instead of splitting it
+          #      through proseLine, closing the divergence where GitHub
+          #      saw live HTML the sanitizer treated as inert code.
+          #      & and > are left alone in prose (a decoded entity
+          #      yields text, never markup, and an unescaped > cannot
+          #      open a tag once < is escaped), which keeps &&, ->, and
+          #      blockquotes readable. Code-span parity is a paragraph
+          #      property in CommonMark but a line property here, so a prose
+          #      line carrying an unmatched backtick run makes the rest of the
+          #      paragraph's code/prose split unknowable; the scanner fails
+          #      closed and prose-escapes every line until the next blank line
+          #      (over-escaping is the safe direction — a multi-line code span
+          #      shows its entities literally, inert not live). Outside HTML
+          #      blocks, inside code spans/fences < & @ are left alone: <img>
+          #      and @mentions are inert under a code/pre ancestor, and
+          #      escaping them there only mangles the rendered text;
+          #   2. the comment-open token is broken EVERYWHERE, prose and code
+          #      alike (<!-- becomes an escaped no-op, the autofix-proven
+          #      neutralizer). The break must stay global: the upsert greps
+          #      the RAW body for the running marker and a fence prints
+          #      verbatim, so a forged marker inside a fence must not survive;
+          #   3. in prose @ gains a zero-width space (@&#8203;) — renders
+          #      identically, never fires a mention (GitHub decodes &#64;
+          #      back to @ before the mention filter runs, so the entity
+          #      alone was inert; the ZWSP breaks the mention token). A
+          #      mention cannot fire under a code/pre ancestor, so code
+          #      keeps a literal @;
+          #   4. <details> folds are balanced over PROSE only — a </details>
+          #      quoted in a code span/fence is inert text and is no longer
+          #      counted — surplus closers are dropped (they would otherwise
+          #      close the wrapping fold early) and unclosed opens are closed
+          #      at the end, so a malformed report can neither swallow the
+          #      footer nor escape its wrapper. The flat scanner diverges
+          #      from GitHub's container-aware parser whenever a fence it
+          #      holds open cannot exist in GitHub's view, so two signals
+          #      exit non-zero (emit_report then degrades to the escaped
+          #      fallback rather than guessing): a fence still open at EOF
+          #      (GitHub closes a list-nested fence at the container's end,
+          #      not at EOF), and a non-blank line that dedents below the
+          #      fence opener's indent while it is open — the container
+          #      boundary moved, so GitHub already closed the fence and a
+          #      balancing closer later in the file would otherwise let the
+          #      scanner pass unescaped prose through escCode.
+          # Accepted tradeoff (named, not accidental): rendering promotes the
+          # report from inert text to parsed markdown, so [links](…) and
+          # ![images](…) now render live where emit_block showed them literal.
+          # report.md is agent output from a sandbox that ran PR code; images
+          # are camo-proxied (mostly noise) and a phishing link under the bot
+          # identity is the residual surface. That surface exists only while
+          # the four guarantees hold, so the fail-closed bails above are what
+          # keep deferring link defusing defensible; defusing link targets is
+          # a deliberate follow-up, not done here. Two safe-but-ugly display
+          # costs are named, not bugs: a code span that opens on one line and
+          # closes on the next is prose-escaped (the reader sees &lt;T&gt;
+          # inside it — the #8140 symptom relocated but inert), and escCode
+          # breaks <!-- to &lt;!\-\- which renders LITERALLY in a fence
+          # (entities do not decode there), so a fenced comment example shows
+          # as &lt;!\-\-.
+          # An OVERSIZED report falls back to emit_block wholesale (cut
+          # markdown dangles fences/folds), as does any sanitizer failure.
+          emit_report() {
+            local file="$1" max="$2"
+            [ -n "$file" ] && [ -f "$file" ] || return 0
+            if [ "$(wc -c < "$file")" -gt "$max" ]; then
+              echo "::warning::emit_report fell back to escaped embedding (report exceeds size cap) for $file" >&2
+              emit_block 'Verification report (report.md, truncated)' "$file" "$max"
+              return 0
+            fi
+            local san_file
+            san_file="$(mktemp)"
+            # Node is present on every runner that runs this job (emit_block
+            # already shells out to it for the UTF-8-safe cut). The script
+            # rides inside a single-quoted shell string, so it uses double
+            # quotes throughout and carries no single quotes of its own.
+            local node_status=0
+            node -e '
+              const fs = require("node:fs");
+              const text = fs.readFileSync(process.argv[1], "utf8").replace(/[\u0000\u0001]/g, "");
+              function escProse(s) {
+                // Allowlisted tags are stashed behind a \u0001 sentinel (stripped
+                // from input) BEFORE the < pass and restored from it, so a literal
+                // &lt;details> the author typed stays escaped text instead of being
+                // promoted back to a live tag by the un-escape step.
+                return s
+                  .replace(/<(\/?)(details|summary)>/g, "\u0001$1$2>")
+                  .replace(/</g, "&lt;")
+                  .replace(/\u0001(\/?)(details|summary)>/g, "<$1$2>")
+                  .replace(/&lt;!--/g, "&lt;!\\-\\-")
+                  .replace(/@/g, "@&#8203;");
+              }
+              function escCode(s) {
+                return s.replace(/<!--/g, "&lt;!\\-\\-");
+              }
+              let depth = 0;
+              function balance(s) {
+                return s.replace(/<\/?details>/g, function (t) {
+                  if (t === "<details>") { depth += 1; return t; }
+                  if (depth > 0) { depth -= 1; return t; }
+                  return "";
+                });
+              }
+              function proseLine(line) {
+                let out = "";
+                let buf = "";
+                let i = 0;
+                const flush = function () {
+                  if (buf) { out += balance(escProse(buf)); buf = ""; }
+                };
+                while (i < line.length) {
+                  if (line[i] !== "`") { buf += line[i]; i += 1; continue; }
+                  // A backslash-escaped backtick does not OPEN a code span (the
+                  // CommonMark escape rule consumes it first) but still CLOSES one
+                  // — an asymmetry a line-scoped scanner cannot model. Fail closed
+                  // like an unmatched run so the whole line is prose-escaped.
+                  let bs = 0, b = i - 1;
+                  while (b >= 0 && line[b] === "\\") { bs += 1; b -= 1; }
+                  if (bs % 2 === 1) { unmatched = true; buf += line[i]; i += 1; continue; }
+                  let j = i;
+                  while (j < line.length && line[j] === "`") j += 1;
+                  const run = j - i;
+                  let k = j, cs = -1, ce = -1;
+                  while (k < line.length) {
+                    if (line[k] === "`") {
+                      let m = k;
+                      while (m < line.length && line[m] === "`") m += 1;
+                      if (m - k === run) { cs = k; ce = m; break; }
+                      k = m;
+                    } else k += 1;
+                  }
+                  if (cs === -1) { unmatched = true; buf += line.slice(i, j); i = j; }
+                  else { flush(); out += escCode(line.slice(i, ce)); i = ce; }
+                }
+                flush();
+                return out;
+              }
+              const lines = text.split("\n");
+              const out = [];
+              let inFence = false, fc = "", fl = 0, fi = 0, inHtml = false;
+              let spanUnknown = false, unmatched = false;
+              for (const line of lines) {
+                if (!inFence) {
+                  const blank = /^\s*$/.test(line);
+                  if (inHtml && blank) inHtml = false;
+                  if (blank) spanUnknown = false;
+                  const m = inHtml ? null : line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+                  if (m && !(m[1][0] === "`" && m[2].indexOf("`") !== -1)) {
+                    inFence = true; fc = m[1][0]; fl = m[1].length; fi = line.match(/^ */)[0].length;
+                    out.push(escCode(line));
+                    continue;
+                  }
+                  let rendered;
+                  if (inHtml || spanUnknown) {
+                    rendered = balance(escProse(line));
+                  } else {
+                    unmatched = false;
+                    rendered = proseLine(line);
+                    if (unmatched) { spanUnknown = true; rendered = balance(escProse(line)); }
+                  }
+                  if (/^\s*<\/?(details|summary)\b/.test(rendered)) inHtml = true;
+                  out.push(rendered);
+                } else {
+                  if (/\S/.test(line) && line.match(/^ */)[0].length < fi) process.exit(3);
+                  const cm = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/);
+                  if (cm && cm[1][0] === fc && cm[1].length >= fl) inFence = false;
+                  out.push(escCode(line));
+                }
+              }
+              if (inFence) process.exit(3);
+              let result = out.join("\n");
+              if (depth > 0) {
+                if (result && !result.endsWith("\n")) result += "\n";
+                result += "</details>\n".repeat(depth);
+              }
+              process.stdout.write(result);
+            ' "$file" > "$san_file" || node_status=$?
+            if [ "$node_status" -ne 0 ]; then
+              if [ "$node_status" -eq 3 ]; then
+                echo "::warning::emit_report fell back to escaped embedding (report ended inside an open code fence) for $file" >&2
+              else
+                echo "::warning::emit_report fell back to escaped embedding (sanitize failed) for $file" >&2
+              fi
+              rm -f "$san_file"
+              emit_block 'Verification report (report.md, escaped fallback)' "$file" "$max"
+              return 0
+            fi
+            # Wrap in a collapsed <details> (one-line footprint, markdown when
+            # opened) and bound the WHOLE emitted section — wrapper, balanced
+            # report, appended closers — so the cap is a true bound on what
+            # lands in the comment. The old normal path skipped the header
+            # bytes the deficit branch did budget; folding the wrapper into
+            # the measured output removes that asymmetry and the separate
+            # fold-closer gate (closers now land in san_file before this gate).
+            local out_file
+            out_file="$(mktemp)"
+            {
+              printf '<details>\n<summary>Verification report</summary>\n\n'
+              cat "$san_file"
+              printf '\n</details>\n'
+            } > "$out_file"
+            rm -f "$san_file"
+            if [ "$(wc -c < "$out_file")" -gt "$max" ]; then
+              echo "::warning::emit_report fell back to escaped embedding (sanitized output exceeds size cap) for $file" >&2
+              rm -f "$out_file"
+              emit_block 'Verification report (report.md, truncated)' "$file" "$max"
+              return 0
+            fi
+            cat "$out_file"
+            rm -f "$out_file"
+            printf '\n'
+          }
+
+          # Host the agent's evidence images (if any) on Aliyun OSS and build a
+          # markdown section referencing them. Image bytes come from a run
+          # that executed PR code: inert but untrusted, so filenames pass a
+          # strict allowlist, count/size are capped (8 files, <2 MB each; the
+          # find predicates enforce both), and any failure degrades to a
+          # text-only comment rather than blocking the report. The
+          # VERIFY_ASSETS_UPLOADER override exists as a test seam only.
+          # $1 is the round directory the comment publishes: its images
+          # illustrate its report, never another round's.
+          EVIDENCE_SECTION=''
+          collect_and_host_evidence() {
+            local round="${1:-}" imgs=() f base safe seen=' ' hosted=0 total=0 skipped=0
+            local prefix="pr-assets/verify/pr${PR_NUMBER}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}"
+            local stage_dir="${RUNNER_TEMP:-/tmp}/verify-assets-stage"
+            local uploader="${VERIFY_ASSETS_UPLOADER:-scripts/upload-aliyun-oss-assets.js}"
+            [ -n "$round" ] || return 0
+            # `|| true` on every find: the artifact download is
+            # continue-on-error, so verify-results may not exist at all, and
+            # a bare non-zero find under `pipefail` would abort the step
+            # before the missing-report notice and the final upsert.
+            total="$(find "$round" -type f -path '*/evidence/*.png' 2>/dev/null | wc -l | tr -d ' ' || true)"
+            [ -n "$total" ] && [ "$total" -gt 0 ] || return 0
+            # Byte-exact size cap: find's -2M unit rounds file sizes UP to
+            # whole MiB first, silently turning a documented 2 MB cap into a
+            # 1 MiB one; the c (bytes) unit does not round.
+            while IFS= read -r f; do imgs+=("$f"); done < <(
+              find "$round" -type f -path '*/evidence/*.png' -size -2097153c 2>/dev/null | sort | head -8
+            )
+            if [ "${#imgs[@]}" -eq 0 ]; then
+              EVIDENCE_SECTION="_${total} evidence image(s) were produced but none passed the hosting caps (8 images, ≤2 MB each); see the run artifacts._"$'\n\n'
+              return 0
+            fi
+            rm -rf "$stage_dir"
+            mkdir -p "$stage_dir"
+            for f in "${imgs[@]}"; do
+              base="$(basename "$f")"
+              safe="$(printf '%s' "$base" | tr -cd 'a-zA-Z0-9._-' | head -c 80)"
+              case "$safe" in
+                ''|.*) continue ;;
+                *.png) ;;
+                *) continue ;;
+              esac
+              [ -n "${safe%.png}" ] || continue
+              # Two images can sanitize to the same name (nested evidence/
+              # dirs, or names that differ only in stripped characters); the
+              # second copy would silently overwrite the first and render
+              # twice.
+              case "$seen" in *" $safe "*) continue ;; esac
+              # Extension is attacker-choosable, and it is the enforcement
+              # point for what OSS serves: ossutil derives the object's
+              # Content-Type from the key's extension, so the .png allowlist
+              # above is what keeps these hosted as an image type. This
+              # magic-byte check then verifies the bytes actually match the
+              # claimed type. PNG only.
+              [ "$(head -c 8 "$f" | od -An -tx1 | tr -d ' \n')" = '89504e470d0a1a0a' ] || continue
+              cp "$f" "$stage_dir/$safe" || continue
+              seen="${seen}${safe} "
+              hosted=$((hosted + 1))
+            done
+            skipped=$((total - hosted))
+            if [ "$hosted" -eq 0 ]; then
+              EVIDENCE_SECTION="_${total} evidence image(s) were produced but none passed the hosting checks (PNG magic, unique sanitized name, ≤2 MB, max 8); see the run artifacts._"$'\n\n'
+              return 0
+            fi
+            local upload_cmd=()
+            local upload_path="${PATH}"
+            local trusted_bin=''
+            if [ -n "${VERIFY_ASSETS_UPLOADER:-}" ]; then
+              upload_cmd=("$uploader")
+            elif [ "${OSSUTIL_INSTALL_OUTCOME:-}" = 'success' ] &&
+                 [ -f "${RUNNER_TEMP:-/tmp}/.ossutilconfig" ]; then
+              # Resolve node under the inherited PATH, never through the
+              # shared temp dir, and run ossutil from a fresh job-private
+              # copy of the sha256-verified binary installed above instead
+              # of resolving it through $RUNNER_TEMP (PATH hijack shape).
+              # Not exploitable on today's ephemeral ubuntu-latest runner,
+              # but the shape must not regress if this job ever moves to a
+              # persistent pool.
+              local node_bin
+              node_bin="$(command -v node || true)"
+              upload_cmd=("$node_bin" "$uploader")
+              trusted_bin="$(mktemp -d || true)"
+              if [ -n "$trusted_bin" ]; then
+                install -m 0755 "${RUNNER_TEMP:-/tmp}/ossutil" "$trusted_bin/ossutil" 2>/dev/null || true
+                upload_path="$trusted_bin"
+              fi
+            else
+              # The install and configure steps are continue-on-error, so a
+              # failure there renders green; say which precondition is missing
+              # instead of burning three retry backoffs per image on an
+              # uploader that cannot possibly authenticate.
+              echo "::warning::OSS publishing unavailable (ossutil=$([ -x "${RUNNER_TEMP:-/tmp}/ossutil" ] && echo ok || echo MISSING), config=$([ -f "${RUNNER_TEMP:-/tmp}/.ossutilconfig" ] && echo ok || echo MISSING)); posting a text-only report." >&2
+              EVIDENCE_SECTION=''
+              return 0
+            fi
+            if ! PATH="$upload_path" "${upload_cmd[@]}" \
+              --bucket "$ALIYUN_OSS_BUCKET" \
+              --config "${RUNNER_TEMP:-/tmp}/.ossutilconfig" \
+              --prefix "$prefix" \
+              "$stage_dir"/*.png; then
+              if [ -n "$trusted_bin" ]; then rm -rf "$trusted_bin"; fi
+              # Report the local preconditions so a tooling/credential gap
+              # (the install/config steps are continue-on-error and render
+              # green when they fail) is distinguishable from a transient
+              # upload blip without trawling three steps of logs.
+              echo "::warning::Failed to upload evidence images (ossutil=$([ -x "${RUNNER_TEMP:-/tmp}/ossutil" ] && echo ok || echo MISSING), config=$([ -f "${RUNNER_TEMP:-/tmp}/.ossutilconfig" ] && echo ok || echo MISSING)); posting a text-only report." >&2
+              EVIDENCE_SECTION=''
+              return 0
+            fi
+            if [ -n "$trusted_bin" ]; then rm -rf "$trusted_bin"; fi
+            local raw_base="${ALIYUN_OSS_PUBLIC_BASE_URL%/}/${prefix}"
+            EVIDENCE_SECTION=$'### Evidence images\n\n'
+            for f in "$stage_dir"/*.png; do
+              [ -f "$f" ] || continue
+              safe="$(basename "$f")"
+              EVIDENCE_SECTION+="![${safe%.png}](${raw_base}/${safe})"$'\n\n'
+            done
+            if [ "$skipped" -gt 0 ]; then
+              EVIDENCE_SECTION+="_${skipped} additional image(s) did not pass the hosting checks (PNG magic, unique sanitized name, ≤2 MB, max 8) and remain in the run artifacts._"$'\n\n'
+            fi
+          }
+
+          # Fixed bilingual framing shared by every terminal body below.
+          SCOPE_EN='Ran the PR in an isolated, token-free container: A/B against the base build, mock-free harness assertions, targeted gates. **Advisory evidence for human reviewers — not a review, an approval, or a CI check.**'
+          SCOPE_ZH='沙箱验证在隔离、无凭证的容器中执行了该 PR 的代码（与 base 构建 A/B 对照、无 mock harness 断言、定向门禁）。仅作为评审证据，**不构成评审、批准或 CI 检查**。'
+          # Claiming those phases ran is only honest for a completed run: a
+          # startup failure, timeout, or crash reaches the same publisher
+          # branch, and the partial wording says what actually happened.
+          PARTIAL_EN='The verification run did not complete, so the phases below may be partial or missing entirely. **Advisory evidence for human reviewers — not a review, an approval, or a CI check.**'
+          PARTIAL_ZH='本次验证运行未正常结束，下列内容可能不完整甚至缺失。仅作为评审证据，**不构成评审、批准或 CI 检查**。'
+
+          # Every body opens with a header: the verify marker, this run's
+          # marker and, on a body that carries findings, the substantive
+          # marker, ended by a blank line. Every lookup reads markers only
+          # from a header, so it is started once, here, and each branch below
+          # appends to it.
+          printf '%s\n%s\n' '<!-- qwen-triage:verify -->' "$RUN_MARKER" > "$BODY_FILE"
+
+          # The gate verdict travels via job outputs: it survives a later
+          # agent-step failure, a job timeout, and a cancellation. A
+          # recorded `flaky` must demote the headline in EVERY terminal
+          # branch — these two used to post the neutral notice and silently
+          # drop the demotion the download-failure branch already honors.
+          if [ "${VERIFY_RESULT:-}" = "cancelled" ]; then
+            {
+              printf '\n'
+              if [ "${FLAKE_VERDICT:-}" = 'flaky' ]; then
+                printf '**Sandboxed verification: ❌ not passed — non-deterministic tests (flakiness gate); job cancelled before the report** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf 'Flakiness gate: ❌ %s\n\n' "${FLAKE_SUMMARY:-changed test files returned different results across identical re-runs}"
+                printf 'The job was cancelled before producing a report, but the deterministic flakiness gate had already observed run-to-run divergence — the per-round matrix is in the gate step output of the workflow run log.\n\n'
+                printf '<details>\n<summary>中文 — 判定：❌ 不通过 · 测试结果不确定（抖动门）；作业在报告前被取消</summary>\n\n'
+                printf '抖动门：❌ %s\n\n' "${FLAKE_SUMMARY:-changed test files returned different results across identical re-runs}"
+                printf '作业在生成报告前被取消，但确定性抖动门已观测到轮间分歧——各轮矩阵见工作流运行日志中 gate step 的输出。\n\n'
+                printf '</details>\n\n'
+              else
+                printf '**Sandboxed verification: ⚠️ incomplete — cancelled** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf 'The verification job was cancelled before producing a report.\n\n'
+                printf '<details>\n<summary>中文 — 判定：⚠️ 未完成 · 已取消</summary>\n\n'
+                printf '验证作业在生成报告前被取消。\n\n'
+                printf '</details>\n\n'
+              fi
+              printf '%s\n' '— _Qwen Code · sandboxed verification_'
+            } >> "$BODY_FILE"
+          elif [ "${VERIFY_RESULT:-}" != "success" ] || [ -z "${VERDICT:-}" ]; then
+            {
+              printf '\n'
+              if [ "${FLAKE_VERDICT:-}" = 'flaky' ]; then
+                printf '**Sandboxed verification: ❌ not passed — non-deterministic tests (flakiness gate); the job then failed before the report** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf 'Flakiness gate: ❌ %s\n\n' "${FLAKE_SUMMARY:-changed test files returned different results across identical re-runs}"
+                printf 'The verification job did not complete, but the deterministic flakiness gate had already observed run-to-run divergence — the per-round matrix is in the gate step output of the workflow run log.\n\n'
+                printf '<details>\n<summary>中文 — 判定：❌ 不通过 · 测试结果不确定（抖动门）；作业随后在报告前失败</summary>\n\n'
+                printf '抖动门：❌ %s\n\n' "${FLAKE_SUMMARY:-changed test files returned different results across identical re-runs}"
+                printf '验证作业未完成，但确定性抖动门已观测到轮间分歧——各轮矩阵见工作流运行日志中 gate step 的输出。\n\n'
+                printf '</details>\n\n'
+              else
+                printf '**Sandboxed verification: ⚠️ incomplete — infrastructure failure** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf 'The verification job did not complete (checkout, runner, or setup error) and produced no report. See the workflow run for details.\n\n'
+                printf '<details>\n<summary>中文 — 判定：⚠️ 未完成 · 基础设施故障</summary>\n\n'
+                printf '验证作业未完成（检出、runner 或初始化错误），未生成报告。详见工作流运行日志。\n\n'
+                printf '</details>\n\n'
+              fi
+              printf '%s\n' '— _Qwen Code · sandboxed verification_'
+            } >> "$BODY_FILE"
+          elif [ "${VERDICT:-}" = "skipped" ] || [ "${VERDICT:-}" = "n/a" ]; then
+            # These outcomes deliberately upload nothing, so their download
+            # always "fails"; they must be answered before the
+            # download-failure branch or their real reason is unreachable.
+            {
+              printf '\n'
+              if [ "${VERDICT:-}" = "skipped" ]; then
+                printf '**Sandboxed verification: ⚠️ not run — skipped** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf 'Skipped because %s.\n\n' "${SKIP_REASON:-the PR was not in a verifiable state}"
+                printf '<details>\n<summary>中文 — 判定：⚠️ 未运行 · 已跳过</summary>\n\n'
+                printf '跳过原因：%s。\n\n' "${SKIP_REASON:-PR 不处于可验证状态}"
+                printf '</details>\n\n'
+              else
+                printf '**Sandboxed verification: ⚠️ not run — n/a** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf 'This PR changes documentation/assets only — there is no code to execute, so a sandboxed verification has nothing to verify.\n\n'
+                printf '<details>\n<summary>中文 — 判定：⚠️ 未运行 · 不适用</summary>\n\n'
+                printf '该 PR 仅改动文档/静态资源，没有可执行的代码，沙箱验证没有验证对象。\n\n'
+                printf '</details>\n\n'
+              fi
+              printf '%s\n' '— _Qwen Code · sandboxed verification_'
+            } >> "$BODY_FILE"
+          elif [ "${DOWNLOAD_OUTCOME:-success}" != "success" ]; then
+            # The verify job may have succeeded, but its artifact never
+            # arrived (the download step is continue-on-error). Without this
+            # branch the full-report path still runs and its scope paragraph
+            # claims the A/B, the harnesses and the gates were delivered —
+            # when nothing was.
+            # The flake verdict travels via job outputs, independent of the
+            # artifact — the gate's demotion contract ("reported as not
+            # passed regardless of the agent verdict") must fire even when
+            # the download did not, or a flaky PR gets a neutral
+            # "results unavailable" notice instead of its ❌.
+            {
+              printf '\n'
+              if [ "${FLAKE_VERDICT:-}" = 'flaky' ]; then
+                printf '**Sandboxed verification: ❌ not passed — non-deterministic tests (flakiness gate); result artifact unavailable** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf 'Flakiness gate: ❌ %s\n\n' "${FLAKE_SUMMARY:-changed test files returned different results across identical re-runs}"
+                printf 'The verification ran and its deterministic flakiness gate observed run-to-run divergence, but the result artifact (report and per-round matrix) could not be retrieved for publishing. The run log still has the full output; re-run `@qwen-code /verify` for a fresh report.\n\n'
+                printf '<details>\n<summary>中文 — 判定：❌ 不通过 · 测试结果不确定（抖动门）；结果产物不可用</summary>\n\n'
+                printf '抖动门：❌ %s\n\n' "${FLAKE_SUMMARY:-changed test files returned different results across identical re-runs}"
+                printf '验证已执行，其确定性抖动门观测到轮间分歧，但结果产物（报告与各轮矩阵）未能取回用于发布。运行日志中仍有完整输出；如需完整报告请重新运行 `@qwen-code /verify`。\n\n'
+                printf '</details>\n\n'
+              else
+                printf '**Sandboxed verification: ⚠️ incomplete — results unavailable** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf 'The verification ran, but its result artifact could not be retrieved for publishing, so there is nothing to report here. The run log still has the agent output; re-run `@qwen-code /verify` for a fresh report.\n\n'
+                printf '<details>\n<summary>中文 — 判定：⚠️ 未完成 · 结果不可用</summary>\n\n'
+                printf '验证已执行，但结果产物未能取回用于发布，因此此处没有可报告的内容。运行日志中仍有 agent 输出；如需完整报告请重新运行 `@qwen-code /verify`。\n\n'
+                printf '</details>\n\n'
+              fi
+              printf '%s\n' '— _Qwen Code · sandboxed verification_'
+            } >> "$BODY_FILE"
+          elif [ -n "${PREPARE_FAILURE_PHASE:-}" ]; then
+            PREPARE_LOG="$(find verify-results -name 'prepare.log' 2>/dev/null | head -1 || true)"
+            # Initialised, not merely defaulted at use: an inherited value
+            # would otherwise tell a reader that a single-shot `npm run
+            # build` had "failed twice in a row" — the same false
+            # accusation, from the other direction.
+            PREPARE_ATTEMPTS=''
+            PREPARE_ATTEMPTS_ZH=''
+            case "$PREPARE_FAILURE_PHASE" in
+              install)
+                PREPARE_COMMAND='pnpm install'
+                # The prepare step retries the install once, so reaching
+                # this phase means two consecutive failures. Say so: the
+                # sentence below blames the PR for it, and "failed twice in
+                # a row" is the part that earns the accusation.
+                PREPARE_ATTEMPTS=' twice in a row'
+                PREPARE_ATTEMPTS_ZH='（连续两次）'
+                ;;
+              build) PREPARE_COMMAND='npm run build' ;;
+              *)
+                PREPARE_COMMAND='install/build'
+                UNKNOWN_PREPARE_PHASE="$(
+                  printf '%s' "$PREPARE_FAILURE_PHASE" | tr -d '\000' | tr '\r\n' '  ' | head -c 200 | html_escape
+                )"
+                echo "::warning::Unrecognized prepare failure phase: ${UNKNOWN_PREPARE_PHASE}"
+                ;;
+            esac
+            # infra-error can now arise from exactly one condition: pnpm install
+            # failed AND the registry was unreachable from the runner (the
+            # log-pattern classifier is gone, and build failures are always
+            # `fail`). The copy must name that condition and nothing else —
+            # naming causes the code can no longer produce is the same
+            # mis-attribution this commit set out to remove, pointed the
+            # other way.
+            {
+              # Reachable: the prepare step reports infra-error when the
+              # registry was unreachable from the runner at failure time.
+              if [ "${VERDICT:-}" = 'infra-error' ]; then
+                printf '\n'
+                printf '**Sandboxed verification: ⚠️ incomplete — infrastructure failure** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf '`%s` failed before any verification started, and `registry.npmjs.org` was unreachable from the runner at that moment — so this looks like an infrastructure incident rather than a problem with this PR. Re-running `@qwen-code /verify` may well succeed; the install log below is the place to confirm.\n\n' "$PREPARE_COMMAND"
+                printf '<details>\n<summary>中文 — 判定：⚠️ 未完成 · 基础设施故障</summary>\n\n'
+                printf '`%s` 在验证开始前失败，且当时 runner 无法访问 `registry.npmjs.org`——因此更像基础设施问题而非本 PR 的代码问题。重新运行 `@qwen-code /verify` 有可能成功；下方安装日志可用于确认。\n\n' "$PREPARE_COMMAND"
+                printf '</details>\n\n'
+              else
+                printf '%s\n\n' '<!-- qwen-triage:verify-substantive -->'
+                printf '**Sandboxed verification: ❌ not passed — the PR could not be built** - [workflow run](%s)\n\n' "$RUN_URL"
+                printf 'The PR could not be built because `%s` failed%s before any verification started. This is treated as a PR failure verdict rather than an infrastructure failure.\n\n' "$PREPARE_COMMAND" "${PREPARE_ATTEMPTS:-}"
+                printf '<details>\n<summary>中文 — 判定：❌ 不通过 · PR 构建失败</summary>\n\n'
+                printf '由于 `%s` 在验证开始前失败%s，无法构建该 PR。判定为 PR 问题而非基础设施故障；安装日志见下方折叠块。\n\n' "$PREPARE_COMMAND" "${PREPARE_ATTEMPTS_ZH:-}"
+                printf '</details>\n\n'
+              fi
+              emit_block 'Install/build log' "$PREPARE_LOG" 20000
+              printf '%s\n' '— _Qwen Code · sandboxed verification_'
+            } >> "$BODY_FILE"
+          else
+            # Pin the artifact-dir shape and sort: a bare -name search takes
+            # whatever directory find visits first, which is unordered. Rounds
+            # are named pr<n>-verify-<YYYYMMDD>-<HHMMSS>, so the last in sort
+            # order is the newest; an earlier round left beside it must not
+            # headline the run. Depth 2 exactly: a report.md nested in a
+            # round (scratch/) sorts past the round's own and would stand in
+            # for it.
+            REPORT="$(find verify-results -mindepth 2 -maxdepth 2 -type f -path '*-verify-*/report.md' 2>/dev/null | sort | tail -1 || true)"
+            # The report's own directory is the round: its counts, its
+            # verdict word and its images go with it, never another
+            # directory's. This is the only reader of verdict.txt, which
+            # untrusted PR code wrote.
+            if [ -n "$REPORT" ]; then
+              ROUND_DIR="$(dirname "$REPORT")"
+              ASSERTIONS_FILE="$ROUND_DIR/assertions.json"
+              [ -f "$ASSERTIONS_FILE" ] || ASSERTIONS_FILE=''
+              AGENT_VERDICT="$(head -c 4096 "$ROUND_DIR/verdict.txt" 2>/dev/null | tr -d '[:space:]' | cut -c1-32 || true)"
+              case "$AGENT_VERDICT" in
+                merge-ready|findings|blocked|inconclusive) ;;
+                *)
+                  echo "::warning::No usable verdict.txt beside the published report.md; the round has no agent verdict."
+                  AGENT_VERDICT=''
+                  ;;
+              esac
+            else
+              # No report, so no verdict to trust: the newest round's counts
+              # and images are shown only as partial evidence under the
+              # process outcome.
+              ASSERTIONS_FILE="$(find verify-results -mindepth 2 -maxdepth 2 -type f -path '*-verify-*/assertions.json' 2>/dev/null | sort | tail -1 || true)"
+              if [ -n "$ASSERTIONS_FILE" ]; then
+                ROUND_DIR="$(dirname "$ASSERTIONS_FILE")"
+              else
+                ROUND_DIR="$(find verify-results -mindepth 1 -maxdepth 1 -type d -name '*-verify-*' 2>/dev/null | sort | tail -1 || true)"
+              fi
+            fi
+            collect_and_host_evidence "$ROUND_DIR"
+            # Exact root-level path, never a find: the staging step writes
+            # this name last as root, and a same-named file nested inside a
+            # collected agent artifact dir must not shadow it.
+            FLAKE_LOG='verify-results/flake-gate.log'
+            ASSERT_LINE=''
+            ASSERT_LINE_ZH=''
+            GATES_LINE=''
+            GATES_LINE_ZH=''
+            if [ -n "$ASSERTIONS_FILE" ]; then
+              # Numbers only — coerce anything non-numeric to 0 so untrusted
+              # JSON cannot smuggle text into the comment body.
+              # Full-object validation, not per-field coercion: {"fail":0}
+              # used to render "0 passed · 0 failed · 0 total" and still
+              # count as evidence, and {pass:1,fail:0,total:0} was accepted
+              # despite being internally inconsistent. Require three
+              # non-negative integers, a positive total, and total == pass +
+              # fail; anything else yields no line and (below) no trusted
+              # agent verdict.
+              ASSERT_META="$(
+                jq -r 'if (type == "object")
+                          and ([.pass, .fail, .total] | all(type == "number" and . >= 0 and . == floor))
+                          and (.total > 0)
+                          and (.total == .pass + .fail)
+                       then "\(.pass|floor) \(.fail|floor) \(.total|floor)"
+                       else empty end' "$ASSERTIONS_FILE" 2>/dev/null || true
+              )"
+              if [ -n "$ASSERT_META" ]; then
+                # Both language lines are built from the SAME validated
+                # triple, so an inconsistent assertions.json suppresses both
+                # — the Chinese line must never become a second, ungated
+                # channel for the same numbers.
+                read -r A_PASS A_FAIL A_TOTAL <<< "$ASSERT_META"
+                ASSERT_LINE="Scripted assertions: ${A_PASS} passed · ${A_FAIL} failed · ${A_TOTAL} total"
+                ASSERT_LINE_ZH="脚本断言：${A_PASS} 通过 · ${A_FAIL} 失败 · ${A_TOTAL} 总计"
+                # Existing test suites run as targeted gates are counted
+                # apart from the round's own assertions: folded in, a
+                # workspace's thousands of tests made "N scripted
+                # assertions" a measure of the repo, not of the round. Totals
+                # only, so no agent-chosen suite name reaches the body; a
+                # malformed list gets no line, and the checker refuses it.
+                # Shape rules mirror the checker's, and one shared fixture
+                # table pins the parity: a blank suite or a non-count skipped
+                # (false/null) is refused, not defaulted, and counts stop at
+                # 2^53-1, the last integer JSON literals parse to exactly.
+                # Blank means JSON whitespace only: jq's \S and JS's trim()
+                # disagree on U+0085 and U+FEFF.
+                GATES_META="$(
+                  jq -r 'def count: type == "number" and . >= 0 and . == floor and . <= 9007199254740991;
+                         if (.gates | type) == "array" and (.gates | length) > 0
+                            and (.gates | all(type == "object" and (.suite | type) == "string" and (.suite | test("[^ \t\n\r]")) and (.pass | count) and (.fail | count) and ((has("skipped") | not) or (.skipped | count))))
+                         then "\(.gates | length) \(.gates | map(.pass) | add | floor) \(.gates | map(.fail) | add | floor) \(.gates | map(.skipped // 0) | add | floor) \(.gates | map(select(.skipped != null)) | length)"
+                         else empty end' "$ASSERTIONS_FILE" 2>/dev/null || true
+                )"
+                if [ -n "$GATES_META" ]; then
+                  read -r G_SUITES G_PASS G_FAIL G_SKIP G_RECORDED <<< "$GATES_META"
+                  # Absent skipped is "not recorded", not a measured zero,
+                  # and a partial sum is not the run's total: the clause
+                  # prints only when every entry carries the field.
+                  G_SKIP_CLAUSE=''
+                  G_SKIP_CLAUSE_ZH=''
+                  if [ "$G_RECORDED" = "$G_SUITES" ]; then
+                    G_SKIP_CLAUSE=" · ${G_SKIP} skipped"
+                    G_SKIP_CLAUSE_ZH=" · ${G_SKIP} 跳过"
+                  fi
+                  GATES_LINE="Targeted gates (existing tests, not counted above): ${G_PASS} passed · ${G_FAIL} failed${G_SKIP_CLAUSE} across ${G_SUITES} suite(s)"
+                  GATES_LINE_ZH="定向门禁（已有测试，不计入上面的断言）：${G_PASS} 通过 · ${G_FAIL} 失败${G_SKIP_CLAUSE_ZH}，共 ${G_SUITES} 个套件"
+                fi
+              else
+                echo "::warning::assertions.json missing or inconsistent; not treating it as evidence."
+              fi
+            fi
+            # The checker local rounds run before posting, from this trusted
+            # checkout, so both paths share one set of rules. It must pass on
+            # the report's directory and read the verdict taken from it above.
+            # Only its last stdout line is the summary: warnings above it can
+            # carry agent-chosen evidence filenames, so they are never echoed.
+            # node also exits 1 when the script cannot load; stderr says why.
+            ARTIFACT_CHECK=''
+            if [ "${VERDICT:-}" = 'pass' ] && [ -n "$REPORT" ] && [ -n "$ASSERT_LINE" ] && [ -n "${AGENT_VERDICT:-}" ]; then
+              check_log="${RUNNER_TEMP:-/tmp}/verify-pr-check.log"
+              check_status=0
+              node "${VERIFY_PR_CHECK:-scripts/verify-pr-check.mjs}" "$(dirname "$REPORT")" > "$check_log" 2> "$check_log.err" || check_status=$?
+              case "${check_status}:$(tail -n 1 "$check_log")" in
+                "0:  ok: verdict=${AGENT_VERDICT} ("*) ARTIFACT_CHECK=ok ;;
+                '1:  failed: verdict='*)
+                  ARTIFACT_CHECK=refused
+                  grep '^  error ' "$check_log" | head -20 | cut -c1-300 || true
+                  ;;
+                *)
+                  ARTIFACT_CHECK=error
+                  echo "::warning::The artifact check could not run (exit ${check_status}); not trusting the agent verdict."
+                  head -n 8 "$check_log.err" | cut -c1-300 || true
+                  ;;
+              esac
+            fi
+            # The agent's own verdict is only honoured for a run that
+            # actually completed AND left consistent evidence: an early
+            # `merge-ready` file must not headline a run that then timed out,
+            # crashed, or produced no report/assertions. Otherwise the
+            # headline comes from the process outcome.
+            TRUST_AGENT_VERDICT=false
+            if [ "${VERDICT:-}" = 'pass' ] && [ -n "$REPORT" ] && [ -n "$ASSERT_LINE" ] && [ "$ARTIFACT_CHECK" = ok ]; then
+              case "${AGENT_VERDICT:-}" in
+                merge-ready) [ "$A_FAIL" = '0' ] && TRUST_AGENT_VERDICT=true ;;
+                findings|blocked|inconclusive) TRUST_AGENT_VERDICT=true ;;
+              esac
+            fi
+            # Every headline leads with a QUALITATIVE call — passed / not
+            # passed / inconclusive / incomplete — because "merge-ready
+            # (agent verdict)" is lane jargon and a maintainer scanning a PR
+            # asked for pass/no-pass, not a taxonomy. The mapping is honest
+            # about what each outcome can claim: only agent verdicts judge
+            # the code (passed / not passed); a run that crashed, timed out,
+            # or produced no usable verdict says nothing about the PR and
+            # gets incomplete/inconclusive, never a pass or a fail.
+            if [ "$TRUST_AGENT_VERDICT" = true ]; then
+              # Verdicts come from harness exits: `findings` with no failed
+              # assertion is advisory, and the checker has already refused
+              # failures none of which the ledger attributes to the PR.
+              case "$AGENT_VERDICT" in
+                merge-ready) QUAL='✅ passed'; QUAL_ZH='✅ 通过'; HEADLINE='merge-ready (agent verdict)'; HEADLINE_ZH='可合入（agent 判定）' ;;
+                findings)
+                  if [ "$A_FAIL" = '0' ]; then
+                    QUAL='✅ passed with findings'; QUAL_ZH='✅ 通过（有发现）'; HEADLINE='non-blocking findings, every scripted assertion passed (agent verdict)'; HEADLINE_ZH='非阻塞发现，脚本断言全部通过（agent 判定）'
+                  else
+                    QUAL='❌ not passed'; QUAL_ZH='❌ 不通过'; HEADLINE='findings reported (agent verdict)'; HEADLINE_ZH='报告了发现（agent 判定）'
+                  fi
+                  ;;
+                blocked) QUAL='❌ not passed'; QUAL_ZH='❌ 不通过'; HEADLINE='blocked (agent verdict)'; HEADLINE_ZH='阻塞（agent 判定）' ;;
+                inconclusive) QUAL='⚠️ inconclusive'; QUAL_ZH='⚠️ 无法判定'; HEADLINE='the agent could not reach a conclusion'; HEADLINE_ZH='agent 未能得出结论' ;;
+              esac
+            else
+              case "${VERDICT:-}" in
+                pass) QUAL='⚠️ inconclusive'; QUAL_ZH='⚠️ 无法判定'; HEADLINE='completed without a usable structured verdict'; HEADLINE_ZH='已完成但无可用的结构化判定' ;;
+                fail) QUAL='⚠️ incomplete'; QUAL_ZH='⚠️ 未完成'; HEADLINE='the agent run failed'; HEADLINE_ZH='agent 运行失败' ;;
+                timeout) QUAL='⚠️ incomplete'; QUAL_ZH='⚠️ 未完成'; HEADLINE='the run timed out with partial evidence'; HEADLINE_ZH='运行超时，证据不完整' ;;
+                infra-error) QUAL='⚠️ incomplete'; QUAL_ZH='⚠️ 未完成'; HEADLINE='infra-error (crash, OOM, or unwritable results)'; HEADLINE_ZH='基础设施故障（崩溃、OOM 或结果不可写）' ;;
+                *) QUAL='⚠️ inconclusive'; QUAL_ZH='⚠️ 无法判定'; HEADLINE='the run ended in an unrecognized state'; HEADLINE_ZH='运行以未识别的状态结束' ;;
+              esac
+              if [ -n "${AGENT_VERDICT:-}" ]; then
+                if [ "${VERDICT:-}" = 'pass' ]; then
+                  # A word is only ever read beside a report, so the report
+                  # is present here.
+                  if [ -z "$ASSERT_LINE" ]; then
+                    echo "::warning::Agent wrote verdict '${AGENT_VERDICT}' but it was not trusted (assertions.json missing or inconsistent); reporting the process outcome instead."
+                  elif [ "$AGENT_VERDICT" = 'merge-ready' ] && [ "${A_FAIL:-0}" != '0' ]; then
+                    echo "::warning::Agent wrote verdict '${AGENT_VERDICT}' but it was not trusted (assertions recorded ${A_FAIL:-?} failures); reporting the process outcome instead."
+                  else
+                    echo "::warning::Agent wrote verdict '${AGENT_VERDICT}' but it was not trusted (artifact check: ${ARTIFACT_CHECK}); reporting the process outcome instead."
+                  fi
+                else
+                  echo "::warning::Agent wrote verdict '${AGENT_VERDICT}' but the run did not complete cleanly (process verdict '${VERDICT:-}'); reporting the process outcome instead."
+                fi
+              fi
+            fi
+            # The flakiness gate (#9125) is deterministic evidence with
+            # ONE-WAY authority: `flaky` demotes any headline — including a
+            # trusted agent `merge-ready` — because non-deterministic tests
+            # are a PR defect the agent's single execution cannot see. No
+            # other gate value may raise or soften an outcome: the gate ran
+            # the PR's own test code, and a gate that can only demote is not
+            # worth forging, which is what keeps its evidence trustworthy.
+            # FLAKE_SUMMARY is gate-authored fixed text plus counters (the
+            # gate keeps PR-controlled paths in its log, which is embedded
+            # through the escaping emit_block below).
+            FLAKE_LINE=''
+            FLAKE_LINE_ZH=''
+            case "${FLAKE_VERDICT:-}" in
+              flaky)
+                QUAL='❌ not passed'
+                QUAL_ZH='❌ 不通过'
+                HEADLINE='non-deterministic tests (flakiness gate)'
+                HEADLINE_ZH='测试结果不确定（抖动门）'
+                FLAKE_LINE="Flakiness gate: ❌ ${FLAKE_SUMMARY:-changed test files returned different results across identical re-runs}"
+                FLAKE_LINE_ZH="抖动门：❌ ${FLAKE_SUMMARY:-changed test files returned different results across identical re-runs}"
+                ;;
+              pass)
+                FLAKE_LINE="Flakiness gate: ✅ ${FLAKE_SUMMARY:-changed test files re-ran identically}"
+                FLAKE_LINE_ZH="抖动门：✅ ${FLAKE_SUMMARY:-changed test files re-ran identically}"
+                ;;
+              n/a)
+                FLAKE_LINE="Flakiness gate: not applicable — ${FLAKE_SUMMARY:-no changed unit-test files}"
+                FLAKE_LINE_ZH="抖动门：不适用 — ${FLAKE_SUMMARY:-no changed unit-test files}"
+                ;;
+              consistent-fail|timeout|error)
+                FLAKE_LINE="Flakiness gate: ⚠️ ${FLAKE_VERDICT} — ${FLAKE_SUMMARY:-see flake-gate.log in the run artifacts}"
+                FLAKE_LINE_ZH="抖动门：⚠️ ${FLAKE_VERDICT} — ${FLAKE_SUMMARY:-see flake-gate.log in the run artifacts}"
+                ;;
+              *)
+                # This branch only runs after a successful prepare, when
+                # the gate step ran and owes a verdict: an empty or
+                # unrecognized value means the uid-1000-writable
+                # $GITHUB_OUTPUT backing channel corrupted it in transit.
+                # Fail visible, never silent — and never embed the raw
+                # value, which is attacker-influenced on this path.
+                FLAKE_LINE='Flakiness gate: ⚠️ error — the gate verdict was missing or unrecognized at publish time; treating the gate as errored'
+                FLAKE_LINE_ZH='抖动门：⚠️ error — 发布时门判定缺失或无法识别，按 error 处理'
+                ;;
+            esac
+            # The merge-ready-with-failures case has its own paragraph below.
+            CHECK_NOTE=''
+            CHECK_NOTE_ZH=''
+            if [ "$TRUST_AGENT_VERDICT" != true ] &&
+               ! { [ "${AGENT_VERDICT:-}" = 'merge-ready' ] && [ "${A_FAIL:-0}" != '0' ]; }; then
+              case "$ARTIFACT_CHECK" in
+                refused)
+                  CHECK_NOTE='its artifacts fail the consistency check (`verify-pr-check.mjs`), so that verdict was not trusted — the workflow run log lists the errors'
+                  CHECK_NOTE_ZH='其产物未通过一致性检查（`verify-pr-check.mjs`），因此该判定未被采信——检查的错误见工作流运行日志'
+                  ;;
+                error)
+                  CHECK_NOTE='the consistency check (`verify-pr-check.mjs`) could not run on its artifacts, so that verdict was not trusted — the workflow run log shows why'
+                  CHECK_NOTE_ZH='一致性检查（`verify-pr-check.mjs`）无法在其产物上运行，因此该判定未被采信——原因见工作流运行日志'
+                  ;;
+              esac
+            fi
+            if [ -z "$REPORT" ]; then
+              MISSING_REPORT_NOTE='No report.md was found in the run artifacts, so the report section is omitted — see the workflow run output.'
+              echo "::warning::${MISSING_REPORT_NOTE}"
+            fi
+            {
+              # Substantive marker: this body carries findings, so a later
+              # weak notice must not displace it as the follow-up round's
+              # previous-report snapshot.
+              if [ -n "$REPORT" ]; then
+                printf '%s\n' '<!-- qwen-triage:verify-substantive -->'
+              fi
+              printf '\n'
+              # English is the unfolded default (matching the repo's PR-body
+              # convention); the Chinese version folds into one <details>
+              # whose SUMMARY carries the qualitative verdict — so even
+              # collapsed, a Chinese reader sees 通过/不通过 in one line
+              # instead of a caveat with no conclusion.
+              printf '**Sandboxed verification: %s — %s** - [workflow run](%s)\n\n' "$QUAL" "$HEADLINE" "$RUN_URL"
+              if [ "${VERDICT:-}" = 'pass' ]; then
+                printf '%s\n\n' "$SCOPE_EN"
+              else
+                printf '%s\n\n' "$PARTIAL_EN"
+              fi
+              if [ -n "$ASSERT_LINE" ]; then
+                printf '%s\n\n' "$ASSERT_LINE"
+              fi
+              if [ -n "$GATES_LINE" ]; then
+                printf '%s\n\n' "$GATES_LINE"
+                # Advisory only: a gate can be red for a pre-existing main
+                # failure, so this never refuses or demotes the verdict.
+                if [ "$TRUST_AGENT_VERDICT" = true ] && [ "${G_FAIL:-0}" != '0' ]; then
+                  printf 'Gate totals do not decide the verdict: a gate red the PR causes belongs in the assertion ledger above — read that count before trusting the verdict.\n\n'
+                fi
+              fi
+              if [ -n "$FLAKE_LINE" ]; then
+                printf '%s\n\n' "$FLAKE_LINE"
+              fi
+              if [ "${AGENT_VERDICT:-}" = 'merge-ready' ] && [ "$TRUST_AGENT_VERDICT" != true ] && [ "${A_FAIL:-0}" != '0' ]; then
+                printf 'The agent reported `merge-ready`, but `assertions.json` recorded %s failures, so that claim was not trusted: an expected A/B control red counts as a pass, so a recorded failure contradicts `merge-ready`.\n\n' "$A_FAIL"
+              fi
+              if [ -n "$CHECK_NOTE" ]; then
+                printf 'The agent reported `%s`, but %s.\n\n' "$AGENT_VERDICT" "$CHECK_NOTE"
+              fi
+              if [ "${FLAKE_VERDICT:-}" = 'flaky' ]; then
+                printf 'The deterministic flakiness gate re-ran the test files this PR changes and got different outcomes from identical runs%s. A test that can fail with no code changing lands as intermittent red on unrelated PRs, so this run is reported as not passed regardless of the agent verdict — the per-round matrix is in the flakiness gate log below.\n\n' "${AGENT_VERDICT:+ (agent verdict: \`${AGENT_VERDICT}\`)}"
+                if [ ! -f "$FLAKE_LOG" ]; then
+                  # emit_block no-ops on a missing file: without this note
+                  # the demotion's only evidence pointer dangles when the
+                  # staging step failed (its continue-on-error keeps the
+                  # job green precisely so the verdict survives).
+                  printf 'The flakiness gate log could not be staged into the result artifact — the per-round matrix is in the gate step output of the workflow run log.\n\n'
+                fi
+              fi
+              printf '<details>\n<summary>中文 — 判定：%s · %s</summary>\n\n' "$QUAL_ZH" "${HEADLINE_ZH:-$HEADLINE}"
+              if [ "${VERDICT:-}" = 'pass' ]; then
+                printf '%s\n\n' "$SCOPE_ZH"
+              else
+                printf '%s\n\n' "$PARTIAL_ZH"
+              fi
+              if [ -n "$ASSERT_LINE_ZH" ]; then
+                printf '%s\n\n' "$ASSERT_LINE_ZH"
+              fi
+              if [ -n "$GATES_LINE_ZH" ]; then
+                printf '%s\n\n' "$GATES_LINE_ZH"
+                if [ "$TRUST_AGENT_VERDICT" = true ] && [ "${G_FAIL:-0}" != '0' ]; then
+                  printf '门禁合计不影响判定：PR 导致的门禁红灯应记入上面的断言账本——采信判定前请先看那个数。\n\n'
+                fi
+              fi
+              if [ -n "$FLAKE_LINE_ZH" ]; then
+                printf '%s\n\n' "$FLAKE_LINE_ZH"
+              fi
+              if [ "${AGENT_VERDICT:-}" = 'merge-ready' ] && [ "$TRUST_AGENT_VERDICT" != true ] && [ "${A_FAIL:-0}" != '0' ]; then
+                printf 'agent 报告了 `merge-ready`，但 `assertions.json` 记录了 %s 个失败，因此该判定未被采信：预期中的 A/B 对照红灯应计为通过，所以记录在案的失败与 `merge-ready` 相矛盾。\n\n' "$A_FAIL"
+              fi
+              if [ -n "$CHECK_NOTE_ZH" ]; then
+                printf 'agent 报告了 `%s`，但%s。\n\n' "$AGENT_VERDICT" "$CHECK_NOTE_ZH"
+              fi
+              if [ "${FLAKE_VERDICT:-}" = 'flaky' ]; then
+                printf '确定性抖动门将本 PR 改动的测试文件原样重跑了多轮，得到了不一致的结果%s。一个在代码不变时也会失败的测试会以间歇性红灯落在无关的 PR 上，因此无论 agent 判定如何，本次运行按不通过报告——各轮结果矩阵见下方抖动门日志。\n\n' "${AGENT_VERDICT:+（agent 判定：\`${AGENT_VERDICT}\`）}"
+                if [ ! -f "$FLAKE_LOG" ]; then
+                  printf '抖动门日志未能暂存进结果产物——各轮结果矩阵请查看工作流运行日志中 gate step 的输出。\n\n'
+                fi
+              fi
+              printf '</details>\n\n'
+              if [ -n "${MISSING_REPORT_NOTE:-}" ]; then
+                printf '%s\n\n' "$MISSING_REPORT_NOTE"
+              fi
+              emit_report "$REPORT" 45000
+              # Cap 10000: the per-block caps must leave headroom under
+              # GitHub's 65,536-char comment limit once the 45000 report
+              # block and the mandatory prose are added (20000 crossed it).
+              emit_block 'Flakiness gate log' "$FLAKE_LOG" 10000
+              if [ -n "$EVIDENCE_SECTION" ]; then
+                printf '%s' "$EVIDENCE_SECTION"
+              fi
+              printf 'Harness scripts and raw logs are in the workflow run artifacts (7-day retention).\n\n'
+              # Attribution footer, the same shape /review posts: model, CLI
+              # version, and the content hash of the skill that ran. Only on
+              # a body that actually carries a report and only when all three
+              # workflow-owned values arrived — without a report the body
+              # is only a notice, and a half-known identity keeps the
+              # generic signature too.
+              if [ -n "$REPORT" ] && [ -n "${VERIFY_MODEL:-}" ] && [ -n "${VERIFY_CLI_VERSION:-}" ] && [ -n "${VERIFY_SKILL_HASH:-}" ]; then
+                printf '_— %s via Qwen Code /verify-pr (v%s; skill %s)_\n' "$VERIFY_MODEL" "$VERIFY_CLI_VERSION" "$VERIFY_SKILL_HASH"
+              else
+                printf '%s\n' '— _Qwen Code · sandboxed verification_'
+              fi
+            } >> "$BODY_FILE"
+          fi
+
+          # Write only into this run's own comment, found by its run marker:
+          # the live status its verify job posted, or the body this job
+          # already published if it is re-run. Anything else gets a fresh
+          # comment. The newest marker comment may belong to another round —
+          # a later round's live status, or an earlier round's report — and
+          # replacing either would make one round overwrite the other.
+          # Same ownership discipline as the resolve step: only BOT-OWNED
+          # comments STARTING with the marker are candidates, so a marker
+          # pasted by any user cannot divert the bot into PATCHing (and
+          # failing on) someone else's comment.
+          # Fail CLOSED on identity failure (an empty login previously
+          # widened the filter to every user's comments), and read the
+          # machine markers only from a header: a report, or a value a PR
+          # run produced, can quote one further down.
+          OWN_ID=''
+          OWN_SUBSTANTIVE=''
+          if ! BOT_LOGIN="$(printf '%s' 'github-actions[bot]')" || [ -z "$BOT_LOGIN" ]; then
+            echo "::warning::Could not resolve the bot identity; posting a fresh comment instead of reusing one."
+            BOT_LOGIN=''
+          fi
+          if [ -n "$BOT_LOGIN" ] && OWN_META="$(
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+              --method GET \
+              --paginate \
+              -F per_page=100 \
+              | jq -sr --arg bot "$BOT_LOGIN" --arg run "$RUN_MARKER" --arg sub "$SUBSTANTIVE_MARKER" \
+                'def header: split("\n\n")[0] | split("\n");
+                 [.[][] | select((.body | startswith("<!-- qwen-triage:verify -->")) and .user.login == $bot)
+                    | (.body | header) as $h | select(any($h[]; . == $run))
+                    | "\(.id)\t\(any($h[]; . == $sub))"]
+                 | last // empty'
+          )"; then
+            OWN_ID="${OWN_META%%$'\t'*}"
+            OWN_SUBSTANTIVE="${OWN_META#*$'\t'}"
+          elif [ -n "$BOT_LOGIN" ]; then
+            echo "::warning::Failed to look up this run's comment; will create a new one."
+          fi
+          # A notice never replaces a body that carries findings. Re-run on
+          # its own, this job cannot download results (the artifact name
+          # carries the attempt), so its "results unavailable" notice would
+          # otherwise replace the round's report; it is posted beside it.
+          BODY_SUBSTANTIVE="$(
+            jq -Rrs --arg sub "$SUBSTANTIVE_MARKER" 'split("\n\n")[0] | split("\n") | any(.[]; . == $sub)' "$BODY_FILE" || true
+          )"
+          if [ "$OWN_SUBSTANTIVE" = true ] && [ "$BODY_SUBSTANTIVE" != true ]; then
+            OWN_ID=''
+          fi
+          # A round can queue for hours: a notice with no status of its own
+          # to finalize is noise on a PR that closed meanwhile. A failed
+          # lookup posts.
+          if [ -z "$OWN_ID" ] && [ "$BODY_SUBSTANTIVE" != true ] &&
+            [ "$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.state' 2>/dev/null || true)" = closed ]; then
+            echo "PR #${PR_NUMBER} closed before this round published; notice not posted (verdict=${VERDICT})." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # A failed PATCH (comment deleted, or ownership changed under us)
+          # must still leave a terminal report on the PR, never silence.
+          if [ -n "$OWN_ID" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$OWN_ID" -F body=@"$BODY_FILE" >/dev/null ||
+              gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@"$BODY_FILE" >/dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@"$BODY_FILE" >/dev/null
+          fi
+          echo "Posted verification result to PR #${PR_NUMBER} (verdict=${VERDICT}, agent=${AGENT_VERDICT:-none})." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 'Cleanup Aliyun OSS credentials'
+        if: '${{ always() }}'
+        run: 'rm -f "$RUNNER_TEMP/.ossutilconfig"'
