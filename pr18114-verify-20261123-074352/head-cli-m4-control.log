@@ -1,0 +1,122 @@
+
+ RUN  v3.2.7 /root/git/qwen-code-verify/.qwen/worktrees/bold-pine-adb235/tmp/pr18114-verify-20261123-074352/head-arm/packages/cli
+      Coverage enabled with v8
+
+ ❯ src/serve/managed-extension-runtime.test.ts (19 tests | 4 failed) 986ms
+   ✓ ManagedExtensionRuntime > uses Session revision CAS and drains only the selected Session 69ms
+   ✓ ManagedExtensionRuntime > retains an unknown original operation across reconstruction without replaying install 24ms
+   ✓ ManagedExtensionRuntime > blocks concurrent activation while another Session stays available 79ms
+   ✓ ManagedExtensionRuntime > rehydrates active metadata after restart only through exact original prepare 34ms
+   ✓ ManagedExtensionRuntime > rebuilds a missing active root through a new explicit apply without changing its definition paths 172ms
+   ✓ ManagedExtensionRuntime > contains private assets to the active package and exact Session revision 80ms
+   ✓ reconciles the exact active operation after restart and does not replay its stop 35ms
+   ✓ refuses compensation when a newer active operation owns the Session 38ms
+   ✓ reconciles a committed prepared operation before activation with prior configuration: false 39ms
+   ✓ reconciles a committed prepared operation before activation with prior configuration: true 56ms
+   ✓ retains an unknown stop for the active original owner until evidence arrives 37ms
+   × content-only component degradation > loads a mixed skills+hook package and reports hooks as degraded 70ms
+     → expected [ 'mcp' ] to deeply equal [ 'hooks' ]
+   × content-only component degradation > reports mcp and hooks degradation in canonical order 34ms
+     → expected [ 'mcp' ] to deeply equal [ 'mcp', 'hooks' ]
+   ✓ content-only component degradation > reports mcp-only degradation without hooks 27ms
+   × content-only component degradation > omits degradation for pure content packages and isolates it per package 53ms
+     → expected [ 'mcp' ] to be undefined
+   ✓ content-only component degradation > reproduces the degraded view through exact re-prepare and restart 46ms
+   ✓ content-only component degradation > does not degrade when a stage dependency is present 30ms
+   × content-only component degradation > degrades process components before profile admission on the mcp profile 28ms
+     → expected [ 'mcp' ] to deeply equal [ 'mcp', 'hooks' ]
+   ✓ content-only component degradation > keeps the profile gate strict for staged runtimes 28ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/serve/managed-extension-runtime.test.ts > content-only component degradation > loads a mixed skills+hook package and reports hooks as degraded
+AssertionError: expected [ 'mcp' ] to deeply equal [ 'hooks' ]
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  [[22m
+[32m-   "hooks",[39m
+[31m+   "mcp",[39m
+[2m  ][22m
+
+ ❯ src/serve/managed-extension-runtime.test.ts:456:54
+    454|     };
+    455|     const prepared = await runtime.prepare('a', input);
+    456|     expect(prepared.packages[0]!.degradedComponents).toEqual(['hooks']…
+       |                                                      ^
+    457|     expect(prepared.packages[0]!.contributions.skills).toEqual([skill]…
+    458|     expect(prepared.mcpServers).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/serve/managed-extension-runtime.test.ts > content-only component degradation > reports mcp and hooks degradation in canonical order
+AssertionError: expected [ 'mcp' ] to deeply equal [ 'mcp', 'hooks' ]
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  [[22m
+[2m    "mcp",[22m
+[32m-   "hooks",[39m
+[2m  ][22m
+
+ ❯ src/serve/managed-extension-runtime.test.ts:493:54
+    491|     };
+    492|     const prepared = await runtime.prepare('a', input);
+    493|     expect(prepared.packages[0]!.degradedComponents).toEqual(['mcp', '…
+       |                                                      ^
+    494|   });
+    495| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/serve/managed-extension-runtime.test.ts > content-only component degradation > omits degradation for pure content packages and isolates it per package
+AssertionError: expected [ 'mcp' ] to be undefined
+
+[32m- Expected:[39m 
+undefined
+
+[31m+ Received:[39m 
+[
+  "mcp",
+]
+
+ ❯ src/serve/managed-extension-runtime.test.ts:546:54
+    544|     };
+    545|     const prepared = await runtime.prepare('a', input);
+    546|     expect(prepared.packages[0]!.degradedComponents).toBeUndefined();
+       |                                                      ^
+    547|     expect(prepared.packages[1]!.degradedComponents).toEqual(['hooks']…
+    548|     await runtime.activate('a', input.operationId);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/serve/managed-extension-runtime.test.ts > content-only component degradation > degrades process components before profile admission on the mcp profile
+AssertionError: expected [ 'mcp' ] to deeply equal [ 'mcp', 'hooks' ]
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  [[22m
+[2m    "mcp",[22m
+[32m-   "hooks",[39m
+[2m  ][22m
+
+ ❯ src/serve/managed-extension-runtime.test.ts:632:54
+    630|     };
+    631|     const prepared = await runtime.prepare('a', input, base);
+    632|     expect(prepared.packages[0]!.degradedComponents).toEqual(['mcp', '…
+       |                                                      ^
+    633|     await runtime.activate('a', input.operationId);
+    634|     const replayed = await runtime.prepare('a', input, base);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 15 passed (19)
+   Start at  08:24:29
+   Duration  33.82s (transform 13.52s, setup 355ms, collect 19.20s, tests 986ms, environment 0ms, prepare 80ms)
+
+EXIT=1
