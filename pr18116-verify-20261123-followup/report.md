@@ -60,7 +60,7 @@ The head is byte-identical to the previous round's verified head (`8910584f2d`),
 - **Carried, re-executed:** menu preparation, no-prompt property, session-scoped commands, draft retention; default-path behaviour without the option.
 - **New this round:** attachments through the menu-time method, stale-result navigation race, error→recovery, SDK response-shape cross-check, trial merge.
 - **Cross-checked contract:** `DaemonSessionSupportedCommandsStatus` is `{v, sessionId, availableCommands, availableSkills}` with `DaemonAvailableCommand.input: {hint} | null`; the new branch reads `status.sessionId`, `status.availableSkills`, `status.availableCommands[].input?.hint`, so the shape matches the SDK type.
-- **Not run:** a real `qwen serve` HTTP wire (the harness drives the repository's App-test workspace client), the full web-shell typecheck/lint gates, macOS/Windows, real-browser latency. The PR body already scopes out first-open latency, worker readiness, and a pre-session catalog.
+- **Not run:** the full `App.test.tsx` file (1592 tests) and the composer file’s full 226-test set — the round’s executed evidence is the targeted cells plus one pre-existing composer test used as a harness sanity check; a real `qwen serve` HTTP wire (the harness drives the repository's App-test workspace client), the full web-shell typecheck/lint gates, macOS/Windows, real-browser latency. The PR body already scopes out first-open latency, worker readiness, and a pre-session catalog.
 
 ## Findings
 
