@@ -29,7 +29,7 @@ The PR gates **fresh child allocation** on sustained host load: three consecutiv
 | Cell | Head `81f7aa4b` | Base `c1bf0ffb` |
 | --- | --- | --- |
 | Build under test | repo's own `node esbuild.config.js` from source (`dist/cli.js` + chunks) | same command from the base tree |
-| Status while healthy (after wiring) | `runtime.loadAdmission`: `enabled: true`, `overloaded: false`, `sampledAtMs > 0`; the field appears ~1.5 s after the listening line | no `loadAdmission` section at steady state |
+| Status while healthy (after wiring) | `runtime.loadAdmission`: `enabled: true`, `overloaded: false`, `sampledAtMs > 0`; visible by the first probe read at +1.5 s of boot | no `loadAdmission` section at steady state |
 | Plain `POST /session` while healthy | `200`, session created | `200`, session created |
 | External load | 30 `nice -n 19 yes` burners, `load1/12 = 2.12` | same burners, ratio 2.86 when the base arm ran |
 | **`POST /standalone/sessions` under load** (documented fresh-child path) | **`503`**, `code: system_overloaded`, `reason: cpu_load`, `loadRatio: 2.03`, `eventLoopLagP99Ms: 22.2`, `Retry-After: 15` | **`200`**, standalone session created (`sourceType: "standalone"`) |
@@ -45,7 +45,7 @@ The PR gates **fresh child allocation** on sustained host load: three consecutiv
 
 Five first-pass cells were mis-instrumented and were re-measured; none of them is counted as a failure:
 
-- `head:status-shape-healthy` and `optout:status-disabled` read `/daemon/status` in the first ~0.1 s after the listening line, before the runtime was wired, so `loadAdmission` was absent. The focused probe shows the field first at 1.5 s (`enabled:true, sampledAtMs:0`) and the opt-out daemon reports `enabled:false, overloaded:false` after wiring.
+- `head:status-shape-healthy` and `optout:status-disabled` read `/daemon/status` within ~0.1 s of the listening line, before the runtime was wired, so `loadAdmission` was absent. The focused probe's first read at +1.5 s of boot saw the field (`enabled:true, sampledAtMs:0`), and the opt-out daemon reports `enabled:false, overloaded:false` after wiring.
 - `head:refusal-allocated-no-child` / `base:created-session-allocated-a-child` counted direct children of the daemon PID (always 0 — the ACP child is not a direct child). Replaced by `runtime.memory.activeAcpChildren`; the daemon prewarms one child at boot, and a plain create attaches to it rather than allocating.
 - `probe:activeAcpChildren-tracks-creation` and `standalone:head-no-child-after-refusal` expected a zero baseline, but the prewarmed child makes the baseline 1. The observed value after both a plain create and a refused standalone create stayed at that single prewarmed child.
 - `probe:refused-create-503` expected a plain `POST /session {}` to be gated; it is a warm attach (no fresh child) and is documented as not gated. The gated paths above replace it.
