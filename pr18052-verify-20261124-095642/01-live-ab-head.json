@@ -1,0 +1,160 @@
+{
+  "arm": "head",
+  "cores": 12,
+  "loadTarget": 2.05,
+  "passed": 15,
+  "total": 15,
+  "results": [
+    {
+      "id": "healthy:standalone-create-admitted",
+      "arm": "head",
+      "expected": 200,
+      "actual": 200,
+      "pass": true
+    },
+    {
+      "id": "head:status-has-loadAdmission",
+      "arm": "head",
+      "expected": "enabled=true overloaded=false sampledAtMs>0",
+      "actual": {
+        "enabled": true,
+        "overloaded": false,
+        "sampledAtMs": 1795514977677
+      },
+      "pass": true
+    },
+    {
+      "id": "load:own-oracle-ratio>=2.05",
+      "arm": "head",
+      "expected": ">=2.05",
+      "actual": 2.055,
+      "pass": true
+    },
+    {
+      "id": "head:status-overloaded-latched",
+      "arm": "head",
+      "expected": "overloaded=true",
+      "actual": {
+        "overloaded": true,
+        "reason": "cpu_load",
+        "loadRatio": 2.1241666666666665
+      },
+      "pass": true
+    },
+    {
+      "id": "head:status-issue-system_overloaded",
+      "arm": "head",
+      "expected": "issues[] has code=system_overloaded",
+      "actual": {
+        "code": "system_overloaded",
+        "severity": "warning"
+      },
+      "pass": true
+    },
+    {
+      "id": "head:standalone-create-refused-under-load",
+      "arm": "head",
+      "expected": 503,
+      "actual": 503,
+      "pass": true
+    },
+    {
+      "id": "head:refusal-contract",
+      "arm": "head",
+      "expected": "code=system_overloaded + Retry-After=15 + numeric loadRatio/eventLoopLagP99Ms",
+      "actual": {
+        "code": "system_overloaded",
+        "retryAfter": "15",
+        "loadRatio": 2.1241666666666665,
+        "eventLoopLagP99Ms": 23.969791,
+        "reason": "cpu_load"
+      },
+      "pass": true
+    },
+    {
+      "id": "head:refusal-quotes-real-load",
+      "arm": "head",
+      "expected": "loadRatio >= 2.05",
+      "actual": 2.1241666666666665,
+      "pass": true
+    },
+    {
+      "id": "head:warm-prompt-not-gated",
+      "arm": "head",
+      "expected": "not 503 system_overloaded",
+      "actual": {
+        "status": 202
+      },
+      "pass": true
+    },
+    {
+      "id": "head:cancel-not-gated",
+      "arm": "head",
+      "expected": "not 503 system_overloaded",
+      "actual": {
+        "status": 204
+      },
+      "pass": true
+    },
+    {
+      "id": "optout:status-disabled",
+      "arm": "head",
+      "expected": "enabled=false overloaded=false",
+      "actual": {
+        "enabled": false,
+        "overloaded": false
+      },
+      "pass": true
+    },
+    {
+      "id": "optout:create-admitted-under-load",
+      "arm": "head",
+      "expected": 200,
+      "actual": 200,
+      "pass": true
+    },
+    {
+      "id": "recovery:own-oracle-ratio<1.0",
+      "arm": "head",
+      "expected": "<1.0",
+      "actual": 0.958,
+      "pass": true
+    },
+    {
+      "id": "recovery:overload-cleared",
+      "arm": "head",
+      "expected": "overloaded=false",
+      "actual": {
+        "overloaded": false,
+        "reason": null
+      },
+      "pass": true
+    },
+    {
+      "id": "recovery:refused-id-reused",
+      "arm": "head",
+      "expected": 200,
+      "actual": 200,
+      "pass": true
+    }
+  ],
+  "logs": [
+    "[head] daemon listening on http://127.0.0.1:35753 (cores=12)",
+    "PASS healthy:standalone-create-admitted  expected=200 actual=200",
+    "PASS head:status-has-loadAdmission  expected=enabled=true overloaded=false sampledAtMs>0 actual={\"enabled\":true,\"overloaded\":false,\"sampledAtMs\":1795514977677}",
+    "[head] burner load ratio=2.06 (30 burners, 12 cores)",
+    "PASS load:own-oracle-ratio>=2.05  expected=>=2.05 actual=2.055",
+    "PASS head:status-overloaded-latched  expected=overloaded=true actual={\"overloaded\":true,\"reason\":\"cpu_load\",\"loadRatio\":2.1241666666666665}",
+    "PASS head:status-issue-system_overloaded  expected=issues[] has code=system_overloaded actual={\"code\":\"system_overloaded\",\"severity\":\"warning\"}",
+    "PASS head:standalone-create-refused-under-load  expected=503 actual=503",
+    "PASS head:refusal-contract  expected=code=system_overloaded + Retry-After=15 + numeric loadRatio/eventLoopLagP99Ms actual={\"code\":\"system_overloaded\",\"retryAfter\":\"15\",\"loadRatio\":2.1241666666666665,\"eventLoopLagP99Ms\":23.969791,\"reason\":\"cpu_load\"}",
+    "PASS head:refusal-quotes-real-load  expected=loadRatio >= 2.05 actual=2.1241666666666665",
+    "PASS head:warm-prompt-not-gated  expected=not 503 system_overloaded actual={\"status\":202}",
+    "PASS head:cancel-not-gated  expected=not 503 system_overloaded actual={\"status\":204}",
+    "PASS optout:status-disabled  expected=enabled=false overloaded=false actual={\"enabled\":false,\"overloaded\":false}",
+    "PASS optout:create-admitted-under-load  expected=200 actual=200",
+    "PASS recovery:own-oracle-ratio<1.0  expected=<1.0 actual=0.958",
+    "PASS recovery:overload-cleared  expected=overloaded=false actual={\"overloaded\":false,\"reason\":null}",
+    "PASS recovery:refused-id-reused  expected=200 actual=200"
+  ]
+}
