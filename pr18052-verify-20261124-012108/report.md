@@ -1,4 +1,4 @@
-**Verdict: findings** — 33 executed assertions passed; the only failed assertions are the two carried Suggestions (S1, S2), both re-measured at head `81f7aa4bbc` and both still standing. The A/B is clean: under the same real host load (`load1 / 12 cores` = 2.02–2.12) the head refuses fresh-child creation with REST `503`, `code: system_overloaded`, `Retry-After: 15` and its real readings, while the base admits the identical request with `200`.
+**Verdict: findings** — 33 executed assertions passed after re-measuring six mis-instrumented first-pass cells (see «Harness corrections»); the only remaining failed assertions are the two carried Suggestions (S1, S2), both re-measured at head `81f7aa4bbc` and both still standing. The A/B is clean: under the same real host load (`load1 / 12 cores` = 2.02–2.12) the head refuses fresh-child creation with REST `503`, `code: system_overloaded`, `Retry-After: 15` and its real readings, while the base admits the identical request with `200`.
 
 <details>
 <summary>中文摘要</summary>
@@ -24,7 +24,7 @@ The previous round at `13345ab766` reported two Suggestions. Both are re-measure
 
 ## Central claim and A/B
 
-The PR gates **fresh child allocation** on sustained host load: three consecutive 2 s samples at `load1 / cores >= 2.0` (or event-loop p99 >= 1000 ms) latch overload; fresh spawns then return `503 system_overloaded` with `Retry-After: 15`; live sessions and the control plane stay usable; the gate releases after three samples below its exit thresholds; `--no-load-admission` disables it. The harness reads `/proc/loadavg` and `/proc/loadavg`-derived ratio itself, so both arms are judged by an oracle independent of the PR's own status field.
+The PR gates **fresh child allocation** on sustained host load: three consecutive 2 s samples at `load1 / cores >= 2.0` (or event-loop p99 >= 1000 ms) latch overload; fresh spawns then return `503 system_overloaded` with `Retry-After: 15`; live sessions and the control plane stay usable; the gate releases after three samples below its exit thresholds; `--no-load-admission` disables it. The harness reads `/proc/loadavg` and derives the ratio from the host's 12 cores itself, so both arms are judged by an oracle independent of the PR's own status field.
 
 | Cell | Head `81f7aa4b` | Base `c1bf0ffb` |
 | --- | --- | --- |
@@ -43,7 +43,7 @@ The PR gates **fresh child allocation** on sustained host load: three consecutiv
 
 ### Harness corrections (disclosed, not PR defects)
 
-Five first-pass cells were mis-instrumented and were re-measured; none of them is counted as a failure:
+Six first-pass assertions failed for instrumentation reasons and were re-measured; one more (`head:refusal-allocated-no-child`) passed vacuously and is replaced by the same corrected oracle. None of them is counted as a failure:
 
 - `head:status-shape-healthy` and `optout:status-disabled` read `/daemon/status` within ~0.1 s of the listening line, before the runtime was wired, so `loadAdmission` was absent. The focused probe's first read at +1.5 s of boot saw the field (`enabled:true, sampledAtMs:0`), and the opt-out daemon reports `enabled:false, overloaded:false` after wiring.
 - `head:refusal-allocated-no-child` / `base:created-session-allocated-a-child` counted direct children of the daemon PID (always 0 — the ACP child is not a direct child). Replaced by `runtime.memory.activeAcpChildren`; the daemon prewarms one child at boot, and a plain create attaches to it rather than allocating.
@@ -64,13 +64,13 @@ The rest of the interval is the `origin/main` merge (#17896, #18150, #18092, #17
 
 `EVENT_LOOP_LAG_ENTER_MS` is exported and `load-admission.test.ts` builds its boundary inputs from the constant (`:111`, `:135`, `:143`). Mutation M5 changed `1_000` to `10_000`; the suite still passed **25/25** at `81f7aa4b`. The live round drove `cpu_load`, not the lag path, so no executed evidence fixes the documented `p99 >= 1000 ms` criterion. Add a literal-boundary case (`999` healthy, `1000` enters after the three-sample sustain) or assert the exported constant is `1000`.
 
-Reproduce: `mutations/mutations.json` row M5 (`report-M5.json`: `numPassedTests: 25`, `numFailedTests: 0`). The mutated suite wrote its JSON but did not exit (the monitor keeps a handle); the runner read the completed report and terminated teardown.
+Reproduce: the mutation table's M5 row in [07-mutations.json](https://github.com/wenshao/qwen-code/blob/asserts/pr18052-verify-20261124-012108/07-mutations.json) (`passed: 25`, `failed: 0`). The mutated suite wrote its JSON report; the runner read the completed report and then terminated teardown.
 
 ### S2 (Suggestion) — rebuild-path monitor disposal is still not pinned
 
 Deleting `loadAdmissionMonitor?.dispose()` before a `buildRuntime` re-entry (M9, `run-qwen-serve.ts:6083`) left `run-qwen-serve-load-admission.test.ts` at **4/4**. The line prevents a daemon rebuild from leaving the old 2 s sampler and histogram alive beside the new monitor. Add a rebuild case that asserts the first monitor's `dispose` runs before the second `createLoadAdmissionMonitor` and that only one sampler remains. Test gap, not a current behaviour defect.
 
-Reproduce: `mutations/mutations.json` row M9. The mutated suite wrote 4/4 and did not exit (the undisposed interval keeps a handle); the runner terminated teardown.
+Reproduce: the M9 row (and the killed M9C control, retried in [08-mutations-m9c-rerun.json](https://github.com/wenshao/qwen-code/blob/asserts/pr18052-verify-20261124-012108/08-mutations-m9c-rerun.json)) in the same mutations file. The mutated suite wrote 4/4; the runner read the completed report and then terminated teardown.
 
 ## Corrections
 
